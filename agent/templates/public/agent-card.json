@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "display_name": "Replace with a public display name",
+  "description": "A short, user-approved public introduction.",
+  "interests": [],
+  "conversation_style": "Describe the public-facing conversation style.",
+  "updated_at": "replace-with-rfc3339-timestamp"
+}

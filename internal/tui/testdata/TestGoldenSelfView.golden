@@ -1,0 +1,23 @@
+Raminga TUI  test-version  Self
+*1:Self  2:Peers  3:Connect  4:Chat  5:Outbox  6:Diagnostics 
+────────────────────────────────────────────────────────────────────────────────
+Peer ID:    QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+Node ID:    node-1
+Version:    test  protocol=/raminga/http/1.0.0
+Data dir:   /tmp/fake
+
+Listen addrs:
+  - /ip4/0.0.0.0/tcp/4001
+
+Announce addrs:
+  - /ip4/203.0.113.1/tcp/4001
+
+Selectable text fallback (copy with c for OSC52):
+  QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+  /ip4/0.0.0.0/tcp/4001
+
+
+
+
+
+1-6 views · i edit · r report · m stop · c copy · x cancel · ? help · q/^C quit

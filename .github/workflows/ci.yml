@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  go-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The Makefile defaults these to .local/ for local work. Point them at the
+      # directories setup-go caches, or every run downloads and compiles again.
+      GOMODCACHE: /home/runner/go/pkg/mod
+      GOCACHE: /home/runner/.cache/go-build
+      GOLANGCI_LINT_CACHE: /home/runner/.cache/golangci-lint
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          # A cache key is never overwritten, so changing how the cache is built
+          # needs a new key. Including this file does that.
+          cache-dependency-path: |
+            go.sum
+            .github/workflows/ci.yml
+      - uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/golangci-lint
+          key: golangci-lint-${{ runner.os }}-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.sha }}
+          restore-keys: |
+            golangci-lint-${{ runner.os }}-${{ hashFiles('go.sum', '.golangci.yml') }}-
+      - run: make check

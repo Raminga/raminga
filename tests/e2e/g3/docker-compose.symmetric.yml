@@ -1,0 +1,174 @@
+# Raminga G3 symmetric-NAT / CGNAT-like facility.
+#
+# Both peers sit behind strict NAT routers using MASQUERADE --random-fully, so
+# the external mapping depends on the destination (port-restricted / symmetric
+# behaviour). Only the WAN relay is reachable. Direct is never expected; the
+# scenario must prove relay-only diagnosis and must never report direct.
+# Docker simulation only, not real CGNAT.
+
+x-node: &node
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 20s
+  environment:
+    RAMINGA_DATA_DIR: /data
+    RAMINGA_CONFIG_TEMPLATE: /config.toml
+    RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+  healthcheck:
+    test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+    interval: 1s
+    timeout: 3s
+    retries: 90
+    start_period: 2s
+
+x-router: &router
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 10s
+  cap_add:
+    - NET_ADMIN
+  sysctls:
+    - net.ipv4.ip_forward=1
+    - net.ipv4.conf.all.forwarding=1
+    - net.ipv4.conf.default.forwarding=1
+    - net.ipv4.conf.all.rp_filter=0
+    - net.ipv4.conf.default.rp_filter=0
+    - net.netfilter.nf_conntrack_udp_timeout=30
+    - net.netfilter.nf_conntrack_udp_timeout_stream=30
+  healthcheck:
+    test: ["CMD-SHELL", "test -f /run/nat-ready"]
+    interval: 2s
+    timeout: 3s
+    retries: 45
+    start_period: 10s
+
+services:
+  relay:
+    <<: *node
+    hostname: relay
+    networks:
+      wan:
+        ipv4_address: 11.42.0.2
+        interface_name: wan0
+    volumes:
+      - relay-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/relay.toml:/config.toml:ro
+
+  a:
+    <<: *node
+    hostname: a
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.254.1.2
+      OTHER_LAN_SUBNET: 10.254.2.0/24
+    networks:
+      lan-a:
+        ipv4_address: 10.254.1.10
+        interface_name: lan0
+    volumes:
+      - a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  b:
+    <<: *node
+    hostname: b
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.254.2.2
+      OTHER_LAN_SUBNET: 10.254.1.0/24
+    networks:
+      lan-b:
+        ipv4_address: 10.254.2.10
+        interface_name: lan0
+    volumes:
+      - b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b.toml:/config.toml:ro
+    depends_on:
+      nat-b:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  nat-a:
+    <<: *router
+    hostname: nat-a
+    entrypoint: ["/app/tests/e2e/g3/nat-router-symmetric.sh"]
+    networks:
+      wan:
+        ipv4_address: 11.42.0.10
+        interface_name: wan0
+      lan-a:
+        ipv4_address: 10.254.1.2
+        interface_name: lan0
+    volumes:
+      - ./nat-router-symmetric.sh:/app/tests/e2e/g3/nat-router-symmetric.sh:ro
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_IP: 11.42.0.10
+      WAN_GATEWAY: 11.42.0.1
+      WAN_SUBNET: 11.42.0.0/24
+      LAN_IP: 10.254.1.2
+      LAN_SUBNET: 10.254.1.0/24
+      OTHER_LAN_SUBNET: 10.254.2.0/24
+      MASQUERADE_RANDOM_FULLY: "1"
+
+  nat-b:
+    <<: *router
+    hostname: nat-b
+    entrypoint: ["/app/tests/e2e/g3/nat-router-symmetric.sh"]
+    networks:
+      wan:
+        ipv4_address: 11.42.0.11
+        interface_name: wan0
+      lan-b:
+        ipv4_address: 10.254.2.2
+        interface_name: lan0
+    volumes:
+      - ./nat-router-symmetric.sh:/app/tests/e2e/g3/nat-router-symmetric.sh:ro
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_IP: 11.42.0.11
+      WAN_GATEWAY: 11.42.0.1
+      WAN_SUBNET: 11.42.0.0/24
+      LAN_IP: 10.254.2.2
+      LAN_SUBNET: 10.254.2.0/24
+      OTHER_LAN_SUBNET: 10.254.1.0/24
+      MASQUERADE_RANDOM_FULLY: "1"
+
+networks:
+  wan:
+    ipam:
+      config:
+        - subnet: 11.42.0.0/24
+  lan-a:
+    ipam:
+      config:
+        - subnet: 10.254.1.0/24
+  lan-b:
+    ipam:
+      config:
+        - subnet: 10.254.2.0/24
+
+volumes:
+  relay-data:
+  a-data:
+  b-data:

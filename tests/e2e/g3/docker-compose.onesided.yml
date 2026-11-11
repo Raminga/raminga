@@ -1,0 +1,119 @@
+# Raminga G3 one-sided reachability facility.
+#
+# pub is WAN-reachable. peer sits behind a strict conntrack NAT router with no
+# inbound port mapping, so only the restricted side can dial. No shared
+# management network, no published host ports. Docker simulation only.
+
+x-node: &node
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 20s
+  environment:
+    RAMINGA_DATA_DIR: /data
+    RAMINGA_CONFIG_TEMPLATE: /config.toml
+    RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+  healthcheck:
+    test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+    interval: 1s
+    timeout: 3s
+    retries: 90
+    start_period: 2s
+
+x-router: &router
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 10s
+  cap_add:
+    - NET_ADMIN
+  sysctls:
+    - net.ipv4.ip_forward=1
+    - net.ipv4.conf.all.forwarding=1
+    - net.ipv4.conf.default.forwarding=1
+    - net.ipv4.conf.all.rp_filter=0
+    - net.ipv4.conf.default.rp_filter=0
+    - net.netfilter.nf_conntrack_udp_timeout=30
+    - net.netfilter.nf_conntrack_udp_timeout_stream=30
+  healthcheck:
+    test: ["CMD-SHELL", "test -f /run/nat-ready"]
+    interval: 2s
+    timeout: 3s
+    retries: 45
+    start_period: 10s
+
+services:
+  pub:
+    <<: *node
+    hostname: pub
+    cap_add:
+      - NET_ADMIN
+    networks:
+      wan:
+        ipv4_address: 11.43.0.10
+        interface_name: wan0
+    volumes:
+      - pub-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/pub.toml:/config.toml:ro
+    depends_on:
+      nat:
+        condition: service_healthy
+
+  peer:
+    <<: *node
+    hostname: peer
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.252.1.2
+      OTHER_LAN_SUBNET: 10.252.2.0/24
+    networks:
+      lan:
+        ipv4_address: 10.252.1.10
+        interface_name: lan0
+    volumes:
+      - peer-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/peer.toml:/config.toml:ro
+    depends_on:
+      nat:
+        condition: service_healthy
+
+  nat:
+    <<: *router
+    hostname: nat
+    entrypoint: ["/app/tests/e2e/nat-router.sh"]
+    networks:
+      wan:
+        ipv4_address: 11.43.0.2
+        interface_name: wan0
+      lan:
+        ipv4_address: 10.252.1.2
+        interface_name: lan0
+    volumes:
+      - ../nat-router.sh:/app/tests/e2e/nat-router.sh:ro
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_IP: 11.43.0.2
+      WAN_GATEWAY: 11.43.0.1
+      WAN_SUBNET: 11.43.0.0/24
+      LAN_IP: 10.252.1.2
+      LAN_SUBNET: 10.252.1.0/24
+      OTHER_LAN_SUBNET: 10.252.2.0/24
+
+networks:
+  wan:
+    ipam:
+      config:
+        - subnet: 11.43.0.0/24
+  lan:
+    ipam:
+      config:
+        - subnet: 10.252.1.0/24
+
+volumes:
+  pub-data:
+  peer-data:

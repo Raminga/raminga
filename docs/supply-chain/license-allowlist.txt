@@ -1,0 +1,13 @@
+# G4 go-licenses Unknown allowlist. Each entry is module,real license,reason.
+# The actual LICENSE/LICENSE.md file in the module cache was inspected.
+github.com/jackpal/go-nat-pmp,Apache-2.0,LICENSE is the Apache-2.0 text with leading spaces; the classifier did not match it
+github.com/multiformats/go-base36,Apache-2.0 OR MIT,LICENSE.md is the Protocol Labs "Permissive License Stack" (Apache-2.0 OR MIT), not a single SPDX license file
+github.com/segmentio/asm/ascii,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/base64,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/cpu,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/cpu/arm,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/cpu/arm64,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/cpu/cpuid,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/cpu/x86,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/internal/unsafebytes,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it
+github.com/segmentio/asm/keyset,MIT-0,module github.com/segmentio/asm@v1.2.1 LICENSE is the MIT No Attribution text (pulled in via the MCP Go SDK); the classifier did not match it

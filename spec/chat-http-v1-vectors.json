@@ -1,0 +1,24 @@
+{
+  "protocol": "/raminga/http/1.0.0",
+  "path": "/chat",
+  "request": {
+    "authenticated_peer_id": "12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6",
+    "body": {
+      "message_id": "m1",
+      "sender_peer_id": "12D3KooWLaHQeWmPbiVnVe7Bgu2HbXcCQPBV8ioP5XgpQFPJPSEq",
+      "sender_node_id": "forged-node",
+      "text": "hello raminga",
+      "sent_at_unix_ms": 1700000000000
+    },
+    "expected_message_id": "m1"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "message_id": "m1",
+      "ack_id": "a1",
+      "accepted": true,
+      "acked_at_unix_ms": 1700000000001
+    }
+  }
+}

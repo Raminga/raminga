@@ -1,0 +1,20 @@
+{
+  "name": "raminga-plugins",
+  "interface": {
+    "displayName": "Raminga Plugins"
+  },
+  "plugins": [
+    {
+      "name": "raminga",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Communication"
+    }
+  ]
+}

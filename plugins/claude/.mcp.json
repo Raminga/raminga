@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "raminga": {
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/raminga-launcher.sh"
+      ]
+    }
+  }
+}

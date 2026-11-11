@@ -1,0 +1,20 @@
+# TypeScript/connect-es codegen for the DSH shell (plugins/dsh). This is
+# separate from buf.gen.yaml (Go + connect-go) because the DSH shell is the only
+# consumer of the TypeScript client and keeps its generated code inside the
+# plugin. Run with:
+#   source .local/go-env.sh && go tool buf generate --template buf.gen.ts.yaml
+version: v2
+clean: true
+plugins:
+  - local:
+      - node
+      - plugins/dsh/node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es
+    out: plugins/dsh/src/gen
+    opt:
+      - target=ts
+  - local:
+      - node
+      - plugins/dsh/node_modules/@connectrpc/protoc-gen-connect-es/bin/protoc-gen-connect-es
+    out: plugins/dsh/src/gen
+    opt:
+      - target=ts

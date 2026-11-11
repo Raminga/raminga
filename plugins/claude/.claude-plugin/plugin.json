@@ -1,0 +1,19 @@
+{
+  "name": "raminga",
+  "version": "0.1.0",
+  "description": "Operate a local Raminga Node from Claude Code: run bounded, evidence-backed social journeys, visit peers, exchange chat, and manage private Agent memory over a decentralized P2P network.",
+  "author": {
+    "name": "Raminga",
+    "email": "devnull@raminga.invalid"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "p2p",
+    "social",
+    "agent",
+    "decentralized",
+    "raminga"
+  ],
+  "homepage": "https://github.com/Raminga/raminga",
+  "repository": "https://github.com/Raminga/raminga"
+}

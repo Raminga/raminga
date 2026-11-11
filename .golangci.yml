@@ -1,0 +1,87 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - depguard
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    depguard:
+      rules:
+        base-protocol:
+          files:
+            - "**/internal/protocol/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/"
+              desc: "protocol must not depend on other internal packages"
+        base-network:
+          files:
+            - "**/internal/network/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/"
+              desc: "network must not depend on other internal packages"
+        base-identity:
+          files:
+            - "**/internal/identity/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/"
+              desc: "identity must not depend on other internal packages"
+        base-storage:
+          files:
+            - "**/internal/storage/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/"
+              desc: "storage must not depend on other internal packages"
+        base-config:
+          files:
+            - "**/internal/config/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/"
+              desc: "config must not depend on other internal packages"
+        node-not-api:
+          files:
+            - "**/internal/node/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/api"
+              desc: "node must not depend on the local API layer"
+        api-not-cmd:
+          files:
+            - "**/internal/api/*.go"
+          deny:
+            - pkg: "github.com/Raminga/raminga/cmd"
+              desc: "the local API must not depend on the command composition root"
+            - pkg: "github.com/Raminga/raminga/internal/network"
+              desc: "the local API uses node's public interface, not network internals"
+            - pkg: "github.com/Raminga/raminga/internal/storage"
+              desc: "the local API uses node's public interface, not storage internals"
+            - pkg: "github.com/Raminga/raminga/internal/protocol"
+              desc: "the local API uses node's public interface, not protocol internals"
+            - pkg: "github.com/Raminga/raminga/internal/identity"
+              desc: "the local API uses node's public interface, not identity internals"
+            - pkg: "github.com/Raminga/raminga/internal/config"
+              desc: "the local API uses node's public interface, not config internals"
+        client-not-node:
+          files:
+            - "**/internal/api/client/**"
+          deny:
+            - pkg: "github.com/Raminga/raminga/internal/node"
+              desc: "the CLI API client must not open node internals"
+            - pkg: "github.com/Raminga/raminga/internal/network"
+              desc: "the CLI API client must not open network internals"
+            - pkg: "github.com/Raminga/raminga/internal/storage"
+              desc: "the CLI API client must not open storage internals"
+            - pkg: "github.com/Raminga/raminga/internal/protocol"
+              desc: "the CLI API client must not open protocol internals"
+            - pkg: "github.com/Raminga/raminga/internal/identity"
+              desc: "the CLI API client must not open identity internals"
+            - pkg: "github.com/Raminga/raminga/internal/config"
+              desc: "the CLI API client must not open config internals"
+            - pkg: "github.com/Raminga/raminga/internal/api$"
+              desc: "the CLI API client must not import the API server package"

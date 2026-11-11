@@ -1,0 +1,224 @@
+# G4 security/stability Docker topology. Every service is on one isolated
+# bridge; there is no published host port. The attacker image is test-only.
+#
+# Two-phase start: friend + relay providers first (so their Peer IDs are known),
+# then victim-strict (allow list) and relay-normal (known relay) with generated
+# configs. Docker is a simulation, not public-network security evidence.
+
+x-node: &node
+  image: raminga-g4-e2e:local
+  init: true
+  stop_grace_period: 10s
+  environment:
+    RAMINGA_DATA_DIR: /data
+    RAMINGA_CONFIG_TEMPLATE: /config.toml
+    RAMINGA_LOG_LEVEL: info
+    GOLOG_LOG_LEVEL: ${G4_LIBP2P_LOG:-error}
+  healthcheck:
+    test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+    interval: 1s
+    timeout: 3s
+    retries: 90
+    start_period: 2s
+  networks:
+    g4net:
+      aliases: []
+
+x-victim: &victim
+  <<: *node
+  volumes:
+    - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/config.toml:/config.toml:ro
+
+services:
+  friend:
+    <<: *node
+    hostname: friend
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.12
+    volumes:
+      - friend-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/friend.toml:/config.toml:ro
+
+  victim-open:
+    <<: *victim
+    hostname: victim-open
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.10
+    volumes:
+      - victim-open-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/victim-open.toml:/config.toml:ro
+
+  victim-strict:
+    <<: *victim
+    hostname: victim-strict
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.11
+    volumes:
+      - victim-strict-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/victim-strict.toml:/config.toml:ro
+
+  crash:
+    <<: *victim
+    hostname: crash
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.13
+    volumes:
+      - crash-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/crash.toml:/config.toml:ro
+
+  busy:
+    <<: *victim
+    hostname: busy
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.14
+    volumes:
+      - busy-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/busy.toml:/config.toml:ro
+
+  disk:
+    <<: *victim
+    hostname: disk
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.15
+    volumes:
+      - disk-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/disk.toml:/config.toml:ro
+
+  late:
+    <<: *victim
+    hostname: late
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.16
+    volumes:
+      - late-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/late.toml:/config.toml:ro
+
+  expiry:
+    <<: *victim
+    hostname: expiry
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.17
+    volumes:
+      - expiry-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/expiry.toml:/config.toml:ro
+
+  flap-a:
+    <<: *victim
+    hostname: flap-a
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_LOG_LEVEL: info
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.40
+    volumes:
+      - flap-a-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/flap-a.toml:/config.toml:ro
+
+  flap-b:
+    <<: *victim
+    hostname: flap-b
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_LOG_LEVEL: info
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+    cap_add:
+      - NET_ADMIN
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.41
+    volumes:
+      - flap-b-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/flap-b.toml:/config.toml:ro
+
+  relay-provider:
+    <<: *victim
+    hostname: relay-provider
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_LOG_LEVEL: info
+      GOLOG_LOG_LEVEL: debug
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.30
+    volumes:
+      - relay-provider-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/relay-provider.toml:/config.toml:ro
+
+  relay-normal:
+    <<: *victim
+    hostname: relay-normal
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.31
+    volumes:
+      - relay-normal-data:/data
+      - ${G4_CONFIG_DIR:?G4_CONFIG_DIR is required}/relay-normal.toml:/config.toml:ro
+
+  attacker:
+    image: raminga-g4-e2e:local
+    init: true
+    hostname: attacker
+    entrypoint: ["tail", "-f", "/dev/null"]
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.20
+
+  badack:
+    image: raminga-g4-e2e:local
+    init: true
+    hostname: badack
+    environment:
+      RAMINGA_DATA_DIR: /data
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        raminga-attacker -mode listen-ack -identity /data/attacker.key
+        -listen /ip4/0.0.0.0/tcp/4001 -ready /data/ready.json
+        -ack-mode wrong-id -duration 0 &
+        exec tail -f /dev/null
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/ready.json"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+    volumes:
+      - badack-data:/data
+    networks:
+      g4net:
+        ipv4_address: 10.251.0.21
+
+networks:
+  g4net:
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 10.251.0.0/24
+
+volumes:
+  friend-data:
+  victim-open-data:
+  victim-strict-data:
+  crash-data:
+  busy-data:
+  disk-data:
+  late-data:
+  expiry-data:
+  flap-a-data:
+  flap-b-data:
+  relay-provider-data:
+  relay-normal-data:
+  badack-data:

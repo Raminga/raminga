@@ -1,0 +1,23 @@
+Raminga TUI  test-version  Diagnostics
+ 1:Self  2:Peers  3:Connect  4:Chat  5:Outbox *6:Diagnostics 
+────────────────────────────────────────────────────────────────────────────────
+Reachability: unknown
+AutoNAT: enabled=true state=unknown probe_peers=
+DCUtR: attempts=2 successes=0 failures=2
+DHT: enabled=true mode=client protocol=/raminga/kad/1.0.0 routing=0 last_error=
+Resources: conns=0/256 streams=0/1024 memory=0 fds=256 goroutines=12
+UPnP=false NAT-PMP=false STUN=false
+Relay QmT78zSuBmuS4z925W…: status=active reservation=active relayed=/ip4/203.0.113.2/tcp/4001/p2p/QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o/p2p-circuit/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N error=
+→ AutoNAT: reachability unknown (no Raminga probe peer); this is not "unreachable".
+→ DCUtR: 2 attempt(s), 0 success(es), 2 failure(s); no direct path has been proven.
+→ DHT routing table is empty; bootstrap/discovery may be incomplete.
+
+
+
+
+
+
+
+
+
+1-6 views · i edit · r report · m stop · c copy · x cancel · ? help · q/^C quit

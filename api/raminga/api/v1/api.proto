@@ -1,0 +1,1193 @@
+syntax = "proto3";
+
+// Package raminga.api.v1 is the local, language-neutral Raminga node API.
+// It is served as Connect-RPC only on a Unix domain socket in the data dir,
+// never on a TCP or UDP network listener.
+package raminga.api.v1;
+
+option go_package = "github.com/Raminga/raminga/gen/raminga/api/v1;apiv1";
+
+// RamingaService is the G1 local API subset.
+service RamingaService {
+  // Status returns node identity, listen addresses and current peers.
+  rpc Status(StatusRequest) returns (StatusResponse);
+
+  // Connect dials a peer by multiaddr or, when only a Peer ID is supplied,
+  // resolves candidates from the PeerStore, SQLite cache and DHT. It reports
+  // every attempted address and whether an existing connection was reused.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+
+  // SendChat sends one HTTP chat message and reports whether a matching
+  // ACK was received before the deadline.
+  rpc SendChat(SendChatRequest) returns (SendChatResponse);
+
+  // RecentMessages returns the most recent persisted messages.
+  rpc RecentMessages(RecentMessagesRequest) returns (RecentMessagesResponse);
+
+  // OutboxList returns durable unacknowledged outbound messages and bounds.
+  rpc OutboxList(OutboxListRequest) returns (OutboxListResponse);
+
+  // OutboxCancel cancels one pending outbox entry.
+  rpc OutboxCancel(OutboxCancelRequest) returns (OutboxCancelResponse);
+
+  // Events streams incoming chat, ACK and connection-change notifications.
+  rpc Events(EventsRequest) returns (stream EventsResponse);
+
+  // Peers lists live connections plus cached restart hints. Cached entries are
+  // never reported as online.
+  rpc Peers(PeersRequest) returns (PeersResponse);
+
+  // RelayStatus returns real Relay v2 reservation state and provider quotas.
+  rpc RelayStatus(RelayStatusRequest) returns (RelayStatusResponse);
+
+  // DhtStatus returns Raminga DHT diagnostics.
+  rpc DhtStatus(DhtStatusRequest) returns (DhtStatusResponse);
+
+  // DhtAddPeer manually adds one Raminga peer multiaddr to the PeerStore/cache.
+  rpc DhtAddPeer(DhtAddPeerRequest) returns (DhtAddPeerResponse);
+
+  // DhtFindPeer performs a real Raminga DHT lookup.
+  rpc DhtFindPeer(DhtFindPeerRequest) returns (DhtFindPeerResponse);
+
+  // ListFriends lists local friend records. Names and descriptions never
+  // leave the node in this task.
+  rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
+
+  // SetFriendName replaces the local name of an existing friend.
+  rpc SetFriendName(SetFriendNameRequest) returns (SetFriendNameResponse);
+
+  // SetFriendDescription replaces the local description of an existing friend.
+  rpc SetFriendDescription(SetFriendDescriptionRequest) returns (SetFriendDescriptionResponse);
+
+  // RemoveFriend deletes the local friend row. Pending outbox entries must be
+  // explicitly cancelled with cancel_pending.
+  rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse);
+
+  // SyncFriends regenerates public/friends.json immediately.
+  rpc SyncFriends(SyncFriendsRequest) returns (SyncFriendsResponse);
+
+  // Published lists the local public manifest after forcing a fresh scan.
+  // This is a local-only view; it is not exposed on the remote HTTP protocol.
+  rpc Published(PublishedRequest) returns (PublishedResponse);
+
+  // GetPeerManifest fetches one page of a remote peer's public manifest.
+  rpc GetPeerManifest(GetPeerManifestRequest) returns (GetPeerManifestResponse);
+
+  // GetPeerProfile fetches and returns a remote profile/index.md.
+  rpc GetPeerProfile(GetPeerProfileRequest) returns (GetPeerProfileResponse);
+
+  // GetPeerFriends returns a remote friends.json as untrusted claims.
+  rpc GetPeerFriends(GetPeerFriendsRequest) returns (GetPeerFriendsResponse);
+
+  // DownloadPeerFile downloads one manifest file with progress.
+  rpc DownloadPeerFile(DownloadPeerFileRequest) returns (stream DownloadPeerFileResponse);
+
+  // ConnectListedPeer adds temporary hints from a remote list and connects.
+  rpc ConnectListedPeer(ConnectListedPeerRequest) returns (ConnectListedPeerResponse);
+
+  // DisconnectPeer closes all current connections to one peer. It is a normal
+  // token-authenticated API; the peer may reconnect automatically if Relay/DHT
+  // or pending outbox activity uses it again.
+  rpc DisconnectPeer(DisconnectPeerRequest) returns (DisconnectPeerResponse);
+
+  // Shutdown gracefully stops the daemon. It is token-authenticated and only
+  // reachable over the local Unix socket. The response is written before the
+  // daemon closes the API and stops the node.
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+
+  // TestDisconnectPeer is a test-only RPC, unavailable unless
+  // --enable-test-api is set.
+  rpc TestDisconnectPeer(TestDisconnectPeerRequest) returns (TestDisconnectPeerResponse);
+
+  // TestPing is a test-only RPC, unavailable unless --enable-test-api is set.
+  rpc TestPing(TestPingRequest) returns (TestPingResponse);
+}
+
+// StatusRequest has no fields.
+message StatusRequest {}
+
+// StatusResponse describes the running node.
+message StatusResponse {
+  // peer_id is the libp2p Peer ID derived from the generated Ed25519 key.
+  string peer_id = 1;
+
+  // node_id is the logical Raminga node identifier.
+  string node_id = 2;
+
+  // listen_addrs are the configured libp2p listen multiaddrs.
+  repeated string listen_addrs = 3;
+
+  // version is the raminga binary version.
+  string version = 4;
+
+  // protocol_version is the cross-node chat transport/protocol string.
+  string protocol_version = 5;
+
+  // started_at_unix_ms is the daemon start time in Unix milliseconds.
+  int64 started_at_unix_ms = 6;
+
+  // peers lists currently connected peers.
+  repeated PeerStatus peers = 7;
+
+  // test_api_enabled reports whether test-only RPCs are enabled.
+  bool test_api_enabled = 8;
+
+  // data_dir is the absolute data directory in use.
+  string data_dir = 9;
+
+  // go_version is the Go toolchain used to build the binary.
+  string go_version = 10;
+
+  // advertised_addrs is the AddrsFactory output (IPv6-first when configured).
+  repeated string advertised_addrs = 11;
+
+  // network groups G2 diagnostics. Cached peers are never online.
+  NetworkStatus network = 12;
+
+  // connections lists every live libp2p connection, including parallel
+  // direct and relayed paths.
+  repeated ConnectionDetail connections = 13;
+
+  // content_warnings are scan-time omissions (oversize files, directory
+  // totals, unreadable entries). They are diagnostics, not failures.
+  repeated string content_warnings = 14;
+
+  // supervised is true when the daemon was started by systemd
+  // (INVOCATION_ID is set in its environment). The CLI refuses to stop or
+  // restart such a node directly so it cannot create a second unmanaged node.
+  bool supervised = 15;
+
+  // api_version is the local API contract version. Plugin shells compare it
+  // against their expected version and prompt for restart or upgrade on
+  // mismatch instead of failing an individual RPC.
+  string api_version = 16;
+
+  // current_time is the node's current time in UTC, formatted as RFC 3339
+  // (for example "2026-11-11T12:34:56Z"). Agents use it to timestamp private
+  // journey events instead of guessing a time. It is informational only and
+  // does not change api_version.
+  string current_time = 17;
+}
+
+// ConnectionDetail is one live libp2p connection.
+message ConnectionDetail {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+
+  // remote_multiaddr is the remote multiaddr.
+  string remote_multiaddr = 2;
+
+  // local_multiaddr is the local multiaddr.
+  string local_multiaddr = 3;
+
+  // direction is inbound or outbound.
+  string direction = 4;
+
+  // transport is tcp or quic.
+  string transport = 5;
+
+  // route is direct or relay.
+  string route = 6;
+
+  // relay_peer_id is the relay for a relayed connection.
+  string relay_peer_id = 7;
+
+  // direct is true only for a non-limited connection.
+  bool direct = 8;
+
+  // limited mirrors the libp2p Limited flag.
+  bool limited = 9;
+
+  // opened_at_unix_ms is the connection open time.
+  int64 opened_at_unix_ms = 10;
+}
+
+// PeerStatus describes one current libp2p connection.
+message PeerStatus {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+
+  // addrs are the remote multiaddrs of the current connection.
+  repeated string addrs = 2;
+
+  // direction is "inbound" or "outbound".
+  string direction = 3;
+
+  // transport is "tcp", "quic" or "unknown", derived from the multiaddr.
+  string transport = 4;
+
+  // direct is true only when the connection is not relay-limited.
+  bool direct = 5;
+
+  // limited is the libp2p connection stat Limited flag.
+  bool limited = 6;
+
+  // opened_at_unix_ms is the connection open time in Unix milliseconds.
+  int64 opened_at_unix_ms = 7;
+
+  // route is "direct" or "relay".
+  string route = 8;
+
+  // relay_peer_id is the relay for a relayed connection.
+  string relay_peer_id = 9;
+
+  // online is true only for a current connection, never for a cached hint.
+  bool online = 10;
+
+  // sources are cache sources such as bootstrap, known, pinned or manual.
+  repeated string sources = 11;
+}
+
+// ConnectRequest asks the node to dial one peer.
+message ConnectRequest {
+  // multiaddr optionally includes both the transport address and /p2p/<peer-id>.
+  string multiaddr = 1;
+
+  // peer_id optionally selects the peer when multiaddr is empty. The node
+  // resolves candidates from its PeerStore, SQLite cache and DHT.
+  string peer_id = 2;
+}
+
+// DialAttempt records one candidate address dialed for Connect or SendChat.
+message DialAttempt {
+  // multiaddr is the candidate transport multiaddr that was dialed.
+  string multiaddr = 1;
+
+  // source is "explicit", "peerstore", "cache" or "dht".
+  string source = 2;
+
+  // family is "ipv6", "ipv4", "dns", "relay" or "unknown".
+  string family = 3;
+
+  // ok is true only when this candidate established or reused a connection.
+  bool ok = 4;
+
+  // error is the real dial failure for this candidate.
+  string error = 5;
+
+  // backoff is true when go-libp2p refused the dial because the peer/address
+  // is in dial backoff. The public API does not expose the remaining duration.
+  bool backoff = 6;
+
+  // note explains a backoff or a non-fatal candidate condition.
+  string note = 7;
+}
+
+// ConnectResponse reports the established or reused connection.
+message ConnectResponse {
+  // peer_id is the dialed remote Peer ID.
+  string peer_id = 1;
+
+  // transport is "tcp", "quic" or "unknown".
+  string transport = 2;
+
+  // direct is true only for a non-relayed connection.
+  bool direct = 3;
+
+  // limited mirrors the libp2p connection stat Limited flag.
+  bool limited = 4;
+
+  // remote_multiaddr is the connected remote multiaddr.
+  string remote_multiaddr = 5;
+
+  // route is direct or relay.
+  string route = 6;
+
+  // relay_peer_id is the relay when route is relay.
+  string relay_peer_id = 7;
+
+  // reused is true when an already-open connection was returned without a
+  // new dial. The route/transport/address describe that existing connection.
+  bool reused = 8;
+
+  // requested_transport is the transport implied by an explicit multiaddr.
+  string requested_transport = 9;
+
+  // transport_changed is true when an explicit multiaddr requested a transport
+  // but the reused connection uses a different one.
+  bool transport_changed = 10;
+
+  // source is the candidate source that produced the used connection.
+  string source = 11;
+
+  // attempts lists every candidate dialed before success or final failure.
+  repeated DialAttempt attempts = 12;
+
+  // note explains reuse, transport mismatch or dial backoff.
+  string note = 13;
+
+}
+
+// SendChatRequest sends one chat message.
+message SendChatRequest {
+  // peer_id is the target peer. Either peer_id or multiaddr is required.
+  string peer_id = 1;
+
+  // multiaddr optionally dials the peer before sending.
+  string multiaddr = 2;
+
+  // text is the UTF-8 chat body.
+  string text = 3;
+
+  // agent_origin marks the send as issued by an Agent shell (MCP or DSH), not
+  // by a human TUI/CLI action. The daemon applies the prompt-injection fallback
+  // checks (private-data leaks and agent rate limits) only to flagged sends.
+  // Shells must set it; an older daemon would ignore the unknown field, which is
+  // why api_version is bumped so shells reject that combination.
+  bool agent_origin = 4;
+}
+
+// SendChatResponse reports the message ID and ACK outcome.
+message SendChatResponse {
+  // message_id is the sender-generated message identifier.
+  string message_id = 1;
+
+  // acked is true only when a matching ACK was received.
+  bool acked = 2;
+
+  // ack_message_id is the ACK's target message ID.
+  string ack_message_id = 3;
+
+  // ack_id is the receiver-generated ACK identifier.
+  string ack_id = 4;
+
+  // error is the failure reason when acked is false.
+  string error = 5;
+
+  // route is direct or relay for the connection used by the send.
+  string route = 6;
+
+  // transport is tcp or quic for the connection used by the send.
+  string transport = 7;
+
+  // relay_peer_id is the relay when route is relay.
+  string relay_peer_id = 8;
+
+  // remote_multiaddr is the address of the connection used by the send.
+  string remote_multiaddr = 9;
+
+  // reused is true when an existing connection was used without a new dial.
+  bool reused = 10;
+
+  // source is the candidate source that produced the connection.
+  string source = 11;
+
+  // attempts lists every candidate dialed before the send.
+  repeated DialAttempt attempts = 12;
+
+  // note explains reuse, transport mismatch or dial backoff.
+  string note = 13;
+
+  // outbox_status is pending, acked, failed or cancelled for this send.
+  string outbox_status = 14;
+
+  // outbox_attempts is the number of automatic resend attempts so far.
+  int32 outbox_attempts = 15;
+}
+
+// RecentMessagesRequest asks for persisted messages.
+message RecentMessagesRequest {
+  // limit is the maximum number of messages to return (1..500).
+  uint32 limit = 1;
+}
+
+// RecentMessagesResponse contains persisted messages, newest first.
+message RecentMessagesResponse {
+  // messages is the returned page.
+  repeated StoredMessage messages = 1;
+}
+
+// OutboxListRequest asks for durable outbox entries.
+message OutboxListRequest {
+  // limit is the maximum number of entries (1..500, default 100).
+  uint32 limit = 1;
+}
+
+// OutboxListResponse contains outbox entries and accounting.
+message OutboxListResponse {
+  repeated OutboxEntry entries = 1;
+  OutboxStats stats = 2;
+}
+
+// OutboxEntry is one durable unacknowledged outbound message.
+message OutboxEntry {
+  string message_id = 1;
+  string peer_id = 2;
+  string text = 3;
+  string multiaddr = 12;
+  string status = 4;
+  int32 attempts = 5;
+  int32 bytes = 6;
+  string last_error = 7;
+  int64 created_at_unix_ms = 8;
+  int64 expires_at_unix_ms = 9;
+  int64 next_attempt_at_unix_ms = 10;
+  int64 updated_at_unix_ms = 11;
+}
+
+// OutboxStats is the bounded outbox accounting view.
+message OutboxStats {
+  int32 pending = 1;
+  int32 acked = 2;
+  int32 failed = 3;
+  int32 cancelled = 4;
+  int64 pending_bytes = 5;
+}
+
+// OutboxCancelRequest identifies one entry.
+message OutboxCancelRequest {
+  string message_id = 1;
+}
+
+// OutboxCancelResponse reports the cancellation.
+message OutboxCancelResponse {
+  bool cancelled = 1;
+  string status = 2;
+}
+
+// StoredMessage is one persisted chat message and its ACK state.
+message StoredMessage {
+  // message_id is the sender-generated message identifier.
+  string message_id = 1;
+
+  // peer_id is the remote peer for this message.
+  string peer_id = 2;
+
+  // direction is "in" or "out".
+  string direction = 3;
+
+  // text is the UTF-8 chat body.
+  string text = 4;
+
+  // acked is true only when a matching ACK was persisted.
+  bool acked = 5;
+
+  // created_at_unix_ms is the persistence time in Unix milliseconds.
+  int64 created_at_unix_ms = 6;
+
+  // acked_at_unix_ms is the ACK time, or zero when unacked.
+  int64 acked_at_unix_ms = 7;
+}
+
+// EventsRequest has no fields.
+message EventsRequest {}
+
+// EventsResponse is one server-streaming notification. It is not durable state.
+message EventsResponse {
+  // at_unix_ms is the event time in Unix milliseconds.
+  int64 at_unix_ms = 1;
+
+  // heartbeat is true for an empty keepalive event. The server sends one
+  // immediately on subscribe and then periodically so the client receives
+  // response headers even while the stream is quiet.
+  bool heartbeat = 5;
+
+  // body is the event payload.
+  oneof body {
+    // chat_received reports one inbound chat message.
+    ChatEvent chat_received = 2;
+
+    // ack reports one ACK observed by this node.
+    AckEvent ack = 3;
+
+    // connection reports a connection change.
+    ConnectionEvent connection = 4;
+  }
+}
+
+// ChatEvent describes an inbound chat message.
+message ChatEvent {
+  // message_id is the sender-generated message identifier.
+  string message_id = 1;
+
+  // from_peer_id is the authenticated sender Peer ID.
+  string from_peer_id = 2;
+
+  // from_node_id is the sender's logical node ID.
+  string from_node_id = 3;
+
+  // text is the UTF-8 chat body.
+  string text = 4;
+
+  // duplicate is true when dedupe suppressed a repeat delivery.
+  bool duplicate = 5;
+
+  // accepted is true when the message was accepted.
+  bool accepted = 6;
+}
+
+// AckEvent describes an ACK observed by this node.
+message AckEvent {
+  // message_id is the acknowledged message identifier.
+  string message_id = 1;
+
+  // peer_id is the remote peer that sent the ACK.
+  string peer_id = 2;
+
+  // accepted mirrors ChatAck.accepted.
+  bool accepted = 3;
+
+  // error is the ACK rejection reason, if any.
+  string error = 4;
+}
+
+// ConnectionEvent describes one connection change.
+message ConnectionEvent {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+
+  // direction is "inbound" or "outbound".
+  string direction = 2;
+
+  // transport is "tcp", "quic" or "unknown".
+  string transport = 3;
+
+  // direct is true only when the connection is not relay-limited.
+  bool direct = 4;
+
+  // limited mirrors the libp2p connection stat Limited flag.
+  bool limited = 5;
+
+  // remote_multiaddr is the connected remote multiaddr.
+  string remote_multiaddr = 6;
+
+  // kind is "connected" or "disconnected".
+  string kind = 7;
+
+  // route is "direct" or "relay".
+  string route = 8;
+
+  // relay_peer_id is the relay for a relayed connection.
+  string relay_peer_id = 9;
+}
+
+// NetworkStatus is the G2 network diagnostic view.
+message NetworkStatus {
+  // reachability is public, private or unknown. With no Raminga probe peer it
+  // is always unknown, never automatically unreachable.
+  string reachability = 1;
+
+  // autonat is AutoNAT v2 status and probe peers.
+  AutoNATStatus autonat = 2;
+
+  // dcutr reports DCUtR attempts, successes and failures.
+  DCUtRStatus dcutr = 3;
+
+  // relays are real relay-client reservation states.
+  repeated RelayReservation relays = 4;
+
+  // relay_provider reports the optional relay service quotas.
+  RelayProviderStatus relay_provider = 5;
+
+  // dht reports the independent Raminga DHT.
+  DHTStatus dht = 6;
+
+  // resources reports resource-manager limits and usage.
+  ResourceStatus resources = 7;
+
+  // peer_cache lists bounded SQLite restart hints (never online state).
+  repeated CachedPeer peer_cache = 8;
+
+  // upnp is always false; there is no UPnP code path.
+  bool upnp = 9;
+
+  // nat_pmp is always false; there is no NAT-PMP code path.
+  bool nat_pmp = 10;
+
+  // stun is always false; no STUN server is configured.
+  bool stun = 11;
+}
+
+// AutoNATStatus is AutoNAT v2 reachability plus probe-peer availability.
+message AutoNATStatus {
+  // enabled reports whether AutoNAT v2 is enabled.
+  bool enabled = 1;
+
+  // state is public, private or unknown.
+  string state = 2;
+
+  // last_changed_unix_ms is the last reachability event time.
+  int64 last_changed_unix_ms = 3;
+
+  // probe_peers are connected Raminga peers supporting AutoNAT v2.
+  repeated string probe_peers = 4;
+
+  // has_probe_peer is true only when probe_peers is non-empty.
+  bool has_probe_peer = 5;
+
+  // upnp is always false.
+  bool upnp = 6;
+
+  // nat_pmp is always false.
+  bool nat_pmp = 7;
+
+  // stun is always false.
+  bool stun = 8;
+}
+
+// DCUtRStatus is a public hole-punch tracer snapshot.
+message DCUtRStatus {
+  // enabled reports whether DCUtR is enabled.
+  bool enabled = 1;
+
+  // attempts counts hole-punch attempts.
+  int32 attempts = 2;
+
+  // successes counts successful direct upgrades.
+  int32 successes = 3;
+
+  // failures counts failed direct upgrades.
+  int32 failures = 4;
+
+  // peers is per-peer DCUtR state.
+  repeated DCUtRPeer peers = 5;
+
+  // events is the bounded tracer event log.
+  repeated HolePunchEvent events = 6;
+}
+
+// DCUtRPeer is per-peer DCUtR state.
+message DCUtRPeer {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+
+  // status is attempting, direct, failed or lost.
+  string status = 2;
+
+  // attempts is the number of attempts.
+  int32 attempts = 3;
+
+  // successes is the number of successes.
+  int32 successes = 4;
+
+  // failures is the number of failures.
+  int32 failures = 5;
+
+  // candidate_addresses are observed remote candidates.
+  repeated string candidate_addresses = 6;
+
+  // direct_address is the established direct address, if any.
+  string direct_address = 7;
+
+  // direct_transport is tcp or quic for a direct connection.
+  string direct_transport = 8;
+
+  // relay_address is the relayed address used before an upgrade.
+  string relay_address = 9;
+
+  // error is the last failure.
+  string error = 10;
+
+  // updated_at_unix_ms is the last tracer update.
+  int64 updated_at_unix_ms = 11;
+}
+
+// HolePunchEvent is one bounded DCUtR tracer event.
+message HolePunchEvent {
+  // timestamp is RFC3339Nano.
+  string timestamp = 1;
+
+  // type is the go-libp2p event type.
+  string type = 2;
+
+  // peer_id is the remote Peer ID.
+  string peer_id = 3;
+
+  // success is nil when the event has no result.
+  optional bool success = 4;
+
+  // error is the event failure.
+  string error = 5;
+
+  // remote_addrs are candidate addresses.
+  repeated string remote_addrs = 6;
+
+  // attempt is the attempt counter.
+  int32 attempt = 7;
+
+  // rtt_ms is the observed RTT.
+  double rtt_ms = 8;
+
+  // elapsed_ms is the elapsed attempt time.
+  double elapsed_ms = 9;
+}
+
+// RelayReservation is one real relay-client reservation.
+message RelayReservation {
+  // relay_peer_id is the relay Peer ID.
+  string relay_peer_id = 1;
+
+  // relay_addr is the configured/discovered relay multiaddr.
+  string relay_addr = 2;
+
+  // status is connecting, reserving, active, failed, lost or stopped.
+  string status = 3;
+
+  // reservation_status is active, failed, lost or none.
+  string reservation_status = 4;
+
+  // attempts counts reservation attempts.
+  int32 attempts = 5;
+
+  // successes counts active reservations.
+  int32 successes = 6;
+
+  // failures counts failed attempts.
+  int32 failures = 7;
+
+  // expires_at_unix_ms is the real relay reservation expiry.
+  int64 expires_at_unix_ms = 8;
+
+  // relayed_addr is the full dialable circuit address (with /p2p/self).
+  string relayed_addr = 9;
+
+  // advertised_addr is the circuit address advertised to the network.
+  string advertised_addr = 10;
+
+  // limit_duration_ms is the relay connection duration limit.
+  int64 limit_duration_ms = 11;
+
+  // limit_data_bytes is the relay per-direction byte limit.
+  uint64 limit_data_bytes = 12;
+
+  // last_error is the last reservation failure.
+  string last_error = 13;
+
+  // updated_at_unix_ms is the last state transition.
+  int64 updated_at_unix_ms = 14;
+}
+
+// RelayProviderStatus reports provider quotas.
+message RelayProviderStatus {
+  // enabled reports whether this node runs the relay service.
+  bool enabled = 1;
+
+  // max_reservations is the total reservation quota.
+  int32 max_reservations = 2;
+
+  // reservation_ttl_ms is the reservation TTL.
+  int64 reservation_ttl_ms = 3;
+
+  // max_reservations_per_ip is the per-IP quota.
+  int32 max_reservations_per_ip = 4;
+
+  // max_reservations_per_peer is the per-peer quota.
+  int32 max_reservations_per_peer = 5;
+
+  // max_circuits is the per-peer relayed-connection quota.
+  int32 max_circuits = 6;
+
+  // reservation_data_limit_bytes is the per-direction data quota.
+  int64 reservation_data_limit_bytes = 7;
+
+  // reservation_duration_limit_ms is the per-connection duration quota.
+  int64 reservation_duration_limit_ms = 8;
+
+  // error is the provider startup error, if any.
+  string error = 9;
+}
+
+// DHTStatus reports the independent Raminga DHT.
+message DHTStatus {
+  // enabled reports whether the DHT is enabled.
+  bool enabled = 1;
+
+  // mode is client, server or auto.
+  string mode = 2;
+
+  // protocol is /raminga/kad/1.0.0.
+  string protocol = 3;
+
+  // bootstrap_peers are explicit Raminga bootstrap peers only.
+  repeated string bootstrap_peers = 4;
+
+  // public_bootstrap_configured is always false.
+  bool public_bootstrap_configured = 5;
+
+  // routing_table_peers are DHT routing-table peers.
+  repeated string routing_table_peers = 6;
+
+  // relay_candidates is the number of AutoRelay candidates.
+  int32 relay_candidates = 7;
+
+  // last_bootstrap_unix_ms is the last bootstrap attempt.
+  int64 last_bootstrap_unix_ms = 8;
+
+  // last_refresh_unix_ms is the last routing-table refresh.
+  int64 last_refresh_unix_ms = 9;
+
+  // last_error is the last DHT discovery/bootstrap error.
+  string last_error = 10;
+
+  // last_lookup is the last FindPeer result.
+  DhtPeer last_lookup = 11;
+
+  // last_publish_unix_ms is the last successful address-record publish.
+  int64 last_publish_unix_ms = 12;
+
+  // last_publish_error is the last address-record publish error.
+  string last_publish_error = 13;
+}
+
+// DhtPeer is one DHT/manual peer lookup result.
+message DhtPeer {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+
+  // addrs are the discovered addresses.
+  repeated string addrs = 2;
+
+  // found reports whether an address was found.
+  bool found = 3;
+
+  // source is dht, peerstore-cache or manual. A cache source is not online.
+  string source = 4;
+
+  // error is the lookup failure.
+  string error = 5;
+
+  // elapsed_ms is the lookup duration.
+  int64 elapsed_ms = 6;
+}
+
+// ResourceStatus reports resource-manager limits and usage.
+message ResourceStatus {
+  // max_connections is the system connection limit.
+  int32 max_connections = 1;
+
+  // max_streams is the system stream limit.
+  int32 max_streams = 2;
+
+  // max_memory_bytes is the system memory limit.
+  int64 max_memory_bytes = 3;
+
+  // max_fds is the system file-descriptor limit.
+  int32 max_fds = 4;
+
+  // open_connections is current connection usage.
+  int32 open_connections = 5;
+
+  // open_streams is current stream usage.
+  int32 open_streams = 6;
+
+  // peerstore_peers is the in-memory PeerStore size.
+  int32 peerstore_peers = 7;
+
+  // cache_entries is the bounded SQLite hint-cache size.
+  int32 cache_entries = 8;
+
+  // goroutines is runtime.NumGoroutine() at sampling time (G4 soak sampling).
+  int32 goroutines = 9;
+
+  // heap_alloc_bytes is runtime.MemStats.HeapAlloc at sampling time.
+  int64 heap_alloc_bytes = 10;
+}
+
+// CachedPeer is one bounded SQLite restart hint.
+message CachedPeer {
+  // peer_id is the cached Peer ID.
+  string peer_id = 1;
+
+  // addrs are cached addresses, never an online claim.
+  repeated string addrs = 2;
+
+  // source is bootstrap, known, pinned, manual or dht.
+  string source = 3;
+
+  // updated_at_unix_ms is the last cache update.
+  int64 updated_at_unix_ms = 4;
+
+  // expires_at_unix_ms is the cache expiry, or zero.
+  int64 expires_at_unix_ms = 5;
+}
+
+// PeersRequest asks for peers.
+message PeersRequest {
+  // include_cached includes SQLite hints with online=false.
+  bool include_cached = 1;
+}
+
+// PeersResponse contains peers.
+message PeersResponse {
+  // peers are live connections and (optionally) cached hints.
+  repeated PeerEntry peers = 1;
+}
+
+// PeerEntry is one live or cached peer.
+message PeerEntry {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+
+  // addrs are live or cached addresses.
+  repeated string addrs = 2;
+
+  // sources are cache sources.
+  repeated string sources = 3;
+
+  // online is true only for a live connection.
+  bool online = 4;
+
+  // connectedness is connected, known or cached.
+  string connectedness = 5;
+
+  // route is direct or relay for a live connection.
+  string route = 6;
+
+  // transport is tcp or quic.
+  string transport = 7;
+
+  // direct is true only for a non-limited connection.
+  bool direct = 8;
+
+  // limited mirrors the libp2p limited flag.
+  bool limited = 9;
+
+  // relay_peer_id is the relay for a relayed connection.
+  string relay_peer_id = 10;
+
+  // last_seen_unix_ms is the connection/cache time.
+  int64 last_seen_unix_ms = 11;
+
+  // direction is inbound or outbound for a live connection.
+  string direction = 12;
+
+  // paused is the persistent local pause flag.
+  bool paused = 13;
+}
+
+// RelayStatusRequest has no fields.
+message RelayStatusRequest {}
+
+// RelayStatusResponse contains relay client/provider state.
+message RelayStatusResponse {
+  // provider reports provider quotas.
+  RelayProviderStatus provider = 1;
+
+  // relays are real reservation states.
+  repeated RelayReservation relays = 2;
+}
+
+// DhtStatusRequest has no fields.
+message DhtStatusRequest {}
+
+// DhtStatusResponse contains DHT diagnostics.
+message DhtStatusResponse {
+  // dht is the diagnostic view.
+  DHTStatus dht = 1;
+}
+
+// DhtAddPeerRequest manually adds a peer multiaddr.
+message DhtAddPeerRequest {
+  // multiaddr includes /p2p/<peer-id>.
+  string multiaddr = 1;
+}
+
+// DhtAddPeerResponse reports the manual add.
+message DhtAddPeerResponse {
+  // peer is the added peer.
+  DhtPeer peer = 1;
+}
+
+// DhtFindPeerRequest asks for a DHT lookup.
+message DhtFindPeerRequest {
+  // peer_id is the target Peer ID.
+  string peer_id = 1;
+}
+
+// DhtFindPeerResponse reports the lookup.
+message DhtFindPeerResponse {
+  // peer is the lookup result.
+  DhtPeer peer = 1;
+}
+
+// Friend is one local friend record. It is local UI data, not wire identity.
+message Friend {
+  string peer_id = 1;
+  string name = 2;
+  repeated string addrs = 3;
+  string description = 4;
+  bool manually_connected = 5;
+  int64 first_seen_unix_ms = 6;
+  int64 last_interaction_unix_ms = 7;
+  bool paused = 8;
+  bool relay_capable = 9;
+  bool dht_capable = 10;
+}
+
+message ListFriendsRequest {}
+
+message ListFriendsResponse {
+  repeated Friend friends = 1;
+}
+
+message SetFriendNameRequest {
+  string peer_id = 1;
+  string name = 2;
+}
+
+message SetFriendNameResponse {
+  Friend friend = 1;
+}
+
+message SetFriendDescriptionRequest {
+  string peer_id = 1;
+  string description = 2;
+}
+
+message SetFriendDescriptionResponse {
+  Friend friend = 1;
+}
+
+message RemoveFriendRequest {
+  string peer_id = 1;
+  bool cancel_pending = 2;
+}
+
+message RemoveFriendResponse {
+  bool removed = 1;
+  int32 pending_outbox = 2;
+}
+
+message SyncFriendsRequest {}
+
+message SyncFriendsResponse {
+  bool written = 1;
+}
+
+message PublishedRequest {}
+
+message PublishedFile {
+  string path = 1;
+  int64 size = 2;
+}
+
+message PublishedSkip {
+  string path = 1;
+  string reason = 2;
+}
+
+message PublishedResponse {
+  repeated PublishedFile files = 1;
+  repeated PublishedSkip skipped = 2;
+  int64 generated_at_unix_ms = 3;
+  // friends_synced_at_unix_ms is the mtime of friends.json, i.e. when its
+  // contents last changed, not the last time friends were synced.
+  int64 friends_synced_at_unix_ms = 4;
+}
+
+// DisconnectPeerRequest asks the node to close all connections to a peer.
+message DisconnectPeerRequest {
+  // peer_id is the peer to disconnect.
+  string peer_id = 1;
+}
+
+// DisconnectPeerResponse reports that the disconnect request was accepted.
+message DisconnectPeerResponse {
+  // disconnected is true when the node accepted the request; the peer may
+  // already have had no live connection.
+  bool disconnected = 1;
+}
+
+// ShutdownRequest has no fields.
+message ShutdownRequest {}
+
+// ShutdownResponse reports that the daemon accepted the graceful stop.
+message ShutdownResponse {
+  // accepted is true when the shutdown has been requested.
+  bool accepted = 1;
+}
+
+// TestDisconnectPeerRequest is test-only.
+message TestDisconnectPeerRequest {
+  // peer_id is the peer to disconnect.
+  string peer_id = 1;
+}
+
+// TestDisconnectPeerResponse is test-only.
+message TestDisconnectPeerResponse {
+  // disconnected reports whether connections were closed.
+  bool disconnected = 1;
+}
+
+// TestPingRequest is used only with --enable-test-api.
+message TestPingRequest {
+  // echo is returned unchanged.
+  string echo = 1;
+}
+
+// TestPingResponse is used only with --enable-test-api.
+message TestPingResponse {
+  // echo mirrors the request.
+  string echo = 1;
+}
+
+message GetPeerManifestRequest {
+  string peer_id = 1;
+  int32 offset = 2;
+  int32 limit = 3;
+}
+message ManifestEntry {
+  string path = 1;
+  int64 size = 2;
+  int64 modified_unix_ms = 3;
+  string sha256 = 4;
+}
+message GetPeerManifestResponse {
+  int32 version = 1;
+  string peer_id = 2;
+  int64 generated_at_unix_ms = 3;
+  repeated ManifestEntry entries = 4;
+  int32 total = 5;
+  bool limited = 6;
+}
+message GetPeerProfileRequest { string peer_id = 1; }
+message GetPeerProfileResponse {
+  string peer_id = 1;
+  string name = 2;
+  string text = 3;
+  repeated string files = 4;
+  bool found = 5;
+}
+message PeerFriendClaim {
+  string name = 1;
+  string peer_id = 2;
+  repeated string addrs = 3;
+  string description = 4;
+}
+message GetPeerFriendsRequest { string peer_id = 1; }
+message GetPeerFriendsResponse {
+  string peer_id = 1;
+  repeated PeerFriendClaim friends = 2;
+  bool limited = 3;
+}
+message DownloadPeerFileRequest { string peer_id = 1; string path = 2; }
+message DownloadPeerFileResponse {
+  string phase = 1;
+  string path = 2;
+  int64 received_bytes = 3;
+  int64 total_bytes = 4;
+  string local_path = 5;
+  string sha256 = 6;
+  bool direct = 7;
+  string error = 8;
+}
+message ConnectListedPeerRequest {
+  string peer_id = 1;
+  repeated string addrs = 2;
+}
+
+message ConnectListedPeerResponse {
+  string peer_id = 1;
+  string transport = 2;
+  bool direct = 3;
+  bool limited = 4;
+  string remote_multiaddr = 5;
+  string route = 6;
+  string relay_peer_id = 7;
+  bool reused = 8;
+  string requested_transport = 9;
+  bool transport_changed = 10;
+  string source = 11;
+  repeated DialAttempt attempts = 12;
+  string note = 13;
+}

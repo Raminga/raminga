@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raminga.dev/schemas/test-report.schema.json",
+  "title": "Raminga test report",
+  "description": "Redacted G4.5 test report. No private key, API token or chat body is present unless message_text_included is true.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "tool",
+    "host",
+    "node",
+    "nat",
+    "peers",
+    "connection_timeline",
+    "route_changes",
+    "acks",
+    "outbox",
+    "messages",
+    "still_direct_after_relay_stop",
+    "still_direct_observation_seconds",
+    "message_text_included",
+    "explanations"
+  ],
+  "properties": {
+    "schema_version": { "const": "raminga.test-report/1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "tool": { "$ref": "#/$defs/tool" },
+    "host": { "$ref": "#/$defs/host" },
+    "node": { "$ref": "#/$defs/node" },
+    "nat": { "$ref": "#/$defs/nat" },
+    "peers": { "type": "array", "items": { "$ref": "#/$defs/peerSnapshot" } },
+    "connection_timeline": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+    "route_changes": { "type": "array", "items": { "$ref": "#/$defs/change" } },
+    "acks": { "type": "array", "items": { "$ref": "#/$defs/ack" } },
+    "outbox": { "$ref": "#/$defs/outbox" },
+    "messages": { "type": "array", "items": { "$ref": "#/$defs/message" } },
+    "still_direct_after_relay_stop": { "type": ["boolean", "null"] },
+    "still_direct_observation_seconds": { "type": "integer", "minimum": 0 },
+    "message_text_included": { "type": "boolean" },
+    "explanations": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "stringList": { "type": "array", "items": { "type": "string" } },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "commit", "go_version", "protocol_version", "schema_version"],
+      "properties": {
+        "version": { "type": "string" },
+        "commit": { "type": "string" },
+        "go_version": { "type": "string" },
+        "protocol_version": { "type": "string" },
+        "schema_version": { "const": "raminga.test-report/1" }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch"],
+      "properties": {
+        "os": { "type": "string" },
+        "arch": { "type": "string" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peer_id", "node_id", "listen_addrs", "announce_addrs"],
+      "properties": {
+        "peer_id": { "type": "string" },
+        "node_id": { "type": "string" },
+        "listen_addrs": { "$ref": "#/$defs/stringList" },
+        "announce_addrs": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "nat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reachability", "autonat", "dcutr", "relay_reservations", "relay_provider", "dht", "resources", "upnp", "nat_pmp", "stun", "explanations", "peer_cache"],
+      "properties": {
+        "reachability": { "type": "string" },
+        "autonat": { "$ref": "#/$defs/autonat" },
+        "dcutr": { "$ref": "#/$defs/dcutr" },
+        "relay_reservations": { "type": "array", "items": { "$ref": "#/$defs/relay" } },
+        "relay_provider": { "$ref": "#/$defs/relayProvider" },
+        "dht": { "$ref": "#/$defs/dht" },
+        "resources": { "$ref": "#/$defs/resources" },
+        "upnp": { "type": "boolean" },
+        "nat_pmp": { "type": "boolean" },
+        "stun": { "type": "boolean" },
+        "explanations": { "type": "array", "items": { "type": "string" } },
+        "peer_cache": { "type": "array", "items": { "$ref": "#/$defs/cachedPeer" } }
+      }
+    },
+    "autonat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "state", "probe_peers", "has_probe_peer"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "state": { "type": "string" },
+        "probe_peers": { "$ref": "#/$defs/stringList" },
+        "has_probe_peer": { "type": "boolean" }
+      }
+    },
+    "dcutr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "attempts", "successes", "failures", "peers"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "successes": { "type": "integer", "minimum": 0 },
+        "failures": { "type": "integer", "minimum": 0 },
+        "peers": { "type": "array", "items": { "$ref": "#/$defs/dcutrPeer" } }
+      }
+    },
+    "dcutrPeer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peer_id", "status", "attempts", "successes", "failures", "candidate_addresses", "direct_address", "direct_transport", "relay_address", "error", "updated_at_unix_ms"],
+      "properties": {
+        "peer_id": { "type": "string" },
+        "status": { "type": "string" },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "successes": { "type": "integer", "minimum": 0 },
+        "failures": { "type": "integer", "minimum": 0 },
+        "candidate_addresses": { "$ref": "#/$defs/stringList" },
+        "direct_address": { "type": "string" },
+        "direct_transport": { "type": "string" },
+        "relay_address": { "type": "string" },
+        "error": { "type": "string" },
+        "updated_at_unix_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "relay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relay_peer_id", "relay_addr", "status", "reservation_status", "attempts", "successes", "failures", "relayed_addr", "advertised_addr", "last_error", "expires_at_unix_ms"],
+      "properties": {
+        "relay_peer_id": { "type": "string" },
+        "relay_addr": { "type": "string" },
+        "status": { "type": "string" },
+        "reservation_status": { "type": "string" },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "successes": { "type": "integer", "minimum": 0 },
+        "failures": { "type": "integer", "minimum": 0 },
+        "relayed_addr": { "type": "string" },
+        "advertised_addr": { "type": "string" },
+        "last_error": { "type": "string" },
+        "expires_at_unix_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "relayProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "max_reservations", "max_reservations_per_ip", "max_reservations_per_peer", "max_circuits", "error"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "max_reservations": { "type": "integer", "minimum": 0 },
+        "max_reservations_per_ip": { "type": "integer", "minimum": 0 },
+        "max_reservations_per_peer": { "type": "integer", "minimum": 0 },
+        "max_circuits": { "type": "integer", "minimum": 0 },
+        "error": { "type": "string" }
+      }
+    },
+    "dht": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "mode", "protocol", "bootstrap_peers", "routing_table_peers", "relay_candidates", "last_error", "public_bootstrap_configured"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mode": { "type": "string" },
+        "protocol": { "type": "string" },
+        "bootstrap_peers": { "$ref": "#/$defs/stringList" },
+        "routing_table_peers": { "$ref": "#/$defs/stringList" },
+        "relay_candidates": { "type": "integer", "minimum": 0 },
+        "last_error": { "type": "string" },
+        "public_bootstrap_configured": { "type": "boolean" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_connections", "open_connections", "max_streams", "open_streams", "max_memory_bytes", "max_fds", "peerstore_peers", "cache_entries", "goroutines", "heap_alloc_bytes"],
+      "properties": {
+        "max_connections": { "type": "integer", "minimum": 0 },
+        "open_connections": { "type": "integer", "minimum": 0 },
+        "max_streams": { "type": "integer", "minimum": 0 },
+        "open_streams": { "type": "integer", "minimum": 0 },
+        "max_memory_bytes": { "type": "integer", "minimum": 0 },
+        "max_fds": { "type": "integer", "minimum": 0 },
+        "peerstore_peers": { "type": "integer", "minimum": 0 },
+        "cache_entries": { "type": "integer", "minimum": 0 },
+        "goroutines": { "type": "integer", "minimum": 0 },
+        "heap_alloc_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cachedPeer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peer_id", "addrs", "source", "updated_at_unix_ms", "expires_at_unix_ms"],
+      "properties": {
+        "peer_id": { "type": "string" },
+        "addrs": { "$ref": "#/$defs/stringList" },
+        "source": { "type": "string" },
+        "updated_at_unix_ms": { "type": "integer", "minimum": 0 },
+        "expires_at_unix_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "peerSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["peer_id", "addrs", "online", "route", "transport", "family", "limited", "direct", "direction", "relay_peer_id", "sources"],
+      "properties": {
+        "peer_id": { "type": "string" },
+        "addrs": { "$ref": "#/$defs/stringList" },
+        "online": { "type": "boolean" },
+        "route": { "type": "string" },
+        "transport": { "type": "string" },
+        "family": { "type": "string" },
+        "limited": { "type": "boolean" },
+        "direct": { "type": "boolean" },
+        "direction": { "type": "string" },
+        "relay_peer_id": { "type": "string" },
+        "sources": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "kind", "peer_id", "route", "transport", "family", "direct", "limited", "direction", "relay_peer_id", "address", "detail"],
+      "properties": {
+        "at": { "type": "string" },
+        "kind": { "type": "string" },
+        "peer_id": { "type": "string" },
+        "route": { "type": "string" },
+        "transport": { "type": "string" },
+        "family": { "type": "string" },
+        "direct": { "type": "boolean" },
+        "limited": { "type": "boolean" },
+        "direction": { "type": "string" },
+        "relay_peer_id": { "type": "string" },
+        "address": { "type": "string" },
+        "detail": { "type": "string" }
+      }
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "peer_id", "from", "to", "transport"],
+      "properties": {
+        "at": { "type": "string" },
+        "peer_id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "transport": { "type": "string" }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["at", "message_id", "peer_id", "acked", "reason", "route", "transport", "outbox_status", "text_included"],
+      "properties": {
+        "at": { "type": "string" },
+        "message_id": { "type": "string" },
+        "peer_id": { "type": "string" },
+        "acked": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "route": { "type": "string" },
+        "transport": { "type": "string" },
+        "outbox_status": { "type": "string" },
+        "text_included": { "type": "boolean" },
+        "text": { "type": "string" }
+      }
+    },
+    "outbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries", "stats"],
+      "properties": {
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/outboxEntry" } },
+        "stats": { "$ref": "#/$defs/outboxStats" }
+      }
+    },
+    "outboxEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_id", "peer_id", "status", "attempts", "bytes", "last_error", "created_at_unix_ms", "expires_at_unix_ms", "next_attempt_at_unix_ms", "text_included"],
+      "properties": {
+        "message_id": { "type": "string" },
+        "peer_id": { "type": "string" },
+        "status": { "type": "string" },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "last_error": { "type": "string" },
+        "created_at_unix_ms": { "type": "integer", "minimum": 0 },
+        "expires_at_unix_ms": { "type": "integer", "minimum": 0 },
+        "next_attempt_at_unix_ms": { "type": "integer", "minimum": 0 },
+        "text_included": { "type": "boolean" },
+        "text": { "type": "string" }
+      }
+    },
+    "outboxStats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pending", "acked", "failed", "cancelled", "pending_bytes"],
+      "properties": {
+        "pending": { "type": "integer", "minimum": 0 },
+        "acked": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "cancelled": { "type": "integer", "minimum": 0 },
+        "pending_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_id", "peer_id", "direction", "acked", "created_at_unix_ms", "acked_at_unix_ms", "text_included"],
+      "properties": {
+        "message_id": { "type": "string" },
+        "peer_id": { "type": "string" },
+        "direction": { "type": "string" },
+        "acked": { "type": "boolean" },
+        "created_at_unix_ms": { "type": "integer", "minimum": 0 },
+        "acked_at_unix_ms": { "type": "integer", "minimum": 0 },
+        "text_included": { "type": "boolean" },
+        "text": { "type": "string" }
+      }
+    }
+  }
+}

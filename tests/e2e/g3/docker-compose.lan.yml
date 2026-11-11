@@ -1,0 +1,233 @@
+# Raminga G3 LAN facility: dual-stack Docker bridge with ULA IPv6.
+#
+# All peers share one LAN. There is no NAT and no relay here; the runner
+# applies host-local ip6tables/iptables/tc rules for the IPv6, protocol-block
+# and netem facilities, then runs the business scenarios. Docker is a
+# simulation, not real-world evidence.
+
+x-node: &node
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 15s
+  cap_add:
+    - NET_ADMIN
+  environment:
+    RAMINGA_DATA_DIR: /data
+    RAMINGA_CONFIG_TEMPLATE: /config.toml
+    RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+  healthcheck:
+    test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+    interval: 1s
+    timeout: 3s
+    retries: 90
+    start_period: 2s
+
+services:
+  a4:
+    <<: *node
+    hostname: a4
+    networks:
+      lan:
+        ipv4_address: 10.250.1.11
+        ipv6_address: fd00:250:1::11
+    volumes:
+      - a4-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a4.toml:/config.toml:ro
+  b4:
+    <<: *node
+    hostname: b4
+    networks:
+      lan:
+        ipv4_address: 10.250.1.12
+        ipv6_address: fd00:250:1::12
+    volumes:
+      - b4-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b4.toml:/config.toml:ro
+  a6:
+    <<: *node
+    hostname: a6
+    networks:
+      lan:
+        ipv4_address: 10.250.1.21
+        ipv6_address: fd00:250:1::21
+    volumes:
+      - a6-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a6.toml:/config.toml:ro
+  b6:
+    <<: *node
+    hostname: b6
+    networks:
+      lan:
+        ipv4_address: 10.250.1.22
+        ipv6_address: fd00:250:1::22
+    volumes:
+      - b6-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b6.toml:/config.toml:ro
+  a6only:
+    <<: *node
+    hostname: a6only
+    networks:
+      lan:
+        ipv4_address: 10.250.1.31
+        ipv6_address: fd00:250:1::31
+    volumes:
+      - a6only-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a6only.toml:/config.toml:ro
+  b6only:
+    <<: *node
+    hostname: b6only
+    networks:
+      lan:
+        ipv4_address: 10.250.1.32
+        ipv6_address: fd00:250:1::32
+    volumes:
+      - b6only-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b6only.toml:/config.toml:ro
+  tcp-a:
+    <<: *node
+    hostname: tcp-a
+    networks:
+      lan:
+        ipv4_address: 10.250.1.41
+        ipv6_address: fd00:250:1::41
+    volumes:
+      - tcp-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/tcp-a.toml:/config.toml:ro
+  tcp-b:
+    <<: *node
+    hostname: tcp-b
+    networks:
+      lan:
+        ipv4_address: 10.250.1.42
+        ipv6_address: fd00:250:1::42
+    volumes:
+      - tcp-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/tcp-b.toml:/config.toml:ro
+  udp-a:
+    <<: *node
+    hostname: udp-a
+    networks:
+      lan:
+        ipv4_address: 10.250.1.51
+        ipv6_address: fd00:250:1::51
+    volumes:
+      - udp-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/udp-a.toml:/config.toml:ro
+  udp-b:
+    <<: *node
+    hostname: udp-b
+    networks:
+      lan:
+        ipv4_address: 10.250.1.52
+        ipv6_address: fd00:250:1::52
+    volumes:
+      - udp-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/udp-b.toml:/config.toml:ro
+  loss-a:
+    <<: *node
+    hostname: loss-a
+    networks:
+      lan:
+        ipv4_address: 10.250.1.61
+        ipv6_address: fd00:250:1::61
+    volumes:
+      - loss-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/loss-a.toml:/config.toml:ro
+  loss-b:
+    <<: *node
+    hostname: loss-b
+    networks:
+      lan:
+        ipv4_address: 10.250.1.62
+        ipv6_address: fd00:250:1::62
+    volumes:
+      - loss-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/loss-b.toml:/config.toml:ro
+  q6-a:
+    <<: *node
+    hostname: q6-a
+    networks:
+      lan:
+        ipv4_address: 10.250.1.71
+        ipv6_address: fd00:250:1::71
+    volumes:
+      - q6-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/q6-a.toml:/config.toml:ro
+  q6-b:
+    <<: *node
+    hostname: q6-b
+    networks:
+      lan:
+        ipv4_address: 10.250.1.72
+        ipv6_address: fd00:250:1::72
+    volumes:
+      - q6-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/q6-b.toml:/config.toml:ro
+  id-a:
+    <<: *node
+    hostname: id-a
+    networks:
+      lan:
+        ipv4_address: 10.250.1.81
+        ipv6_address: fd00:250:1::81
+    volumes:
+      - id-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/id-a.toml:/config.toml:ro
+  id-b:
+    <<: *node
+    hostname: id-b
+    networks:
+      lan:
+        ipv4_address: 10.250.1.82
+        ipv6_address: fd00:250:1::82
+    volumes:
+      - id-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/id-b.toml:/config.toml:ro
+  fb-a:
+    <<: *node
+    hostname: fb-a
+    networks:
+      lan:
+        ipv4_address: 10.250.1.91
+        ipv6_address: fd00:250:1::91
+    volumes:
+      - fb-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/fb-a.toml:/config.toml:ro
+  fb-b:
+    <<: *node
+    hostname: fb-b
+    networks:
+      lan:
+        ipv4_address: 10.250.1.92
+        ipv6_address: fd00:250:1::92
+    volumes:
+      - fb-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/fb-b.toml:/config.toml:ro
+
+networks:
+  lan:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 10.250.1.0/24
+        - subnet: fd00:250:1::/64
+
+volumes:
+  a4-data:
+  b4-data:
+  a6-data:
+  b6-data:
+  a6only-data:
+  b6only-data:
+  tcp-a-data:
+  tcp-b-data:
+  udp-a-data:
+  udp-b-data:
+  loss-a-data:
+  loss-b-data:
+  q6-a-data:
+  q6-b-data:
+  id-a-data:
+  id-b-data:
+  fb-a-data:
+  fb-b-data:

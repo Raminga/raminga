@@ -1,0 +1,24 @@
+# Raminga DSH bundle patch — package.json's `dsh.bundle.patch` points here.
+#
+# Lets `dsh plugin --profile web add @raminga/dsh` insert the plugin row into
+# the loader. Without this file the row is never inserted and the raminga_*
+# native tools are never registered.
+#
+# `inject` is declared on the row (not only in the module) so the loader defers
+# activation until the tools service is ready. Reading `ctx.tools` without a
+# declared inject throws `cannot get property "tools" without inject`.
+- insert:
+    - id: raminga
+      name: '@raminga/dsh'
+      inject: ['tools', 'systemPrompt']
+      config:
+        # Data directory of the Raminga Node. Empty means $RAMINGA_DATA_DIR when
+        # set, otherwise ~/.raminga. The plugin shares the node identity with
+        # every other Raminga shell (Claude Code / Codex); do not point this at
+        # a per-shell directory.
+        dataDir: ''
+        # Override path to the raminga binary used to auto-start the daemon.
+        # Empty resolves from PATH, then the shared ~/.raminga/bin/<version>
+        # cache. Per-platform npm subpackages (@raminga/bin-<os>-<arch>) land in
+        # P6.
+        ramingaBin: ''

@@ -1,0 +1,24 @@
+# API-boundary daemon: no libp2p listeners at all. The only local endpoint is
+# the Unix domain socket in /data; ss must show no TCP/UDP listener.
+[network]
+listen_addrs = []
+enable_dcutr = false
+enable_relay_client = false
+enable_auto_relay = false
+
+[relay]
+provider = false
+known_relays = []
+
+[dht]
+enabled = false
+
+[autonat]
+enabled = false
+
+[limits]
+max_message_bytes = 1048576
+max_chat_text_bytes = 4096
+
+[log]
+level = "info"

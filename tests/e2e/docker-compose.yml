@@ -1,0 +1,79 @@
+name: raminga-g1-e2e
+
+services:
+  node-a:
+    build:
+      context: ../..
+      dockerfile: tests/e2e/Dockerfile
+    image: raminga-g1-e2e:local
+    hostname: node-a
+    networks:
+      - g1lan
+    volumes:
+      - node-a-data:/data
+    healthcheck:
+      test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 1s
+
+  node-b:
+    image: raminga-g1-e2e:local
+    hostname: node-b
+    networks:
+      - g1lan
+    volumes:
+      - node-b-data:/data
+    healthcheck:
+      test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 1s
+
+  api-only:
+    image: raminga-g1-e2e:local
+    hostname: api-only
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /opt/raminga/api-only.toml
+    networks:
+      - g1lan
+    volumes:
+      - api-only-data:/data
+    healthcheck:
+      test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 1s
+
+  api-test:
+    image: raminga-g1-e2e:local
+    hostname: api-test
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /opt/raminga/api-only.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+    networks:
+      - g1lan
+    volumes:
+      - api-test-data:/data
+    healthcheck:
+      test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 1s
+
+networks:
+  g1lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.50.0/24
+
+volumes:
+  node-a-data:
+  node-b-data:
+  api-only-data:
+  api-test-data:

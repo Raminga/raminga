@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "replace-with-unique-event-id",
+  "sequence": 1,
+  "timestamp": "replace-with-rfc3339-timestamp",
+  "type": "session_started",
+  "peer_id": null,
+  "source_peer_id": null,
+  "summary": "Journey started.",
+  "evidence_refs": {
+    "message_ids": [],
+    "content_paths": [],
+    "event_ids": []
+  },
+  "message_evidence": null
+}

@@ -1,0 +1,368 @@
+# Raminga G3.1 IPv6 stateful-firewall lab.
+#
+#   site A (fd00:361:1::/64) --- fw-a (fd00:360:0::10) --- WAN fd00:360:0::/64
+#                                                          relay .2 / probe .20
+#   site B (fd00:362:1::/64) --- fw-b (fd00:360:0::11) ---+
+#
+# No NAT and no NPTv6. Both site routers use an INPUT/FORWARD default-DROP
+# policy with only conntrack ESTABLISHED,RELATED and essential ICMPv6. There is
+# no allow rule for TCP/UDP 4001: a direct connection proves a real hole punch
+# through a stateful firewall. Docker simulation only, not a real IPv6 ISP.
+
+x-node: &node
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 20s
+  cap_add:
+    - NET_ADMIN
+  environment:
+    RAMINGA_DATA_DIR: /data
+    RAMINGA_CONFIG_TEMPLATE: /config.toml
+    RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+  healthcheck:
+    test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+    interval: 1s
+    timeout: 3s
+    retries: 120
+    start_period: 2s
+
+x-router: &router
+  image: raminga-g3-e2e:local
+  init: true
+  stop_grace_period: 10s
+  cap_add:
+    - NET_ADMIN
+  sysctls:
+    - net.ipv6.conf.all.forwarding=1
+    - net.ipv6.conf.default.forwarding=1
+  healthcheck:
+    test: ["CMD-SHELL", "test -f /run/fw-ready"]
+    interval: 2s
+    timeout: 3s
+    retries: 45
+    start_period: 10s
+
+x-peer: &peer
+  <<: *node
+  entrypoint: ["/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh"]
+
+services:
+  relay:
+    <<: *node
+    hostname: relay
+    entrypoint: ["/app/tests/e2e/g3/ipv6-fw-probe-entrypoint.sh"]
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      WAN_IF: wan0
+      SITE_A_SUBNET: fd00:361:1::/64
+      SITE_B_SUBNET: fd00:362:1::/64
+      SITE_A_ROUTER: fd00:360:0::10
+      SITE_B_ROUTER: fd00:360:0::11
+      GLOBAL_SITE_A_SUBNET: 2001:4860:361:1::/64
+      GLOBAL_SITE_B_SUBNET: 2001:4860:362:1::/64
+    networks:
+      wan:
+        ipv6_address: fd00:360:0::2
+        interface_name: wan0
+    volumes:
+      - relay-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/relay.toml:/config.toml:ro
+      - ./ipv6-fw-probe-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-probe-entrypoint.sh:ro
+
+  wan-probe:
+    <<: *node
+    hostname: wan-probe
+    entrypoint: ["/app/tests/e2e/g3/ipv6-fw-probe-entrypoint.sh"]
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      WAN_IF: wan0
+      SITE_A_SUBNET: fd00:361:1::/64
+      SITE_B_SUBNET: fd00:362:1::/64
+      SITE_A_ROUTER: fd00:360:0::10
+      SITE_B_ROUTER: fd00:360:0::11
+      GLOBAL_SITE_A_SUBNET: 2001:4860:361:1::/64
+      GLOBAL_SITE_B_SUBNET: 2001:4860:362:1::/64
+    networks:
+      wan:
+        ipv6_address: fd00:360:0::20
+        interface_name: wan0
+    volumes:
+      - wan-probe-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/wan-probe.toml:/config.toml:ro
+      - ./ipv6-fw-probe-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-probe-entrypoint.sh:ro
+    depends_on:
+      fw-a:
+        condition: service_healthy
+      fw-b:
+        condition: service_healthy
+
+  fw-a:
+    <<: *router
+    hostname: fw-a
+    entrypoint: ["/app/tests/e2e/g3/ipv6-fw-router.sh"]
+    networks:
+      wan:
+        ipv6_address: fd00:360:0::10
+        interface_name: wan0
+      lan-a:
+        ipv6_address: fd00:361:1::2
+        interface_name: lan0
+    volumes:
+      - ./ipv6-fw-router.sh:/app/tests/e2e/g3/ipv6-fw-router.sh:ro
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_GATEWAY: fd00:360:0::1
+      WAN_PEER: fd00:360:0::11
+      LAN_SUBNET: fd00:361:1::/64
+      OTHER_LAN_SUBNET: fd00:362:1::/64
+      GLOBAL_LAN_IP: 2001:4860:361:1::2
+      GLOBAL_LAN_SUBNET: 2001:4860:361:1::/64
+      GLOBAL_OTHER_LAN_SUBNET: 2001:4860:362:1::/64
+      MODE: closed
+
+  fw-b:
+    <<: *router
+    hostname: fw-b
+    entrypoint: ["/app/tests/e2e/g3/ipv6-fw-router.sh"]
+    networks:
+      wan:
+        ipv6_address: fd00:360:0::11
+        interface_name: wan0
+      lan-b:
+        ipv6_address: fd00:362:1::2
+        interface_name: lan0
+    volumes:
+      - ./ipv6-fw-router.sh:/app/tests/e2e/g3/ipv6-fw-router.sh:ro
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_GATEWAY: fd00:360:0::1
+      WAN_PEER: fd00:360:0::10
+      LAN_SUBNET: fd00:362:1::/64
+      OTHER_LAN_SUBNET: fd00:361:1::/64
+      GLOBAL_LAN_IP: 2001:4860:362:1::2
+      GLOBAL_LAN_SUBNET: 2001:4860:362:1::/64
+      GLOBAL_OTHER_LAN_SUBNET: 2001:4860:361:1::/64
+      MODE: closed
+
+  a-quic:
+    <<: *peer
+    hostname: a-quic
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:361:1::2
+      GLOBAL_LAN_IP: 2001:4860:361:1::10
+    networks:
+      lan-a:
+        ipv6_address: fd00:361:1::10
+        interface_name: lan0
+    volumes:
+      - a-quic-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a-quic.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-a:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  b-quic:
+    <<: *peer
+    hostname: b-quic
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:362:1::2
+      GLOBAL_LAN_IP: 2001:4860:362:1::10
+    networks:
+      lan-b:
+        ipv6_address: fd00:362:1::10
+        interface_name: lan0
+    volumes:
+      - b-quic-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b-quic.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-b:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  a-tcp:
+    <<: *peer
+    hostname: a-tcp
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:361:1::2
+      GLOBAL_LAN_IP: 2001:4860:361:1::11
+    networks:
+      lan-a:
+        ipv6_address: fd00:361:1::11
+        interface_name: lan0
+    volumes:
+      - a-tcp-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a-tcp.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-a:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  b-tcp:
+    <<: *peer
+    hostname: b-tcp
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:362:1::2
+      GLOBAL_LAN_IP: 2001:4860:362:1::11
+    networks:
+      lan-b:
+        ipv6_address: fd00:362:1::11
+        interface_name: lan0
+    volumes:
+      - b-tcp-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b-tcp.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-b:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  a-relay:
+    <<: *peer
+    hostname: a-relay
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:361:1::2
+      GLOBAL_LAN_IP: 2001:4860:361:1::12
+    networks:
+      lan-a:
+        ipv6_address: fd00:361:1::12
+        interface_name: lan0
+    volumes:
+      - a-relay-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/a-relay.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-a:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  b-relay:
+    <<: *peer
+    hostname: b-relay
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:362:1::2
+      GLOBAL_LAN_IP: 2001:4860:362:1::12
+    networks:
+      lan-b:
+        ipv6_address: fd00:362:1::12
+        interface_name: lan0
+    volumes:
+      - b-relay-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/b-relay.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-b:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+
+  one-a:
+    <<: *peer
+    hostname: one-a
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:361:1::2
+      GLOBAL_LAN_IP: 2001:4860:361:1::13
+    networks:
+      lan-a:
+        ipv6_address: fd00:361:1::13
+        interface_name: lan0
+    volumes:
+      - one-a-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/one-a.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-a:
+        condition: service_healthy
+
+  one-b:
+    <<: *peer
+    hostname: one-b
+    environment:
+      RAMINGA_DATA_DIR: /data
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: ${G3_EXTRA_ARGS---enable-test-api}
+      LAN_IF: lan0
+      LAN_GATEWAY: fd00:362:1::2
+      GLOBAL_LAN_IP: 2001:4860:362:1::13
+    networks:
+      lan-b:
+        ipv6_address: fd00:362:1::13
+        interface_name: lan0
+    volumes:
+      - one-b-data:/data
+      - ${G3_CONFIG_DIR:?G3_CONFIG_DIR is required}/one-b.toml:/config.toml:ro
+      - ./ipv6-fw-peer-entrypoint.sh:/app/tests/e2e/g3/ipv6-fw-peer-entrypoint.sh:ro
+    depends_on:
+      fw-b:
+        condition: service_healthy
+
+networks:
+  wan:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:360:0::/64
+  lan-a:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:361:1::/64
+  lan-b:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:362:1::/64
+
+volumes:
+  relay-data:
+  wan-probe-data:
+  a-quic-data:
+  b-quic-data:
+  a-tcp-data:
+  b-tcp-data:
+  a-relay-data:
+  b-relay-data:
+  one-a-data:
+  one-b-data:

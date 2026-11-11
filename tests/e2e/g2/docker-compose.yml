@@ -1,0 +1,511 @@
+# Raminga G2 Docker acceptance topology.
+#
+#   a-* --- LAN-A 10.241.1.0/24 --- NAT-A 11.40.0.10 --- WAN 11.40.0.0/24
+#                                                        R1 .2 / R2 .3 / R-off .5
+#                                                        R-quota .7 / dht-boot .6
+#   b-* --- LAN-B 10.241.2.0/24 --- NAT-B 11.40.0.11 ---+
+#
+# No shared management network, no published host ports. Peers are only on
+# their LAN; NAT routers use the strict conntrack rules copied read-only into
+# tests/e2e/nat-router.sh (no static DNAT, no unconditional WAN->LAN ACCEPT).
+# This is a Docker simulation, not real-world NAT or M6 evidence.
+
+x-node: &node
+  image: raminga-g2-e2e:local
+  init: true
+  stop_grace_period: 20s
+  environment:
+    RAMINGA_CONFIG_TEMPLATE: /config.toml
+    RAMINGA_EXTRA_ARGS: --enable-test-api
+    RAMINGA_LOG_LEVEL: ${G2_LOG_LEVEL:-info}
+  healthcheck:
+    test: ["CMD", "raminga", "status", "--data-dir", "/data"]
+    interval: 1s
+    timeout: 3s
+    retries: 90
+    start_period: 2s
+
+x-router: &router
+  image: raminga-g2-e2e:local
+  init: true
+  stop_grace_period: 10s
+  entrypoint: ["/app/tests/e2e/nat-router.sh"]
+  cap_add:
+    - NET_ADMIN
+  sysctls:
+    - net.ipv4.ip_forward=1
+    - net.ipv4.conf.all.forwarding=1
+    - net.ipv4.conf.default.forwarding=1
+    - net.ipv4.conf.all.rp_filter=0
+    - net.ipv4.conf.default.rp_filter=0
+    - net.netfilter.nf_conntrack_udp_timeout=30
+    - net.netfilter.nf_conntrack_udp_timeout_stream=30
+  healthcheck:
+    test: ["CMD-SHELL", "test -f /run/nat-ready"]
+    interval: 2s
+    timeout: 3s
+    retries: 45
+    start_period: 10s
+
+services:
+  r1:
+    <<: *node
+    hostname: r1
+    networks:
+      wan:
+        ipv4_address: 11.40.0.2
+        interface_name: wan0
+    volumes:
+      - r1-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/r1.toml:/config.toml:ro
+
+  r2:
+    <<: *node
+    hostname: r2
+    networks:
+      wan:
+        ipv4_address: 11.40.0.3
+        interface_name: wan0
+    volumes:
+      - r2-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/r2.toml:/config.toml:ro
+
+  r-off:
+    <<: *node
+    hostname: r-off
+    networks:
+      wan:
+        ipv4_address: 11.40.0.5
+        interface_name: wan0
+    volumes:
+      - r-off-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/r-off.toml:/config.toml:ro
+
+  r-quota:
+    <<: *node
+    hostname: r-quota
+    networks:
+      wan:
+        ipv4_address: 11.40.0.7
+        interface_name: wan0
+    volumes:
+      - r-quota-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/r-quota.toml:/config.toml:ro
+
+  dht-boot:
+    <<: *node
+    hostname: dht-boot
+    networks:
+      wan:
+        ipv4_address: 11.40.0.6
+        interface_name: wan0
+    volumes:
+      - dht-boot-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/dht-boot.toml:/config.toml:ro
+
+  pub:
+    <<: *node
+    hostname: pub
+    networks:
+      wan:
+        ipv4_address: 11.40.0.20
+        interface_name: wan0
+    volumes:
+      - pub-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/pub.toml:/config.toml:ro
+
+  dht-a:
+    <<: *node
+    hostname: dht-a
+    networks:
+      wan:
+        ipv4_address: 11.40.0.21
+        interface_name: wan0
+    volumes:
+      - dht-a-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/dht-a.toml:/config.toml:ro
+
+  dht-b:
+    <<: *node
+    hostname: dht-b
+    networks:
+      wan:
+        ipv4_address: 11.40.0.22
+        interface_name: wan0
+    volumes:
+      - dht-b-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/dht-b.toml:/config.toml:ro
+
+  dht-c:
+    <<: *node
+    hostname: dht-c
+    networks:
+      wan:
+        ipv4_address: 11.40.0.23
+        interface_name: wan0
+    volumes:
+      - dht-c-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/dht-c.toml:/config.toml:ro
+
+  a-quic:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: a-quic
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.11
+        interface_name: lan0
+    volumes:
+      - a-quic-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/a-quic.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      r1:
+        condition: service_healthy
+      r2:
+        condition: service_healthy
+
+  b-quic:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.2.2
+      OTHER_LAN_SUBNET: 10.241.1.0/24
+    hostname: b-quic
+    networks:
+      lan-b:
+        ipv4_address: 10.241.2.11
+        interface_name: lan0
+    volumes:
+      - b-quic-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/b-quic.toml:/config.toml:ro
+    depends_on:
+      nat-b:
+        condition: service_healthy
+      r1:
+        condition: service_healthy
+      r2:
+        condition: service_healthy
+
+  a-tcp:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: a-tcp
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.10
+        interface_name: lan0
+    volumes:
+      - a-tcp-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/a-tcp.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      r1:
+        condition: service_healthy
+      r2:
+        condition: service_healthy
+
+  b-tcp:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.2.2
+      OTHER_LAN_SUBNET: 10.241.1.0/24
+    hostname: b-tcp
+    networks:
+      lan-b:
+        ipv4_address: 10.241.2.10
+        interface_name: lan0
+    volumes:
+      - b-tcp-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/b-tcp.toml:/config.toml:ro
+    depends_on:
+      nat-b:
+        condition: service_healthy
+      r1:
+        condition: service_healthy
+      r2:
+        condition: service_healthy
+
+  a-relay:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: a-relay
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.12
+        interface_name: lan0
+    volumes:
+      - a-relay-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/a-relay.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      r1:
+        condition: service_healthy
+      r2:
+        condition: service_healthy
+
+  b-relay:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.2.2
+      OTHER_LAN_SUBNET: 10.241.1.0/24
+    hostname: b-relay
+    networks:
+      lan-b:
+        ipv4_address: 10.241.2.12
+        interface_name: lan0
+    volumes:
+      - b-relay-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/b-relay.toml:/config.toml:ro
+    depends_on:
+      nat-b:
+        condition: service_healthy
+      r1:
+        condition: service_healthy
+      r2:
+        condition: service_healthy
+
+  quota-a1:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: quota-a1
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.30
+        interface_name: lan0
+    volumes:
+      - quota-a1-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/quota-a1.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      r-quota:
+        condition: service_healthy
+
+  quota-a2:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: quota-a2
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.31
+        interface_name: lan0
+    volumes:
+      - quota-a2-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/quota-a2.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      r-quota:
+        condition: service_healthy
+
+  off-peer:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: off-peer
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.32
+        interface_name: lan0
+    volumes:
+      - off-peer-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/off-peer.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      r-off:
+        condition: service_healthy
+
+  a-one:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.1.2
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+    hostname: a-one
+    networks:
+      lan-a:
+        ipv4_address: 10.241.1.13
+        interface_name: lan0
+    volumes:
+      - a-one-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/a-one.toml:/config.toml:ro
+    depends_on:
+      nat-a:
+        condition: service_healthy
+      pub:
+        condition: service_healthy
+
+  b-one:
+    <<: *node
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/app/tests/e2e/g2/nat-peer-entrypoint.sh"]
+    environment:
+      RAMINGA_CONFIG_TEMPLATE: /config.toml
+      RAMINGA_EXTRA_ARGS: --enable-test-api
+      LAN_IF: lan0
+      LAN_GATEWAY: 10.241.2.2
+      OTHER_LAN_SUBNET: 10.241.1.0/24
+    hostname: b-one
+    networks:
+      lan-b:
+        ipv4_address: 10.241.2.13
+        interface_name: lan0
+    volumes:
+      - b-one-data:/data
+      - ${G2_CONFIG_DIR:?G2_CONFIG_DIR is required}/b-one.toml:/config.toml:ro
+    depends_on:
+      nat-b:
+        condition: service_healthy
+      pub:
+        condition: service_healthy
+
+  nat-a:
+    <<: *router
+    hostname: nat-a
+    networks:
+      wan:
+        ipv4_address: 11.40.0.10
+        interface_name: wan0
+      lan-a:
+        ipv4_address: 10.241.1.2
+        interface_name: lan0
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_IP: 11.40.0.10
+      WAN_GATEWAY: 11.40.0.1
+      WAN_SUBNET: 11.40.0.0/24
+      LAN_IP: 10.241.1.2
+      LAN_SUBNET: 10.241.1.0/24
+      OTHER_LAN_SUBNET: 10.241.2.0/24
+
+  nat-b:
+    <<: *router
+    hostname: nat-b
+    networks:
+      wan:
+        ipv4_address: 11.40.0.11
+        interface_name: wan0
+      lan-b:
+        ipv4_address: 10.241.2.2
+        interface_name: lan0
+    environment:
+      WAN_IF: wan0
+      LAN_IF: lan0
+      WAN_IP: 11.40.0.11
+      WAN_GATEWAY: 11.40.0.1
+      WAN_SUBNET: 11.40.0.0/24
+      LAN_IP: 10.241.2.2
+      LAN_SUBNET: 10.241.2.0/24
+      OTHER_LAN_SUBNET: 10.241.1.0/24
+
+networks:
+  wan:
+    ipam:
+      config:
+        - subnet: 11.40.0.0/24
+  lan-a:
+    ipam:
+      config:
+        - subnet: 10.241.1.0/24
+  lan-b:
+    ipam:
+      config:
+        - subnet: 10.241.2.0/24
+
+volumes:
+  r1-data:
+  r2-data:
+  r-off-data:
+  r-quota-data:
+  dht-boot-data:
+  pub-data:
+  dht-a-data:
+  dht-b-data:
+  dht-c-data:
+  a-quic-data:
+  b-quic-data:
+  a-tcp-data:
+  b-tcp-data:
+  a-relay-data:
+  b-relay-data:
+  quota-a1-data:
+  quota-a2-data:
+  off-peer-data:
+  a-one-data:
+  b-one-data:

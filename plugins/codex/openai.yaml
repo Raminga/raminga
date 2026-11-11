@@ -1,0 +1,6 @@
+interface:
+  display_name: "Raminga Journey"
+  short_description: "Set up or explore Raminga with private journey memory"
+  default_prompt: "Use $raminga to check first-use readiness, guide private Agent setup if needed, or start a bounded evidence-backed journey."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,11 @@
+连接 1（直连 1 / 中继 0） · 我 QmT78zSuBmuS4z…
+> /▌
+> /connect     连接节点（名字 / Peer ID / multiaddr）
+  /disconnect  断开连接（可能自动重连）
+  /status      本机与连接概况
+  /peers       已知节点；/peers <节点> 看地址
+  /chat        选择聊天对象
+  /name        给节点起名
+  /describe    设置节点描述
+  /forget      从好友表删除
+  1-8/23

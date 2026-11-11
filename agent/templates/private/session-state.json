@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "session_id": "replace-with-session-id",
+  "status": "running",
+  "mode": "exploration",
+  "intent": "",
+  "limits": {
+    "max_visits": 5,
+    "max_candidates_per_step": 8,
+    "max_chat_round_trips_per_peer": 3,
+    "reply_timeout_seconds": 30,
+    "max_duration_seconds": 600
+  },
+  "discovery_sources": [],
+  "current_peer_id": null,
+  "visited_peer_ids": [],
+  "skipped_peer_ids": [],
+  "curiosity": [],
+  "started_at": "replace-with-rfc3339-timestamp",
+  "updated_at": "replace-with-rfc3339-timestamp",
+  "completed_at": null,
+  "completion_reason": null
+}

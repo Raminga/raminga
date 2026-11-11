@@ -1,0 +1,66 @@
+# G4.5 release configuration. `make dist` runs this in snapshot mode so no git
+# tag, GitHub token or signing key is required. The six archives are
+# CGO_ENABLED=0 and unsigned; see docs/public-test-guide.md and
+# docs/install.md for quarantine/SmartScreen handling.
+version: 2
+
+project_name: raminga
+
+builds:
+  - id: raminga
+    main: ./cmd/raminga
+    binary: raminga
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: archives
+    # The version lives inside the binary (`raminga version`), so archive and
+    # wrapper-directory names stay stable across releases.
+    name_template: "raminga_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    files:
+      - src: scripts/install.sh
+        strip_parent: true
+      - src: scripts/install.ps1
+        strip_parent: true
+      - src: LICENSE
+        strip_parent: true
+      - src: README.md
+        strip_parent: true
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+  # Bare binaries under the exact names the plugin launchers download:
+  # raminga_<os>_<arch> (and .exe on Windows). GoReleaser appends .exe itself.
+  # They are separate artifacts so they also land in SHA256SUMS.
+  - id: binaries
+    formats:
+      - binary
+    name_template: "raminga_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "SHA256SUMS"
+  algorithm: sha256
+
+snapshot:
+  # A snapshot version includes the short commit so two builds that negotiate
+  # the same version string can no longer contain different protocols.
+  version_template: "0.1.0-g451-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  disable: true

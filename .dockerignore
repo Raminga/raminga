@@ -1,0 +1,16 @@
+.git
+.gitignore
+.local
+.raminga
+**/.raminga
+node_modules
+**/node_modules
+**/dist
+**/*.log
+**/identity/transport-key.pb
+**/identity/node-id
+**/identity/.lock
+**/data
+tests/**/logs
+.DS_Store
+**/*.tsbuildinfo

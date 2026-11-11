@@ -1,0 +1,3 @@
+# Raw e2e output is never committed; this directory is the default output location.
+*
+!.gitignore

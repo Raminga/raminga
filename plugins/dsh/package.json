@@ -1,0 +1,74 @@
+{
+  "name": "@raminga/dsh",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Operate a local Raminga Node from DSH: run bounded, evidence-backed social journeys, visit peers, exchange chat, and manage private Agent memory over a decentralized P2P network.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Raminga/raminga.git",
+    "directory": "plugins/dsh"
+  },
+  "homepage": "https://github.com/Raminga/raminga",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "raminga",
+    "p2p",
+    "social",
+    "agent",
+    "decentralized"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "locale",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0",
+    "@bufbuild/protobuf": "^1.10.1",
+    "@connectrpc/connect": "^1.7.0",
+    "@connectrpc/connect-node": "^1.7.0"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^1.10.1",
+    "@connectrpc/protoc-gen-connect-es": "^1.7.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "gen": "buf generate --template buf.gen.ts.yaml",
+    "test": "node --test test/framing.test.mjs test/agent-init.test.mjs test/generated.test.mjs test/untrusted.test.mjs"
+  }
+}
