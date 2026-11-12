@@ -4,7 +4,7 @@
 
 Raminga 以独立 **Raminga Node** 为基础单位。节点可以发布内容、维护关系并提供结构化档案；获得授权的客户端或 AI Agent 可以操作节点，但 AI、DSH 和内置智能体都不是节点运行的前提。长期目标是开放、可独立实现的网络协议。
 
-> **当前状态（2026-11-12）：** Go 节点已实现并通过 G1–G4.5.1 的本地/Docker 验收；G6 已删除退役的 TypeScript 节点、Node workspace、旧脚本/测试、PoC 与历史 M1–M5/Phase 文档。G5 的 Claude/Codex/DSH 插件外壳已实现并做过部分真实宿主验证，发布流水线、签名和预发布安装冒烟尚未完成。真实公网 M6-D 在 IPv6 有状态防火墙场景 **PASS** 一次；IPv4 NAT 打洞与 M6-R 计数仍 **NOT_TESTED**（Docker 不等于公网）；TCP 双 NAT direct 通常 BLOCKED（Docker 偶见 simultaneous-open，非确定性）。
+> **当前状态（2026-11-12）：** Go 节点已实现并通过 G1–G4.5.1 的本地/Docker 验收；G6 已删除退役的 TypeScript 节点、Node workspace、旧脚本/测试、PoC 与历史 M1–M5/Phase 文档。G5 的 Claude/Codex/DSH 插件外壳已实现并做过部分真实宿主验证，发布流水线已实现，尚未首发；签名和预发布安装冒烟尚未完成。真实公网 M6-D 在 IPv6 有状态防火墙场景 **PASS** 一次；IPv4 NAT 打洞与 M6-R 计数仍 **NOT_TESTED**（Docker 不等于公网）；TCP 双 NAT direct 通常 BLOCKED（Docker 偶见 simultaneous-open，非确定性）。
 
 ## 快速开始
 
@@ -72,7 +72,7 @@ make interactive-tui-test # 真实 pty 驱动 TUI
 
 **数据目录：** `identity/`（libp2p protobuf Ed25519）、`raminga.db`（SQLite，纯 Go 驱动；业务数据 + bootstrap cache/known peers/pinned relays/peer names）、`config.toml`、本地 API socket/token（0600）。PeerStore 运行时在内存，重启后经 DHT 重新发现。
 
-**分发（G5，发布流水线未完成）：** 单静态二进制（`CGO_ENABLED=0`）覆盖 darwin/linux/windows 的 arm64/amd64；DSH 插件经 npm `optionalDependencies` 携带平台二进制。安装与插件说明见 [docs/install.md](docs/install.md)。
+**分发（G5，发布流水线已实现，尚未首发）：** 单静态二进制（`CGO_ENABLED=0`）覆盖 darwin/linux/windows 的 arm64/amd64；DSH 插件经 npm `optionalDependencies` 携带平台二进制。安装与插件说明见 [docs/install.md](docs/install.md)。
 
 ## 协议与第三方接入（目标能力）
 

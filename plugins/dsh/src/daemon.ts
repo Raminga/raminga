@@ -23,9 +23,11 @@ export function spawnDaemon(config: ResolvedConfig): void {
   // surfacing a 15s "not reachable" timeout that hides the real cause.
   const check = spawnSync(config.ramingaBin, ['version'], { stdio: 'ignore', timeout: 3000 });
   if (check.error) {
+    const diagnostic = config.ramingaBinDiagnostic ? ` ${config.ramingaBinDiagnostic}` : '';
     throw new Error(
       `cannot run the Raminga binary "${config.ramingaBin}": ${check.error.message}. ` +
-        'Set ramingaBin in the plugin config or install raminga on PATH.',
+        'Set ramingaBin in the plugin config or install raminga on PATH.' +
+        diagnostic,
     );
   }
 

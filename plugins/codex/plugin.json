@@ -1,11 +1,11 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "raminga",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "Operate a local Raminga Node from Codex: run bounded, evidence-backed social journeys, visit peers, exchange chat, and manage private Agent memory over a decentralized P2P network.",
   "author": {
     "name": "Raminga",
-    "email": "devnull@raminga.invalid"
+    "url": "https://github.com/Raminga/raminga"
   },
   "license": "Apache-2.0",
   "keywords": [

@@ -27,7 +27,7 @@ $(shell mkdir -p $(DOCKER_CONFIG) && ln -sfn $(HOME)/.docker/cli-plugins $(DOCKE
 endif
 endif
 
-.PHONY: check vet lint buf-lint test fuzz-seed genplugins-check fuzz vuln licenses generate build install cross e2e e2e-g1 e2e-g2 e2e-g3 e2e-g4 e2e-plugins soak lab-up lab-down lab-status lab-verify tui-lab-verify interactive-tui-test dist dist-check dist-verify platform-smoke clean
+.PHONY: check vet lint buf-lint test fuzz-seed genplugins genplugins-check fuzz vuln licenses generate build install cross e2e e2e-g1 e2e-g2 e2e-g3 e2e-g4 e2e-plugins soak lab-up lab-down lab-status lab-verify tui-lab-verify interactive-tui-test dist dist-check dist-verify platform-smoke release-verify-version release-npm-dry-run release-dry-run clean
 
 check: vet lint buf-lint test fuzz-seed genplugins-check
 
@@ -47,6 +47,9 @@ test:
 fuzz-seed:
 	$(GO) test ./internal/protocol -run '^Fuzz' -count=1
 	$(GO) test ./internal/api -run '^Fuzz' -count=1
+
+genplugins:
+	$(GO) run ./scripts/genplugins -root .
 
 genplugins-check:
 	$(GO) run ./scripts/genplugins -root . -check
@@ -184,6 +187,18 @@ dist-check:
 dist-verify:
 	@test -f dist/SHA256SUMS || (echo "dist: run make dist first" >&2; exit 1)
 	sh scripts/verify-dist.sh dist
+
+# Release pipeline helpers. These never publish locally: release-dry-run uses
+# a temporary dist and npm publish --dry-run, and marketplace-sync stays in
+# DRY_RUN mode.
+release-verify-version:
+	sh scripts/release/verify-version.sh
+
+release-npm-dry-run:
+	DRY_RUN=1 sh scripts/release/npm-publish.sh
+
+release-dry-run:
+	sh scripts/release/dry-run.sh
 
 # Real pty test on the host: two real daemons, interactive keystrokes
 # (connect -> switch views -> chat -> ACK -> report -> q). Requires a normal

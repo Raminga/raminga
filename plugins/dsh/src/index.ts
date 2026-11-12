@@ -31,7 +31,10 @@ export const Config = Schema.object({
     .description('Absolute Raminga data directory; empty means $RAMINGA_DATA_DIR, else ~/.raminga.'),
   ramingaBin: Schema.string()
     .default('')
-    .description('Path to the raminga binary used to auto-start a node; empty means "raminga" on PATH.'),
+    .description(
+      'Path to the raminga binary used to auto-start a node. Empty uses $RAMINGA_BIN, ' +
+        'then the bundled @raminga/bin-<os>-<cpu> package, then "raminga" on PATH.',
+    ),
 });
 
 export function apply(ctx: Context, config: PluginConfig): () => void {

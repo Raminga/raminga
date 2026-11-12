@@ -49,6 +49,7 @@ type runner struct {
 	root     string
 	bin      string
 	launcher string
+	version  string
 }
 
 // lockedBuffer collects child stderr while the MCP client reads it.
@@ -77,10 +78,15 @@ func main() {
 	if err != nil {
 		fatalf(fmt.Errorf("resolve root: %w", err))
 	}
+	versionBytes, err := os.ReadFile(filepath.Join(abs, "VERSION"))
+	if err != nil {
+		fatalf(fmt.Errorf("read VERSION: %w", err))
+	}
 	r := runner{
 		root:     abs,
 		bin:      filepath.Join(abs, "bin", "raminga"),
 		launcher: filepath.Join(abs, "plugins", "claude", "bin", "raminga-launcher.sh"),
+		version:  strings.TrimSpace(string(versionBytes)),
 	}
 	if info, err := os.Stat(r.bin); err != nil || info.IsDir() {
 		fatalf(fmt.Errorf("missing %s; run `make build` first", r.bin))
@@ -244,7 +250,7 @@ func (r runner) runLauncherCache(parent context.Context) (retErr error) {
 	}
 	defer func() { _ = os.RemoveAll(home) }()
 	dataDir := filepath.Join(home, ".raminga")
-	if err := os.MkdirAll(filepath.Join(dataDir, "bin", "0.1.0"), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(dataDir, "bin", r.version), 0o700); err != nil {
 		return err
 	}
 	var session *sdkmcp.ClientSession

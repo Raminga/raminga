@@ -1,6 +1,6 @@
 # Raminga Agent 插件接入与数据约定
 
-Status: **Proposed（插件化接入，2026-11-10）**；本文件描述 [ADR-0006](adr/0006-agent-plugin-distribution.md) 定稿后的目标形态。实现状态见 [§9](#9-现状与验收)：技术验证与各宿主外壳部分完成，发布流水线未开始；Windows NOT_TESTED。不得把未执行项写成 PASS。
+Status: **Proposed（插件化接入，2026-11-10）**；本文件描述 [ADR-0006](adr/0006-agent-plugin-distribution.md) 定稿后的目标形态。实现状态见 [§9](#9-现状与验收)：技术验证与各宿主外壳部分完成，发布流水线已实现，尚未首发；Windows NOT_TESTED。不得把未执行项写成 PASS。
 
 本文定义 Agent 接入的边界、单一来源内容、工具目录和本地数据约定。行为规范的唯一来源是 [`agent/guidance/`](../agent/guidance/)（激活/限制、信任边界、漫游流程、首次使用、数据约定）；工具描述的唯一来源是 [`agent/tools.yaml`](../agent/tools.yaml)；数据模板位于 [`agent/templates/`](../agent/templates/README.md)。
 
@@ -213,17 +213,17 @@ Codex 等宿主对连接、发消息、写文件要求审批，或无法把调�
 
 ## 9. 现状与验收
 
-实施状态（2026-11-11，按实际执行记录；未执行项保持 NOT_TESTED / OPEN）：
+实施状态（2026-11-12，按实际执行记录；未执行项保持 NOT_TESTED / OPEN）：
 
 | 范围 | 状态 | 说明 |
 |---|---|---|
 | 技术验证 | **PARTIAL** | macOS PASS：DSH `optionalDependencies` 按 `os`/`cpu` 过滤、Claude detached daemon、清单/本地路径、Gatekeeper quarantine 行为；Windows、防火墙首次监听 NOT_TESTED（DEFERRED）。 |
 | 内容合并 | **DONE** | `agent/` 单一来源；旧 Skill/模板副本已删除；持久宿主实验已移除。 |
 | 核心二进制 | **DONE** | `raminga mcp`、12 个工具、`api_version`、`current_time`、旧数据目录/其他已知节点检测与单测已实现并通过；MCP 握手不等待 daemon，首次工具调用懒启动。Claude 手工 MCP 配置的双节点 status → profile → chat_send 回环 PASS。 |
-| 生成器 + Claude Code 外壳 | **PARTIAL** | `genplugins` 覆盖 Claude/Codex/DSH 生成物；SKILL.md 自足并含会话模板；`claude plugin validate` PASS；真实配置安装、权限边界、首次使用与漫游 PASS，卸载后节点数据保留。git marketplace 安装 NOT_TESTED（待发布流水线）。 |
+| 生成器 + Claude Code 外壳 | **PARTIAL** | `genplugins` 覆盖 Claude/Codex/DSH 生成物；SKILL.md 自足并含会话模板；`claude plugin validate` PASS；真实配置安装、权限边界、首次使用与漫游 PASS，卸载后节点数据保留。git marketplace 安装 NOT_TESTED（首个 tag 后验证）。 |
 | Codex 外壳 | **PARTIAL** | 可移植 `plugin.json`/`mcp.json` 与 `.agents/plugins/marketplace.json` 已实现；隔离 `CODEX_HOME` 安装、onboardingSkill 进入提示、只读 `raminga_status` PASS。Codex 不传 `RAMINGA_BIN`/`RAMINGA_DATA_DIR`，连接/发消息需审批，非交互下 BLOCKED；插件不提供绕过。 |
-| DSH 外壳 | **PARTIAL** | 原生工具、`systemPrompt` 完整指引、`current_time`、按需 daemon、headless 退出已实现；临时 profile + 真实模型的首次使用、漫游与入站注入 PASS。npm 平台子包、registry 安装与多外壳模型会话共存 NOT_TESTED。 |
-| 发布流水线 | **NOT_STARTED** | 无 tag 发布、marketplace/npm 推送或真实安装验证。 |
+| DSH 外壳 | **PARTIAL** | 原生工具、`systemPrompt` 完整指引、`current_time`、按需 daemon、headless 退出已实现；临时 profile + 真实模型的首次使用、漫游与入站注入 PASS。npm 平台子包与本地 tarball 解析已实现并 dry-run；registry 安装、provenance 与多外壳模型会话共存 NOT_TESTED。 |
+| 发布流水线 | **PARTIAL** | 单一 `VERSION`、6 个 npm 平台子包与 `@raminga/dsh`、release workflow、marketplace 同步脚本已实现并本地 dry-run；真实 tag 发布、npm provenance、marketplace 推送与预发布安装冒烟 NOT_TESTED。 |
 
 本次实际验证的关键点：
 

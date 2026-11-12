@@ -16,9 +16,8 @@ import (
 	"github.com/Raminga/raminga/internal/tuiinit"
 )
 
-const defaultVersion = "0.1.0-g451"
-
-// version is overridden by -ldflags "-X main.version=...".
+// version is overridden by -ldflags "-X main.version=...". The fallback is
+// generated from the repository-root VERSION file by scripts/genplugins.
 var version = defaultVersion
 
 // buildVersion adds the VCS revision for a plain `go build` that did not pass

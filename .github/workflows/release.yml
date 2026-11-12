@@ -1,0 +1,115 @@
+name: Release
+
+# A v* tag produces all release artifacts. Manual dispatch is a dry run:
+# build and package only; no GitHub Release, npm publish or marketplace push.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GOMODCACHE: /home/runner/go/pkg/mod
+      GOCACHE: /home/runner/.cache/go-build
+      GOLANGCI_LINT_CACHE: /home/runner/.cache/golangci-lint
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Check
+        run: make check
+      - name: Verify tag and VERSION
+        run: sh scripts/release/verify-version.sh
+      - name: GoReleaser release
+        if: github.event_name == 'push'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: GoReleaser dry run
+        if: github.event_name == 'workflow_dispatch'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: release --snapshot --clean
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+
+  npm:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GOMODCACHE: /home/runner/go/pkg/mod
+      GOCACHE: /home/runner/.cache/go-build
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Publish npm packages
+        run: sh scripts/release/npm-publish.sh
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  marketplace:
+    needs: [release, npm]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Sync marketplace repository
+        run: |
+          set -eu
+          key="$RUNNER_TEMP/plugins_deploy_key"
+          known="$RUNNER_TEMP/known_hosts"
+          trap 'rm -f "$key" "$known"' EXIT
+          (umask 077 && printf '%s\n' "$PLUGINS_DEPLOY_KEY" > "$key")
+          # GitHub's published host key (GET /meta, SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU).
+          # Pinned instead of ssh-keyscan so the push cannot be redirected.
+          printf '%s\n' 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$known"
+          GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$known" \
+            MARKETPLACE_REPO=git@github.com:Raminga/raminga-plugins.git \
+            sh scripts/release/marketplace-sync.sh
+        env:
+          PLUGINS_DEPLOY_KEY: ${{ secrets.PLUGINS_DEPLOY_KEY }}

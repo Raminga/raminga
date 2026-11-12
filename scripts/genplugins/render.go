@@ -5,31 +5,41 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"strconv"
 	"strings"
 
 	"github.com/Raminga/raminga/agent"
 	"github.com/Raminga/raminga/internal/untrusted"
 )
 
-// Release metadata injected into every generated shell. P6 (the release
-// pipeline) must keep these in sync with the tag that produces the GitHub
-// Release assets the launcher downloads.
+// Release metadata injected into every generated shell. The version itself
+// comes from the repository-root VERSION file, the single source of truth for
+// every published artifact.
 const (
-	releaseVersion    = "0.1.0"
-	releaseRepo       = "Raminga/raminga"
-	pluginName        = "raminga"
-	pluginAuthorName  = "Raminga"
-	pluginAuthorEmail = "devnull@raminga.invalid" // placeholder; replace before publishing
-	pluginLicense     = "Apache-2.0"
-	pluginHomepage    = "https://github.com/Raminga/raminga"
+	releaseRepo      = "Raminga/raminga"
+	pluginName       = "raminga"
+	pluginAuthorName = "Raminga"
+	pluginLicense    = "Apache-2.0"
+	pluginHomepage   = "https://github.com/Raminga/raminga"
 )
+
+// dshPlatformPackages are the npm platform packages carried by the DSH shell as
+// optionalDependencies. Their names use npm's os/cpu vocabulary, not Go's.
+var dshPlatformPackages = []string{
+	"@raminga/bin-darwin-arm64",
+	"@raminga/bin-darwin-x64",
+	"@raminga/bin-linux-arm64",
+	"@raminga/bin-linux-x64",
+	"@raminga/bin-win32-arm64",
+	"@raminga/bin-win32-x64",
+}
 
 var pluginKeywords = []string{"p2p", "social", "agent", "decentralized", "raminga"}
 
 // generatedRoots are the plugin-shell directories genplugins owns (in whole or
 // in part). Stale-file detection walks only these, so a hand-authored file
 // anywhere else is never touched.
-var generatedRoots = []string{"plugins/claude", "plugins/codex"}
+var generatedRoots = []string{".claude-plugin", "plugins/claude", "plugins/codex"}
 
 // handAuthoredFiles are files under a generatedRoot that genplugins does not
 // produce and must preserve: the legacy Codex agent config relocated in P1 and
@@ -41,15 +51,23 @@ var handAuthoredFiles = map[string]bool{
 // launcherTokens are the placeholders in plugins/shared/launcher templates that
 // genplugins substitutes with the release metadata above.
 var launcherTokens = []struct{ token, value string }{
-	{"__RAMINGA_RELEASE_VERSION__", releaseVersion},
 	{"__RAMINGA_RELEASE_REPO__", releaseRepo},
 }
 
+// renderInputs are the hand-maintained files whose version fields genplugins
+// owns. Their non-version fields are preserved as-is.
+type renderInputs struct {
+	Version        string
+	DSHPackageJSON []byte
+	Marketplace    []byte
+}
+
 // render produces every generated file (repo-relative forward-slash path ->
-// bytes) for the Claude Code and Codex shells, from the single-source agent
-// content and the launcher templates. All output is LF and deterministic so
-// `genplugins --check` can diff byte-for-byte.
-func render(launcherSH, launcherPS1 []byte) (map[string][]byte, error) {
+// bytes) for the plugin shells, marketplace, DSH package metadata and CLI
+// fallback version, from the single-source agent content, VERSION and the
+// launcher templates. All output is LF and deterministic so `genplugins
+// --check` can diff byte-for-byte.
+func render(launcherSH, launcherPS1 []byte, in renderInputs) (map[string][]byte, error) {
 	catalog, err := agent.ToolCatalog()
 	if err != nil {
 		return nil, err
@@ -62,23 +80,37 @@ func render(launcherSH, launcherPS1 []byte) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	sh := substitute(launcherSH)
-	ps1 := substitute(launcherPS1)
+	sh := substitute(launcherSH, in.Version)
+	ps1 := substitute(launcherPS1, in.Version)
+
+	dshPackage, err := renderDSHPackageJSON(in.DSHPackageJSON, in.Version)
+	if err != nil {
+		return nil, err
+	}
+	marketplace, err := renderMarketplaceJSON(in.Marketplace, in.Version)
+	if err != nil {
+		return nil, err
+	}
 
 	out := map[string][]byte{
-		"plugins/claude/.claude-plugin/plugin.json": renderClaudePluginJSON(),
+		".claude-plugin/marketplace.json": marketplace,
+
+		"plugins/claude/.claude-plugin/plugin.json": renderClaudePluginJSON(in.Version),
 		"plugins/claude/.mcp.json":                  renderClaudeMCPJSON(),
 		"plugins/claude/bin/raminga-launcher.sh":    sh,
 		"plugins/claude/bin/raminga-launcher.ps1":   ps1,
 
-		"plugins/codex/plugin.json":                        renderCodexPluginJSON(),
+		"plugins/codex/plugin.json":                        renderCodexPluginJSON(in.Version),
 		"plugins/codex/mcp.json":                           renderCodexMCPJSON(),
 		"plugins/codex/bin/raminga-launcher.sh":            sh,
 		"plugins/codex/bin/raminga-launcher.ps1":           ps1,
 		"plugins/codex/skills/raminga-onboarding/SKILL.md": renderOnboardingSkill(guidance["first-use.md"]),
 
+		"plugins/dsh/package.json":               dshPackage,
 		"plugins/dsh/src/tools.generated.ts":     renderDSHTools(catalog, guide),
 		"plugins/dsh/src/untrusted.generated.ts": renderDSHUntrusted(),
+
+		"cmd/raminga/version_default.go": renderDefaultVersionGo(in.Version),
 	}
 	addSkill(out, "plugins/claude", guide)
 	addSkill(out, "plugins/codex", guide)
@@ -105,18 +137,19 @@ func loadGuidance() (map[string][]byte, error) {
 	return guidance, nil
 }
 
-func substitute(src []byte) []byte {
-	s := string(src)
+func substitute(src []byte, version string) []byte {
+	s := strings.ReplaceAll(string(src), "__RAMINGA_RELEASE_VERSION__", version)
 	for _, t := range launcherTokens {
 		s = strings.ReplaceAll(s, t.token, t.value)
 	}
 	return []byte(s)
 }
 
-// author is the plugin author object shared by both manifests.
+// author is the plugin author object shared by both manifests. Contact is the
+// public repository URL; no personal or placeholder email is published.
 type author struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
 }
 
 // claudePluginManifest is the .claude-plugin/plugin.json shape.
@@ -131,14 +164,14 @@ type claudePluginManifest struct {
 	Repository  string   `json:"repository"`
 }
 
-func renderClaudePluginJSON() []byte {
+func renderClaudePluginJSON(version string) []byte {
 	return marshalJSON(claudePluginManifest{
 		Name:    pluginName,
-		Version: releaseVersion,
+		Version: version,
 		Description: "Operate a local Raminga Node from Claude Code: run bounded, " +
 			"evidence-backed social journeys, visit peers, exchange chat, and manage " +
 			"private Agent memory over a decentralized P2P network.",
-		Author:     author{Name: pluginAuthorName, Email: pluginAuthorEmail},
+		Author:     author{Name: pluginAuthorName, URL: pluginHomepage},
 		License:    pluginLicense,
 		Keywords:   pluginKeywords,
 		Homepage:   pluginHomepage,
@@ -171,15 +204,15 @@ type codexOpenAI struct {
 	OnboardingSkill string `json:"onboardingSkill"`
 }
 
-func renderCodexPluginJSON() []byte {
+func renderCodexPluginJSON(version string) []byte {
 	return marshalJSON(codexPluginManifest{
 		Schema:  "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 		Name:    pluginName,
-		Version: releaseVersion,
+		Version: version,
 		Description: "Operate a local Raminga Node from Codex: run bounded, " +
 			"evidence-backed social journeys, visit peers, exchange chat, and manage " +
 			"private Agent memory over a decentralized P2P network.",
-		Author:     author{Name: pluginAuthorName, Email: pluginAuthorEmail},
+		Author:     author{Name: pluginAuthorName, URL: pluginHomepage},
 		License:    pluginLicense,
 		Keywords:   pluginKeywords,
 		Homepage:   pluginHomepage,
@@ -190,6 +223,83 @@ func renderCodexPluginJSON() []byte {
 			},
 		},
 	})
+}
+
+// marketplaceManifest is the Claude Code marketplace shape. The owner has no
+// email: the public repository URL is the only contact.
+type marketplaceManifest struct {
+	Name     string              `json:"name"`
+	Owner    author              `json:"owner"`
+	Metadata marketplaceMetadata `json:"metadata"`
+	Plugins  []marketplacePlugin `json:"plugins"`
+}
+
+type marketplaceMetadata struct {
+	Description string `json:"description"`
+}
+
+type marketplacePlugin struct {
+	Name        string   `json:"name"`
+	Source      string   `json:"source"`
+	Description string   `json:"description"`
+	Version     string   `json:"version"`
+	Author      author   `json:"author"`
+	Category    string   `json:"category"`
+	Keywords    []string `json:"keywords"`
+	Strict      bool     `json:"strict"`
+}
+
+func renderMarketplaceJSON(src []byte, version string) ([]byte, error) {
+	var manifest marketplaceManifest
+	if err := json.Unmarshal(src, &manifest); err != nil {
+		return nil, fmt.Errorf("parse .claude-plugin/marketplace.json: %w", err)
+	}
+	manifest.Owner = author{Name: pluginAuthorName, URL: pluginHomepage}
+	found := false
+	for i := range manifest.Plugins {
+		if manifest.Plugins[i].Name == pluginName {
+			manifest.Plugins[i].Version = version
+			manifest.Plugins[i].Author = author{Name: pluginAuthorName, URL: pluginHomepage}
+			found = true
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf(".claude-plugin/marketplace.json has no %q plugin", pluginName)
+	}
+	return marshalJSON(manifest), nil
+}
+
+// renderDSHPackageJSON updates only the fields genplugins owns: the package
+// version and the exact optionalDependencies versions. Every other field is
+// copied through unchanged.
+func renderDSHPackageJSON(src []byte, version string) ([]byte, error) {
+	var pkg map[string]json.RawMessage
+	if err := json.Unmarshal(src, &pkg); err != nil {
+		return nil, fmt.Errorf("parse plugins/dsh/package.json: %w", err)
+	}
+	encodedVersion, err := json.Marshal(version)
+	if err != nil {
+		return nil, err
+	}
+	pkg["version"] = encodedVersion
+	deps := make(map[string]string, len(dshPlatformPackages))
+	for _, name := range dshPlatformPackages {
+		deps[name] = version
+	}
+	encodedDeps, err := json.Marshal(deps)
+	if err != nil {
+		return nil, err
+	}
+	pkg["optionalDependencies"] = encodedDeps
+	return marshalJSON(pkg), nil
+}
+
+// renderDefaultVersionGo keeps cmd/raminga's fallback version in lockstep with
+// VERSION. Release builds override it through -ldflags, but a plain `go build`
+// and `raminga version` must still start from the same release version.
+func renderDefaultVersionGo(version string) []byte {
+	return []byte("// Code generated by scripts/genplugins from VERSION; DO NOT EDIT.\n\n" +
+		"package main\n\nconst defaultVersion = " + strconv.Quote(version) + "\n")
 }
 
 // claudeMCPConfig is the Claude Code .mcp.json shape. The command is the shell

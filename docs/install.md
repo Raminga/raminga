@@ -1,8 +1,58 @@
 # Raminga 安装与构建指南
 
-Status: Current (2026-11-11) · Go 1.27 · 未签名 snapshot。本文所有命令以本仓库当前 Makefile、`.goreleaser.yaml` 和 CLI `--help` 为准。
+Status: Current (2026-11-12) · Go 1.27 · 未签名。发布流水线已实现，尚未首发。本文所有命令以本仓库当前 Makefile、`.goreleaser.yaml` 和 CLI `--help` 为准。
 
 > **迁移先于第一次运行（最容易搞错的一步）：** 如果旧节点的数据目录不是 `~/.raminga`，必须在第一次运行新版 `raminga` 之前，把**整个旧目录**移到 `~/.raminga`。新版一旦先在默认目录启动，就会生成新的 `identity/key` 和 `raminga.db`；此时再 `mv 旧目录 ~/.raminga`，旧目录会被移到 `~/.raminga/<旧目录名>` 里面，默认目录仍由新身份运行。2026-11-06 实际发生过（旧节点在 `~/.raminga/raminga-test`）。完整检查、正确顺序和恢复步骤见 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前)。
+
+## 安装路径
+
+Raminga 提供三种 Agent 插件安装方式和一种独立二进制安装方式。插件与二进制共用同一个节点数据目录（默认 `~/.raminga`），安装插件不会删除已有身份或聊天记录。
+
+### Claude Code
+
+```sh
+claude plugin marketplace add Raminga/raminga-plugins
+claude plugin install raminga@raminga-plugins
+```
+
+安装后重启 Claude Code 会话。插件启动器会复用版本精确匹配的 `raminga`，否则从对应 GitHub Release 下载裸二进制并校验 `SHA256SUMS`。
+
+### Codex
+
+```sh
+codex plugin marketplace add Raminga/raminga-plugins
+codex plugin add raminga@raminga-plugins
+```
+
+Codex 不把调用者环境变量传给插件 MCP，因此 `RAMINGA_BIN` / `RAMINGA_DATA_DIR` 在 Codex 下不生效；插件使用默认 `~/.raminga`。Codex 对连接、发消息等写/网络工具按自身策略审批，非交互会话下可能失败。
+
+### DSH
+
+预发布（当前 `v0.1.0-rc.1` 应使用 `next` dist-tag）：
+
+```sh
+dsh plugin --profile <name> add @raminga/dsh@next
+```
+
+正式版去掉 `@next`：
+
+```sh
+dsh plugin --profile <name> add @raminga/dsh
+```
+
+DSH 会自动安装与当前平台匹配的 `@raminga/bin-<os>-<cpu>` 平台子包（macOS/Linux/Windows × arm64/x64），外壳本身不含二进制。二进制查找顺序：插件配置 `ramingaBin` > `$RAMINGA_BIN` > 平台子包 > `PATH` 上的 `raminga`。
+
+### 独立二进制
+
+不需要 Agent 插件时，从 [GitHub Releases](https://github.com/Raminga/raminga/releases) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
+
+macOS 上未签名二进制首次运行可能被 Gatekeeper 拦截：右键 `raminga` →“打开”，或执行：
+
+```sh
+xattr -d com.apple.quarantine ./raminga
+```
+
+Windows 未做 Authenticode 签名，且当前版本未在 Windows 实机验证；SmartScreen 提示时选择“更多信息 → 仍要运行”。
 
 ## 0. 最短路径
 
@@ -283,6 +333,8 @@ make dist-verify
 
 `make dist-check` 用同样的 `release --snapshot` 流程，但把 `dist` 指向临时目录并使用仓库内 `.local/` 缓存，不会写 `dist/`。
 
+`make release-dry-run` 在临时目录跑完整发布流水线的本地版本：GoReleaser snapshot、生成 6 个 npm 平台子包与 `@raminga/dsh`、`npm pack` / `npm publish --dry-run`，以及 marketplace 目录的 DRY_RUN 同步；不会发布。发布 tag 由 `.github/workflows/release.yml` 处理，详见 [CONTRIBUTING.md 的“发布”一节](../CONTRIBUTING.md#发布)。
+
 ## 4. 第一次运行
 
 以下命令假定 `raminga` 已在 PATH；原地运行请把 `raminga` 换成 `./raminga`（Windows 为 `.\raminga.exe`）。
@@ -351,9 +403,9 @@ raminga init --data-dir "$HOME/.raminga/client-a" --bootstrap /ip4/<公网IPv4>/
 
 ### 插件外壳与启动器
 
-Claude Code 外壳位于 `plugins/claude/`，marketplace 清单位于仓库根 `.claude-plugin/marketplace.json`（`source` 为 `./plugins/claude`）。本地开发时可把仓库路径或独立 marketplace 仓库加入后安装 `raminga@raminga-plugins`；本页不把该安装流程写成已验证，需按实际 `claude` 版本执行。
+Claude Code 外壳位于 `plugins/claude/`，marketplace 清单位于仓库根 `.claude-plugin/marketplace.json`（`source` 为 `./plugins/claude`）。安装命令见文首；发布流水线会把同样的相对路径同步到 `Raminga/raminga-plugins`，该仓库尚未首发，真实安装冒烟在首个 tag 后执行。
 
-Codex 外壳位于 `plugins/codex/`，repo marketplace 清单位于 `.agents/plugins/marketplace.json`（`source.path` 为 `./plugins/codex`），格式依据 OpenAI 官方插件文档；`mcp.json` 使用 Agent Plugins 1.0.0 的可移植 stdio 格式。DSH 外壳位于 `plugins/dsh/`，以 npm 包方式装进 DSH profile；DSH 使用原生工具而不是 MCP。
+Codex 外壳位于 `plugins/codex/`，repo marketplace 清单位于 `.agents/plugins/marketplace.json`（`source.path` 为 `./plugins/codex`），格式依据 OpenAI 官方插件文档；`mcp.json` 使用 Agent Plugins 1.0.0 的可移植 stdio 格式。DSH 外壳位于 `plugins/dsh/`，以 npm 包方式装进 DSH profile；DSH 使用原生工具而不是 MCP，并从 `@raminga/bin-<os>-<cpu>` 平台子包解析二进制。
 
 Claude/Codex 的 `mcp.json` 都以 `sh` 为 `command`、以插件根变量定位 `bin/raminga-launcher.sh`（Claude 用 `${CLAUDE_PLUGIN_ROOT}`，Codex 用 `${PLUGIN_ROOT}`），因为仓库中生成的 `.sh` 在部分检出/平台上没有可执行位。启动器优先复用 PATH 上**版本精确匹配**固定发布版本的 `raminga`，其次复用 `~/.raminga/bin/<version>/` 缓存，最后按平台下载裸二进制并校验 `SHA256SUMS`。下载在系统临时目录完成，校验通过后才写入缓存；失败时只清理本次创建的临时文件/目录，不会留下空的 `~/.raminga/bin/<version>/`。`make install` 的本地构建通常带 git 版本后缀，不会与固定发布版本精确相等；开发或离线时应显式设置 `RAMINGA_BIN` 指向本地二进制，启动器会跳过版本比对并在 stderr 提示。Windows 上 `sh` 是否可用本机无法验证，保持未决；当前不提供绕过 `sh` 的 Windows 变通方案。
 
@@ -380,7 +432,6 @@ Claude/Codex 的 `mcp.json` 都以 `sh` 为 `command`、以插件根变量定位
 - DSH：`CONFIRM_TOOLS` 随目录权限变为空，`tools/pre-execute` 不再对本插件工具发起 `ask`；DSH 自身工具权限不变。
 
 MCP 工具注解与上述一致：会写入或对外发送的工具 `ReadOnlyHint=false`，访问远端的工具 `OpenWorldHint=true`。宿主权限声明依据见 [agent-skill.md §8.1.4](agent-skill.md#814-宿主权限分界)。
-
 
 ### 数据目录内容
 
@@ -656,7 +707,8 @@ sudo systemctl daemon-reload
 ## 9. 状态与诚实边界
 
 - 当前 `make dist` / `make dist-check` 产物是**未签名 snapshot**；macOS 未 notarize，Windows 未 Authenticode 签名。
-- 有归档内的 `install.sh` / `install.ps1` 与 `make install`；没有 Homebrew/scoop/winget/npm 安装器或自动更新渠道，分发/签名渠道尚未实现。
+- 有归档内的 `install.sh` / `install.ps1` 与 `make install`；Claude Code / Codex 通过 `Raminga/raminga-plugins` marketplace 安装，DSH 通过 npm 包 `@raminga/dsh` 安装；没有 Homebrew/scoop/winget 或自动更新渠道。
+- 发布流水线已实现，尚未首发：真实 tag 发布、npm provenance、marketplace 推送、预发布安装冒烟和 Windows 实机均未验证。
 - 归档和顶层目录名**不含版本号**；版本用 `raminga version` 查看。
 - Windows 实机曾运行过旧协议的 daemon/TUI/QUIC 打洞，但当前版本未按清单逐项冒烟，状态仍为 **NOT_TESTED**；systemd/launchd 示例需按实际用户/路径调整。Windows 的 `install.ps1` 未在本仓库 CI 中由 PowerShell 实跑。
 - 真实公网：M6-D 在 IPv6 有状态防火墙场景真实 **PASS** 一次，IPv4 NAT 打洞与 M6-R 计数仍 **NOT_TESTED**；Docker/lab 不是公网证明。

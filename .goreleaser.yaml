@@ -57,10 +57,33 @@ checksum:
   name_template: "SHA256SUMS"
   algorithm: sha256
 
+release:
+  # The single tag produces the GitHub Release for the public repository.
+  # GITHUB_TOKEN (contents: write) is supplied by the release workflow.
+  github:
+    owner: Raminga
+    name: raminga
+  # A tag containing -rc.N (or -alpha/-beta) becomes a prerelease; stable tags
+  # become the latest release.
+  prerelease: auto
+  header: |
+    ## Raminga {{ .Tag }}
+
+    本版本未做代码签名与 macOS 公证，Windows 版本尚未实测。
+
+    - **macOS：** 浏览器下载的二进制可能带 quarantine，首次运行若被 Gatekeeper 拦截，
+      请右键 `raminga` →“打开”，或运行
+      `xattr -d com.apple.quarantine ./raminga`。归档内 `install.sh` 也会尽力清除。
+    - **Windows：** SmartScreen 可能提示未知发布者；本版本未在 Windows 实机验证。
+    - **校验：** 下载裸二进制或归档后，用同目录的 `SHA256SUMS` 核对 SHA-256。
+  footer: |
+    Claude Code、Codex 插件从 `Raminga/raminga-plugins` marketplace 安装；
+    DSH 插件为 npm 包 `@raminga/dsh`。独立二进制与归档可直接从本 Release 下载。
+
 snapshot:
   # A snapshot version includes the short commit so two builds that negotiate
   # the same version string can no longer contain different protocols.
-  version_template: "0.1.0-g451-snapshot-{{ .ShortCommit }}"
+  version_template: "0.1.0-rc.1-snapshot-{{ .ShortCommit }}"
 
 changelog:
   disable: true

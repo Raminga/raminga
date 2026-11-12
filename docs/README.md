@@ -1,6 +1,6 @@
 # Raminga 文档索引
 
-> **当前状态（2026-11-12）：** Go 节点已实现并通过 G1–G4.5.1 的本地/Docker 验收；G6 已删除退役的 TypeScript 节点与旧 M1–M5/Phase 文档。G5 的 Claude/Codex/DSH 插件外壳已实现并做过部分真实宿主验证，发布流水线、签名和预发布安装冒烟尚未完成。真实公网 M6-D 在 IPv6 有状态防火墙场景 **PASS** 一次；IPv4 NAT 打洞、M6-R 与第三方 wire 互操作仍 **NOT_TESTED**。技术选型：HTTP + JSON over libp2p（`spec/`）、Connect-RPC over UDS（`api/*.proto`）、纯 Go SQLite（`raminga.db`）、内存 PeerStore + SQLite 少量缓存。
+> **当前状态（2026-11-12）：** Go 节点已实现并通过 G1–G4.5.1 的本地/Docker 验收；G6 已删除退役的 TypeScript 节点与旧 M1–M5/Phase 文档。G5 的 Claude/Codex/DSH 插件外壳已实现并做过部分真实宿主验证，发布流水线已实现，尚未首发；签名和预发布安装冒烟尚未完成。真实公网 M6-D 在 IPv6 有状态防火墙场景 **PASS** 一次；IPv4 NAT 打洞、M6-R 与第三方 wire 互操作仍 **NOT_TESTED**。技术选型：HTTP + JSON over libp2p（`spec/`）、Connect-RPC over UDS（`api/*.proto`）、纯 Go SQLite（`raminga.db`）、内存 PeerStore + SQLite 少量缓存。
 
 **测试入口：** `make check`；`make e2e` 依次运行 G1+G2+G3；`make e2e-g1` / `make e2e-g2` / `make e2e-g3` 可单独运行。G4 为独立安全/稳定性套件：`make e2e-g4`、`make soak`（30 分钟双 NAT QUIC）、`make fuzz`、`make vuln`、`make licenses`。G4.5/G4.5.1 增加单屏 slash-command `raminga tui`、本地名字别名、报告导出、`make interactive-tui-test`（真实 pty）、`make dist`/`dist-verify`、`make platform-smoke` 与 `make tui-lab-verify LAB=<五个 lab>`。测试方法、阈值与证据约定见 [testing.md](testing.md)。
 

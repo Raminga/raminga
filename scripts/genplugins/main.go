@@ -1,6 +1,7 @@
 // Command genplugins renders the single-source Raminga Agent content (agent/)
-// into each host plugin shell (plugins/claude/...) and verifies the committed
-// output matches. It replaces scripts/agentskillcheck.
+// and the repository-root VERSION into each host plugin shell, marketplace
+// manifest and the CLI's fallback version, then verifies the committed output
+// matches. It replaces scripts/agentskillcheck.
 //
 // Without flags it writes the generated tree in place. With --check it renders
 // in memory and diffs byte-for-byte against the committed files, failing on any
@@ -16,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 func main() {
@@ -30,8 +32,34 @@ func main() {
 	if *check {
 		fmt.Println("genplugins --check: PASS")
 	} else {
-		fmt.Println("genplugins: wrote plugins/claude, plugins/codex and plugins/dsh")
+		fmt.Println("genplugins: wrote plugin shells, marketplace and version metadata from VERSION")
 	}
+}
+
+// loadRenderInputs reads the single version source and the hand-maintained
+// files whose version fields genplugins owns.
+func loadRenderInputs(root string) (renderInputs, error) {
+	versionBytes, err := os.ReadFile(filepath.Join(root, "VERSION"))
+	if err != nil {
+		return renderInputs{}, fmt.Errorf("read VERSION: %w", err)
+	}
+	version := strings.TrimSpace(string(versionBytes))
+	if version == "" {
+		return renderInputs{}, fmt.Errorf("VERSION is empty")
+	}
+	dshPackage, err := os.ReadFile(filepath.Join(root, "plugins", "dsh", "package.json"))
+	if err != nil {
+		return renderInputs{}, fmt.Errorf("read plugins/dsh/package.json: %w", err)
+	}
+	marketplace, err := os.ReadFile(filepath.Join(root, ".claude-plugin", "marketplace.json"))
+	if err != nil {
+		return renderInputs{}, fmt.Errorf("read .claude-plugin/marketplace.json: %w", err)
+	}
+	return renderInputs{
+		Version:        version,
+		DSHPackageJSON: dshPackage,
+		Marketplace:    marketplace,
+	}, nil
 }
 
 func run(root string, check bool) error {
@@ -49,7 +77,11 @@ func run(root string, check bool) error {
 		return fmt.Errorf("read launcher template: %w", err)
 	}
 
-	files, err := render(sh, ps1)
+	in, err := loadRenderInputs(abs)
+	if err != nil {
+		return err
+	}
+	files, err := render(sh, ps1, in)
 	if err != nil {
 		return err
 	}
