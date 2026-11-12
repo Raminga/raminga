@@ -18,7 +18,6 @@
         # a per-shell directory.
         dataDir: ''
         # Override path to the raminga binary used to auto-start the daemon.
-        # Empty resolves from PATH, then the shared ~/.raminga/bin/<version>
-        # cache. Per-platform npm subpackages (@raminga/bin-<os>-<arch>) land in
-        # P6.
+        # Empty resolves $RAMINGA_BIN, then the matching @raminga/bin-<os>-<cpu>
+        # platform package installed with this plugin, then `raminga` on PATH.
         ramingaBin: ''
