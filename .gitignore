@@ -163,3 +163,7 @@ vite.config.ts.timestamp-*
 # G1 Go build outputs
 /bin/
 /raminga
+.DS_Store
+
+/.playwright-cli/
+/output/playwright/

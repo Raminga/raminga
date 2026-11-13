@@ -49,12 +49,12 @@
   "main": "./lib/index.js",
   "name": "@raminga/dsh",
   "optionalDependencies": {
-    "@raminga/bin-darwin-arm64": "0.1.0-rc.1",
-    "@raminga/bin-darwin-x64": "0.1.0-rc.1",
-    "@raminga/bin-linux-arm64": "0.1.0-rc.1",
-    "@raminga/bin-linux-x64": "0.1.0-rc.1",
-    "@raminga/bin-win32-arm64": "0.1.0-rc.1",
-    "@raminga/bin-win32-x64": "0.1.0-rc.1"
+    "@raminga/bin-darwin-arm64": "0.1.0-rc.2",
+    "@raminga/bin-darwin-x64": "0.1.0-rc.2",
+    "@raminga/bin-linux-arm64": "0.1.0-rc.2",
+    "@raminga/bin-linux-x64": "0.1.0-rc.2",
+    "@raminga/bin-win32-arm64": "0.1.0-rc.2",
+    "@raminga/bin-win32-x64": "0.1.0-rc.2"
   },
   "peerDependencies": {
     "@deepseek-ai/schemastery": "*"
@@ -78,5 +78,5 @@
     "test": "node --test test/framing.test.mjs test/agent-init.test.mjs test/generated.test.mjs test/untrusted.test.mjs test/config.test.mjs"
   },
   "type": "module",
-  "version": "0.1.0-rc.1"
+  "version": "0.1.0-rc.2"
 }

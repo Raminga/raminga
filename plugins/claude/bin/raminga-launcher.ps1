@@ -14,7 +14,7 @@
 # Windows only. macOS and Linux use launcher.sh.
 $ErrorActionPreference = 'Stop'
 
-$ReleaseVersion = '0.1.0-rc.1'
+$ReleaseVersion = '0.1.0-rc.2'
 $ReleaseRepo = 'Raminga/raminga'
 
 function Get-RamingaVersion([string]$Path) {

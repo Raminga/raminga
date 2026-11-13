@@ -15,7 +15,7 @@
 # macOS and Linux only. Windows uses launcher.ps1.
 set -eu
 
-RAMINGA_RELEASE_VERSION="0.1.0-rc.1"
+RAMINGA_RELEASE_VERSION="0.1.0-rc.2"
 RAMINGA_RELEASE_REPO="Raminga/raminga"
 
 # 0. Explicit override. No version comparison: the caller owns that choice.

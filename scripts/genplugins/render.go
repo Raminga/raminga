@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -60,6 +61,9 @@ type renderInputs struct {
 	Version        string
 	DSHPackageJSON []byte
 	Marketplace    []byte
+	// GoReleaser is .goreleaser.yaml; only its snapshot version_template line
+	// is owned by genplugins.
+	GoReleaser []byte
 }
 
 // render produces every generated file (repo-relative forward-slash path ->
@@ -92,8 +96,14 @@ func render(launcherSH, launcherPS1 []byte, in renderInputs) (map[string][]byte,
 		return nil, err
 	}
 
+	goreleaser, err := renderGoReleaser(in.GoReleaser, in.Version)
+	if err != nil {
+		return nil, err
+	}
+
 	out := map[string][]byte{
 		".claude-plugin/marketplace.json": marketplace,
+		".goreleaser.yaml":                goreleaser,
 
 		"plugins/claude/.claude-plugin/plugin.json": renderClaudePluginJSON(in.Version),
 		"plugins/claude/.mcp.json":                  renderClaudeMCPJSON(),
@@ -659,4 +669,16 @@ func tsString(s string) string {
 		panic(fmt.Sprintf("genplugins: encode string: %v", err))
 	}
 	return string(b)
+}
+
+var snapshotTemplateRE = regexp.MustCompile(`(?m)^(\s*version_template: )"[^"]*-snapshot-\{\{ \.ShortCommit \}\}"$`)
+
+// renderGoReleaser rewrites only the snapshot version template so snapshot
+// builds carry the VERSION prefix plus the short commit.
+func renderGoReleaser(src []byte, version string) ([]byte, error) {
+	if len(snapshotTemplateRE.FindAll(src, -1)) != 1 {
+		return nil, fmt.Errorf(".goreleaser.yaml: expected exactly one snapshot version_template line")
+	}
+	repl := []byte("${1}" + strconv.Quote(version+"-snapshot-{{ .ShortCommit }}"))
+	return snapshotTemplateRE.ReplaceAll(src, repl), nil
 }
