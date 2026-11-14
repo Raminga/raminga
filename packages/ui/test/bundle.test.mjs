@@ -28,6 +28,9 @@ test('bundle builds without imports, host packages, timers or a second network s
   assert.match(bundle, /Journey 活动/);
   assert.match(bundle, /远端声明/);
   assert.match(bundle, /节点状态/);
+  assert.match(bundle, /dsh-frame-leading-clearance/);
+  assert.match(bundle, /isolation:\s*isolate/);
+  assert.match(bundle, /rm-composer-overlay/);
   assert.doesNotMatch(bundle, /阶段\s*[0-9]|\bConnect\b|\bRPC\b|桥接|Persona|不会生成|不会根据|占位/);
   assert.doesNotMatch(bundle, /@connectrpc|raminga\.db|api\.token|@deepseek-ai/);
   assert.doesNotMatch(bundle, /<script/i);

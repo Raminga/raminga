@@ -3660,9 +3660,12 @@ export class SetFriendNameRequest extends Message {
      */
     peerId = "";
     /**
-     * @generated from field: string name = 2;
+     * Presence-aware: omitting name is invalid and must not clear the label.
+     * An explicitly present empty string clears the local name.
+     *
+     * @generated from field: optional string name = 2;
      */
-    name = "";
+    name;
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -3671,7 +3674,7 @@ export class SetFriendNameRequest extends Message {
     static typeName = "raminga.api.v1.SetFriendNameRequest";
     static fields = proto3.util.newFieldList(() => [
         { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-        { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     ]);
     static fromBinary(bytes, options) {
         return new SetFriendNameRequest().fromBinary(bytes, options);
@@ -3725,9 +3728,12 @@ export class SetFriendDescriptionRequest extends Message {
      */
     peerId = "";
     /**
-     * @generated from field: string description = 2;
+     * Presence-aware: omitting description is invalid and must not clear the
+     * note. An explicitly present empty string clears the local description.
+     *
+     * @generated from field: optional string description = 2;
      */
-    description = "";
+    description;
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -3736,7 +3742,7 @@ export class SetFriendDescriptionRequest extends Message {
     static typeName = "raminga.api.v1.SetFriendDescriptionRequest";
     static fields = proto3.util.newFieldList(() => [
         { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-        { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     ]);
     static fromBinary(bytes, options) {
         return new SetFriendDescriptionRequest().fromBinary(bytes, options);

@@ -360,6 +360,24 @@ func TestFriendsNameRulesAndUnknown(t *testing.T) {
 	if _, err := s.SetFriendName(ctx, "p1", "Bad Name"); err == nil {
 		t.Fatal("invalid name accepted")
 	}
+	// Cleared fields are valid and independent; only non-empty names must stay
+	// unique and valid.
+	if _, err := s.SetFriendName(ctx, "p1", ""); err != nil {
+		t.Fatalf("clear name: %v", err)
+	}
+	if _, err := s.SetFriendDescription(ctx, "p1", "kept note"); err != nil {
+		t.Fatalf("set note after clearing name: %v", err)
+	}
+	cleared, found, err := s.GetFriend(ctx, "p1")
+	if err != nil || !found || cleared.Name != "" || cleared.Description != "kept note" {
+		t.Fatalf("cleared friend: %+v found=%v err=%v", cleared, found, err)
+	}
+	if _, err := s.SetFriendDescription(ctx, "p1", ""); err != nil {
+		t.Fatalf("clear description: %v", err)
+	}
+	if _, err := s.SetFriendName(ctx, "p2", "same"); err != nil {
+		t.Fatalf("empty name on p1 must not block a later unique name: %v", err)
+	}
 	if _, err := s.SetFriendDescription(ctx, "p1", strings.Repeat("界", 281)); err == nil {
 		t.Fatal("long description accepted")
 	}

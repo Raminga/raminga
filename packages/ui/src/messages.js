@@ -348,7 +348,7 @@ export function sendOutcome(result) {
       return {
         tone: 'error',
         title: '发送失败',
-        body: `${replayed}这条消息没有获得送达确认。再次发送会创建一条新消息。`,
+        body: `${replayed}这条消息没有获得送达确认。重试会复用同一次请求，不会创建重复消息。`,
         detail: outcomeDetail(result),
         canReconcile: false,
       };

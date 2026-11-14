@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 export const SOCKET_FILE = 'api.sock';
 export const TOKEN_FILE = 'api.token';
+export const ENDPOINT_FILE = 'api.endpoint.json';
 export const EXPECTED_API_VERSION = '4';
 const requireFromHere = createRequire(import.meta.url);
 const NPM_OS = {
@@ -29,6 +30,10 @@ export function platformPackageName(platform = process.platform, arch = process.
         return null;
     return `@raminga/bin-${npmOS}-${npmCPU}`;
 }
+function tcpRequested(env) {
+    const value = String(env.RAMINGA_API_TCP ?? '').trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
 export function resolveConfig(config, options = {}) {
     const env = options.env ?? process.env;
     const dataDir = config.dataDir || env.RAMINGA_DATA_DIR || path.join(os.homedir(), '.raminga');
@@ -36,6 +41,8 @@ export function resolveConfig(config, options = {}) {
         dataDir,
         socketPath: path.join(dataDir, SOCKET_FILE),
         tokenPath: path.join(dataDir, TOKEN_FILE),
+        endpointPath: path.join(dataDir, ENDPOINT_FILE),
+        apiTcp: config.apiTcp === true || tcpRequested(env),
     };
     // Precedence: explicit config > RAMINGA_BIN > npm platform package > PATH.
     if (config.ramingaBin) {

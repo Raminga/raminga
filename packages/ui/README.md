@@ -21,6 +21,9 @@ app.setNodeStatus({
 });
 app.pushNodeEvent({ kind: 'connection', summary: '连接变更 · …', atUnixMs });
 app.setContacts(contacts);              // ListFriends + Status normalization
+// Host-optional local contact editing. The returned value may be the updated
+// friend or { friend }; an omitted field must not be sent, and '' clears it.
+// onSetFriendName/onSetFriendDescription never edit a remote profile.
 app.setConversations(summaries);        // retained-message conversation summaries
 app.setMessagePage(page);               // one Peer's persisted page
 app.appendMessagePage(olderPage);       // older keyset page for that Peer

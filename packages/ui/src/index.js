@@ -13,6 +13,8 @@ let mountCount = 0;
  * Mount the workspace into a ShadowRoot owned by `host`.
  * @param {HTMLElement} host
  * @param {{onRefresh?: () => void, onLoadContacts?: (force: boolean) => Promise<object>,
+ *   onSetFriendName?: (peerId: string, name: string) => Promise<object>,
+ *   onSetFriendDescription?: (peerId: string, description: string) => Promise<object>,
  *   onConnect?: (input: string) => Promise<object>, onCheckContact?: (peerId: string) => Promise<object>,
  *   onShare?: () => Promise<object>, onLoadConversations?: (force: boolean) => Promise<object>,
  *   onLoadMessages?: (peerId: string, force: boolean) => Promise<object>,

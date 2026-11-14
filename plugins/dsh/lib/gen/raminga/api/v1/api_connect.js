@@ -192,8 +192,9 @@ export const RamingaService = {
             kind: MethodKind.Unary,
         },
         /**
-         * ListFriends lists local friend records. Names and descriptions never
-         * leave the node in this task.
+         * ListFriends lists local friend records. Names and descriptions are local
+         * labels; the existing public export writes them to friends.json, and they
+         * are never read from a remote profile by this RPC.
          *
          * @generated from rpc raminga.api.v1.RamingaService.ListFriends
          */
@@ -204,7 +205,8 @@ export const RamingaService = {
             kind: MethodKind.Unary,
         },
         /**
-         * SetFriendName replaces the local name of an existing friend.
+         * SetFriendName replaces the local name of an existing friend. An empty
+         * value clears the label; non-empty values keep syntax/uniqueness rules.
          *
          * @generated from rpc raminga.api.v1.RamingaService.SetFriendName
          */
@@ -216,6 +218,7 @@ export const RamingaService = {
         },
         /**
          * SetFriendDescription replaces the local description of an existing friend.
+         * An empty value clears the note.
          *
          * @generated from rpc raminga.api.v1.RamingaService.SetFriendDescription
          */
@@ -343,7 +346,8 @@ export const RamingaService = {
         },
         /**
          * Shutdown gracefully stops the daemon. It is token-authenticated and only
-         * reachable over the local Unix socket. The response is written before the
+         * reachable over the selected local API transport (Unix socket by default,
+         * or the explicitly enabled loopback TLS transport). The response is written before the
          * daemon closes the API and stops the node.
          *
          * @generated from rpc raminga.api.v1.RamingaService.Shutdown

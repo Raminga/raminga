@@ -396,6 +396,8 @@ raminga restart --data-dir "$HOME/.raminga"
 raminga mcp --data-dir "$HOME/.raminga"
 ```
 
+本地 API 默认仍是 `<data-dir>/api.sock`（0600）加 `<data-dir>/api.token`（0600）。需要绕过 Unix socket 的场景可以显式 opt-in 回环 TCP：启动 daemon 时加 `--api-tcp`，或在自动启动/裸 `raminga`/DSH 前设置 `RAMINGA_API_TCP=1`。此模式**不会**再监听 Unix socket，只在 `127.0.0.1:<临时端口>` 提供带每轮随机 token 和固定证书的 TLS API；端点文件 `<data-dir>/api.endpoint.json` 为 0600，由 daemon 在数据目录锁内原子写入，停止/重启时删除并轮换 token/端口/证书。客户端只读取该文件，端点过期或不可达时明确失败，不会回退到 Unix socket，也不使用环境代理。CLI、TUI 与 DSH 插件都复用同一发现逻辑；DSH 需在插件配置中设置 `apiTcp: true` 或设置该环境变量。不要把端点文件或 token 复制到渲染器、日志或分享内容。
+
 本地 API 现在带一个 `api_version` 字段（当前为 `"4"`，存储 schema 为 `8`）。插件外壳在第一次调用时校验它；当前插件要求 API 4，连接 API 2/3 或更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表，daemon 启动时迁移旧库，迁移前应备份数据目录。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。
 
 首次运行的**旧数据目录安全闸**：如果 `--data-dir` 指向的目录已存在且非空，但既无 `identity/` 也无 `config.toml`（疑似旧版或非 Raminga 数据），`raminga mcp` 会**拒绝静默初始化**——只写一条 stderr 警告，不自动生成新身份；确认后请显式 `raminga init --data-dir ...` 迁移或沿用，避免误建第二身份。直接运行 `raminga`（自动拉起 daemon 后打开 TUI）使用同一套旧数据目录与其他已知节点检测，命中时打印相同警告并拒绝自动启动。启动器在 `~/.raminga/bin/<version>/` 缓存的二进制属于 Raminga 自有条目，`raminga.lock`、`daemon.log`/`daemon.log.1`、`api.sock`/`api.token` 等运行期文件同样不计入“非空”；因此全新机器上只有 `bin/` 的默认目录可以直接初始化，含其他未知条目时仍按上述规则拒绝。目标目录**尚无身份**时还会检查 `$RAMINGA_DATA_DIR`、默认 `~/.raminga` 以及本文件记录的迁移旧位置（`~/.raminga/raminga-test`、`~/.raminga-before-migrate`、`~/.raminga-new`、`~/.raminga-new/raminga-test`）；发现含 `identity/key` 的节点就列出这些路径并拒绝自动初始化，避免用户已有身份时误建新身份。
@@ -464,7 +466,8 @@ MCP 工具注解与上述一致：会写入或对外发送的工具 `ReadOnlyHin
 - `identity/key`（0600；目录 0700）
 - `raminga.lock`
 - `raminga.db`
-- `api.sock` / `api.token`（0600，daemon 运行时）
+- `api.sock` / `api.token`（0600，daemon 运行时，Unix 默认）
+- `api.endpoint.json`（0600，仅在显式 `--api-tcp` 模式存在；含端点与本轮 token，勿分享）
 - `daemon.log`（自动启动时，0600；轮转文件 `daemon.log.1`）
 - `public/profile/`、`public/posts/`（用户发布的公开文件）
 - `public/friends.json`（程序生成的只读好友列表）

@@ -4,10 +4,40 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { TOKEN_FILE, type ResolvedConfig } from './config.js';
+import { ENDPOINT_FILE, TOKEN_FILE, type ResolvedConfig } from './config.js';
+import { readTcpEndpoint } from './endpoint.js';
 
 const AUTO_START_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 200;
+
+/**
+ * Choose the daemon transport for a cold start. Only configured/ENV opt-in may
+ * start TCP. Without it, an existing endpoint is rejected rather than treated
+ * as permission to start: malformed discovery, or a well-formed but dead
+ * descriptor, leaves both transports unstarted and the file untouched.
+ */
+function coldStartUsesTcp(config: ResolvedConfig): boolean {
+  if (config.apiTcp) return true;
+  const endpointPath = config.endpointPath || path.join(config.dataDir, ENDPOINT_FILE);
+  let endpoint;
+  try {
+    endpoint = readTcpEndpoint(config.dataDir, endpointPath);
+  } catch (error) {
+    throw new Error(
+      `Raminga TCP endpoint "${endpointPath}" is invalid: ${(error as Error).message}. ` +
+        'Refusing to auto-start either transport without an explicit apiTcp/RAMINGA_API_TCP=1 opt-in; ' +
+        'the endpoint was left unchanged. Fix or remove it, or enable the opt-in to regenerate stale discovery.',
+    );
+  }
+  if (endpoint !== null) {
+    throw new Error(
+      `Raminga TCP endpoint "${endpointPath}" exists but its authenticated node is unreachable. ` +
+        'Refusing to auto-start either transport without an explicit apiTcp/RAMINGA_API_TCP=1 opt-in; ' +
+        'the endpoint was left unchanged. Start TCP explicitly to regenerate stale discovery, or remove the stale file.',
+    );
+  }
+  return false;
+}
 
 export function readToken(dataDir: string): string {
   const tokenPath = path.join(dataDir, TOKEN_FILE);
@@ -31,12 +61,18 @@ export function spawnDaemon(config: ResolvedConfig): void {
     );
   }
 
+  const useTcp = coldStartUsesTcp(config);
   fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
   const logPath = path.join(config.dataDir, 'daemon.log');
   const logFd = fs.openSync(logPath, 'a', 0o600);
   let child;
   try {
-    child = spawn(config.ramingaBin, ['daemon', '--data-dir', config.dataDir], {
+    // Explicit opt-in (config or ENV) is the only reason to cold start TCP.
+    // Existing discovery is never treated as opt-in, and the child never
+    // inherits or logs the token.
+    const args = ['daemon', '--data-dir', config.dataDir];
+    if (useTcp) args.push('--api-tcp');
+    child = spawn(config.ramingaBin, args, {
       stdio: ['ignore', logFd, logFd],
       detached: true,
       windowsHide: true,

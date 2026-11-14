@@ -8,11 +8,14 @@ import path from 'node:path';
 
 export const SOCKET_FILE = 'api.sock';
 export const TOKEN_FILE = 'api.token';
+export const ENDPOINT_FILE = 'api.endpoint.json';
 export const EXPECTED_API_VERSION = '4';
 
 export interface PluginConfig {
   dataDir?: string;
   ramingaBin?: string;
+  /** Explicitly use the optional 127.0.0.1-only TLS local API. */
+  apiTcp?: boolean;
 }
 
 export type RamingaBinSource = 'config' | 'env' | 'platform-package' | 'path';
@@ -21,6 +24,9 @@ export interface ResolvedConfig {
   dataDir: string;
   socketPath: string;
   tokenPath: string;
+  endpointPath: string;
+  /** True only for the explicit opt-in; never an automatic fallback. */
+  apiTcp: boolean;
   ramingaBin: string;
   ramingaBinSource: RamingaBinSource;
   /** Set when a bundled platform package was unavailable and PATH is the fallback. */
@@ -65,6 +71,11 @@ export function platformPackageName(
   return `@raminga/bin-${npmOS}-${npmCPU}`;
 }
 
+function tcpRequested(env: NodeJS.ProcessEnv): boolean {
+  const value = String(env.RAMINGA_API_TCP ?? '').trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
 export function resolveConfig(
   config: PluginConfig,
   options: ResolveConfigOptions = {},
@@ -76,6 +87,8 @@ export function resolveConfig(
     dataDir,
     socketPath: path.join(dataDir, SOCKET_FILE),
     tokenPath: path.join(dataDir, TOKEN_FILE),
+    endpointPath: path.join(dataDir, ENDPOINT_FILE),
+    apiTcp: config.apiTcp === true || tcpRequested(env),
   };
 
   // Precedence: explicit config > RAMINGA_BIN > npm platform package > PATH.

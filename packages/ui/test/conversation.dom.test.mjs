@@ -414,7 +414,7 @@ test('send failure restores an editable draft while unknown keeps a reconcile ac
     assert.equal(sends, 1);
     assert.equal(ui.messageInput.value, '会失败的消息', 'failed text is retained for editing');
     assert.match(ui.composerStatus.textContent, /发送失败/);
-    assert.match(ui.composerStatus.textContent, /再次发送会创建一条新消息/);
+    assert.match(ui.composerStatus.textContent, /重试会复用同一次请求/);
     assert.equal(ui.sendReconcile.hidden, true);
 
     // A second send returns an ambiguous transport outcome. The UI must not

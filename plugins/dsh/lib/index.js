@@ -24,6 +24,11 @@ export const Config = Schema.object({
     dataDir: Schema.string()
         .default('')
         .description('Absolute Raminga data directory; empty means $RAMINGA_DATA_DIR, else ~/.raminga.'),
+    apiTcp: Schema.boolean()
+        .default(false)
+        .description('Opt in to the authenticated local API on an ephemeral 127.0.0.1 TCP listener ' +
+        'with a per-run token and pinned TLS certificate. Default false keeps the Unix socket. ' +
+        'There is no automatic fallback between transports.'),
     ramingaBin: Schema.string()
         .default('')
         .description('Path to the raminga binary used to auto-start a node. Empty uses $RAMINGA_BIN, ' +

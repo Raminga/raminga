@@ -155,6 +155,7 @@
             <code class="rm-peer-id" id="conversationPeerId"></code>
             <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>
           </div>
+          <button type="button" class="rm-quick-trigger" id="conversationMenu" aria-label="更多联系人操作" aria-haspopup="menu" aria-controls="contactQuickMenu" aria-expanded="false" hidden>⋯</button>
         </section>
 
         <div class="rm-message-panel">
@@ -182,20 +183,24 @@
           <p class="rm-retention" id="messageRetention" hidden></p>
         </div>
 
-        <form class="rm-composer" id="composer" novalidate>
-          <label class="rm-sr-only" for="messageInput">输入消息</label>
-          <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行"></textarea>
-          <div class="rm-composer-row">
-            <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>
-            <button type="submit" class="rm-primary" id="messageSend">发送</button>
+        <div class="rm-composer-shell">
+          <div class="rm-composer-overlay" id="composerOverlay" hidden>
+            <p class="rm-copy-status rm-composer-status" id="composerStatus" role="status"></p>
+            <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>
+            <div class="rm-composer-actions" id="composerActions" hidden>
+              <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>
+              <button type="button" class="rm-quiet" id="sendRestore" hidden>重试发送</button>
+            </div>
           </div>
-          <p class="rm-copy-status" id="composerStatus" role="status"></p>
-          <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>
-          <div class="rm-composer-actions" id="composerActions" hidden>
-            <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>
-            <button type="button" class="rm-quiet" id="sendRestore" hidden>恢复未发送内容</button>
-          </div>
-        </form>
+          <form class="rm-composer" id="composer" novalidate>
+            <label class="rm-sr-only" for="messageInput">输入消息</label>
+            <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行" aria-describedby="composerStatus"></textarea>
+            <div class="rm-composer-row">
+              <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>
+              <button type="submit" class="rm-primary" id="messageSend">发送</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </section>
@@ -252,6 +257,9 @@
           <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>
         </div>
       </section>
+      <div class="rm-profile-actions">
+        <button type="button" class="rm-secondary" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>
+      </div>
       <p class="rm-list-note" id="profileStale" role="status" hidden></p>
       <p class="rm-list-note" id="profileError" role="status" hidden></p>
       <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取对方资料</button>
@@ -282,6 +290,8 @@
 </main>
 
 <nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>
+
+<div class="rm-quick-menu" id="contactQuickMenu" role="menu" aria-label="联系人快速操作" hidden></div>
 
 <dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">
   <div class="rm-dialog-head">
@@ -356,6 +366,45 @@
     <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>
     <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>
     <button type="button" class="rm-secondary" data-close-dialog>关闭</button>
+  </div>
+</dialog>
+
+<dialog class="rm-dialog rm-form-dialog" id="editContactDialog" aria-labelledby="editContactHeading">
+  <div class="rm-dialog-head">
+    <div>
+      <p class="rm-eyebrow">RAMINGA · 本机联系人</p>
+      <h2 id="editContactHeading">编辑联系人资料</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭编辑联系人">×</button>
+  </div>
+  <div class="rm-dialog-body">
+    <form class="rm-contact-form" id="editContactForm" novalidate>
+      <code class="rm-peer-id" id="editContactPeerId"></code>
+      <label class="rm-field" for="editContactName">
+        <span>名称</span>
+        <span class="rm-field-control">
+          <input type="text" id="editContactName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="留空则显示短 Peer ID">
+          <button type="button" class="rm-clear-field" id="editContactNameClear" aria-label="清除名称">清除</button>
+        </span>
+      </label>
+      <p class="rm-field-note">只影响本机联系人显示和公开的 friends.json，不会修改对方档案。留空表示清除名称；非空时只允许小写字母、数字和 -，最多 32 个字符，且不能与其他联系人重名。</p>
+      <label class="rm-field" for="editContactDescription">
+        <span>备注</span>
+        <span class="rm-field-control">
+          <textarea id="editContactDescription" rows="3" maxlength="280" spellcheck="true" placeholder="留空则清除备注"></textarea>
+          <button type="button" class="rm-clear-field" id="editContactDescriptionClear" aria-label="清除备注">清除</button>
+        </span>
+      </label>
+      <p class="rm-field-note">只保存在本机并写入公开的 friends.json，不会修改对方档案。最多 280 个字符。</p>
+      <div class="rm-feedback" id="editContactFeedback" role="status" hidden>
+        <b id="editContactFeedbackTitle"></b>
+        <p id="editContactFeedbackBody"></p>
+      </div>
+    </form>
+  </div>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-secondary" data-close-dialog>取消</button>
+    <button type="submit" class="rm-primary" id="editContactSave" form="editContactForm">保存</button>
   </div>
 </dialog>
 

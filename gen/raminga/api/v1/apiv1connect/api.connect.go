@@ -167,12 +167,15 @@ type RamingaServiceClient interface {
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
-	// ListFriends lists local friend records. Names and descriptions never
-	// leave the node in this task.
+	// ListFriends lists local friend records. Names and descriptions are local
+	// labels; the existing public export writes them to friends.json, and they
+	// are never read from a remote profile by this RPC.
 	ListFriends(context.Context, *connect.Request[v1.ListFriendsRequest]) (*connect.Response[v1.ListFriendsResponse], error)
-	// SetFriendName replaces the local name of an existing friend.
+	// SetFriendName replaces the local name of an existing friend. An empty
+	// value clears the label; non-empty values keep syntax/uniqueness rules.
 	SetFriendName(context.Context, *connect.Request[v1.SetFriendNameRequest]) (*connect.Response[v1.SetFriendNameResponse], error)
 	// SetFriendDescription replaces the local description of an existing friend.
+	// An empty value clears the note.
 	SetFriendDescription(context.Context, *connect.Request[v1.SetFriendDescriptionRequest]) (*connect.Response[v1.SetFriendDescriptionResponse], error)
 	// RemoveFriend deletes the local friend row. Pending outbox entries must be
 	// explicitly cancelled with cancel_pending.
@@ -201,7 +204,8 @@ type RamingaServiceClient interface {
 	// or pending outbox activity uses it again.
 	DisconnectPeer(context.Context, *connect.Request[v1.DisconnectPeerRequest]) (*connect.Response[v1.DisconnectPeerResponse], error)
 	// Shutdown gracefully stops the daemon. It is token-authenticated and only
-	// reachable over the local Unix socket. The response is written before the
+	// reachable over the selected local API transport (Unix socket by default,
+	// or the explicitly enabled loopback TLS transport). The response is written before the
 	// daemon closes the API and stops the node.
 	Shutdown(context.Context, *connect.Request[v1.ShutdownRequest]) (*connect.Response[v1.ShutdownResponse], error)
 	// TestDisconnectPeer is a test-only RPC, unavailable unless
@@ -644,12 +648,15 @@ type RamingaServiceHandler interface {
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
-	// ListFriends lists local friend records. Names and descriptions never
-	// leave the node in this task.
+	// ListFriends lists local friend records. Names and descriptions are local
+	// labels; the existing public export writes them to friends.json, and they
+	// are never read from a remote profile by this RPC.
 	ListFriends(context.Context, *connect.Request[v1.ListFriendsRequest]) (*connect.Response[v1.ListFriendsResponse], error)
-	// SetFriendName replaces the local name of an existing friend.
+	// SetFriendName replaces the local name of an existing friend. An empty
+	// value clears the label; non-empty values keep syntax/uniqueness rules.
 	SetFriendName(context.Context, *connect.Request[v1.SetFriendNameRequest]) (*connect.Response[v1.SetFriendNameResponse], error)
 	// SetFriendDescription replaces the local description of an existing friend.
+	// An empty value clears the note.
 	SetFriendDescription(context.Context, *connect.Request[v1.SetFriendDescriptionRequest]) (*connect.Response[v1.SetFriendDescriptionResponse], error)
 	// RemoveFriend deletes the local friend row. Pending outbox entries must be
 	// explicitly cancelled with cancel_pending.
@@ -678,7 +685,8 @@ type RamingaServiceHandler interface {
 	// or pending outbox activity uses it again.
 	DisconnectPeer(context.Context, *connect.Request[v1.DisconnectPeerRequest]) (*connect.Response[v1.DisconnectPeerResponse], error)
 	// Shutdown gracefully stops the daemon. It is token-authenticated and only
-	// reachable over the local Unix socket. The response is written before the
+	// reachable over the selected local API transport (Unix socket by default,
+	// or the explicitly enabled loopback TLS transport). The response is written before the
 	// daemon closes the API and stops the node.
 	Shutdown(context.Context, *connect.Request[v1.ShutdownRequest]) (*connect.Response[v1.ShutdownResponse], error)
 	// TestDisconnectPeer is a test-only RPC, unavailable unless

@@ -23,6 +23,7 @@ import (
 func newDaemonCmd() *cobra.Command {
 	var (
 		enableTestAPI bool
+		apiTCP        bool
 		logLevel      string
 	)
 	cmd := &cobra.Command{
@@ -30,17 +31,20 @@ func newDaemonCmd() *cobra.Command {
 		Short: "Run the node daemon (single writer of node state)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDaemon(cmd.Context(), dataDirFrom(cmd), enableTestAPI, logLevel)
+			return runDaemon(cmd.Context(), dataDirFrom(cmd), enableTestAPI, logLevel, apiTCP || envTCPRequested())
 		},
 	}
 	cmd.Flags().BoolVar(&enableTestAPI, "enable-test-api", false, "enable test-only RPCs (default off)")
+	cmd.Flags().BoolVar(&apiTCP, "api-tcp", false, "serve the local API only on an ephemeral 127.0.0.1 TCP listener with per-run TLS/token (default: Unix socket)")
 	cmd.Flags().StringVar(&logLevel, "log-level", "", "override log level: debug|info|warn|error")
 	return cmd
 }
 
-func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel string) error {
-	if err := paths.ValidateSocketPath(paths.SocketPath(dataDir)); err != nil {
-		return fmt.Errorf("daemon: %w", err)
+func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel string, apiTCP bool) error {
+	if !apiTCP {
+		if err := paths.ValidateSocketPath(paths.SocketPath(dataDir)); err != nil {
+			return fmt.Errorf("daemon: %w", err)
+		}
 	}
 	id, err := identity.Open(dataDir)
 	if err != nil {
@@ -168,7 +172,7 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 		return err
 	}
 
-	apiServer, err := api.NewServer(n, id.DataDir(), enableTestAPI, logger)
+	apiServer, err := api.NewServerWithOptions(n, id.DataDir(), enableTestAPI, logger, api.Options{EnableTCP: apiTCP})
 	if err != nil {
 		_ = n.Stop(context.Background())
 		return err
@@ -177,10 +181,15 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 		_ = n.Stop(context.Background())
 		return err
 	}
+	apiLocation := api.SocketPath(id.DataDir())
+	if apiTCP {
+		apiLocation = "127.0.0.1 (ephemeral TLS)"
+	}
 	logger.Info("daemon ready",
 		"peer_id", id.PeerID().String(),
 		"node_id", id.NodeID(),
-		"api_socket", api.SocketPath(id.DataDir()))
+		"api", apiLocation,
+		"api_tcp", apiTCP)
 
 	var runErr error
 	select {

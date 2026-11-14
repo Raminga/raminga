@@ -73,7 +73,7 @@ make licenses         # go-licenses v2 报告；shipped 集合无 GPL-3/AGPL/SSP
 | S04–S05 | 畸形帧矩阵、超长声明帧 | 8 个变体各自 ≤10.5 s 关闭、0 落库、RSS +32 MiB / FD +16 / goroutine +64 内；声明 >1 MiB 的帧 ≤5 s 关闭且不按声明大小分配 |
 | S06–S07 | 重复消息 ID、伪造/错配 ACK | 同一 ID 20 次只存 1 行、每次 ACK ≤5 s、RSS +16 MiB；错配 ACK 在 20 s 内 `acked=false`、0 个假 ACK |
 | S08–S11 | 慢流、单 Peer 洪泛、多 Peer、Relay 预约 | 30 条部分帧流 ≤15 s 全部关闭、FD +32 / goroutine +80 且 30 s 内回落；600 条/10 s 限速后接受 ≤70；20×20 连接 ≤256、status ≤2 s；12 Peer 竞争 8 个预约配额时 ≤8 活跃且至少 1 次显式拒绝 |
-| S12–S14 | 磁盘上限、API 隔离、日志脱敏 | cap 100 时 400 条 ≤100 行、DB+WAL ≤4 MiB；API 仅 UDS 0600、token 32-byte hex、无 TCP listener、test API 默认关闭；CLI/日志 0 原始 ESC、消息正文、token 或私钥标记 |
+| S12–S14 | 磁盘上限、API 隔离、日志脱敏 | cap 100 时 400 条 ≤100 行、DB+WAL ≤4 MiB；API 默认仅 UDS 0600、token 32-byte hex、无 TCP listener（显式 --api-tcp 的回环 TLS listener 见 tcp_test.go）、test API 默认关闭；CLI/日志 0 原始 ESC、消息正文、token 或私钥标记 |
 | S15–S17 | kill -9、SQLite busy、断网 | 重启 ≤30 s、`integrity_check=ok`、无假 ACK、outbox ≤30 s 重发；外部锁 8 s 内显式失败、释放后 ≤10 s ACK；断网 5 s 无假 ACK、≤30 s 重连并重发 |
 | S18 | 30 分钟双 NAT QUIC soak | 每 5 s 双向一条（≈720）；direct ≥95%；ACK p95 ≤5 s、max ≤15 s；预热后 0 失败；RSS ≤max(64 MiB, 20%)、FD +16、goroutine +64；最后 10 个样本漂移有界 |
 | S19–S20 | fuzz、供应链 | 4 个 target ×60 s 无崩溃；govulncheck 0 个可达漏洞或有书面处置；shipped 集合无 GPL-3/AGPL/SSPL，`Unknown` 逐项核验并写入 [许可证 allowlist](supply-chain/license-allowlist.txt)；漏洞处置见 [漏洞处置记录](supply-chain/vuln-disposition.md) |

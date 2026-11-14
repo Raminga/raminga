@@ -16,6 +16,10 @@
   min-height: 0;
   overflow: hidden;
   container-type: inline-size;
+  /* The host may place its native sidebar/window controls in a sibling
+     stacking context. Keep every plugin layer (topbar included) inside this
+     isolated context so a local z-index can never paint over the host chrome. */
+  isolation: isolate;
   background: var(--rm-bg);
   color: var(--rm-ink);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -64,14 +68,19 @@
 
 /* Single desktop bar. */
 .rm-topbar {
+  position: relative;
   flex: none;
-  z-index: 20;
+  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   height: 64px;
-  padding: 0 32px;
+  /* The DSH shell inherits the width of its native leading control through
+     this custom property. max() keeps the existing 32px visual rhythm when a
+     host does not provide the inset. */
+  padding-block: 0;
+  padding-inline: max(32px, var(--dsh-frame-leading-clearance, 0px)) 32px;
   border-bottom: 1px solid var(--rm-line);
   background: var(--rm-bg);
 }
@@ -409,6 +418,52 @@
 .rm-contact-state[data-state="disconnected"] { background: var(--rm-soft); color: var(--rm-muted); }
 .rm-contact-state[data-state="unknown"] { background: #fff6e5; color: #8a6116; }
 
+/* One compact quick menu shared by contact rows and the conversation head. */
+.rm-quick-trigger {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--rm-subtle);
+  font-size: 19px;
+  line-height: 1;
+}
+.rm-quick-trigger:hover { background: var(--rm-hover); color: var(--rm-ink); }
+.rm-quick-trigger[aria-expanded="true"] { background: var(--rm-soft); color: var(--rm-ink); }
+.rm-quick-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 190px;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 5px;
+  border: 1px solid var(--rm-line);
+  border-radius: 11px;
+  background: var(--rm-surface);
+  box-shadow: 0 12px 34px #24163b24, 0 2px 8px #24163b12;
+}
+.rm-quick-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--rm-body);
+  font-size: 12.5px;
+  text-align: left;
+}
+.rm-quick-menu button:hover,
+.rm-quick-menu button:focus-visible { background: var(--rm-soft); color: var(--rm-ink); }
+.rm-quick-menu-note {
+  margin: 4px 7px 3px;
+  color: var(--rm-subtle);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
 /* Reachable conversation entry when message bodies are not connected yet. */
 .rm-back { margin-top: 18px; min-height: 34px; padding: 0 8px; border-radius: 8px; color: var(--rm-action); font-size: 12px; font-weight: 600; }
 .rm-back:hover { background: var(--rm-hover); }
@@ -645,12 +700,20 @@
 .rm-message-actions button { min-height: 28px; padding: 0 7px; font-size: 10.5px; }
 .rm-load-older { align-self: center; margin: 2px 0 10px; }
 .rm-retention { margin: 8px 0 0; color: var(--rm-subtle); font-size: 10.5px; line-height: 1.6; }
+/* The composer shell is the stable flex item. Status/technical/retry UI is an
+   absolutely positioned sibling above the form, so it can never be clipped by
+   the form's own overflow or change the message-list/composer geometry. */
+.rm-composer-shell {
+  position: relative;
+  flex: none;
+  z-index: 4;
+  margin-top: 12px;
+}
 .rm-composer {
   position: static;
   flex: none;
-  z-index: 4;
   max-height: min(52vh, 420px);
-  margin-top: 12px;
+  margin: 0;
   padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -660,6 +723,39 @@
   box-shadow: 0 -8px 30px #1212200d;
   backdrop-filter: blur(8px);
 }
+.rm-composer-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-height: min(38vh, 240px);
+  padding: 9px 11px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--rm-line);
+  border-radius: 12px;
+  background: var(--rm-surface);
+  box-shadow: 0 10px 28px #24163b1c, 0 2px 8px #24163b0f;
+}
+.rm-composer-status {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--rm-body);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.rm-composer-status[data-tone="ok"] { color: #13795c; }
+.rm-composer-status[data-tone="pending"] { color: #8a6116; }
+.rm-composer-status[data-tone="error"],
+.rm-composer-status[data-tone="invalid"] { color: #8d2c28; }
+.rm-composer-status[data-tone="muted"] { color: var(--rm-muted); }
+.rm-composer-overlay .rm-composer-tech { margin-top: 0; }
 .rm-composer textarea {
   width: 100%;
   min-height: 54px;
@@ -848,8 +944,39 @@
   background: var(--rm-bg);
 }
 .rm-contact-form { margin-top: 18px; }
-.rm-field { display: flex; flex-direction: column; gap: 7px; }
+.rm-contact-form > .rm-peer-id { margin-bottom: 14px; }
+.rm-field { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.rm-field:first-of-type { margin-top: 0; }
 .rm-field > span { color: var(--rm-body); font-size: 12px; font-weight: 650; }
+.rm-field-control { position: relative; display: flex; align-items: flex-start; gap: 6px; }
+.rm-field-control input,
+.rm-field-control textarea { flex: 1; min-width: 0; }
+.rm-field-control input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--rm-line);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--rm-surface);
+  color: var(--rm-ink);
+  font: inherit;
+  line-height: 1.6;
+}
+.rm-field-control input:focus { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
+.rm-clear-field {
+  flex: none;
+  min-height: 42px;
+  padding: 0 9px;
+  border: 1px solid var(--rm-line);
+  border-radius: 9px;
+  background: var(--rm-surface);
+  color: var(--rm-subtle);
+  font: inherit;
+  font-size: 11px;
+}
+.rm-clear-field:hover { color: var(--rm-ink); background: var(--rm-soft); }
+.rm-clear-field[aria-disabled="true"] { opacity: .55; cursor: default; }
 .rm-field textarea {
   width: 100%;
   min-height: 84px;
@@ -865,6 +992,7 @@
   overflow-wrap: anywhere;
 }
 .rm-field textarea:focus { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
+.rm-field input::placeholder, .rm-field textarea::placeholder { color: #9a94a8; opacity: 1; }
 .rm-field textarea:disabled,
 .rm-field textarea:read-only { color: var(--rm-muted); background: var(--rm-soft); }
 .rm-field-note { margin: 8px 0 0; color: var(--rm-subtle); font-size: 11px; line-height: 1.65; }
@@ -1089,6 +1217,7 @@
 .rm-profile-avatar { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--rm-soft); color: var(--rm-action); font-size: 21px; font-weight: 700; }
 .rm-profile-copy { flex: 1; min-width: 0; }
 .rm-profile-copy h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.rm-profile-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .rm-profile-source { margin: 7px 0 0; color: var(--rm-subtle); font-size: 11px; line-height: 1.55; }
 .rm-agent-summary { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--rm-line); border-radius: 12px; background: var(--rm-soft); }
 .rm-agent-summary > div { flex: 1; min-width: 0; }
@@ -1182,7 +1311,10 @@
 .rm-panel-head > span[data-tone="unavailable"] { color: var(--rm-subtle); }
 
 @container (min-width: 701px) and (max-width: 780px) {
-  .rm-topbar { padding: 0 16px; gap: 8px; }
+  .rm-topbar {
+    padding-inline: max(16px, var(--dsh-frame-leading-clearance, 0px)) 16px;
+    gap: 8px;
+  }
   .rm-brand-mark { width: 24px; height: 24px; }
   .rm-brand-name { font-size: 18px; }
   .rm-node { max-width: 170px; height: 32px; padding: 0 9px; font-size: 11px; }
@@ -1196,7 +1328,8 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
     height: 64px;
-    padding: 0 20px;
+    padding-inline: max(20px, var(--dsh-frame-leading-clearance, 0px)) 20px;
+    padding-block: 0;
   }
   .rm-nav-desktop { display: none; }
   .rm-nav-mobile {
@@ -1296,15 +1429,24 @@
   .rm-messages-toolbar { padding-top: 6px; }
   .rm-message-list { max-height: min(46vh, 430px); }
   .rm-message { max-width: 88%; }
+  .rm-composer-shell {
+    margin: 10px -20px 0;
+  }
   .rm-composer {
     position: static;
     max-height: min(42vh, 360px);
-    margin: 10px -20px 0;
+    margin: 0;
     padding: 10px 20px calc(10px + env(safe-area-inset-bottom));
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
     border-radius: 12px 12px 0 0;
+  }
+  .rm-composer-overlay {
+    left: 20px;
+    right: 20px;
+    bottom: calc(100% + 6px);
+    max-height: min(34vh, 220px);
   }
   .rm-composer textarea { min-height: 48px; }
   .rm-records-bar { align-items: flex-start; gap: 8px; }
@@ -1322,7 +1464,11 @@
 }
 
 @container (max-width: 600px) {
-  .rm-topbar { height: 56px; padding: 0 18px; }
+  .rm-topbar {
+    height: 56px;
+    padding-inline: max(18px, var(--dsh-frame-leading-clearance, 0px)) 18px;
+    padding-block: 0;
+  }
   .rm-brand-name { font-size: 18px; }
   .rm-node { max-width: 180px; height: 32px; padding: 0 10px; }
   .rm-node-label { font-size: 11px; }

@@ -1,8 +1,11 @@
-// Package api implements the local Connect-RPC API over a Unix domain socket.
+// Package api implements the local Connect-RPC API.
 //
-// The API is never served on TCP or UDP. Authentication is a bearer token in a
-// 0600 file plus the 0600 socket; test-only RPCs are unavailable unless the
-// daemon was started with --enable-test-api.
+// The default transport is a 0600 Unix domain socket with a 0600 token file.
+// An explicit opt-in mode serves the same authenticated Connect-RPC API only
+// on a per-run ephemeral TCP listener bound to literal 127.0.0.1, protected by
+// a per-run bearer token and a pinned per-run TLS certificate. There is no
+// automatic fallback between the two modes. Test-only RPCs are unavailable
+// unless the daemon was started with --enable-test-api.
 package api
 
 import (
@@ -24,6 +27,7 @@ import (
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
 	"github.com/Raminga/raminga/gen/raminga/api/v1/apiv1connect"
+	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/api/paths"
 	"github.com/Raminga/raminga/internal/node"
 )
@@ -76,16 +80,29 @@ type Backend interface {
 	PausePeer(ctx context.Context, peerID string) error
 }
 
-// Server serves the Connect-RPC API over UDS.
+// Options selects the local API transport. The zero value preserves the Unix
+// domain socket default.
+type Options struct {
+	// EnableTCP serves only the opt-in loopback TCP transport. It never starts
+	// the Unix socket, and a caller cannot silently fall back to either mode.
+	EnableTCP bool
+}
+
+// Server serves the Connect-RPC API over the selected local transport.
 type Server struct {
 	backend    Backend
 	logger     *slog.Logger
 	testAPI    bool
 	agentGuard *agentSendGuard
+	dataDir    string
 	token      string
 	sockPath   string
 	srv        *http.Server
 	ln         net.Listener
+	tcpEnabled bool
+	tcpAddr    string
+	tcpSrv     *http.Server
+	tcpLn      net.Listener
 	errCh      chan error
 	shutdownCh chan struct{}
 }
@@ -96,13 +113,33 @@ func SocketPath(dataDir string) string { return paths.SocketPath(dataDir) }
 // TokenPath returns <dataDir>/api.token.
 func TokenPath(dataDir string) string { return paths.TokenPath(dataDir) }
 
-// NewServer prepares the API server and ensures the 0600 token file exists.
+// NewServer prepares the default Unix-socket API server.
 func NewServer(backend Backend, dataDir string, testAPI bool, logger *slog.Logger) (*Server, error) {
+	return NewServerWithOptions(backend, dataDir, testAPI, logger, Options{})
+}
+
+// NewServerWithOptions prepares the API server for the explicitly selected
+// transport. Unix mode ensures the 0600 UDS token file exists; TCP mode does
+// not read or create that token, because its bearer token is per-run and lives
+// only in the protected discovery document.
+func NewServerWithOptions(backend Backend, dataDir string, testAPI bool, logger *slog.Logger, options Options) (*Server, error) {
 	if backend == nil {
 		return nil, errors.New("api: backend is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if options.EnableTCP {
+		return &Server{
+			backend:    backend,
+			logger:     logger,
+			testAPI:    testAPI,
+			agentGuard: newAgentSendGuard(dataDir),
+			dataDir:    dataDir,
+			tcpEnabled: true,
+			errCh:      make(chan error, 2),
+			shutdownCh: make(chan struct{}, 1),
+		}, nil
 	}
 	token, err := EnsureToken(dataDir)
 	if err != nil {
@@ -117,18 +154,38 @@ func NewServer(backend Backend, dataDir string, testAPI bool, logger *slog.Logge
 		logger:     logger,
 		testAPI:    testAPI,
 		agentGuard: newAgentSendGuard(dataDir),
+		dataDir:    dataDir,
 		token:      token,
 		sockPath:   sockPath,
-		errCh:      make(chan error, 1),
+		errCh:      make(chan error, 2),
 		shutdownCh: make(chan struct{}, 1),
 	}, nil
 }
 
-// Start listens on the Unix socket, applies 0600 and serves the API.
+// Start serves the explicitly selected transport. TCP mode is mutually
+// exclusive with the Unix socket; a stale discovery document is removed before
+// the new per-run document is published.
 func (s *Server) Start(_ context.Context) error {
-	if s.ln != nil {
+	if s.ln != nil || s.tcpLn != nil {
 		return errors.New("api: server already started")
 	}
+	// The daemon holds the data-directory lock before this call. Removing any
+	// previous run's discovery file here prevents a stale token/port/cert from
+	// being used after a crash.
+	if err := endpoint.Remove(s.dataDir); err != nil {
+		return fmt.Errorf("api: %w", err)
+	}
+	if s.tcpEnabled {
+		if err := endpoint.Supported(); err != nil {
+			return fmt.Errorf("api: %w", err)
+		}
+		return s.startTCP()
+	}
+	return s.startUnix()
+}
+
+// startUnix listens on the Unix socket, applies 0600 and serves the API.
+func (s *Server) startUnix() error {
 	if info, err := os.Lstat(s.sockPath); err == nil {
 		if info.Mode()&os.ModeSocket == 0 {
 			return fmt.Errorf("api: refusing to remove non-socket path %q", s.sockPath)
@@ -149,11 +206,8 @@ func (s *Server) Start(_ context.Context) error {
 		return fmt.Errorf("api: set socket permissions: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	path, handler := apiv1connect.NewRamingaServiceHandler(s)
-	mux.Handle(path, handler)
 	s.srv = &http.Server{
-		Handler:           s.withAuth(mux),
+		Handler:           s.withAuth(s.newMux(), s.token),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	s.ln = ln
@@ -166,6 +220,13 @@ func (s *Server) Start(_ context.Context) error {
 	return nil
 }
 
+func (s *Server) newMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	path, handler := apiv1connect.NewRamingaServiceHandler(s)
+	mux.Handle(path, handler)
+	return mux
+}
+
 // Errors reports an unexpected serve failure.
 func (s *Server) Errors() <-chan error { return s.errCh }
 
@@ -173,7 +234,7 @@ func (s *Server) Errors() <-chan error { return s.errCh }
 // the actual stop sequence so the API can finish writing the response first.
 func (s *Server) ShutdownRequests() <-chan struct{} { return s.shutdownCh }
 
-func (s *Server) withAuth(next http.Handler) http.Handler {
+func (s *Server) withAuth(next http.Handler, token string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const prefix = "Bearer "
 		header := r.Header.Get("Authorization")
@@ -181,7 +242,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		if strings.HasPrefix(header, prefix) {
 			got = strings.TrimPrefix(header, prefix)
 		}
-		if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -189,14 +250,28 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 	})
 }
 
-// Close shuts the API down and removes the socket.
+// Close shuts the selected listener down and removes its discovery artifact.
 func (s *Server) Close(ctx context.Context) error {
-	var err error
+	var errs []error
 	if s.srv != nil {
-		err = s.srv.Shutdown(ctx)
+		errs = append(errs, s.srv.Shutdown(ctx))
 	}
-	_ = os.Remove(s.sockPath)
-	return err
+	if s.tcpSrv != nil {
+		errs = append(errs, s.tcpSrv.Shutdown(ctx))
+	}
+	if s.tcpLn != nil {
+		_ = s.tcpLn.Close()
+	}
+	if s.sockPath != "" {
+		_ = os.Remove(s.sockPath)
+	}
+	// Always remove the discovery artifact: a UDS-mode server also removed a
+	// previous run's stale file at Start, and a TCP-mode server must not leave
+	// a token/port behind after shutdown.
+	if err := endpoint.Remove(s.dataDir); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // EnsureToken loads or creates the 0600 bearer token.
@@ -669,7 +744,10 @@ func (s *Server) ListFriends(ctx context.Context, _ *connect.Request[apiv1.ListF
 
 // SetFriendName implements the SetFriendName RPC.
 func (s *Server) SetFriendName(ctx context.Context, req *connect.Request[apiv1.SetFriendNameRequest]) (*connect.Response[apiv1.SetFriendNameResponse], error) {
-	f, err := s.backend.SetFriendName(ctx, req.Msg.GetPeerId(), req.Msg.GetName())
+	if req.Msg.Name == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required; omit the field only when no edit is intended, or send an explicit empty string to clear it"))
+	}
+	f, err := s.backend.SetFriendName(ctx, req.Msg.GetPeerId(), *req.Msg.Name)
 	if err != nil {
 		return nil, friendConnectError(err)
 	}
@@ -678,7 +756,10 @@ func (s *Server) SetFriendName(ctx context.Context, req *connect.Request[apiv1.S
 
 // SetFriendDescription implements the SetFriendDescription RPC.
 func (s *Server) SetFriendDescription(ctx context.Context, req *connect.Request[apiv1.SetFriendDescriptionRequest]) (*connect.Response[apiv1.SetFriendDescriptionResponse], error) {
-	f, err := s.backend.SetFriendDescription(ctx, req.Msg.GetPeerId(), req.Msg.GetDescription())
+	if req.Msg.Description == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("description is required; omit the field only when no edit is intended, or send an explicit empty string to clear it"))
+	}
+	f, err := s.backend.SetFriendDescription(ctx, req.Msg.GetPeerId(), *req.Msg.Description)
 	if err != nil {
 		return nil, friendConnectError(err)
 	}

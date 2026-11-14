@@ -35,6 +35,8 @@ window.__ModuleLoader__.load({
     const peerIdCodec = passthrough('@raminga/dsh#PeerId');
     const beforeCodec = passthrough('@raminga/dsh#UiBeforeCursor');
     const textCodec = passthrough('@raminga/dsh#UiMessageText');
+    const friendNameCodec = passthrough('@raminga/dsh#UiFriendName');
+    const friendDescriptionCodec = passthrough('@raminga/dsh#UiFriendDescription');
     const requestIdCodec = passthrough('@raminga/dsh#UiRequestId');
     const messageIdCodec = passthrough('@raminga/dsh#MessageId');
     const contentIdCodec = passthrough('@raminga/dsh#UiContentId');
@@ -45,6 +47,8 @@ window.__ModuleLoader__.load({
       peerId: { name: 'peerId', wire: 'peerId', source: 'json', codec: peerIdCodec },
       before: { name: 'before', wire: 'before', source: 'json', codec: beforeCodec },
       text: { name: 'text', wire: 'text', source: 'json', codec: textCodec },
+      friendName: { name: 'name', wire: 'name', source: 'json', codec: friendNameCodec },
+      friendDescription: { name: 'description', wire: 'description', source: 'json', codec: friendDescriptionCodec },
       requestId: { name: 'requestId', wire: 'requestId', source: 'json', codec: requestIdCodec },
       messageId: { name: 'messageId', wire: 'messageId', source: 'json', codec: messageIdCodec },
       familiar: { name: 'familiar', wire: 'familiar', source: 'json', codec: booleanCodec },
@@ -56,6 +60,8 @@ window.__ModuleLoader__.load({
       ['refresh', 'UiSnapshot', [sessionParam]],
       ['close', 'UiStats', [sessionParam]],
       ['contacts', 'UiContacts', [sessionParam, param.force]],
+      ['setFriendName', 'UiFriendEdit', [sessionParam, param.peerId, param.friendName]],
+      ['setFriendDescription', 'UiFriendEdit', [sessionParam, param.peerId, param.friendDescription]],
       ['connect', 'UiConnectResult', [sessionParam, param.connectInput]],
       ['checkContact', 'UiContactCheck', [sessionParam, param.peerId]],
       ['share', 'UiShareInfo', [sessionParam]],
@@ -131,7 +137,10 @@ window.__ModuleLoader__.load({
           className: 'raminga-main-host',
           'data-raminga-panel': 'true',
           'aria-label': 'Raminga 主工作区',
-          style: { display: 'block', width: '100%', height: '100%', minHeight: 0 },
+          // Isolate the plugin's internal z-indexes from the native sidebar
+          // slot (z-index 15). The DSH shell still owns the one native
+          // sidebar and its leading control; no second sidebar is created.
+          style: { display: 'block', width: '100%', height: '100%', minHeight: 0, position: 'relative', zIndex: 0, isolation: 'isolate' },
         });
       };
     }

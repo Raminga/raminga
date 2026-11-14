@@ -14,6 +14,8 @@ const (
 	SocketFileName = "api.sock"
 	// TokenFileName is the bearer token path inside the data directory.
 	TokenFileName = "api.token"
+	// EndpointFileName is the optional loopback-TCP discovery document.
+	EndpointFileName = "api.endpoint.json"
 
 	// DarwinSocketPathLimit is the longest usable sockaddr_un.sun_path value on
 	// macOS: the 104-byte field includes the terminating NUL.
@@ -28,6 +30,9 @@ func SocketPath(dataDir string) string { return filepath.Join(dataDir, SocketFil
 
 // TokenPath returns <dataDir>/api.token.
 func TokenPath(dataDir string) string { return filepath.Join(dataDir, TokenFileName) }
+
+// EndpointPath returns <dataDir>/api.endpoint.json.
+func EndpointPath(dataDir string) string { return filepath.Join(dataDir, EndpointFileName) }
 
 // SocketPathLimit returns the platform's sockaddr_un.sun_path limit.
 func SocketPathLimit() int {

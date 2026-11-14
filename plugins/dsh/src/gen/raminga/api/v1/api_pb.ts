@@ -4351,9 +4351,12 @@ export class SetFriendNameRequest extends Message<SetFriendNameRequest> {
   peerId = "";
 
   /**
-   * @generated from field: string name = 2;
+   * Presence-aware: omitting name is invalid and must not clear the label.
+   * An explicitly present empty string clears the local name.
+   *
+   * @generated from field: optional string name = 2;
    */
-  name = "";
+  name?: string;
 
   constructor(data?: PartialMessage<SetFriendNameRequest>) {
     super();
@@ -4364,7 +4367,7 @@ export class SetFriendNameRequest extends Message<SetFriendNameRequest> {
   static readonly typeName = "raminga.api.v1.SetFriendNameRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetFriendNameRequest {
@@ -4431,9 +4434,12 @@ export class SetFriendDescriptionRequest extends Message<SetFriendDescriptionReq
   peerId = "";
 
   /**
-   * @generated from field: string description = 2;
+   * Presence-aware: omitting description is invalid and must not clear the
+   * note. An explicitly present empty string clears the local description.
+   *
+   * @generated from field: optional string description = 2;
    */
-  description = "";
+  description?: string;
 
   constructor(data?: PartialMessage<SetFriendDescriptionRequest>) {
     super();
@@ -4444,7 +4450,7 @@ export class SetFriendDescriptionRequest extends Message<SetFriendDescriptionReq
   static readonly typeName = "raminga.api.v1.SetFriendDescriptionRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetFriendDescriptionRequest {

@@ -38,6 +38,8 @@ const connectInputCodec = codec('@raminga/dsh#UiConnectInput');
 const peerIdCodec = codec('@raminga/dsh#PeerId');
 const beforeCodec = codec('@raminga/dsh#UiBeforeCursor');
 const textCodec = codec('@raminga/dsh#UiMessageText');
+const friendNameCodec = codec('@raminga/dsh#UiFriendName');
+const friendDescriptionCodec = codec('@raminga/dsh#UiFriendDescription');
 const requestIdCodec = codec('@raminga/dsh#UiRequestId');
 const messageIdCodec = codec('@raminga/dsh#MessageId');
 const contentIdCodec = codec('@raminga/dsh#UiContentId');
@@ -53,7 +55,7 @@ export interface UiInvocationDescriptor {
   result: PassthroughCodec;
 }
 
-type ParamKind = 'session' | 'boolean' | 'familiar' | 'connectInput' | 'peerId' | 'before' | 'text' | 'requestId' | 'messageId' | 'contentId';
+type ParamKind = 'session' | 'boolean' | 'familiar' | 'connectInput' | 'peerId' | 'before' | 'text' | 'friendName' | 'friendDescription' | 'requestId' | 'messageId' | 'contentId';
 
 const PARAMS: Record<ParamKind, { name: string; wire: string; codec: PassthroughCodec }> = {
   session: { name: 'sessionId', wire: 'sessionId', codec: sessionIdCodec },
@@ -63,6 +65,8 @@ const PARAMS: Record<ParamKind, { name: string; wire: string; codec: Passthrough
   peerId: { name: 'peerId', wire: 'peerId', codec: peerIdCodec },
   before: { name: 'before', wire: 'before', codec: beforeCodec },
   text: { name: 'text', wire: 'text', codec: textCodec },
+  friendName: { name: 'name', wire: 'name', codec: friendNameCodec },
+  friendDescription: { name: 'description', wire: 'description', codec: friendDescriptionCodec },
   requestId: { name: 'requestId', wire: 'requestId', codec: requestIdCodec },
   messageId: { name: 'messageId', wire: 'messageId', codec: messageIdCodec },
   contentId: { name: 'id', wire: 'id', codec: contentIdCodec },
@@ -86,6 +90,8 @@ export const UI_INVOCATIONS: UiInvocationDescriptor[] = [
   invocation('refresh', ['session'], 'UiSnapshot'),
   invocation('close', ['session'], 'UiStats'),
   invocation('contacts', ['session', 'boolean'], 'UiContacts'),
+  invocation('setFriendName', ['session', 'peerId', 'friendName'], 'UiFriendEdit'),
+  invocation('setFriendDescription', ['session', 'peerId', 'friendDescription'], 'UiFriendEdit'),
   invocation('connect', ['session', 'connectInput'], 'UiConnectResult'),
   invocation('checkContact', ['session', 'peerId'], 'UiContactCheck'),
   invocation('share', ['session'], 'UiShareInfo'),
@@ -121,6 +127,8 @@ export const TYPERT = {
           { kind: 'method', name: 'refresh', signature: 'refresh(sessionId: string): Promise<UiSnapshot>', summary: 'Force a Status read and drain queued daemon events.' },
           { kind: 'method', name: 'close', signature: 'close(sessionId: string): Promise<UiStats>', summary: 'Release one panel lease; the last release stops the daemon Events stream.' },
           { kind: 'method', name: 'contacts', signature: 'contacts(sessionId: string, force?: boolean): Promise<UiContacts>', summary: 'Read ListFriends plus a fresh Status and normalize each contact connection state.' },
+          { kind: 'method', name: 'setFriendName', signature: 'setFriendName(sessionId: string, peerId: string, name: string): Promise<UiFriendEdit>', summary: 'Save one local contact name, then reread ListFriends. Blank explicitly clears the local label.' },
+          { kind: 'method', name: 'setFriendDescription', signature: 'setFriendDescription(sessionId: string, peerId: string, description: string): Promise<UiFriendEdit>', summary: 'Save one local contact description, then reread ListFriends. Blank explicitly clears the local note.' },
           { kind: 'method', name: 'connect', signature: 'connect(sessionId: string, input: string): Promise<UiConnectResult>', summary: 'Validate and dial one Peer ID or full multiaddr, then verify contacts and Status separately.' },
           { kind: 'method', name: 'checkContact', signature: 'checkContact(sessionId: string, peerId: string): Promise<UiContactCheck>', summary: 'Re-read ListFriends/Status without dialing again.' },
           { kind: 'method', name: 'share', signature: 'share(sessionId: string): Promise<UiShareInfo>', summary: 'Return the full local Peer ID and shareable advertised/relay addresses.' },

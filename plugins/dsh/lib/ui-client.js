@@ -87,6 +87,10 @@ var RamingaUI = (() => {
   min-height: 0;
   overflow: hidden;
   container-type: inline-size;
+  /* The host may place its native sidebar/window controls in a sibling
+     stacking context. Keep every plugin layer (topbar included) inside this
+     isolated context so a local z-index can never paint over the host chrome. */
+  isolation: isolate;
   background: var(--rm-bg);
   color: var(--rm-ink);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -135,14 +139,19 @@ var RamingaUI = (() => {
 
 /* Single desktop bar. */
 .rm-topbar {
+  position: relative;
   flex: none;
-  z-index: 20;
+  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   height: 64px;
-  padding: 0 32px;
+  /* The DSH shell inherits the width of its native leading control through
+     this custom property. max() keeps the existing 32px visual rhythm when a
+     host does not provide the inset. */
+  padding-block: 0;
+  padding-inline: max(32px, var(--dsh-frame-leading-clearance, 0px)) 32px;
   border-bottom: 1px solid var(--rm-line);
   background: var(--rm-bg);
 }
@@ -480,6 +489,52 @@ var RamingaUI = (() => {
 .rm-contact-state[data-state="disconnected"] { background: var(--rm-soft); color: var(--rm-muted); }
 .rm-contact-state[data-state="unknown"] { background: #fff6e5; color: #8a6116; }
 
+/* One compact quick menu shared by contact rows and the conversation head. */
+.rm-quick-trigger {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--rm-subtle);
+  font-size: 19px;
+  line-height: 1;
+}
+.rm-quick-trigger:hover { background: var(--rm-hover); color: var(--rm-ink); }
+.rm-quick-trigger[aria-expanded="true"] { background: var(--rm-soft); color: var(--rm-ink); }
+.rm-quick-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 190px;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 5px;
+  border: 1px solid var(--rm-line);
+  border-radius: 11px;
+  background: var(--rm-surface);
+  box-shadow: 0 12px 34px #24163b24, 0 2px 8px #24163b12;
+}
+.rm-quick-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--rm-body);
+  font-size: 12.5px;
+  text-align: left;
+}
+.rm-quick-menu button:hover,
+.rm-quick-menu button:focus-visible { background: var(--rm-soft); color: var(--rm-ink); }
+.rm-quick-menu-note {
+  margin: 4px 7px 3px;
+  color: var(--rm-subtle);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
 /* Reachable conversation entry when message bodies are not connected yet. */
 .rm-back { margin-top: 18px; min-height: 34px; padding: 0 8px; border-radius: 8px; color: var(--rm-action); font-size: 12px; font-weight: 600; }
 .rm-back:hover { background: var(--rm-hover); }
@@ -716,12 +771,20 @@ var RamingaUI = (() => {
 .rm-message-actions button { min-height: 28px; padding: 0 7px; font-size: 10.5px; }
 .rm-load-older { align-self: center; margin: 2px 0 10px; }
 .rm-retention { margin: 8px 0 0; color: var(--rm-subtle); font-size: 10.5px; line-height: 1.6; }
+/* The composer shell is the stable flex item. Status/technical/retry UI is an
+   absolutely positioned sibling above the form, so it can never be clipped by
+   the form's own overflow or change the message-list/composer geometry. */
+.rm-composer-shell {
+  position: relative;
+  flex: none;
+  z-index: 4;
+  margin-top: 12px;
+}
 .rm-composer {
   position: static;
   flex: none;
-  z-index: 4;
   max-height: min(52vh, 420px);
-  margin-top: 12px;
+  margin: 0;
   padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -731,6 +794,39 @@ var RamingaUI = (() => {
   box-shadow: 0 -8px 30px #1212200d;
   backdrop-filter: blur(8px);
 }
+.rm-composer-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-height: min(38vh, 240px);
+  padding: 9px 11px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--rm-line);
+  border-radius: 12px;
+  background: var(--rm-surface);
+  box-shadow: 0 10px 28px #24163b1c, 0 2px 8px #24163b0f;
+}
+.rm-composer-status {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--rm-body);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.rm-composer-status[data-tone="ok"] { color: #13795c; }
+.rm-composer-status[data-tone="pending"] { color: #8a6116; }
+.rm-composer-status[data-tone="error"],
+.rm-composer-status[data-tone="invalid"] { color: #8d2c28; }
+.rm-composer-status[data-tone="muted"] { color: var(--rm-muted); }
+.rm-composer-overlay .rm-composer-tech { margin-top: 0; }
 .rm-composer textarea {
   width: 100%;
   min-height: 54px;
@@ -919,8 +1015,39 @@ var RamingaUI = (() => {
   background: var(--rm-bg);
 }
 .rm-contact-form { margin-top: 18px; }
-.rm-field { display: flex; flex-direction: column; gap: 7px; }
+.rm-contact-form > .rm-peer-id { margin-bottom: 14px; }
+.rm-field { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.rm-field:first-of-type { margin-top: 0; }
 .rm-field > span { color: var(--rm-body); font-size: 12px; font-weight: 650; }
+.rm-field-control { position: relative; display: flex; align-items: flex-start; gap: 6px; }
+.rm-field-control input,
+.rm-field-control textarea { flex: 1; min-width: 0; }
+.rm-field-control input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--rm-line);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--rm-surface);
+  color: var(--rm-ink);
+  font: inherit;
+  line-height: 1.6;
+}
+.rm-field-control input:focus { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
+.rm-clear-field {
+  flex: none;
+  min-height: 42px;
+  padding: 0 9px;
+  border: 1px solid var(--rm-line);
+  border-radius: 9px;
+  background: var(--rm-surface);
+  color: var(--rm-subtle);
+  font: inherit;
+  font-size: 11px;
+}
+.rm-clear-field:hover { color: var(--rm-ink); background: var(--rm-soft); }
+.rm-clear-field[aria-disabled="true"] { opacity: .55; cursor: default; }
 .rm-field textarea {
   width: 100%;
   min-height: 84px;
@@ -936,6 +1063,7 @@ var RamingaUI = (() => {
   overflow-wrap: anywhere;
 }
 .rm-field textarea:focus { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
+.rm-field input::placeholder, .rm-field textarea::placeholder { color: #9a94a8; opacity: 1; }
 .rm-field textarea:disabled,
 .rm-field textarea:read-only { color: var(--rm-muted); background: var(--rm-soft); }
 .rm-field-note { margin: 8px 0 0; color: var(--rm-subtle); font-size: 11px; line-height: 1.65; }
@@ -1160,6 +1288,7 @@ var RamingaUI = (() => {
 .rm-profile-avatar { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--rm-soft); color: var(--rm-action); font-size: 21px; font-weight: 700; }
 .rm-profile-copy { flex: 1; min-width: 0; }
 .rm-profile-copy h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.rm-profile-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .rm-profile-source { margin: 7px 0 0; color: var(--rm-subtle); font-size: 11px; line-height: 1.55; }
 .rm-agent-summary { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--rm-line); border-radius: 12px; background: var(--rm-soft); }
 .rm-agent-summary > div { flex: 1; min-width: 0; }
@@ -1253,7 +1382,10 @@ var RamingaUI = (() => {
 .rm-panel-head > span[data-tone="unavailable"] { color: var(--rm-subtle); }
 
 @container (min-width: 701px) and (max-width: 780px) {
-  .rm-topbar { padding: 0 16px; gap: 8px; }
+  .rm-topbar {
+    padding-inline: max(16px, var(--dsh-frame-leading-clearance, 0px)) 16px;
+    gap: 8px;
+  }
   .rm-brand-mark { width: 24px; height: 24px; }
   .rm-brand-name { font-size: 18px; }
   .rm-node { max-width: 170px; height: 32px; padding: 0 9px; font-size: 11px; }
@@ -1267,7 +1399,8 @@ var RamingaUI = (() => {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
     height: 64px;
-    padding: 0 20px;
+    padding-inline: max(20px, var(--dsh-frame-leading-clearance, 0px)) 20px;
+    padding-block: 0;
   }
   .rm-nav-desktop { display: none; }
   .rm-nav-mobile {
@@ -1367,15 +1500,24 @@ var RamingaUI = (() => {
   .rm-messages-toolbar { padding-top: 6px; }
   .rm-message-list { max-height: min(46vh, 430px); }
   .rm-message { max-width: 88%; }
+  .rm-composer-shell {
+    margin: 10px -20px 0;
+  }
   .rm-composer {
     position: static;
     max-height: min(42vh, 360px);
-    margin: 10px -20px 0;
+    margin: 0;
     padding: 10px 20px calc(10px + env(safe-area-inset-bottom));
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
     border-radius: 12px 12px 0 0;
+  }
+  .rm-composer-overlay {
+    left: 20px;
+    right: 20px;
+    bottom: calc(100% + 6px);
+    max-height: min(34vh, 220px);
   }
   .rm-composer textarea { min-height: 48px; }
   .rm-records-bar { align-items: flex-start; gap: 8px; }
@@ -1393,7 +1535,11 @@ var RamingaUI = (() => {
 }
 
 @container (max-width: 600px) {
-  .rm-topbar { height: 56px; padding: 0 18px; }
+  .rm-topbar {
+    height: 56px;
+    padding-inline: max(18px, var(--dsh-frame-leading-clearance, 0px)) 18px;
+    padding-block: 0;
+  }
   .rm-brand-name { font-size: 18px; }
   .rm-node { max-width: 180px; height: 32px; padding: 0 10px; }
   .rm-node-label { font-size: 11px; }
@@ -1406,7 +1552,7 @@ var RamingaUI = (() => {
   }
 }
 `;
-  var TEMPLATE = '<header class="rm-topbar">\n  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 动态">\n    <img class="rm-brand-mark" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>\n  </button>\n  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>\n  <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">\n    <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>\n    <span class="rm-node-label" id="nodeLabel">节点状态 · 读取中</span>\n  </button>\n</header>\n\n<main class="rm-body">\n  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">\n    <div class="rm-page-inner">\n      <div class="rm-explore-bar">\n        <div class="rm-filters" role="group" aria-label="动态筛选">\n          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>\n          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>\n        </div>\n        <div class="rm-explore-tools">\n          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>\n            <span>刷新</span>\n          </button>\n          <button type="button" class="rm-icon-button" id="exploreSearchToggle" aria-label="搜索动态" aria-expanded="false" aria-controls="exploreSearch">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          </button>\n        </div>\n      </div>\n      <div class="rm-search-row" id="exploreSearch" hidden>\n        <label class="rm-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">\n        </label>\n      </div>\n      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>\n      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>\n      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>\n        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>\n        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">\n    <div class="rm-page-inner">\n      <div class="rm-contacts-toolbar">\n        <label class="rm-search rm-contacts-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="contactQuery" placeholder="搜索名称或节点标识" aria-label="搜索联系人名称或节点标识" autocomplete="off">\n        </label>\n        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>\n      </div>\n      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>\n      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>\n      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="contactsStateTitle">正在读取联系人…</h2>\n        <p id="contactsStateBody">请稍候。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>\n        </div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-raminga" data-page="raminga" aria-label="Raminga">\n    <div class="rm-page-inner">\n      <section class="rm-agent-hero" aria-labelledby="ramingaHeading">\n        <span class="rm-agent-mark"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt=""></span>\n        <div>\n          <p class="rm-eyebrow">RAMINGA</p>\n          <h1 id="ramingaHeading">你的 Agent</h1>\n          <p class="rm-hero-copy">你的 Agent 资料与活动记录会集中在这里。</p>\n        </div>\n      </section>\n      <div class="rm-records-bar" id="ramingaRecordsBar" hidden>\n        <p class="rm-records-status" id="ramingaRecordsStatus" role="status"></p>\n        <button type="button" class="rm-secondary rm-records-refresh" id="ramingaRefresh">刷新记录</button>\n      </div>\n      <section class="rm-panel rm-journey-source" id="ramingaSelfPanel" hidden aria-labelledby="ramingaSelfHeading">\n        <div class="rm-panel-head">\n          <h2 id="ramingaSelfHeading">稳定人格</h2>\n          <span>私有 Agent 资料</span>\n        </div>\n        <div class="rm-rich-text" id="ramingaSelf"></div>\n        <p class="rm-list-note" id="ramingaSelfNote" hidden></p>\n      </section>\n      <section class="rm-panel rm-journey-source" id="ramingaGrowthPanel" hidden aria-labelledby="ramingaGrowthHeading">\n        <div class="rm-panel-head">\n          <h2 id="ramingaGrowthHeading">成长提案</h2>\n          <span>私有 Agent 资料</span>\n        </div>\n        <div class="rm-rich-text" id="ramingaGrowth"></div>\n        <p class="rm-list-note" id="ramingaGrowthNote" hidden></p>\n      </section>\n      <section class="rm-journey" aria-labelledby="ramingaJourneyHeading" id="ramingaJourneyPanel" hidden>\n        <div class="rm-panel-head">\n          <h2 id="ramingaJourneyHeading">Journey 活动</h2>\n          <span>一次 Journey 不是聊天线程</span>\n        </div>\n        <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>\n        <div class="rm-journey-list" id="ramingaSessionList" aria-label="Journey 记录" hidden></div>\n      </section>\n      <section class="rm-state" id="ramingaState" aria-labelledby="ramingaStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>\n        <p id="ramingaStateBody">正在从本机数据目录读取私有 Agent 资料与 Journey 记录。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button>\n        </div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">\n    <div class="rm-page-inner">\n      <div id="messagesIndex">\n        <header class="rm-page-head">\n          <h1>对话</h1>\n          <p>按联系人汇总的当前保留消息</p>\n        </header>\n        <div class="rm-messages-toolbar">\n          <label class="rm-search">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">\n          </label>\n        </div>\n        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>\n        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>\n        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>\n        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="messagesStateTitle">正在读取对话…</h2>\n          <p id="messagesStateBody">请稍候。</p>\n          <div class="rm-state-actions">\n            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>\n            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>\n          </div>\n        </section>\n      </div>\n\n      <div id="conversationView" hidden>\n        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>\n        <section class="rm-conversation-head" aria-labelledby="conversationName">\n          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>\n          <div class="rm-conversation-copy">\n            <h1 id="conversationName">联系人</h1>\n            <code class="rm-peer-id" id="conversationPeerId"></code>\n            <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>\n          </div>\n        </section>\n\n        <div class="rm-message-panel">\n          <p class="rm-list-note" id="messageStale" role="status" hidden></p>\n          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>\n          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>\n          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>\n          <div class="rm-restore-actions" id="messageRestoreActions" hidden>\n            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>\n            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>\n          </div>\n          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>\n          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>\n          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>\n            <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n            <h2 id="messageStateTitle">正在读取消息…</h2>\n            <p id="messageStateBody">请稍候。</p>\n            <div class="rm-state-actions">\n              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>\n              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>\n            </div>\n          </section>\n          <p class="rm-retention" id="messageRetention" hidden></p>\n        </div>\n\n        <form class="rm-composer" id="composer" novalidate>\n          <label class="rm-sr-only" for="messageInput">输入消息</label>\n          <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行"></textarea>\n          <div class="rm-composer-row">\n            <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>\n            <button type="submit" class="rm-primary" id="messageSend">发送</button>\n          </div>\n          <p class="rm-copy-status" id="composerStatus" role="status"></p>\n          <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>\n          <div class="rm-composer-actions" id="composerActions" hidden>\n            <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>\n            <button type="button" class="rm-quiet" id="sendRestore" hidden>恢复未发送内容</button>\n          </div>\n        </form>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-mine" data-page="mine" aria-label="我的">\n    <div class="rm-page-inner">\n      <section class="rm-identity" id="mineIdentity" aria-labelledby="mineIdentityTitle">\n        <div class="rm-profile-head">\n          <span class="rm-profile-avatar" aria-hidden="true">我</span>\n          <div class="rm-profile-copy">\n            <h1 id="mineIdentityTitle">我的</h1>\n            <p id="mineIdentitySummary">正在读取本机节点身份…</p>\n          </div>\n        </div>\n        <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>\n        <div class="rm-identity-actions">\n          <button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button>\n        </div>\n      </section>\n\n      <section class="rm-panel" aria-labelledby="mineProfileHeading">\n        <div class="rm-panel-head">\n          <h2 id="mineProfileHeading">个人档案</h2>\n          <span id="mineProfileStatus">读取中</span>\n        </div>\n        <div class="rm-rich-text" id="mineProfileContent"></div>\n        <p class="rm-list-note" id="mineProfileNote" role="status" hidden></p>\n      </section>\n\n      <section class="rm-panel" aria-labelledby="mineContentHeading">\n        <div class="rm-panel-head">\n          <h2 id="mineContentHeading">我的公开内容</h2>\n          <span id="mineContentStatus">读取中</span>\n        </div>\n        <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>\n        <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>\n        <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>\n      </section>\n\n      <div class="rm-mine-actions">\n        <button type="button" class="rm-secondary" id="shareNode">↗ 分享节点信息</button>\n        <button type="button" class="rm-quiet" id="mineRefresh">刷新本机资料</button>\n      </div>\n    </div>\n  </section>\n  <section class="rm-page rm-profile-view" id="profileView" data-page="profile" aria-label="对方档案" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="profileBack">← 返回</button>\n      <section class="rm-profile-hero" aria-labelledby="profileName">\n        <span class="rm-profile-avatar" id="profileAvatar" aria-hidden="true">?</span>\n        <div class="rm-profile-copy">\n          <h1 id="profileName">对方档案</h1>\n          <code class="rm-peer-id" id="profilePeerId"></code>\n          <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>\n        </div>\n      </section>\n      <p class="rm-list-note" id="profileStale" role="status" hidden></p>\n      <p class="rm-list-note" id="profileError" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取对方资料</button>\n      <section class="rm-panel" aria-labelledby="profileUserHeading">\n        <div class="rm-panel-head">\n          <h2 id="profileUserHeading">用户资料</h2>\n          <span>来自对方公开档案</span>\n        </div>\n        <div class="rm-rich-text" id="profileBody"></div>\n        <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>\n      </section>\n      <section class="rm-panel" aria-labelledby="profileAgentHeading">\n        <div class="rm-panel-head">\n          <h2 id="profileAgentHeading">Agent 摘要</h2>\n          <span>独立于用户资料</span>\n        </div>\n        <p class="rm-list-note" id="profileAgentNote" role="status" hidden></p>\n        <div class="rm-agent-summary" id="profileAgentSummary" hidden>\n          <div>\n            <b id="profileAgentName"></b>\n            <p id="profileAgentDescription"></p>\n          </div>\n          <button type="button" class="rm-secondary" id="profileAgentOpen">查看公开档案</button>\n        </div>\n      </section>\n    </div>\n  </section>\n</main>\n\n<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>\n\n<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机节点</p>\n      <h2 id="statusHeading">节点状态</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>\n  </div>\n  <div class="rm-status-summary">\n    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>\n    <div>\n      <b id="statusPhase">正在读取本机节点</b>\n      <p id="statusSummary">正在读取本机节点状态…</p>\n    </div>\n  </div>\n  <dl class="rm-facts">\n    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>\n    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>\n    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>\n    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>\n    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>\n  </dl>\n  <details class="rm-tech" id="statusTech">\n    <summary>技术详情</summary>\n    <dl class="rm-facts">\n      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>\n      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>\n      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>\n      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>\n      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>\n      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>\n    </dl>\n    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>\n  </details>\n  <p class="rm-note">更完整的节点标识和最近事件在技术详情中。</p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="statusRefresh">刷新</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="addContactHeading">添加联系人</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="addContactForm" novalidate>\n      <label class="rm-field" for="addContactInput">\n        <span>Peer ID 或完整节点地址</span>\n        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>\n      </label>\n      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>\n      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>\n        <b id="addContactFeedbackTitle"></b>\n        <p id="addContactFeedbackBody"></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>\n        <details class="rm-tech" id="addContactFeedbackDetail" hidden>\n          <summary>错误详情</summary>\n          <code id="addContactFeedbackRaw"></code>\n        </details>\n        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>\n    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="shareHeading">分享节点信息</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <div class="rm-share-loading" id="shareLoading">\n      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>\n      <p>正在读取本机节点信息…</p>\n    </div>\n    <div id="shareContent" hidden>\n      <div class="rm-share-peer">\n        <span>本机 Peer ID</span>\n        <code class="rm-peer-id" id="sharePeerId"></code>\n      </div>\n      <div class="rm-share-addresses" id="shareAddresses"></div>\n      <p class="rm-note" id="shareAddressNote" hidden></p>\n      <p class="rm-list-note" id="shareStaleNote" hidden></p>\n    </div>\n    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>\n      <b>暂时读不到本机节点信息</b>\n      <p id="shareFailureBody">请稍后再试。</p>\n      <details class="rm-tech" id="shareFailureDetail" hidden>\n        <summary>错误详情</summary>\n        <code id="shareFailureRaw"></code>\n      </details>\n    </div>\n    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>\n    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>\n    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 技术详情</p>\n      <h2 id="technicalHeading">技术详情</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="technicalIntro" hidden></p>\n    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>\n    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>\n      <h2 id="agentCardHeading">Agent 档案</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="agentCardSource"></p>\n    <div class="rm-rich-text" id="agentCardBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="noticeHeading">暂不可用</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>\n  </div>\n  <p class="rm-notice-body" id="noticeBody"></p>\n  <p class="rm-note" id="noticeNote"></p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>知道了</button>\n  </div>\n</dialog>\n\n<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>\n';
+  var TEMPLATE = '<header class="rm-topbar">\n  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 动态">\n    <img class="rm-brand-mark" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>\n  </button>\n  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>\n  <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">\n    <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>\n    <span class="rm-node-label" id="nodeLabel">节点状态 · 读取中</span>\n  </button>\n</header>\n\n<main class="rm-body">\n  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">\n    <div class="rm-page-inner">\n      <div class="rm-explore-bar">\n        <div class="rm-filters" role="group" aria-label="动态筛选">\n          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>\n          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>\n        </div>\n        <div class="rm-explore-tools">\n          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>\n            <span>刷新</span>\n          </button>\n          <button type="button" class="rm-icon-button" id="exploreSearchToggle" aria-label="搜索动态" aria-expanded="false" aria-controls="exploreSearch">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          </button>\n        </div>\n      </div>\n      <div class="rm-search-row" id="exploreSearch" hidden>\n        <label class="rm-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">\n        </label>\n      </div>\n      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>\n      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>\n      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>\n        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>\n        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">\n    <div class="rm-page-inner">\n      <div class="rm-contacts-toolbar">\n        <label class="rm-search rm-contacts-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="contactQuery" placeholder="搜索名称或节点标识" aria-label="搜索联系人名称或节点标识" autocomplete="off">\n        </label>\n        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>\n      </div>\n      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>\n      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>\n      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="contactsStateTitle">正在读取联系人…</h2>\n        <p id="contactsStateBody">请稍候。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>\n        </div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-raminga" data-page="raminga" aria-label="Raminga">\n    <div class="rm-page-inner">\n      <section class="rm-agent-hero" aria-labelledby="ramingaHeading">\n        <span class="rm-agent-mark"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt=""></span>\n        <div>\n          <p class="rm-eyebrow">RAMINGA</p>\n          <h1 id="ramingaHeading">你的 Agent</h1>\n          <p class="rm-hero-copy">你的 Agent 资料与活动记录会集中在这里。</p>\n        </div>\n      </section>\n      <div class="rm-records-bar" id="ramingaRecordsBar" hidden>\n        <p class="rm-records-status" id="ramingaRecordsStatus" role="status"></p>\n        <button type="button" class="rm-secondary rm-records-refresh" id="ramingaRefresh">刷新记录</button>\n      </div>\n      <section class="rm-panel rm-journey-source" id="ramingaSelfPanel" hidden aria-labelledby="ramingaSelfHeading">\n        <div class="rm-panel-head">\n          <h2 id="ramingaSelfHeading">稳定人格</h2>\n          <span>私有 Agent 资料</span>\n        </div>\n        <div class="rm-rich-text" id="ramingaSelf"></div>\n        <p class="rm-list-note" id="ramingaSelfNote" hidden></p>\n      </section>\n      <section class="rm-panel rm-journey-source" id="ramingaGrowthPanel" hidden aria-labelledby="ramingaGrowthHeading">\n        <div class="rm-panel-head">\n          <h2 id="ramingaGrowthHeading">成长提案</h2>\n          <span>私有 Agent 资料</span>\n        </div>\n        <div class="rm-rich-text" id="ramingaGrowth"></div>\n        <p class="rm-list-note" id="ramingaGrowthNote" hidden></p>\n      </section>\n      <section class="rm-journey" aria-labelledby="ramingaJourneyHeading" id="ramingaJourneyPanel" hidden>\n        <div class="rm-panel-head">\n          <h2 id="ramingaJourneyHeading">Journey 活动</h2>\n          <span>一次 Journey 不是聊天线程</span>\n        </div>\n        <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>\n        <div class="rm-journey-list" id="ramingaSessionList" aria-label="Journey 记录" hidden></div>\n      </section>\n      <section class="rm-state" id="ramingaState" aria-labelledby="ramingaStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>\n        <p id="ramingaStateBody">正在从本机数据目录读取私有 Agent 资料与 Journey 记录。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button>\n        </div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">\n    <div class="rm-page-inner">\n      <div id="messagesIndex">\n        <header class="rm-page-head">\n          <h1>对话</h1>\n          <p>按联系人汇总的当前保留消息</p>\n        </header>\n        <div class="rm-messages-toolbar">\n          <label class="rm-search">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">\n          </label>\n        </div>\n        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>\n        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>\n        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>\n        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="messagesStateTitle">正在读取对话…</h2>\n          <p id="messagesStateBody">请稍候。</p>\n          <div class="rm-state-actions">\n            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>\n            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>\n          </div>\n        </section>\n      </div>\n\n      <div id="conversationView" hidden>\n        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>\n        <section class="rm-conversation-head" aria-labelledby="conversationName">\n          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>\n          <div class="rm-conversation-copy">\n            <h1 id="conversationName">联系人</h1>\n            <code class="rm-peer-id" id="conversationPeerId"></code>\n            <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>\n          </div>\n          <button type="button" class="rm-quick-trigger" id="conversationMenu" aria-label="更多联系人操作" aria-haspopup="menu" aria-controls="contactQuickMenu" aria-expanded="false" hidden>⋯</button>\n        </section>\n\n        <div class="rm-message-panel">\n          <p class="rm-list-note" id="messageStale" role="status" hidden></p>\n          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>\n          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>\n          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>\n          <div class="rm-restore-actions" id="messageRestoreActions" hidden>\n            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>\n            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>\n          </div>\n          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>\n          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>\n          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>\n            <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n            <h2 id="messageStateTitle">正在读取消息…</h2>\n            <p id="messageStateBody">请稍候。</p>\n            <div class="rm-state-actions">\n              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>\n              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>\n            </div>\n          </section>\n          <p class="rm-retention" id="messageRetention" hidden></p>\n        </div>\n\n        <div class="rm-composer-shell">\n          <div class="rm-composer-overlay" id="composerOverlay" hidden>\n            <p class="rm-copy-status rm-composer-status" id="composerStatus" role="status"></p>\n            <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>\n            <div class="rm-composer-actions" id="composerActions" hidden>\n              <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>\n              <button type="button" class="rm-quiet" id="sendRestore" hidden>重试发送</button>\n            </div>\n          </div>\n          <form class="rm-composer" id="composer" novalidate>\n            <label class="rm-sr-only" for="messageInput">输入消息</label>\n            <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行" aria-describedby="composerStatus"></textarea>\n            <div class="rm-composer-row">\n              <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>\n              <button type="submit" class="rm-primary" id="messageSend">发送</button>\n            </div>\n          </form>\n        </div>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-mine" data-page="mine" aria-label="我的">\n    <div class="rm-page-inner">\n      <section class="rm-identity" id="mineIdentity" aria-labelledby="mineIdentityTitle">\n        <div class="rm-profile-head">\n          <span class="rm-profile-avatar" aria-hidden="true">我</span>\n          <div class="rm-profile-copy">\n            <h1 id="mineIdentityTitle">我的</h1>\n            <p id="mineIdentitySummary">正在读取本机节点身份…</p>\n          </div>\n        </div>\n        <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>\n        <div class="rm-identity-actions">\n          <button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button>\n        </div>\n      </section>\n\n      <section class="rm-panel" aria-labelledby="mineProfileHeading">\n        <div class="rm-panel-head">\n          <h2 id="mineProfileHeading">个人档案</h2>\n          <span id="mineProfileStatus">读取中</span>\n        </div>\n        <div class="rm-rich-text" id="mineProfileContent"></div>\n        <p class="rm-list-note" id="mineProfileNote" role="status" hidden></p>\n      </section>\n\n      <section class="rm-panel" aria-labelledby="mineContentHeading">\n        <div class="rm-panel-head">\n          <h2 id="mineContentHeading">我的公开内容</h2>\n          <span id="mineContentStatus">读取中</span>\n        </div>\n        <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>\n        <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>\n        <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>\n      </section>\n\n      <div class="rm-mine-actions">\n        <button type="button" class="rm-secondary" id="shareNode">↗ 分享节点信息</button>\n        <button type="button" class="rm-quiet" id="mineRefresh">刷新本机资料</button>\n      </div>\n    </div>\n  </section>\n  <section class="rm-page rm-profile-view" id="profileView" data-page="profile" aria-label="对方档案" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="profileBack">← 返回</button>\n      <section class="rm-profile-hero" aria-labelledby="profileName">\n        <span class="rm-profile-avatar" id="profileAvatar" aria-hidden="true">?</span>\n        <div class="rm-profile-copy">\n          <h1 id="profileName">对方档案</h1>\n          <code class="rm-peer-id" id="profilePeerId"></code>\n          <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>\n        </div>\n      </section>\n      <div class="rm-profile-actions">\n        <button type="button" class="rm-secondary" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>\n      </div>\n      <p class="rm-list-note" id="profileStale" role="status" hidden></p>\n      <p class="rm-list-note" id="profileError" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取对方资料</button>\n      <section class="rm-panel" aria-labelledby="profileUserHeading">\n        <div class="rm-panel-head">\n          <h2 id="profileUserHeading">用户资料</h2>\n          <span>来自对方公开档案</span>\n        </div>\n        <div class="rm-rich-text" id="profileBody"></div>\n        <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>\n      </section>\n      <section class="rm-panel" aria-labelledby="profileAgentHeading">\n        <div class="rm-panel-head">\n          <h2 id="profileAgentHeading">Agent 摘要</h2>\n          <span>独立于用户资料</span>\n        </div>\n        <p class="rm-list-note" id="profileAgentNote" role="status" hidden></p>\n        <div class="rm-agent-summary" id="profileAgentSummary" hidden>\n          <div>\n            <b id="profileAgentName"></b>\n            <p id="profileAgentDescription"></p>\n          </div>\n          <button type="button" class="rm-secondary" id="profileAgentOpen">查看公开档案</button>\n        </div>\n      </section>\n    </div>\n  </section>\n</main>\n\n<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>\n\n<div class="rm-quick-menu" id="contactQuickMenu" role="menu" aria-label="联系人快速操作" hidden></div>\n\n<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机节点</p>\n      <h2 id="statusHeading">节点状态</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>\n  </div>\n  <div class="rm-status-summary">\n    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>\n    <div>\n      <b id="statusPhase">正在读取本机节点</b>\n      <p id="statusSummary">正在读取本机节点状态…</p>\n    </div>\n  </div>\n  <dl class="rm-facts">\n    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>\n    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>\n    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>\n    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>\n    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>\n  </dl>\n  <details class="rm-tech" id="statusTech">\n    <summary>技术详情</summary>\n    <dl class="rm-facts">\n      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>\n      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>\n      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>\n      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>\n      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>\n      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>\n    </dl>\n    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>\n  </details>\n  <p class="rm-note">更完整的节点标识和最近事件在技术详情中。</p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="statusRefresh">刷新</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="addContactHeading">添加联系人</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="addContactForm" novalidate>\n      <label class="rm-field" for="addContactInput">\n        <span>Peer ID 或完整节点地址</span>\n        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>\n      </label>\n      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>\n      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>\n        <b id="addContactFeedbackTitle"></b>\n        <p id="addContactFeedbackBody"></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>\n        <details class="rm-tech" id="addContactFeedbackDetail" hidden>\n          <summary>错误详情</summary>\n          <code id="addContactFeedbackRaw"></code>\n        </details>\n        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>\n    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="editContactDialog" aria-labelledby="editContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机联系人</p>\n      <h2 id="editContactHeading">编辑联系人资料</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭编辑联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="editContactForm" novalidate>\n      <code class="rm-peer-id" id="editContactPeerId"></code>\n      <label class="rm-field" for="editContactName">\n        <span>名称</span>\n        <span class="rm-field-control">\n          <input type="text" id="editContactName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="留空则显示短 Peer ID">\n          <button type="button" class="rm-clear-field" id="editContactNameClear" aria-label="清除名称">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只影响本机联系人显示和公开的 friends.json，不会修改对方档案。留空表示清除名称；非空时只允许小写字母、数字和 -，最多 32 个字符，且不能与其他联系人重名。</p>\n      <label class="rm-field" for="editContactDescription">\n        <span>备注</span>\n        <span class="rm-field-control">\n          <textarea id="editContactDescription" rows="3" maxlength="280" spellcheck="true" placeholder="留空则清除备注"></textarea>\n          <button type="button" class="rm-clear-field" id="editContactDescriptionClear" aria-label="清除备注">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只保存在本机并写入公开的 friends.json，不会修改对方档案。最多 280 个字符。</p>\n      <div class="rm-feedback" id="editContactFeedback" role="status" hidden>\n        <b id="editContactFeedbackTitle"></b>\n        <p id="editContactFeedbackBody"></p>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="editContactSave" form="editContactForm">保存</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="shareHeading">分享节点信息</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <div class="rm-share-loading" id="shareLoading">\n      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>\n      <p>正在读取本机节点信息…</p>\n    </div>\n    <div id="shareContent" hidden>\n      <div class="rm-share-peer">\n        <span>本机 Peer ID</span>\n        <code class="rm-peer-id" id="sharePeerId"></code>\n      </div>\n      <div class="rm-share-addresses" id="shareAddresses"></div>\n      <p class="rm-note" id="shareAddressNote" hidden></p>\n      <p class="rm-list-note" id="shareStaleNote" hidden></p>\n    </div>\n    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>\n      <b>暂时读不到本机节点信息</b>\n      <p id="shareFailureBody">请稍后再试。</p>\n      <details class="rm-tech" id="shareFailureDetail" hidden>\n        <summary>错误详情</summary>\n        <code id="shareFailureRaw"></code>\n      </details>\n    </div>\n    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>\n    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>\n    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 技术详情</p>\n      <h2 id="technicalHeading">技术详情</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="technicalIntro" hidden></p>\n    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>\n    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>\n      <h2 id="agentCardHeading">Agent 档案</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="agentCardSource"></p>\n    <div class="rm-rich-text" id="agentCardBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="noticeHeading">暂不可用</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>\n  </div>\n  <p class="rm-notice-body" id="noticeBody"></p>\n  <p class="rm-note" id="noticeNote"></p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>知道了</button>\n  </div>\n</dialog>\n\n<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>\n';
 
   // src/router.js
   var MAIN_PAGES = ["explore", "contacts", "raminga", "messages", "mine"];
@@ -2667,7 +2813,7 @@ ${resultDetail}`;
         return {
           tone: "error",
           title: "发送失败",
-          body: `${replayed}这条消息没有获得送达确认。再次发送会创建一条新消息。`,
+          body: `${replayed}这条消息没有获得送达确认。重试会复用同一次请求，不会创建重复消息。`,
           detail: outcomeDetail(result),
           canReconcile: false
         };
@@ -2790,6 +2936,9 @@ ${resultDetail}`;
     const journeyCapable = typeof options.onLoadJourney === "function";
     const peerProfileCapable = typeof options.onLoadPeerProfile === "function";
     const locateMessageCapable = typeof options.onLocateMessage === "function";
+    const friendNameEditCapable = typeof options.onSetFriendName === "function";
+    const friendDescriptionEditCapable = typeof options.onSetFriendDescription === "function";
+    const friendEditCapable = friendNameEditCapable || friendDescriptionEditCapable;
     const emptyDiscoveries = (familiar = false) => ({
       items: [],
       at: null,
@@ -2896,6 +3045,12 @@ ${resultDetail}`;
     let checkPending = false;
     let shareAttempt = 0;
     let currentShare = null;
+    let editAttempt = 0;
+    let editTargetPeerId = "";
+    let editOriginal = { name: "", description: "" };
+    let editPending = false;
+    let quickMenuPeerId = "";
+    let quickMenuTrigger = null;
     const nodeTrigger = $("#nodeTrigger");
     const nodeDot = $("#nodeDot");
     const nodeLabel = $("#nodeLabel");
@@ -2924,6 +3079,8 @@ ${resultDetail}`;
     const conversationPeerId = $("#conversationPeerId");
     const conversationState = $("#conversationState");
     const conversationAvatar = $("#conversationAvatar");
+    const conversationMenu = $("#conversationMenu");
+    const contactQuickMenu = $("#contactQuickMenu");
     const conversationQuery = $("#conversationQuery");
     const conversationList = $("#conversationList");
     const conversationsMeta = $("#conversationsMeta");
@@ -2943,6 +3100,7 @@ ${resultDetail}`;
     const loadOlder = $("#loadOlder");
     const messageRetention = $("#messageRetention");
     const composer = $("#composer");
+    const composerOverlay = $("#composerOverlay");
     const messageInput = $("#messageInput");
     const messageSend = $("#messageSend");
     const messageCounter = $("#messageCounter");
@@ -3025,6 +3183,18 @@ ${resultDetail}`;
     const profileAgentDescription = $("#profileAgentDescription");
     const profileAgentOpen = $("#profileAgentOpen");
     const agentCardDialog = $("#agentCardDialog");
+    const editContactDialog = $("#editContactDialog");
+    const editContactForm = $("#editContactForm");
+    const editContactPeerId = $("#editContactPeerId");
+    const editContactName = $("#editContactName");
+    const editContactNameClear = $("#editContactNameClear");
+    const editContactDescription = $("#editContactDescription");
+    const editContactDescriptionClear = $("#editContactDescriptionClear");
+    const editContactFeedback = $("#editContactFeedback");
+    const editContactFeedbackTitle = $("#editContactFeedbackTitle");
+    const editContactFeedbackBody = $("#editContactFeedbackBody");
+    const editContactSave = $("#editContactSave");
+    const profileEditContact = $("#profileEditContact");
     const agentCardSource = $("#agentCardSource");
     const agentCardBody = $("#agentCardBody");
     const shareNode = $("#shareNode");
@@ -3591,8 +3761,18 @@ ${resultDetail}`;
       badge.dataset.state = state;
       badge.textContent = connectionStateText(state);
       main.replaceChildren(copy, badge);
-      if (row.firstElementChild !== avatar || row.lastElementChild !== main || row.childElementCount !== 2) {
-        row.replaceChildren(avatar, main);
+      const menu = row.querySelector(":scope > button[data-quick-peer]") ?? element("button", "rm-quick-trigger");
+      menu.type = "button";
+      menu.dataset.quickPeer = peerId2;
+      menu.dataset.quickRef = `contacts-menu:${peerId2}`;
+      menu.textContent = "⋯";
+      menu.hidden = !friendEditCapable;
+      menu.setAttribute("aria-label", `更多操作：${contactDisplayName(friend)}`);
+      menu.setAttribute("aria-haspopup", friendEditCapable ? "menu" : "false");
+      menu.setAttribute("aria-controls", "contactQuickMenu");
+      menu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === peerId2));
+      if (row.firstElementChild !== avatar || row.lastElementChild !== menu || row.childElementCount !== 3) {
+        row.replaceChildren(avatar, main, menu);
       }
     }
     function contactRow(friend) {
@@ -3760,6 +3940,243 @@ ${resultDetail}`;
     function conversationFriend(peerId2) {
       return contactFor(peerId2);
     }
+    const FRIEND_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+    function normalizedFriendEditValue(value) {
+      const candidate = value && typeof value === "object" && value.friend && typeof value.friend === "object" ? value.friend : value;
+      return candidate && typeof candidate === "object" ? candidate : null;
+    }
+    function editResultError(value) {
+      if (value === false) return "宿主没有完成保存。";
+      if (!value || typeof value !== "object") return "";
+      if (value.ok === false) return String(value.error ?? "保存没有完成。");
+      return "";
+    }
+    function applyEditedFriend(friend, fallback = null) {
+      const peerId2 = String(fallback?.peerId ?? friend?.peerId ?? editTargetPeerId);
+      if (!peerId2) return;
+      const data = contactsState.data;
+      const index = Array.isArray(data?.friends) ? data.friends.findIndex((item) => String(item?.peerId ?? "") === peerId2) : -1;
+      if (index < 0) return;
+      const previous = data.friends[index];
+      data.friends[index] = {
+        ...previous,
+        ...friend ?? {},
+        ...fallback ?? {},
+        peerId: peerId2
+      };
+      updateContactsState();
+      if (profileState.peerId === peerId2 && profileState.data) {
+        profileState.data = { ...profileState.data, localName: String(data.friends[index].name ?? "") };
+        renderProfile();
+      }
+    }
+    function closeContactQuickMenu({ restoreFocus = true, quiet = false } = {}) {
+      const trigger = quickMenuTrigger;
+      contactQuickMenu.hidden = true;
+      contactQuickMenu.replaceChildren();
+      contactQuickMenu.removeAttribute("style");
+      quickMenuPeerId = "";
+      quickMenuTrigger = null;
+      if (trigger) trigger.setAttribute("aria-expanded", "false");
+      if (restoreFocus && trigger?.isConnected && !quiet) trigger.focus({ preventScroll: true });
+    }
+    function quickMenuItems() {
+      return [...contactQuickMenu.querySelectorAll('button[role="menuitem"]')];
+    }
+    function focusQuickMenuItem(index) {
+      const items = quickMenuItems();
+      if (items.length === 0) return;
+      const next = (index % items.length + items.length) % items.length;
+      items[next].focus({ preventScroll: true });
+    }
+    function openContactQuickMenu(trigger, peerId2) {
+      if (!friendEditCapable || !trigger || !peerId2) return;
+      if (!contactFor(peerId2)) return;
+      if (!contactQuickMenu.hidden && quickMenuTrigger === trigger) {
+        closeContactQuickMenu();
+        return;
+      }
+      closeContactQuickMenu({ restoreFocus: false, quiet: true });
+      quickMenuPeerId = peerId2;
+      quickMenuTrigger = trigger;
+      trigger.setAttribute("aria-expanded", "true");
+      const edit = element("button");
+      edit.type = "button";
+      edit.setAttribute("role", "menuitem");
+      edit.dataset.quickAction = "edit";
+      edit.textContent = friendNameEditCapable && friendDescriptionEditCapable ? "编辑名称和备注" : friendNameEditCapable ? "编辑名称" : "编辑备注";
+      edit.onclick = () => {
+        closeContactQuickMenu({ restoreFocus: false, quiet: true });
+        openEditContact(peerId2, trigger);
+      };
+      const note = element("p", "rm-quick-menu-note");
+      note.setAttribute("role", "none");
+      note.textContent = "只保存到本机并更新公开的 friends.json，不修改对方档案。";
+      contactQuickMenu.append(edit, note);
+      contactQuickMenu.hidden = false;
+      const rect = trigger.getBoundingClientRect();
+      const origin = root.host?.getBoundingClientRect?.() ?? { left: 0, top: 0, width: 0, height: 0 };
+      const width = contactQuickMenu.offsetWidth || 210;
+      const height = contactQuickMenu.offsetHeight || 80;
+      const availableWidth = Number(origin.width) > 0 ? Number(origin.width) : Number(win.innerWidth) || 1024;
+      const availableHeight = Number(origin.height) > 0 ? Number(origin.height) : Number(win.innerHeight) || 768;
+      let left = rect.right - Number(origin.left) - width;
+      if (left < 8) left = 8;
+      if (left + width > availableWidth - 8) left = Math.max(8, availableWidth - width - 8);
+      let top = rect.bottom - Number(origin.top) + 6;
+      if (top + height > availableHeight - 8) top = rect.top - Number(origin.top) - height - 6;
+      if (top < 8) top = 8;
+      contactQuickMenu.style.left = `${Math.round(left)}px`;
+      contactQuickMenu.style.top = `${Math.round(top)}px`;
+      edit.focus({ preventScroll: true });
+    }
+    contactQuickMenu.addEventListener("keydown", (event) => {
+      const items = quickMenuItems();
+      const current = items.indexOf(root.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeContactQuickMenu();
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusQuickMenuItem(current + 1);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusQuickMenuItem(current - 1);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        focusQuickMenuItem(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        focusQuickMenuItem(items.length - 1);
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        closeContactQuickMenu();
+      }
+    }, { signal: controller.signal });
+    function setEditFeedback({ title = "", body = "", tone = "" } = {}) {
+      editContactFeedbackTitle.textContent = title;
+      editContactFeedbackBody.textContent = body;
+      editContactFeedback.hidden = title.length === 0 && body.length === 0;
+      if (tone) editContactFeedback.dataset.tone = tone;
+      else editContactFeedback.removeAttribute("data-tone");
+    }
+    function setEditBusy(busy) {
+      editPending = busy;
+      editContactName.readOnly = busy;
+      editContactDescription.readOnly = busy;
+      editContactNameClear.setAttribute("aria-disabled", String(busy || !friendNameEditCapable));
+      editContactDescriptionClear.setAttribute("aria-disabled", String(busy || !friendDescriptionEditCapable));
+      editContactSave.setAttribute("aria-disabled", String(busy));
+      editContactSave.textContent = busy ? "正在保存…" : "保存";
+    }
+    function openEditContact(peerId2, trigger = null) {
+      if (!friendEditCapable || !peerId2) return;
+      const friend = contactFor(peerId2);
+      if (!friend) return;
+      closeContactQuickMenu({ restoreFocus: false, quiet: true });
+      editAttempt += 1;
+      editTargetPeerId = peerId2;
+      editOriginal = {
+        name: typeof friend.name === "string" ? friend.name : "",
+        description: typeof friend.description === "string" ? friend.description : ""
+      };
+      editContactPeerId.textContent = peerId2;
+      editContactName.value = editOriginal.name;
+      editContactDescription.value = editOriginal.description;
+      editContactName.disabled = !friendNameEditCapable;
+      editContactDescription.disabled = !friendDescriptionEditCapable;
+      editContactNameClear.hidden = !friendNameEditCapable;
+      editContactDescriptionClear.hidden = !friendDescriptionEditCapable;
+      editContactName.placeholder = "留空则显示短 Peer ID";
+      setEditFeedback();
+      setEditBusy(false);
+      openDialog(editContactDialog, trigger);
+      (friendNameEditCapable ? editContactName : editContactDescription).focus({ preventScroll: true });
+    }
+    function validateEditContact(name, description) {
+      if (name.length > 0 && !FRIEND_NAME_PATTERN.test(name)) {
+        return { field: "name", message: "名称只允许小写字母、数字和 -，最多 32 个字符；留空可清除名称。" };
+      }
+      if ([...description].length > 280) {
+        return { field: "description", message: "备注最多 280 个字符。" };
+      }
+      for (const char of description) {
+        if (char.codePointAt(0) < 32 || char.codePointAt(0) === 127) {
+          return { field: "description", message: "备注不能包含控制字符。" };
+        }
+      }
+      return null;
+    }
+    async function submitEditContact(event) {
+      event.preventDefault();
+      if (destroyed || editPending || !editTargetPeerId) return;
+      const peerId2 = editTargetPeerId;
+      const name = editContactName.value.trim();
+      const description = editContactDescription.value.trim();
+      const invalid = validateEditContact(name, description);
+      if (invalid) {
+        setEditFeedback({ title: "还没有保存", body: invalid.message, tone: "invalid" });
+        (invalid.field === "name" ? editContactName : editContactDescription).focus({ preventScroll: true });
+        return;
+      }
+      const nameChanged = friendNameEditCapable && name !== editOriginal.name;
+      const descriptionChanged = friendDescriptionEditCapable && description !== editOriginal.description;
+      if (!nameChanged && !descriptionChanged) {
+        closeDialog(editContactDialog);
+        return;
+      }
+      const attempt = ++editAttempt;
+      setEditBusy(true);
+      setEditFeedback({ title: "正在保存联系人资料…", body: "只更新本机联系人记录和公开的 friends.json。", tone: "info" });
+      const failures = [];
+      let savedName = false;
+      let savedDescription = false;
+      let latest = null;
+      if (nameChanged) {
+        try {
+          const value = await options.onSetFriendName(peerId2, name);
+          const failure = editResultError(value);
+          if (failure) throw new Error(failure);
+          latest = normalizedFriendEditValue(value);
+          savedName = true;
+        } catch (error) {
+          failures.push({ field: "name", message: errorText(error) || "名称没有保存。" });
+        }
+      }
+      if (descriptionChanged) {
+        try {
+          const value = await options.onSetFriendDescription(peerId2, description);
+          const failure = editResultError(value);
+          if (failure) throw new Error(failure);
+          latest = normalizedFriendEditValue(value) ?? latest;
+          savedDescription = true;
+        } catch (error) {
+          failures.push({ field: "description", message: errorText(error) || "备注没有保存。" });
+        }
+      }
+      if (destroyed || attempt !== editAttempt || !editContactDialog.open) return;
+      setEditBusy(false);
+      const fallback = {
+        peerId: peerId2,
+        name: savedName ? name : editOriginal.name,
+        description: savedDescription ? description : editOriginal.description
+      };
+      if (latest || savedName || savedDescription) applyEditedFriend(latest, fallback);
+      if (failures.length === 0) {
+        closeDialog(editContactDialog);
+        return;
+      }
+      if (savedName) editOriginal.name = name;
+      if (savedDescription) editOriginal.description = description;
+      const title = failures.length === (nameChanged ? 1 : 0) + (descriptionChanged ? 1 : 0) ? "没有保存修改" : "只保存了部分修改";
+      setEditFeedback({
+        title,
+        body: failures.map((item) => `${item.field === "name" ? "名称" : "备注"}：${item.message}`).join(" "),
+        tone: "error"
+      });
+      if (failures[0].field === "name" && friendNameEditCapable) editContactName.focus({ preventScroll: true });
+      else if (friendDescriptionEditCapable) editContactDescription.focus({ preventScroll: true });
+    }
     function draftKeyFor(peerId2) {
       return `chat:${peerId2}`;
     }
@@ -3916,6 +4333,10 @@ ${resultDetail}`;
       conversationAvatar.dataset.profilePeer = peerId2;
       conversationAvatar.dataset.profileRef = `chat:${peerId2}`;
       conversationAvatar.setAttribute("aria-label", `查看 ${friend ? contactDisplayName(friend) : shortPeer(peerId2)} 的档案`);
+      conversationMenu.hidden = !(friendEditCapable && friend);
+      conversationMenu.dataset.quickPeer = peerId2;
+      conversationMenu.dataset.quickRef = `chat-menu:${peerId2}`;
+      conversationMenu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === peerId2));
       const state = friend?.connection === "connected" || friend?.connection === "disconnected" ? friend.connection : "unknown";
       conversationState.dataset.state = state;
       conversationState.textContent = connectionStateText(state);
@@ -4798,9 +5219,17 @@ ${resultDetail}`;
       if (persisted && sameDiagnostic(detail, persisted)) return "";
       return detail;
     }
+    function updateComposerOverlay() {
+      const hasStatus = composerStatus.textContent.trim().length > 0;
+      composerStatus.hidden = !hasStatus;
+      const hasTech = !composerTech.hidden;
+      const hasActions = !composerActions.hidden;
+      composerOverlay.hidden = composer.hidden || !(hasStatus || hasTech || hasActions);
+    }
     function updateComposerDetail(task = null) {
       const value = task ?? (contactsState.selectedPeerId ? taskFor(contactsState.selectedPeerId) : null);
       composerTech.hidden = composerDetailForTask(value).length === 0;
+      updateComposerOverlay();
     }
     function applyComposerStatus(text2, tone = "", detail = "") {
       const value = String(text2 || "");
@@ -4883,6 +5312,8 @@ ${resultDetail}`;
       messageSend.title = !sendsCapable ? "发送暂不可用" : task?.sending ? "正在发送…" : over ? "消息超过节点字节限制" : empty ? "请输入消息" : "发送消息";
       sendReconcile.hidden = !(task && task.unknown && !task.sending && sendsCapable);
       sendRestore.hidden = !(task && !task.sending && task.outcome?.tone === "error" && task.outcome?.title === "发送失败");
+      sendRestore.textContent = task?.sending ? "正在重试…" : "重试发送";
+      composerActions.hidden = sendReconcile.hidden && sendRestore.hidden;
       updateComposerDetail(task);
     }
     function renderComposer() {
@@ -4904,6 +5335,7 @@ ${resultDetail}`;
       } else {
         applyComposerStatus("", "", "");
       }
+      updateComposerOverlay();
     }
     function validateMessage(text2) {
       if (text2.trim().length === 0) return "请输入消息。";
@@ -4912,7 +5344,7 @@ ${resultDetail}`;
       if (bytes > limit) return `消息太长了：${bytes} 字节，当前节点上限 ${limit} 字节。请缩短后再发送。`;
       return "";
     }
-    async function submitMessage({ reconcile = false } = {}) {
+    async function submitMessage({ reconcile = false, retry = false } = {}) {
       if (destroyed || !sendsCapable) return;
       const peerId2 = contactsState.selectedPeerId;
       if (!peerId2) return;
@@ -4920,8 +5352,12 @@ ${resultDetail}`;
       if (task?.sending) return;
       let text2;
       let requestId;
+      const retryingFailed = retry === true && task?.outcome?.title === "发送失败";
       if (reconcile) {
         if (!task || !task.unknown || task.sending) return;
+        text2 = task.text;
+        requestId = task.requestId;
+      } else if (retryingFailed) {
         text2 = task.text;
         requestId = task.requestId;
       } else {
@@ -4999,6 +5435,10 @@ ${resultDetail}`;
           current.outcome = sendOutcome(result);
           current.outcomeStatus = resultStatus;
         }
+        if (retryingFailed && resultStatus !== "failed" && messageInput.value === current.text) {
+          messageInput.value = "";
+          persistDraft(peerId2, "");
+        }
         if (!keepTerminal && resultStatus === "failed" && messageInput.value.length === 0) {
           messageInput.value = current.text;
           persistDraft(peerId2, messageInput.value);
@@ -5012,20 +5452,15 @@ ${resultDetail}`;
       updateComposerMeta();
       if (contactsState.selectedPeerId === peerId2) requestMessages(peerId2, true);
     }
-    function restoreFailedText() {
+    function retryFailedSend() {
       const peerId2 = contactsState.selectedPeerId;
       const task = peerId2 ? taskFor(peerId2) : null;
-      if (!peerId2 || !task || task.sending) return;
-      if (messageInput.value.trim().length > 0) {
-        setComposerNotice(peerId2, "输入框里已有新内容，未覆盖。", "muted");
-        focusMessageInput();
-        return;
+      if (!peerId2 || !task || task.sending || task.outcome?.title !== "发送失败") return;
+      if (messageInput.value.trim().length === 0) {
+        messageInput.value = task.text;
+        persistDraft(peerId2, messageInput.value);
       }
-      messageInput.value = task.text;
-      persistDraft(peerId2, messageInput.value);
-      updateComposerMeta();
-      setComposerNotice(peerId2, "已放回输入框。再次发送会创建一条新消息。", "muted");
-      focusMessageInput();
+      void submitMessage({ retry: true });
     }
     function conversationStateText(state) {
       return conversationStatusLabel(state);
@@ -5560,6 +5995,7 @@ ${resultDetail}`;
     }
     function openDialog(dialog, trigger) {
       if (destroyed || dialog.open) return;
+      if (dialog !== editContactDialog) closeContactQuickMenu({ restoreFocus: false, quiet: true });
       dialogTriggers.set(dialog, trigger ?? root.activeElement ?? doc.activeElement);
       dialog.showModal();
       dialog.querySelector("[data-close-dialog]")?.focus({ preventScroll: true });
@@ -6386,6 +6822,9 @@ ${resultDetail}`;
       profileAgentSummary.hidden = true;
       profileAgentNote.hidden = true;
       profileAgentOpen.onclick = null;
+      const localFriend = profileState.peerId ? contactFor(profileState.peerId) : null;
+      profileEditContact.hidden = !(friendEditCapable && localFriend);
+      profileEditContact.onclick = friendEditCapable && localFriend ? () => openEditContact(profileState.peerId, profileEditContact) : null;
       profileSource.textContent = "远端声明 · 来自对方公开文件与网络读取，未在本机验证身份。";
       if (data === null) {
         profileBodyNote.textContent = profileState.error || "正在读取对方公开资料…";
@@ -6623,6 +7062,18 @@ ${resultDetail}`;
         trigger: target
       });
     }, { signal: controller.signal });
+    root.addEventListener("click", (event) => {
+      const trigger = event.target.closest?.("[data-quick-peer]");
+      if (!trigger) return;
+      event.preventDefault();
+      openContactQuickMenu(trigger, trigger.dataset.quickPeer);
+    }, { signal: controller.signal });
+    doc.addEventListener("pointerdown", (event) => {
+      if (contactQuickMenu.hidden) return;
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      if (path.includes(contactQuickMenu) || path.includes(quickMenuTrigger)) return;
+      closeContactQuickMenu({ restoreFocus: false, quiet: true });
+    }, { capture: true, signal: controller.signal });
     root.querySelectorAll("nav").forEach((nav) => {
       nav.innerHTML = renderPrimaryNav(currentPage);
     });
@@ -6738,7 +7189,7 @@ ${resultDetail}`;
     sendReconcile.addEventListener("click", () => {
       void submitMessage({ reconcile: true });
     }, { signal: controller.signal });
-    sendRestore.addEventListener("click", restoreFailedText, { signal: controller.signal });
+    sendRestore.addEventListener("click", retryFailedSend, { signal: controller.signal });
     composerTech.addEventListener("click", openComposerDetail, { signal: controller.signal });
     messageList.addEventListener("scroll", saveChatScroll, { passive: true, signal: controller.signal });
     addContactForm.addEventListener("submit", submitAddContact, { signal: controller.signal });
@@ -6746,6 +7197,17 @@ ${resultDetail}`;
       void checkContactAgain();
     }, { signal: controller.signal });
     addContactView.addEventListener("click", viewNewContact, { signal: controller.signal });
+    editContactForm.addEventListener("submit", submitEditContact, { signal: controller.signal });
+    editContactNameClear.addEventListener("click", () => {
+      if (editPending || !friendNameEditCapable) return;
+      editContactName.value = "";
+      editContactName.focus({ preventScroll: true });
+    }, { signal: controller.signal });
+    editContactDescriptionClear.addEventListener("click", () => {
+      if (editPending || !friendDescriptionEditCapable) return;
+      editContactDescription.value = "";
+      editContactDescription.focus({ preventScroll: true });
+    }, { signal: controller.signal });
     shareCopy.addEventListener("click", () => {
       void copyShareInfo();
     }, { signal: controller.signal });
@@ -6765,7 +7227,7 @@ ${resultDetail}`;
     shareNode.addEventListener("click", (event) => {
       openShareDialog(event.currentTarget);
     }, { signal: controller.signal });
-    for (const dialog of [statusDialog, noticeDialog, addContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
+    for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
       dialog.addEventListener("click", (event) => {
         if (event.target === dialog || event.target.closest?.("[data-close-dialog]")) {
           closeDialog(dialog);
@@ -6781,6 +7243,13 @@ ${resultDetail}`;
       checkAttempt += 1;
       addContactPeerId = "";
     }, { signal: controller.signal });
+    editContactDialog.addEventListener("close", () => {
+      editAttempt += 1;
+      editPending = false;
+      editTargetPeerId = "";
+      setEditFeedback();
+      setEditBusy(false);
+    }, { signal: controller.signal });
     shareDialog.addEventListener("close", () => {
       shareAttempt += 1;
       currentShare = null;
@@ -6788,6 +7257,7 @@ ${resultDetail}`;
     for (const page of Object.values(pageEls)) {
       page.addEventListener("scroll", () => {
         if (page.hidden) return;
+        if (!contactQuickMenu.hidden) closeContactQuickMenu({ restoreFocus: false, quiet: true });
         scheduleSave();
       }, { passive: true, signal: controller.signal });
     }
@@ -6841,7 +7311,9 @@ ${resultDetail}`;
         addAttempt += 1;
         checkAttempt += 1;
         shareAttempt += 1;
-        for (const dialog of [statusDialog, noticeDialog, addContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
+        editAttempt += 1;
+        closeContactQuickMenu({ restoreFocus: false, quiet: true });
+        for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
           if (dialog.open) dialog.close();
         }
         dialogTriggers.clear();
@@ -7361,6 +7833,18 @@ function createPanelRuntime({
     return remoteValue(await rpc.locateMessage(sessionId, peerId, messageId));
   }
 
+  async function setFriendName(peerId, name) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.setFriendName !== 'function') throw new Error('Raminga contact editing is unavailable');
+    return remoteValue(await rpc.setFriendName(sessionId, peerId, name));
+  }
+
+  async function setFriendDescription(peerId, description) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.setFriendDescription !== 'function') throw new Error('Raminga contact editing is unavailable');
+    return remoteValue(await rpc.setFriendDescription(sessionId, peerId, description));
+  }
+
   async function open() {
     if (disposed) return;
     openAttempted = true;
@@ -7451,6 +7935,12 @@ function createPanelRuntime({
       // loader that can never resolve.
       if (typeof rpc.contacts === 'function') {
         mountOptions.onLoadContacts = (force) => loadContacts(force);
+      }
+      if (typeof rpc.setFriendName === 'function') {
+        mountOptions.onSetFriendName = (peerId, name) => setFriendName(peerId, name);
+      }
+      if (typeof rpc.setFriendDescription === 'function') {
+        mountOptions.onSetFriendDescription = (peerId, description) => setFriendDescription(peerId, description);
       }
       if (typeof rpc.connect === 'function') mountOptions.onConnect = (input) => connect(input);
       if (typeof rpc.checkContact === 'function') mountOptions.onCheckContact = (peerId) => checkContact(peerId);
@@ -7585,6 +8075,8 @@ function createPanelRuntime({
     const peerIdCodec = passthrough('@raminga/dsh#PeerId');
     const beforeCodec = passthrough('@raminga/dsh#UiBeforeCursor');
     const textCodec = passthrough('@raminga/dsh#UiMessageText');
+    const friendNameCodec = passthrough('@raminga/dsh#UiFriendName');
+    const friendDescriptionCodec = passthrough('@raminga/dsh#UiFriendDescription');
     const requestIdCodec = passthrough('@raminga/dsh#UiRequestId');
     const messageIdCodec = passthrough('@raminga/dsh#MessageId');
     const contentIdCodec = passthrough('@raminga/dsh#UiContentId');
@@ -7595,6 +8087,8 @@ function createPanelRuntime({
       peerId: { name: 'peerId', wire: 'peerId', source: 'json', codec: peerIdCodec },
       before: { name: 'before', wire: 'before', source: 'json', codec: beforeCodec },
       text: { name: 'text', wire: 'text', source: 'json', codec: textCodec },
+      friendName: { name: 'name', wire: 'name', source: 'json', codec: friendNameCodec },
+      friendDescription: { name: 'description', wire: 'description', source: 'json', codec: friendDescriptionCodec },
       requestId: { name: 'requestId', wire: 'requestId', source: 'json', codec: requestIdCodec },
       messageId: { name: 'messageId', wire: 'messageId', source: 'json', codec: messageIdCodec },
       familiar: { name: 'familiar', wire: 'familiar', source: 'json', codec: booleanCodec },
@@ -7606,6 +8100,8 @@ function createPanelRuntime({
       ['refresh', 'UiSnapshot', [sessionParam]],
       ['close', 'UiStats', [sessionParam]],
       ['contacts', 'UiContacts', [sessionParam, param.force]],
+      ['setFriendName', 'UiFriendEdit', [sessionParam, param.peerId, param.friendName]],
+      ['setFriendDescription', 'UiFriendEdit', [sessionParam, param.peerId, param.friendDescription]],
       ['connect', 'UiConnectResult', [sessionParam, param.connectInput]],
       ['checkContact', 'UiContactCheck', [sessionParam, param.peerId]],
       ['share', 'UiShareInfo', [sessionParam]],
@@ -7681,7 +8177,10 @@ function createPanelRuntime({
           className: 'raminga-main-host',
           'data-raminga-panel': 'true',
           'aria-label': 'Raminga 主工作区',
-          style: { display: 'block', width: '100%', height: '100%', minHeight: 0 },
+          // Isolate the plugin's internal z-indexes from the native sidebar
+          // slot (z-index 15). The DSH shell still owns the one native
+          // sidebar and its leading control; no second sidebar is created.
+          style: { display: 'block', width: '100%', height: '100%', minHeight: 0, position: 'relative', zIndex: 0, isolation: 'isolate' },
         });
       };
     }

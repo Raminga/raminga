@@ -442,6 +442,18 @@ export function createPanelRuntime({
     return remoteValue(await rpc.locateMessage(sessionId, peerId, messageId));
   }
 
+  async function setFriendName(peerId, name) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.setFriendName !== 'function') throw new Error('Raminga contact editing is unavailable');
+    return remoteValue(await rpc.setFriendName(sessionId, peerId, name));
+  }
+
+  async function setFriendDescription(peerId, description) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.setFriendDescription !== 'function') throw new Error('Raminga contact editing is unavailable');
+    return remoteValue(await rpc.setFriendDescription(sessionId, peerId, description));
+  }
+
   async function open() {
     if (disposed) return;
     openAttempted = true;
@@ -532,6 +544,12 @@ export function createPanelRuntime({
       // loader that can never resolve.
       if (typeof rpc.contacts === 'function') {
         mountOptions.onLoadContacts = (force) => loadContacts(force);
+      }
+      if (typeof rpc.setFriendName === 'function') {
+        mountOptions.onSetFriendName = (peerId, name) => setFriendName(peerId, name);
+      }
+      if (typeof rpc.setFriendDescription === 'function') {
+        mountOptions.onSetFriendDescription = (peerId, description) => setFriendDescription(peerId, description);
       }
       if (typeof rpc.connect === 'function') mountOptions.onConnect = (input) => connect(input);
       if (typeof rpc.checkContact === 'function') mountOptions.onCheckContact = (peerId) => checkContact(peerId);

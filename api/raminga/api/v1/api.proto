@@ -65,14 +65,17 @@ service RamingaService {
   // DhtFindPeer performs a real Raminga DHT lookup.
   rpc DhtFindPeer(DhtFindPeerRequest) returns (DhtFindPeerResponse);
 
-  // ListFriends lists local friend records. Names and descriptions never
-  // leave the node in this task.
+  // ListFriends lists local friend records. Names and descriptions are local
+  // labels; the existing public export writes them to friends.json, and they
+  // are never read from a remote profile by this RPC.
   rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
 
-  // SetFriendName replaces the local name of an existing friend.
+  // SetFriendName replaces the local name of an existing friend. An empty
+  // value clears the label; non-empty values keep syntax/uniqueness rules.
   rpc SetFriendName(SetFriendNameRequest) returns (SetFriendNameResponse);
 
   // SetFriendDescription replaces the local description of an existing friend.
+  // An empty value clears the note.
   rpc SetFriendDescription(SetFriendDescriptionRequest) returns (SetFriendDescriptionResponse);
 
   // RemoveFriend deletes the local friend row. Pending outbox entries must be
@@ -112,7 +115,8 @@ service RamingaService {
   rpc DisconnectPeer(DisconnectPeerRequest) returns (DisconnectPeerResponse);
 
   // Shutdown gracefully stops the daemon. It is token-authenticated and only
-  // reachable over the local Unix socket. The response is written before the
+  // reachable over the selected local API transport (Unix socket by default,
+  // or the explicitly enabled loopback TLS transport). The response is written before the
   // daemon closes the API and stops the node.
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
 
@@ -1181,7 +1185,9 @@ message ListFriendsResponse {
 
 message SetFriendNameRequest {
   string peer_id = 1;
-  string name = 2;
+  // Presence-aware: omitting name is invalid and must not clear the label.
+  // An explicitly present empty string clears the local name.
+  optional string name = 2;
 }
 
 message SetFriendNameResponse {
@@ -1190,7 +1196,9 @@ message SetFriendNameResponse {
 
 message SetFriendDescriptionRequest {
   string peer_id = 1;
-  string description = 2;
+  // Presence-aware: omitting description is invalid and must not clear the
+  // note. An explicitly present empty string clears the local description.
+  optional string description = 2;
 }
 
 message SetFriendDescriptionResponse {

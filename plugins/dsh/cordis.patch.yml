@@ -17,6 +17,9 @@
         # every other Raminga shell (Claude Code / Codex); do not point this at
         # a per-shell directory.
         dataDir: ''
+        # Opt in to the loopback-TCP local API (literal 127.0.0.1, per-run
+        # TLS/token). Default false keeps the Unix socket; there is no fallback.
+        apiTcp: false
         # Override path to the raminga binary used to auto-start the daemon.
         # Empty resolves $RAMINGA_BIN, then the matching @raminga/bin-<os>-<cpu>
         # platform package installed with this plugin, then `raminga` on PATH.

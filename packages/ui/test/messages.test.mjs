@@ -132,7 +132,7 @@ test('send outcomes are honest about unknown, pending, failed and replayed sends
   assert.match(sendOutcome({ ok: true, deliveryStatus: 'pending' }).title, /已交给节点/);
   assert.match(sendOutcome({ ok: true, deliveryStatus: 'acked' }).body, /阅读状态未知/);
   assert.doesNotMatch(sendOutcome({ ok: true, deliveryStatus: 'acked' }).body, /已读|未读/);
-  assert.match(sendOutcome({ ok: true, deliveryStatus: 'failed' }).body, /再次发送会创建一条新消息/);
+  assert.match(sendOutcome({ ok: true, deliveryStatus: 'failed' }).body, /重试会复用同一次请求/);
   assert.match(sendOutcome({ ok: true, deliveryStatus: 'failed' }).body, /没有获得送达确认/);
   assert.doesNotMatch(sendOutcome({ ok: true, deliveryStatus: 'failed' }).body, /没有送达|未被对端接收/);
   assert.match(sendOutcome({ ok: true, deliveryStatus: 'acked', replayed: true }).body, /没有重复创建消息/);

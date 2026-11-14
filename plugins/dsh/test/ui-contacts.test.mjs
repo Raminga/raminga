@@ -114,6 +114,20 @@ function routedApi(state) {
             if (value instanceof Error) throw value;
             return { friends: value };
           },
+          async setFriendName(request) {
+            calls.setFriendName = (calls.setFriendName ?? 0) + 1;
+            const target = state.friends.find((item) => item.peerId === request.peerId);
+            if (!target) throw new Error('friend not found');
+            target.name = request.name;
+            return { friend: target };
+          },
+          async setFriendDescription(request) {
+            calls.setFriendDescription = (calls.setFriendDescription ?? 0) + 1;
+            const target = state.friends.find((item) => item.peerId === request.peerId);
+            if (!target) throw new Error('friend not found');
+            target.description = request.description;
+            return { friend: target };
+          },
           async connect(request) {
             calls.connect.push(request);
             if (typeof state.onConnect === 'function') state.onConnect(request);
@@ -473,6 +487,35 @@ test('checkContact re-reads ListFriends without dialing again', async () => {
     const invalid = await bridge.checkContact('ui-contacts-0001', 'not a peer');
     assert.equal(invalid.ok, false);
     assert.match(invalid.error, /Peer ID/);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+
+test('local name and description edits are independent and reread the list', async () => {
+  const state = {
+    status: statusResponse(),
+    friends: [friend(PEER_A, { name: 'alice', description: 'kept note' })],
+  };
+  const { bridge, calls } = await setup(state);
+  try {
+    const named = await bridge.setFriendName('ui-contacts-0001', PEER_A, 'renamed');
+    assert.equal(named.friend.name, 'renamed');
+    assert.equal(named.friend.description, 'kept note');
+    assert.equal(named.contacts.friends.find((item) => item.peerId === PEER_A).name, 'renamed');
+    assert.equal(calls.setFriendName, 1);
+    assert.equal(calls.setFriendDescription, undefined);
+
+    const cleared = await bridge.setFriendDescription('ui-contacts-0001', PEER_A, '');
+    assert.equal(cleared.friend.name, 'renamed');
+    assert.equal(cleared.friend.description, '');
+    assert.equal(cleared.contacts.friends.find((item) => item.peerId === PEER_A).description, '');
+    assert.equal(calls.setFriendName, 1);
+
+    const clearedName = await bridge.setFriendName('ui-contacts-0001', PEER_A, '');
+    assert.equal(clearedName.friend.name, '');
+    assert.equal(clearedName.friend.description, '');
   } finally {
     bridge.dispose();
   }

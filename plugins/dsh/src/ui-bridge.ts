@@ -1,6 +1,6 @@
 // Host bridge for the DSH Raminga panel.
 //
-// It reuses the existing RamingaApi (the same Connect-RPC-over-UDS client the
+// It reuses the existing RamingaApi (the same local Connect-RPC client the
 // tools use) and the existing Events subscriber. The browser never sees the
 // API token, the socket path, or the daemon's database. A panel lease is
 // ref-counted so closing the tab (or unloading the plugin) stops the Events
@@ -27,6 +27,8 @@ import {
   ListMessagesRequest,
   OutboxCancelRequest,
   SendChatRequest,
+  SetFriendDescriptionRequest,
+  SetFriendNameRequest,
   StatusRequest,
 } from './gen/raminga/api/v1/api_pb.js';
 import {
@@ -163,6 +165,11 @@ export interface UiContacts {
   statusError: string | null;
   statusFreshness: UiFreshness;
   total: number;
+}
+
+export interface UiFriendEdit {
+  friend: UiFriend;
+  contacts: UiContacts;
 }
 
 export interface UiRetention {
@@ -586,6 +593,8 @@ type UiService = {
   refresh(sessionId: string): Promise<UiSnapshot>;
   close(sessionId: string): Promise<UiStats>;
   contacts(sessionId: string, force?: boolean): Promise<UiContacts>;
+  setFriendName(sessionId: string, peerId: string, name: string): Promise<UiFriendEdit>;
+  setFriendDescription(sessionId: string, peerId: string, description: string): Promise<UiFriendEdit>;
   connect(sessionId: string, input: string): Promise<UiConnectResult>;
   checkContact(sessionId: string, peerId: string): Promise<UiConnectResult['contact'] & { contacts: UiContacts | null }>;
   share(sessionId: string): Promise<UiShareInfo>;
@@ -1093,6 +1102,8 @@ export class RamingaUiBridge {
       refresh: (sessionId: string) => this.poll(sessionId, true),
       close: (sessionId: string) => this.close(sessionId),
       contacts: (sessionId: string, force?: boolean) => this.contacts(sessionId, force === true),
+      setFriendName: (sessionId: string, peerId: string, name: string) => this.setFriendName(sessionId, peerId, name),
+      setFriendDescription: (sessionId: string, peerId: string, description: string) => this.setFriendDescription(sessionId, peerId, description),
       connect: (sessionId: string, input: string) => this.connect(sessionId, input),
       checkContact: (sessionId: string, peerId: string) => this.checkContact(sessionId, peerId),
       share: (sessionId: string) => this.share(sessionId),
@@ -1227,6 +1238,60 @@ export class RamingaUiBridge {
     ]);
     this.assertSessionActive(session);
     return this.contactsSnapshot(session);
+  }
+
+  /**
+   * Save one local contact label. These values are published in friends.json
+   * but never edit a remote profile. Blank is an explicit clear; the UI only
+   * calls the method for a field the user changed.
+   */
+  async setFriendName(sessionId: string, peerId: string, name: string): Promise<UiFriendEdit> {
+    return this.editFriend(sessionId, peerId, 'name', name);
+  }
+
+  async setFriendDescription(sessionId: string, peerId: string, description: string): Promise<UiFriendEdit> {
+    return this.editFriend(sessionId, peerId, 'description', description);
+  }
+
+  private async editFriend(
+    sessionId: string,
+    peerId: string,
+    field: 'name' | 'description',
+    value: string,
+  ): Promise<UiFriendEdit> {
+    this.assertOpen();
+    const session = this.sessionFor(sessionId);
+    session.lastPollAt = this.now();
+    const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+    if (canonical === null) throw new Error('Peer ID 格式不正确。');
+    // Presence-aware requests: only a real string can be sent. Never coerce a
+    // missing/non-string value to "", because that would mean an explicit clear.
+    if (typeof value !== 'string') {
+      throw new Error(field === 'name' ? '联系人名称必须是字符串。' : '联系人备注必须是字符串。');
+    }
+    const text = value;
+    await this.ensureReady();
+    const response = field === 'name'
+      ? await this.api.call(
+        (client) => client.setFriendName(new SetFriendNameRequest({ peerId: canonical, name: text }), { timeoutMs: 5000 }),
+        '保存联系人名称',
+      )
+      : await this.api.call(
+        (client) => client.setFriendDescription(new SetFriendDescriptionRequest({ peerId: canonical, description: text }), { timeoutMs: 5000 }),
+        '保存联系人备注',
+      );
+    this.assertSessionActive(session);
+    // Reread ListFriends so the returned contact and the visible list include
+    // the same daemon state, including any name-uniqueness or empty-clear rule.
+    await this.awaitFriendsIdle();
+    if (this.isSessionActive(session)) await this.reconcileFriends('friend-edit');
+    this.assertSessionActive(session);
+    const friend = session.friends.find((item) => canonicalPeerId(item.peerId) === canonical) ?? response.friend;
+    if (!friend) throw new Error('联系人保存后没有在列表中找到。');
+    return {
+      friend: toUiFriend(friend, session.status, this.freshnessOf(session) === 'live'),
+      contacts: this.contactsSnapshot(session),
+    };
   }
 
   /**

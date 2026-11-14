@@ -63,7 +63,7 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.equal(TYPERT.package, '@raminga/dsh');
   assert.equal(TYPERT.face, 'host');
   assert.deepEqual(UI_INVOCATIONS.map((entry) => entry.method), [
-    'open', 'poll', 'refresh', 'close', 'contacts', 'connect', 'checkContact', 'share',
+    'open', 'poll', 'refresh', 'close', 'contacts', 'setFriendName', 'setFriendDescription', 'connect', 'checkContact', 'share',
     'conversations', 'messages', 'send', 'cancelOutbox', 'discoveries', 'discoveryContent',
     'humanOutbound', 'mine', 'peerProfile', 'journey', 'locateMessage',
   ]);
@@ -76,6 +76,8 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   }
   const byMethod = Object.fromEntries(UI_INVOCATIONS.map((entry) => [entry.method, entry]));
   assert.deepEqual(byMethod.contacts.parameters.map((item) => item.name), ['sessionId', 'force']);
+  assert.deepEqual(byMethod.setFriendName.parameters.map((item) => item.name), ['sessionId', 'peerId', 'name']);
+  assert.deepEqual(byMethod.setFriendDescription.parameters.map((item) => item.name), ['sessionId', 'peerId', 'description']);
   assert.deepEqual(byMethod.connect.parameters.map((item) => item.name), ['sessionId', 'input']);
   assert.deepEqual(byMethod.checkContact.parameters.map((item) => item.name), ['sessionId', 'peerId']);
   assert.equal(byMethod.share.parameters.length, 1);
@@ -101,9 +103,11 @@ test('browser artifact uses the native main workspace and sidebar panel slots', 
   assert.match(bundle, /id: PANEL_ID/);
   assert.match(bundle, /ramingaUi\//);
   assert.match(bundle, /createPanelRuntime/);
+  assert.match(bundle, /dsh-frame-leading-clearance/);
+  assert.match(bundle, /isolation:\s*isolate/);
   assert.doesNotMatch(bundle, /sidebar\.right\.pane\.tab|sidebarRightTabs|sidebarRight|sidebar\.footer\.action/);
   assert.doesNotMatch(bundle, /document\.body|createElement\('iframe'\)/);
-  assert.doesNotMatch(bundle, /api\.token|raminga\.db/);
+  assert.doesNotMatch(bundle, /api\.token|raminga\.db|api\.endpoint|cert_sha256|Bearer /);
 });
 
 test('the lazy client registers exactly one native main panel and sidebar entry', async () => {

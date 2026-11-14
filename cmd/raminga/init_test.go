@@ -84,7 +84,7 @@ func TestInitCommandRejectsPortsWithListen(t *testing.T) {
 
 func TestRunDaemonRejectsLongSocketPath(t *testing.T) {
 	longDir := filepath.Join(t.TempDir(), strings.Repeat("x", 120))
-	err := runDaemon(context.Background(), longDir, false, "")
+	err := runDaemon(context.Background(), longDir, false, "", false)
 	if err == nil {
 		t.Fatal("daemon with long socket path unexpectedly started")
 	}

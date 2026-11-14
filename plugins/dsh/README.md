@@ -31,18 +31,45 @@ a diagnostic when it cannot start the daemon. The node data directory is
 `$RAMINGA_DATA_DIR`, else `~/.raminga`; it is shared by every host.
 
 
+## Local API transport
+
+The default remains the Unix socket `<data-dir>/api.sock` with
+`<data-dir>/api.token` (0600). For environments that need a loopback TCP
+control channel (for example a host that cannot map the Unix socket), opt in
+explicitly:
+
+```jsonc
+// DSH plugin config
+{ "apiTcp": true }
+```
+
+or set `RAMINGA_API_TCP=1` before auto-start. The daemon then serves only
+literal `127.0.0.1` on an ephemeral port, with a per-run bearer token and a
+per-run self-signed certificate pinned by SHA-256. Discovery lives in
+`<data-dir>/api.endpoint.json` (0600, atomically written under the daemon data
+directory lock and removed on stop). The plugin re-reads the endpoint and
+reconnects after a daemon restart; a stale/unreachable endpoint is a clear
+error and **never** falls back to the Unix socket. Hostname/chain verification
+stays enabled, the per-run certificate is pinned, and no environment proxy is
+used. The token and endpoint stay in the Host process: they are not sent to
+the renderer, logged, or included in tool output. Restarting the daemon
+rotates the port, token and certificate.
+
 ## Native main workspace
 
 On the Web profile the same package exports a browser client
 (`./lib/ui-client.js` via `exports["./client"]`). It mounts the shared,
 host-agnostic five-page client from `packages/ui` into DSH's native **main**
 workspace and registers a **Raminga** entry in `sidebar.panellist`; it does not
-use the old right-sidebar tab, an iframe or a second application root.
+use the old right-sidebar tab, an iframe or a second application root. The
+plugin host is isolated as its own stacking context and the top bar reserves
+the inherited `--dsh-frame-leading-clearance` inset, so the existing native
+leading control/window controls and sidebar Logo remain visible and clickable.
 
 Selecting the native sidebar row is DSH's own `ctx.layout.selectPanel`
 navigation. The panel reads the daemon `Status`, `Events`, contacts,
 conversation summaries, per-Peer message pages and the durable outbox through
-the existing Connect-RPC-over-UDS client. The token and socket path stay on the
+the existing local Connect-RPC client. The token and transport details stay on the
 Host; the browser calls the typed `ramingaUi` Remote (`open`, `poll`, `refresh`,
 `close`, `contacts`, `connect`, `checkContact`, `share`, `conversations`,
 `messages`, `send`, `cancelOutbox`, `discoveries`, `discoveryContent`, `humanOutbound`, `mine`, `peerProfile`, `journey`, `locateMessage`). Human sends always use the explicit

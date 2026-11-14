@@ -24,10 +24,10 @@ func newTUICmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "Chat-style test panel (thin client of the local UDS API)",
+		Short: "Chat-style test panel (thin client of the local API)",
 		Long: "Open the single-screen Raminga test panel. It only talks to the existing " +
-			"local Connect API over the Unix socket; it does not start a node, open a " +
-			"network listener or enable the test API.",
+			"local Connect API over the selected Unix-socket default or explicit loopback-TCP " +
+			"transport; it does not start a node, open a network listener or enable the test API.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dataDir := dataDirFrom(cmd)

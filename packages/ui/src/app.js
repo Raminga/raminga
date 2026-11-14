@@ -200,6 +200,9 @@ export function createRamingaApp(root, options = {}) {
   const journeyCapable = typeof options.onLoadJourney === 'function';
   const peerProfileCapable = typeof options.onLoadPeerProfile === 'function';
   const locateMessageCapable = typeof options.onLocateMessage === 'function';
+  const friendNameEditCapable = typeof options.onSetFriendName === 'function';
+  const friendDescriptionEditCapable = typeof options.onSetFriendDescription === 'function';
+  const friendEditCapable = friendNameEditCapable || friendDescriptionEditCapable;
   const emptyDiscoveries = (familiar = false) => ({
     items: [], at: null, error: null, errorAt: null, freshness: 'loading',
     familiar, scanned: 0, truncated: false, relationComplete: !familiar, ignored: 0,
@@ -308,6 +311,12 @@ export function createRamingaApp(root, options = {}) {
   let checkPending = false;
   let shareAttempt = 0;
   let currentShare = null;
+  let editAttempt = 0;
+  let editTargetPeerId = '';
+  let editOriginal = { name: '', description: '' };
+  let editPending = false;
+  let quickMenuPeerId = '';
+  let quickMenuTrigger = null;
 
   const nodeTrigger = $('#nodeTrigger');
   const nodeDot = $('#nodeDot');
@@ -338,6 +347,8 @@ export function createRamingaApp(root, options = {}) {
   const conversationPeerId = $('#conversationPeerId');
   const conversationState = $('#conversationState');
   const conversationAvatar = $('#conversationAvatar');
+  const conversationMenu = $('#conversationMenu');
+  const contactQuickMenu = $('#contactQuickMenu');
   const conversationQuery = $('#conversationQuery');
   const conversationList = $('#conversationList');
   const conversationsMeta = $('#conversationsMeta');
@@ -357,6 +368,7 @@ export function createRamingaApp(root, options = {}) {
   const loadOlder = $('#loadOlder');
   const messageRetention = $('#messageRetention');
   const composer = $('#composer');
+  const composerOverlay = $('#composerOverlay');
   const messageInput = $('#messageInput');
   const messageSend = $('#messageSend');
   const messageCounter = $('#messageCounter');
@@ -439,6 +451,18 @@ export function createRamingaApp(root, options = {}) {
   const profileAgentDescription = $('#profileAgentDescription');
   const profileAgentOpen = $('#profileAgentOpen');
   const agentCardDialog = $('#agentCardDialog');
+  const editContactDialog = $('#editContactDialog');
+  const editContactForm = $('#editContactForm');
+  const editContactPeerId = $('#editContactPeerId');
+  const editContactName = $('#editContactName');
+  const editContactNameClear = $('#editContactNameClear');
+  const editContactDescription = $('#editContactDescription');
+  const editContactDescriptionClear = $('#editContactDescriptionClear');
+  const editContactFeedback = $('#editContactFeedback');
+  const editContactFeedbackTitle = $('#editContactFeedbackTitle');
+  const editContactFeedbackBody = $('#editContactFeedbackBody');
+  const editContactSave = $('#editContactSave');
+  const profileEditContact = $('#profileEditContact');
   const agentCardSource = $('#agentCardSource');
   const agentCardBody = $('#agentCardBody');
   const shareNode = $('#shareNode');
@@ -1079,8 +1103,18 @@ export function createRamingaApp(root, options = {}) {
     badge.dataset.state = state;
     badge.textContent = connectionStateText(state);
     main.replaceChildren(copy, badge);
-    if (row.firstElementChild !== avatar || row.lastElementChild !== main || row.childElementCount !== 2) {
-      row.replaceChildren(avatar, main);
+    const menu = row.querySelector(':scope > button[data-quick-peer]') ?? element('button', 'rm-quick-trigger');
+    menu.type = 'button';
+    menu.dataset.quickPeer = peerId;
+    menu.dataset.quickRef = `contacts-menu:${peerId}`;
+    menu.textContent = '⋯';
+    menu.hidden = !friendEditCapable;
+    menu.setAttribute('aria-label', `更多操作：${contactDisplayName(friend)}`);
+    menu.setAttribute('aria-haspopup', friendEditCapable ? 'menu' : 'false');
+    menu.setAttribute('aria-controls', 'contactQuickMenu');
+    menu.setAttribute('aria-expanded', String(!contactQuickMenu.hidden && quickMenuPeerId === peerId));
+    if (row.firstElementChild !== avatar || row.lastElementChild !== menu || row.childElementCount !== 3) {
+      row.replaceChildren(avatar, main, menu);
     }
   }
 
@@ -1281,6 +1315,274 @@ export function createRamingaApp(root, options = {}) {
 
   function conversationFriend(peerId) {
     return contactFor(peerId);
+  }
+
+  // --- Local friend name/description editing ---------------------------------
+  // These fields are local labels that Raminga publishes in friends.json. They
+  // never edit a remote profile. A blank value is an explicit clear; a field
+  // that was not changed is not sent at all, so "missing" never clears data.
+
+  const FRIEND_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+  function normalizedFriendEditValue(value) {
+    const candidate = value && typeof value === 'object' && value.friend && typeof value.friend === 'object'
+      ? value.friend
+      : value;
+    return candidate && typeof candidate === 'object' ? candidate : null;
+  }
+
+  function editResultError(value) {
+    if (value === false) return '宿主没有完成保存。';
+    if (!value || typeof value !== 'object') return '';
+    if (value.ok === false) return String(value.error ?? '保存没有完成。');
+    return '';
+  }
+
+  function applyEditedFriend(friend, fallback = null) {
+    const peerId = String(fallback?.peerId ?? friend?.peerId ?? editTargetPeerId);
+    if (!peerId) return;
+    const data = contactsState.data;
+    const index = Array.isArray(data?.friends)
+      ? data.friends.findIndex((item) => String(item?.peerId ?? '') === peerId)
+      : -1;
+    if (index < 0) return;
+    const previous = data.friends[index];
+    data.friends[index] = {
+      ...previous,
+      ...(friend ?? {}),
+      ...(fallback ?? {}),
+      peerId,
+    };
+    updateContactsState();
+    if (profileState.peerId === peerId && profileState.data) {
+      profileState.data = { ...profileState.data, localName: String(data.friends[index].name ?? '') };
+      renderProfile();
+    }
+  }
+
+  function closeContactQuickMenu({ restoreFocus = true, quiet = false } = {}) {
+    const trigger = quickMenuTrigger;
+    contactQuickMenu.hidden = true;
+    contactQuickMenu.replaceChildren();
+    contactQuickMenu.removeAttribute('style');
+    quickMenuPeerId = '';
+    quickMenuTrigger = null;
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    if (restoreFocus && trigger?.isConnected && !quiet) trigger.focus({ preventScroll: true });
+  }
+
+  function quickMenuItems() {
+    return [...contactQuickMenu.querySelectorAll('button[role="menuitem"]')];
+  }
+
+  function focusQuickMenuItem(index) {
+    const items = quickMenuItems();
+    if (items.length === 0) return;
+    const next = ((index % items.length) + items.length) % items.length;
+    items[next].focus({ preventScroll: true });
+  }
+
+  function openContactQuickMenu(trigger, peerId) {
+    if (!friendEditCapable || !trigger || !peerId) return;
+    if (!contactFor(peerId)) return;
+    if (!contactQuickMenu.hidden && quickMenuTrigger === trigger) {
+      closeContactQuickMenu();
+      return;
+    }
+    closeContactQuickMenu({ restoreFocus: false, quiet: true });
+    quickMenuPeerId = peerId;
+    quickMenuTrigger = trigger;
+    trigger.setAttribute('aria-expanded', 'true');
+
+    const edit = element('button');
+    edit.type = 'button';
+    edit.setAttribute('role', 'menuitem');
+    edit.dataset.quickAction = 'edit';
+    edit.textContent = friendNameEditCapable && friendDescriptionEditCapable
+      ? '编辑名称和备注'
+      : friendNameEditCapable ? '编辑名称' : '编辑备注';
+    edit.onclick = () => {
+      closeContactQuickMenu({ restoreFocus: false, quiet: true });
+      openEditContact(peerId, trigger);
+    };
+    const note = element('p', 'rm-quick-menu-note');
+    note.setAttribute('role', 'none');
+    note.textContent = '只保存到本机并更新公开的 friends.json，不修改对方档案。';
+    contactQuickMenu.append(edit, note);
+    contactQuickMenu.hidden = false;
+
+    const rect = trigger.getBoundingClientRect();
+    const origin = root.host?.getBoundingClientRect?.() ?? { left: 0, top: 0, width: 0, height: 0 };
+    const width = contactQuickMenu.offsetWidth || 210;
+    const height = contactQuickMenu.offsetHeight || 80;
+    const availableWidth = Number(origin.width) > 0 ? Number(origin.width) : (Number(win.innerWidth) || 1024);
+    const availableHeight = Number(origin.height) > 0 ? Number(origin.height) : (Number(win.innerHeight) || 768);
+    let left = rect.right - Number(origin.left) - width;
+    if (left < 8) left = 8;
+    if (left + width > availableWidth - 8) left = Math.max(8, availableWidth - width - 8);
+    let top = rect.bottom - Number(origin.top) + 6;
+    if (top + height > availableHeight - 8) top = rect.top - Number(origin.top) - height - 6;
+    if (top < 8) top = 8;
+    contactQuickMenu.style.left = `${Math.round(left)}px`;
+    contactQuickMenu.style.top = `${Math.round(top)}px`;
+    edit.focus({ preventScroll: true });
+  }
+
+  contactQuickMenu.addEventListener('keydown', (event) => {
+    const items = quickMenuItems();
+    const current = items.indexOf(root.activeElement);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeContactQuickMenu();
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusQuickMenuItem(current + 1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusQuickMenuItem(current - 1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      focusQuickMenuItem(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      focusQuickMenuItem(items.length - 1);
+    } else if (event.key === 'Tab') {
+      // Keep the next Tab stop deterministic instead of leaving focus on a
+      // menu node that is about to be removed.
+      event.preventDefault();
+      closeContactQuickMenu();
+    }
+  }, { signal: controller.signal });
+
+  function setEditFeedback({ title = '', body = '', tone = '' } = {}) {
+    editContactFeedbackTitle.textContent = title;
+    editContactFeedbackBody.textContent = body;
+    editContactFeedback.hidden = title.length === 0 && body.length === 0;
+    if (tone) editContactFeedback.dataset.tone = tone;
+    else editContactFeedback.removeAttribute('data-tone');
+  }
+
+  function setEditBusy(busy) {
+    editPending = busy;
+    editContactName.readOnly = busy;
+    editContactDescription.readOnly = busy;
+    editContactNameClear.setAttribute('aria-disabled', String(busy || !friendNameEditCapable));
+    editContactDescriptionClear.setAttribute('aria-disabled', String(busy || !friendDescriptionEditCapable));
+    editContactSave.setAttribute('aria-disabled', String(busy));
+    editContactSave.textContent = busy ? '正在保存…' : '保存';
+  }
+
+  function openEditContact(peerId, trigger = null) {
+    if (!friendEditCapable || !peerId) return;
+    const friend = contactFor(peerId);
+    if (!friend) return;
+    closeContactQuickMenu({ restoreFocus: false, quiet: true });
+    editAttempt += 1;
+    editTargetPeerId = peerId;
+    editOriginal = {
+      name: typeof friend.name === 'string' ? friend.name : '',
+      description: typeof friend.description === 'string' ? friend.description : '',
+    };
+    editContactPeerId.textContent = peerId;
+    editContactName.value = editOriginal.name;
+    editContactDescription.value = editOriginal.description;
+    editContactName.disabled = !friendNameEditCapable;
+    editContactDescription.disabled = !friendDescriptionEditCapable;
+    editContactNameClear.hidden = !friendNameEditCapable;
+    editContactDescriptionClear.hidden = !friendDescriptionEditCapable;
+    editContactName.placeholder = '留空则显示短 Peer ID';
+    setEditFeedback();
+    setEditBusy(false);
+    openDialog(editContactDialog, trigger);
+    (friendNameEditCapable ? editContactName : editContactDescription).focus({ preventScroll: true });
+  }
+
+  function validateEditContact(name, description) {
+    if (name.length > 0 && !FRIEND_NAME_PATTERN.test(name)) {
+      return { field: 'name', message: '名称只允许小写字母、数字和 -，最多 32 个字符；留空可清除名称。' };
+    }
+    if ([...description].length > 280) {
+      return { field: 'description', message: '备注最多 280 个字符。' };
+    }
+    for (const char of description) {
+      if (char.codePointAt(0) < 32 || char.codePointAt(0) === 127) {
+        return { field: 'description', message: '备注不能包含控制字符。' };
+      }
+    }
+    return null;
+  }
+
+  async function submitEditContact(event) {
+    event.preventDefault();
+    if (destroyed || editPending || !editTargetPeerId) return;
+    const peerId = editTargetPeerId;
+    const name = editContactName.value.trim();
+    const description = editContactDescription.value.trim();
+    const invalid = validateEditContact(name, description);
+    if (invalid) {
+      setEditFeedback({ title: '还没有保存', body: invalid.message, tone: 'invalid' });
+      (invalid.field === 'name' ? editContactName : editContactDescription).focus({ preventScroll: true });
+      return;
+    }
+    const nameChanged = friendNameEditCapable && name !== editOriginal.name;
+    const descriptionChanged = friendDescriptionEditCapable && description !== editOriginal.description;
+    if (!nameChanged && !descriptionChanged) {
+      closeDialog(editContactDialog);
+      return;
+    }
+    const attempt = ++editAttempt;
+    setEditBusy(true);
+    setEditFeedback({ title: '正在保存联系人资料…', body: '只更新本机联系人记录和公开的 friends.json。', tone: 'info' });
+    const failures = [];
+    let savedName = false;
+    let savedDescription = false;
+    let latest = null;
+    if (nameChanged) {
+      try {
+        const value = await options.onSetFriendName(peerId, name);
+        const failure = editResultError(value);
+        if (failure) throw new Error(failure);
+        latest = normalizedFriendEditValue(value);
+        savedName = true;
+      } catch (error) {
+        failures.push({ field: 'name', message: errorText(error) || '名称没有保存。' });
+      }
+    }
+    if (descriptionChanged) {
+      try {
+        const value = await options.onSetFriendDescription(peerId, description);
+        const failure = editResultError(value);
+        if (failure) throw new Error(failure);
+        latest = normalizedFriendEditValue(value) ?? latest;
+        savedDescription = true;
+      } catch (error) {
+        failures.push({ field: 'description', message: errorText(error) || '备注没有保存。' });
+      }
+    }
+    if (destroyed || attempt !== editAttempt || !editContactDialog.open) return;
+    setEditBusy(false);
+    const fallback = {
+      peerId,
+      name: savedName ? name : editOriginal.name,
+      description: savedDescription ? description : editOriginal.description,
+    };
+    if (latest || savedName || savedDescription) applyEditedFriend(latest, fallback);
+    if (failures.length === 0) {
+      closeDialog(editContactDialog);
+      return;
+    }
+    if (savedName) editOriginal.name = name;
+    if (savedDescription) editOriginal.description = description;
+    const title = failures.length === (nameChanged ? 1 : 0) + (descriptionChanged ? 1 : 0)
+      ? '没有保存修改'
+      : '只保存了部分修改';
+    setEditFeedback({
+      title,
+      body: failures.map((item) => `${item.field === 'name' ? '名称' : '备注'}：${item.message}`).join(' '),
+      tone: 'error',
+    });
+    if (failures[0].field === 'name' && friendNameEditCapable) editContactName.focus({ preventScroll: true });
+    else if (friendDescriptionEditCapable) editContactDescription.focus({ preventScroll: true });
   }
 
   function draftKeyFor(peerId) {
@@ -1486,6 +1788,10 @@ export function createRamingaApp(root, options = {}) {
     conversationAvatar.dataset.profilePeer = peerId;
     conversationAvatar.dataset.profileRef = `chat:${peerId}`;
     conversationAvatar.setAttribute('aria-label', `查看 ${friend ? contactDisplayName(friend) : shortPeer(peerId)} 的档案`);
+    conversationMenu.hidden = !(friendEditCapable && friend);
+    conversationMenu.dataset.quickPeer = peerId;
+    conversationMenu.dataset.quickRef = `chat-menu:${peerId}`;
+    conversationMenu.setAttribute('aria-expanded', String(!contactQuickMenu.hidden && quickMenuPeerId === peerId));
     const state = friend?.connection === 'connected' || friend?.connection === 'disconnected'
       ? friend.connection
       : 'unknown';
@@ -2611,9 +2917,18 @@ export function createRamingaApp(root, options = {}) {
     return detail;
   }
 
+  function updateComposerOverlay() {
+    const hasStatus = composerStatus.textContent.trim().length > 0;
+    composerStatus.hidden = !hasStatus;
+    const hasTech = !composerTech.hidden;
+    const hasActions = !composerActions.hidden;
+    composerOverlay.hidden = composer.hidden || !(hasStatus || hasTech || hasActions);
+  }
+
   function updateComposerDetail(task = null) {
     const value = task ?? (contactsState.selectedPeerId ? taskFor(contactsState.selectedPeerId) : null);
     composerTech.hidden = composerDetailForTask(value).length === 0;
+    updateComposerOverlay();
   }
 
   function applyComposerStatus(text, tone = '', detail = '') {
@@ -2707,6 +3022,8 @@ export function createRamingaApp(root, options = {}) {
           : empty ? '请输入消息' : '发送消息';
     sendReconcile.hidden = !(task && task.unknown && !task.sending && sendsCapable);
     sendRestore.hidden = !(task && !task.sending && task.outcome?.tone === 'error' && task.outcome?.title === '发送失败');
+    sendRestore.textContent = task?.sending ? '正在重试…' : '重试发送';
+    composerActions.hidden = sendReconcile.hidden && sendRestore.hidden;
     updateComposerDetail(task);
   }
 
@@ -2729,6 +3046,7 @@ export function createRamingaApp(root, options = {}) {
     } else {
       applyComposerStatus('', '', '');
     }
+    updateComposerOverlay();
   }
 
   function validateMessage(text) {
@@ -2739,7 +3057,7 @@ export function createRamingaApp(root, options = {}) {
     return '';
   }
 
-  async function submitMessage({ reconcile = false } = {}) {
+  async function submitMessage({ reconcile = false, retry = false } = {}) {
     if (destroyed || !sendsCapable) return;
     const peerId = contactsState.selectedPeerId;
     if (!peerId) return;
@@ -2747,8 +3065,15 @@ export function createRamingaApp(root, options = {}) {
     if (task?.sending) return;
     let text;
     let requestId;
+    const retryingFailed = retry === true && task?.outcome?.title === '发送失败';
     if (reconcile) {
       if (!task || !task.unknown || task.sending) return;
+      text = task.text;
+      requestId = task.requestId;
+    } else if (retryingFailed) {
+      // A failed, persisted message keeps its original idempotency key. The
+      // daemon can then replay or complete that same message instead of
+      // creating a second one. The draft is left in place until success.
       text = task.text;
       requestId = task.requestId;
     } else {
@@ -2838,6 +3163,12 @@ export function createRamingaApp(root, options = {}) {
         current.outcome = sendOutcome(result);
         current.outcomeStatus = resultStatus;
       }
+      if (retryingFailed && resultStatus !== 'failed' && messageInput.value === current.text) {
+        // The retry success consumed the failed draft. Text typed while the
+        // retry was in flight is a different draft and is left alone.
+        messageInput.value = '';
+        persistDraft(peerId, '');
+      }
       if (!keepTerminal && resultStatus === 'failed' && messageInput.value.length === 0) {
         // The failed message is already persisted. Put its text back in the
         // editable draft only when the user has not started a new one; a
@@ -2855,20 +3186,17 @@ export function createRamingaApp(root, options = {}) {
     if (contactsState.selectedPeerId === peerId) requestMessages(peerId, true);
   }
 
-  function restoreFailedText() {
+  function retryFailedSend() {
     const peerId = contactsState.selectedPeerId;
     const task = peerId ? taskFor(peerId) : null;
-    if (!peerId || !task || task.sending) return;
-    if (messageInput.value.trim().length > 0) {
-      setComposerNotice(peerId, '输入框里已有新内容，未覆盖。', 'muted');
-      focusMessageInput();
-      return;
+    if (!peerId || !task || task.sending || task.outcome?.title !== '发送失败') return;
+    // Keep the failed draft visible. submitMessage's retry path reuses the
+    // original requestId and only clears the draft after a non-failed result.
+    if (messageInput.value.trim().length === 0) {
+      messageInput.value = task.text;
+      persistDraft(peerId, messageInput.value);
     }
-    messageInput.value = task.text;
-    persistDraft(peerId, messageInput.value);
-    updateComposerMeta();
-    setComposerNotice(peerId, '已放回输入框。再次发送会创建一条新消息。', 'muted');
-    focusMessageInput();
+    void submitMessage({ retry: true });
   }
 
   function conversationStateText(state) {
@@ -3458,6 +3786,7 @@ export function createRamingaApp(root, options = {}) {
 
   function openDialog(dialog, trigger) {
     if (destroyed || dialog.open) return;
+    if (dialog !== editContactDialog) closeContactQuickMenu({ restoreFocus: false, quiet: true });
     dialogTriggers.set(dialog, trigger ?? root.activeElement ?? doc.activeElement);
     dialog.showModal();
     dialog.querySelector('[data-close-dialog]')?.focus({ preventScroll: true });
@@ -4370,6 +4699,11 @@ export function createRamingaApp(root, options = {}) {
     profileAgentSummary.hidden = true;
     profileAgentNote.hidden = true;
     profileAgentOpen.onclick = null;
+    const localFriend = profileState.peerId ? contactFor(profileState.peerId) : null;
+    profileEditContact.hidden = !(friendEditCapable && localFriend);
+    profileEditContact.onclick = friendEditCapable && localFriend
+      ? () => openEditContact(profileState.peerId, profileEditContact)
+      : null;
     profileSource.textContent = '远端声明 · 来自对方公开文件与网络读取，未在本机验证身份。';
     if (data === null) {
       profileBodyNote.textContent = profileState.error || '正在读取对方公开资料…';
@@ -4630,6 +4964,21 @@ export function createRamingaApp(root, options = {}) {
     });
   }, { signal: controller.signal });
 
+  // Contact/chat quick menus are the same single menu surface. The native
+  // button stays the focus owner; opening does not replace the row.
+  root.addEventListener('click', (event) => {
+    const trigger = event.target.closest?.('[data-quick-peer]');
+    if (!trigger) return;
+    event.preventDefault();
+    openContactQuickMenu(trigger, trigger.dataset.quickPeer);
+  }, { signal: controller.signal });
+  doc.addEventListener('pointerdown', (event) => {
+    if (contactQuickMenu.hidden) return;
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    if (path.includes(contactQuickMenu) || path.includes(quickMenuTrigger)) return;
+    closeContactQuickMenu({ restoreFocus: false, quiet: true });
+  }, { capture: true, signal: controller.signal });
+
   // Navigation: one behavior for both rendered copies.
   root.querySelectorAll('nav').forEach((nav) => {
     nav.innerHTML = renderPrimaryNav(currentPage);
@@ -4733,12 +5082,23 @@ export function createRamingaApp(root, options = {}) {
     void submitMessage();
   }, { signal: controller.signal });
   sendReconcile.addEventListener('click', () => { void submitMessage({ reconcile: true }); }, { signal: controller.signal });
-  sendRestore.addEventListener('click', restoreFailedText, { signal: controller.signal });
+  sendRestore.addEventListener('click', retryFailedSend, { signal: controller.signal });
   composerTech.addEventListener('click', openComposerDetail, { signal: controller.signal });
   messageList.addEventListener('scroll', saveChatScroll, { passive: true, signal: controller.signal });
   addContactForm.addEventListener('submit', submitAddContact, { signal: controller.signal });
   addContactCheck.addEventListener('click', () => { void checkContactAgain(); }, { signal: controller.signal });
   addContactView.addEventListener('click', viewNewContact, { signal: controller.signal });
+  editContactForm.addEventListener('submit', submitEditContact, { signal: controller.signal });
+  editContactNameClear.addEventListener('click', () => {
+    if (editPending || !friendNameEditCapable) return;
+    editContactName.value = '';
+    editContactName.focus({ preventScroll: true });
+  }, { signal: controller.signal });
+  editContactDescriptionClear.addEventListener('click', () => {
+    if (editPending || !friendDescriptionEditCapable) return;
+    editContactDescription.value = '';
+    editContactDescription.focus({ preventScroll: true });
+  }, { signal: controller.signal });
   shareCopy.addEventListener('click', () => { void copyShareInfo(); }, { signal: controller.signal });
   shareRetry.addEventListener('click', () => { void loadShare(); }, { signal: controller.signal });
 
@@ -4754,7 +5114,7 @@ export function createRamingaApp(root, options = {}) {
     openShareDialog(event.currentTarget);
   }, { signal: controller.signal });
 
-  for (const dialog of [statusDialog, noticeDialog, addContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
+  for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog || event.target.closest?.('[data-close-dialog]')) {
         closeDialog(dialog);
@@ -4772,6 +5132,14 @@ export function createRamingaApp(root, options = {}) {
     checkAttempt += 1;
     addContactPeerId = '';
   }, { signal: controller.signal });
+  editContactDialog.addEventListener('close', () => {
+    // A late save result must never overwrite a newly opened form.
+    editAttempt += 1;
+    editPending = false;
+    editTargetPeerId = '';
+    setEditFeedback();
+    setEditBusy(false);
+  }, { signal: controller.signal });
   shareDialog.addEventListener('close', () => {
     shareAttempt += 1;
     currentShare = null;
@@ -4783,6 +5151,7 @@ export function createRamingaApp(root, options = {}) {
       // queue a save. The profile surface has no persisted scroll of its own
       // either; its scroll events are not view-state changes.
       if (page.hidden) return;
+      if (!contactQuickMenu.hidden) closeContactQuickMenu({ restoreFocus: false, quiet: true });
       scheduleSave();
     }, { passive: true, signal: controller.signal });
   }
@@ -4840,7 +5209,9 @@ export function createRamingaApp(root, options = {}) {
       addAttempt += 1;
       checkAttempt += 1;
       shareAttempt += 1;
-      for (const dialog of [statusDialog, noticeDialog, addContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
+      editAttempt += 1;
+      closeContactQuickMenu({ restoreFocus: false, quiet: true });
+      for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
         if (dialog.open) dialog.close();
       }
       dialogTriggers.clear();

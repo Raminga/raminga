@@ -4986,9 +4986,11 @@ func (x *ListFriendsResponse) GetFriends() []*Friend {
 }
 
 type SetFriendNameRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	PeerId string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	// Presence-aware: omitting name is invalid and must not clear the label.
+	// An explicitly present empty string clears the local name.
+	Name          *string `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5031,8 +5033,8 @@ func (x *SetFriendNameRequest) GetPeerId() string {
 }
 
 func (x *SetFriendNameRequest) GetName() string {
-	if x != nil {
-		return x.Name
+	if x != nil && x.Name != nil {
+		return *x.Name
 	}
 	return ""
 }
@@ -5082,9 +5084,11 @@ func (x *SetFriendNameResponse) GetFriend() *Friend {
 }
 
 type SetFriendDescriptionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	PeerId string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	// Presence-aware: omitting description is invalid and must not clear the
+	// note. An explicitly present empty string clears the local description.
+	Description   *string `protobuf:"bytes,2,opt,name=description,proto3,oneof" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5127,8 +5131,8 @@ func (x *SetFriendDescriptionRequest) GetPeerId() string {
 }
 
 func (x *SetFriendDescriptionRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
+	if x != nil && x.Description != nil {
+		return *x.Description
 	}
 	return ""
 }
@@ -7468,15 +7472,17 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"dhtCapable\"\x14\n" +
 	"\x12ListFriendsRequest\"G\n" +
 	"\x13ListFriendsResponse\x120\n" +
-	"\afriends\x18\x01 \x03(\v2\x16.raminga.api.v1.FriendR\afriends\"C\n" +
+	"\afriends\x18\x01 \x03(\v2\x16.raminga.api.v1.FriendR\afriends\"Q\n" +
 	"\x14SetFriendNameRequest\x12\x17\n" +
-	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"G\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x17\n" +
+	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01B\a\n" +
+	"\x05_name\"G\n" +
 	"\x15SetFriendNameResponse\x12.\n" +
-	"\x06friend\x18\x01 \x01(\v2\x16.raminga.api.v1.FriendR\x06friend\"X\n" +
+	"\x06friend\x18\x01 \x01(\v2\x16.raminga.api.v1.FriendR\x06friend\"m\n" +
 	"\x1bSetFriendDescriptionRequest\x12\x17\n" +
-	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\"N\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12%\n" +
+	"\vdescription\x18\x02 \x01(\tH\x00R\vdescription\x88\x01\x01B\x0e\n" +
+	"\f_description\"N\n" +
 	"\x1cSetFriendDescriptionResponse\x12.\n" +
 	"\x06friend\x18\x01 \x01(\v2\x16.raminga.api.v1.FriendR\x06friend\"U\n" +
 	"\x13RemoveFriendRequest\x12\x17\n" +
@@ -7870,6 +7876,8 @@ func file_raminga_api_v1_api_proto_init() {
 		(*EventsResponse_Connection)(nil),
 	}
 	file_raminga_api_v1_api_proto_msgTypes[36].OneofWrappers = []any{}
+	file_raminga_api_v1_api_proto_msgTypes[57].OneofWrappers = []any{}
+	file_raminga_api_v1_api_proto_msgTypes[59].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

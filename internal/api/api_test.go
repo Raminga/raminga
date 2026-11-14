@@ -15,12 +15,14 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
 	"github.com/Raminga/raminga/gen/raminga/api/v1/apiv1connect"
 	"github.com/Raminga/raminga/internal/api"
 	"github.com/Raminga/raminga/internal/api/client"
+	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/node"
 )
 
@@ -272,6 +274,81 @@ func TestFriendsAPI(t *testing.T) {
 	if err != nil || !rem.GetRemoved() {
 		t.Fatalf("remove=%v err=%v", rem, err)
 	}
+}
+
+func friendWireBody(peerID string, field protowire.Number, value string, present bool) []byte {
+	var body []byte
+	body = protowire.AppendTag(body, 1, protowire.BytesType)
+	body = protowire.AppendString(body, peerID)
+	if present {
+		body = protowire.AppendTag(body, field, protowire.BytesType)
+		body = protowire.AppendString(body, value)
+	}
+	return body
+}
+
+// TestFriendEditPresenceSemantics pins the release-blocker contract: a missing
+// optional field is InvalidArgument and never mutates, while a present empty
+// field clears and old non-empty wire clients keep their field numbers.
+func TestFriendEditPresenceSemantics(t *testing.T) {
+	ts := startTCPTestServer(t)
+	doc, found, err := endpoint.ReadIfPresent(ts.dir)
+	if err != nil || !found {
+		t.Fatalf("read endpoint found=%v err=%v", found, err)
+	}
+	ts.backend.friends = []node.Friend{{PeerID: "peer-b", Name: "alice", Description: "note"}}
+	post := func(procedure string, body []byte) (int, string) {
+		t.Helper()
+		return rawTCPPost(t, doc, procedure, "application/proto", string(body))
+	}
+	unchanged := func(label, wantName, wantDescription string) {
+		t.Helper()
+		if len(ts.backend.friends) != 1 || ts.backend.friends[0].Name != wantName || ts.backend.friends[0].Description != wantDescription {
+			t.Fatalf("%s mutated friend: %+v", label, ts.backend.friends)
+		}
+	}
+
+	// Omitted name (only field 1 on the wire) is not a deletion request.
+	if code, body := post(apiv1connect.RamingaServiceSetFriendNameProcedure, friendWireBody("peer-b", 2, "", false)); code != http.StatusBadRequest {
+		t.Fatalf("omitted name status=%d body=%s, want 400", code, body)
+	}
+	unchanged("omitted name", "alice", "note")
+	if code, body := post(apiv1connect.RamingaServiceSetFriendDescriptionProcedure, friendWireBody("peer-b", 2, "", false)); code != http.StatusBadRequest {
+		t.Fatalf("omitted description status=%d body=%s, want 400", code, body)
+	}
+	unchanged("omitted description", "alice", "note")
+
+	// Explicit empty names clear only the named field.
+	if code, body := post(apiv1connect.RamingaServiceSetFriendNameProcedure, friendWireBody("peer-b", 2, "", true)); code != http.StatusOK {
+		t.Fatalf("explicit empty name status=%d body=%s, want 200", code, body)
+	}
+	unchanged("explicit empty name", "", "note")
+	if code, body := post(apiv1connect.RamingaServiceSetFriendDescriptionProcedure, friendWireBody("peer-b", 2, "", true)); code != http.StatusOK {
+		t.Fatalf("explicit empty description status=%d body=%s, want 200", code, body)
+	}
+	unchanged("explicit empty description", "", "")
+
+	// An old non-empty wire client uses exactly field 2 as a length-delimited
+	// string; that shape must remain valid and must not clear the other field.
+	if code, body := post(apiv1connect.RamingaServiceSetFriendNameProcedure, friendWireBody("peer-b", 2, "legacy", true)); code != http.StatusOK {
+		t.Fatalf("old nonempty name status=%d body=%s, want 200", code, body)
+	}
+	unchanged("old nonempty name", "legacy", "")
+	if code, body := post(apiv1connect.RamingaServiceSetFriendDescriptionProcedure, friendWireBody("peer-b", 2, "old note", true)); code != http.StatusOK {
+		t.Fatalf("old nonempty description status=%d body=%s, want 200", code, body)
+	}
+	unchanged("old nonempty description", "legacy", "old note")
+
+	// JSON clients use the proto3 optional JSON name without presence; omission
+	// must fail the same way as binary omission.
+	if code, body := rawTCPPost(t, doc, apiv1connect.RamingaServiceSetFriendNameProcedure, "application/json", `{"peerId":"peer-b"}`); code != http.StatusBadRequest {
+		t.Fatalf("JSON omitted name status=%d body=%s, want 400", code, body)
+	}
+	unchanged("JSON omitted name", "legacy", "old note")
+	if code, body := rawTCPPost(t, doc, apiv1connect.RamingaServiceSetFriendNameProcedure, "application/json", `{"peerId":"peer-b","name":""}`); code != http.StatusOK {
+		t.Fatalf("JSON explicit empty name status=%d body=%s, want 200", code, body)
+	}
+	unchanged("JSON explicit empty name", "", "old note")
 }
 
 func TestRemoveFriendPendingOutboxAPI(t *testing.T) {
