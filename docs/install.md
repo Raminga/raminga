@@ -28,7 +28,7 @@ Codex 不把调用者环境变量传给插件 MCP，因此 `RAMINGA_BIN` / `RAMI
 
 ### DSH
 
-预发布（当前 `v0.1.0-rc.1` 应使用 `next` dist-tag）：
+预发布（当前 `v0.1.0-rc.2` 使用 `next` dist-tag）：
 
 ```sh
 dsh plugin --profile <name> add @raminga/dsh@next
@@ -41,6 +41,29 @@ dsh plugin --profile <name> add @raminga/dsh
 ```
 
 DSH 会自动安装与当前平台匹配的 `@raminga/bin-<os>-<cpu>` 平台子包（macOS/Linux/Windows × arm64/x64），外壳本身不含二进制。二进制查找顺序：插件配置 `ramingaBin` > `$RAMINGA_BIN` > 平台子包 > `PATH` 上的 `raminga`。
+
+隔离安装/试用（不写用户 DSH 配置，也避免默认 `~/.raminga` 与 4001 端口）：
+
+```sh
+DSH_HOME=$(mktemp -d)
+HOME=$(mktemp -d)
+export RAMINGA_DATA_DIR=$(mktemp -d)
+# 先在该数据目录写 config.toml，至少指定一个空闲 loopback 端口：
+# [network]
+# listen_addrs = ['/ip4/127.0.0.1/tcp/<空闲端口>', '/ip4/127.0.0.1/udp/<空闲端口>/quic-v1']
+dsh plugin --profile web add @raminga/dsh@next
+dsh --profile web --no-open --port <空闲 Web 端口>
+```
+
+插件首次进入 Raminga 时会自动拉起 daemon；自动拉起读取 `<data-dir>/config.toml`，不会采用之前 CLI 的临时 `--port` 参数。需要停止时用 `./bin/raminga stop --data-dir <data-dir>`，不要动其他用户 daemon。卸载：
+
+```sh
+dsh plugin --profile <name> remove @raminga/dsh @raminga/bin-<os>-<cpu>
+```
+
+同时从该 profile 的 `package.json` 的 `dsh.profile.bundles` 删除 `@raminga/dsh`（若安装器未自动删除），重启宿主后侧栏入口消失；数据目录不会被卸载删除，需要时自行备份/清理。
+
+Electron 桌面应用共用同一套 DSH profile/插件。隔离启动时需要单独的 `HOME`、`DSH_HOME`、`RAMINGA_DATA_DIR` 与 `--user-data-dir`，并确保环境中的 `ELECTRON_RUN_AS_NODE` 未设置；否则应用会以 Node CLI 运行并拒绝 Chromium 参数。不要复用用户的日常 DSH_HOME 或 `~/.raminga`。
 
 ### 独立二进制
 
@@ -373,7 +396,9 @@ raminga restart --data-dir "$HOME/.raminga"
 raminga mcp --data-dir "$HOME/.raminga"
 ```
 
-本地 API 现在带一个 `api_version` 字段（当前为 `"2"`）。插件外壳在第一次调用时校验它，发现不兼容时提示重启/升级 daemon，而不是把单个 RPC 的失败暴露给模型。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。新外壳连接旧 daemon（`api_version=1`）会明确拒绝，避免 proto3 忽略未知字段而静默跳过防护。
+本地 API 默认仍是 `<data-dir>/api.sock`（0600）加 `<data-dir>/api.token`（0600）。需要绕过 Unix socket 的场景可以显式 opt-in 回环 TCP：启动 daemon 时加 `--api-tcp`，或在自动启动/裸 `raminga` 前设置 `RAMINGA_API_TCP=1`。此模式**不会**再监听 Unix socket，只在 `127.0.0.1:<临时端口>` 提供带每轮随机 token 和固定证书的 TLS API；端点文件 `<data-dir>/api.endpoint.json` 由 daemon 在数据目录锁内原子写入，停止/重启时删除并轮换 token/端口/证书。Unix 上该文件为 0600；Windows 上为按当前用户 SID 的受保护 DACL，Node 客户端通过本地 Go 二进制的私有 stdout 管道校验并读取，不再次按路径打开。客户端只读取该文件，端点过期、不可达或 ACL 无法验证时明确失败，不会回退到 Unix socket，也不使用环境代理。CLI、TUI 与 DSH 插件都复用同一发现逻辑。DSH 在 Windows 上缺省启用 TCP（显式 `apiTcp: false` 或 `RAMINGA_API_TCP=0` 仍优先），macOS/Linux 仍缺省 UDS，需设置 `apiTcp: true` 或 `RAMINGA_API_TCP=1`。不要把端点文件或 token 复制到渲染器、日志或分享内容。
+
+本地 API 现在带一个 `api_version` 字段（当前为 `"4"`，存储 schema 为 `8`）。插件外壳在第一次调用时校验它；当前插件要求 API 4，连接 API 2/3 或更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表，daemon 启动时迁移旧库，迁移前应备份数据目录。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。
 
 首次运行的**旧数据目录安全闸**：如果 `--data-dir` 指向的目录已存在且非空，但既无 `identity/` 也无 `config.toml`（疑似旧版或非 Raminga 数据），`raminga mcp` 会**拒绝静默初始化**——只写一条 stderr 警告，不自动生成新身份；确认后请显式 `raminga init --data-dir ...` 迁移或沿用，避免误建第二身份。直接运行 `raminga`（自动拉起 daemon 后打开 TUI）使用同一套旧数据目录与其他已知节点检测，命中时打印相同警告并拒绝自动启动。启动器在 `~/.raminga/bin/<version>/` 缓存的二进制属于 Raminga 自有条目，`raminga.lock`、`daemon.log`/`daemon.log.1`、`api.sock`/`api.token` 等运行期文件同样不计入“非空”；因此全新机器上只有 `bin/` 的默认目录可以直接初始化，含其他未知条目时仍按上述规则拒绝。目标目录**尚无身份**时还会检查 `$RAMINGA_DATA_DIR`、默认 `~/.raminga` 以及本文件记录的迁移旧位置（`~/.raminga/raminga-test`、`~/.raminga-before-migrate`、`~/.raminga-new`、`~/.raminga-new/raminga-test`）；发现含 `identity/key` 的节点就列出这些路径并拒绝自动初始化，避免用户已有身份时误建新身份。
 
@@ -441,7 +466,8 @@ MCP 工具注解与上述一致：会写入或对外发送的工具 `ReadOnlyHin
 - `identity/key`（0600；目录 0700）
 - `raminga.lock`
 - `raminga.db`
-- `api.sock` / `api.token`（0600，daemon 运行时）
+- `api.sock` / `api.token`（0600，daemon 运行时，Unix 默认）
+- `api.endpoint.json`（Unix 0600 / Windows 当前用户受保护 DACL；仅在显式 `--api-tcp` 模式存在；含端点与本轮 token，勿分享）
 - `daemon.log`（自动启动时，0600；轮转文件 `daemon.log.1`）
 - `public/profile/`、`public/posts/`（用户发布的公开文件）
 - `public/friends.json`（程序生成的只读好友列表）

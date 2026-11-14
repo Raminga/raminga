@@ -19,6 +19,7 @@
 | 信任边界、加密与授权 | [security.md](security.md) |
 | 测试等级、G4 阈值摘要与验收矩阵 | [testing.md](testing.md) |
 | 当前交付范围 | [mvp.md](mvp.md) |
+| **DSH 主工作区 UI：已确认布局、真实数据语义、daemon 能力与缺口、分阶段验收** | **[布局与接入约定](dsh-workspace-ui.md)** |
 | **公网测试包：`init` 参数、TUI/CLI 走查、Relay/Bootstrap 要求、报告提交、清理（中文）** | **[公网测试指南](public-test-guide.md)** |
 | **手动 Docker 实验室：五个拓扑（lan/onesided/symmetric/dualnat/ipv6fw）的亲自操作、cheat sheet、预期输出与 PASS/FAIL 验证** | **[手动 Docker 实验室](manual-lab.md)** |
 | **Raminga Agent 插件化：单一来源 `agent/`、工具目录、`raminga mcp` 核心二进制与各宿主插件外壳** | **[agent-skill.md](agent-skill.md)** · [插件分发 ADR](adr/0006-agent-plugin-distribution.md) |

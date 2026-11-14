@@ -47,7 +47,7 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 
 ## 内容
 
-- 公开内容在 `public/profile/` 和 `public/posts/`；放进去就公开，移出来就取消。第一版没有非公开内容，也没有每条内容的可见范围设置。
+- 公开内容在 `public/profile/` 和 `public/posts/`；放进去就公开，移出来就取消。第一版没有非公开内容，也没有每条内容的可见范围设置。可选公开帖子 schema、作者映射与本地发现索引见 [public-content.md](public-content.md)。
 - 扫描只读 `public/`：跳过隐藏/临时文件和符号链接，拒绝超出 `[content]` 限额的文件和目录总量；默认单文件 100 MiB、`posts/` 1 GiB、`profile/` 10 MiB，可配置。
 - `/manifest` 返回按大小封顶的分页清单（路径、大小、修改时间、SHA-256、版本、Peer ID）；`/files/<path>` 只提供清单里的文件，支持 `Range`/ETag，带 `nosniff` 和 `application/octet-stream`。
 - 下载前先取清单，只下清单里的路径；保存到 `downloads/<Peer ID>/`，先写 `.part`，完成后校验大小和 SHA-256，再原子改名。经中继时只取清单和 ≤64 KiB 的小文件，更大的内容等待直连升级，失败就明确要求直连。

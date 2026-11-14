@@ -21,8 +21,24 @@ service RamingaService {
   // ACK was received before the deadline.
   rpc SendChat(SendChatRequest) returns (SendChatResponse);
 
-  // RecentMessages returns the most recent persisted messages.
+  // RecentMessages returns the most recent persisted messages. It is retained
+  // for older shells; new clients use ListMessages/ListConversations.
   rpc RecentMessages(RecentMessagesRequest) returns (RecentMessagesResponse);
+
+  // ListConversations returns one summary per Peer from the currently retained
+  // message rows, newest conversation first. A cursor carries the rowid
+  // snapshot used by the first page so concurrent inserts do not reshuffle the
+  // remaining pages; pruning can still remove rows and is never promised.
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+
+  // ListMessages returns one Peer's currently retained messages, newest first,
+  // with a stable keyset cursor. Pruned rows are not promised.
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+
+  // ListHumanOutboundPeers returns the Peers for which this Operator has
+  // accepted and persisted a human-origin outbound message. The relation is
+  // stored independently of the bounded message history.
+  rpc ListHumanOutboundPeers(ListHumanOutboundPeersRequest) returns (ListHumanOutboundPeersResponse);
 
   // OutboxList returns durable unacknowledged outbound messages and bounds.
   rpc OutboxList(OutboxListRequest) returns (OutboxListResponse);
@@ -49,14 +65,17 @@ service RamingaService {
   // DhtFindPeer performs a real Raminga DHT lookup.
   rpc DhtFindPeer(DhtFindPeerRequest) returns (DhtFindPeerResponse);
 
-  // ListFriends lists local friend records. Names and descriptions never
-  // leave the node in this task.
+  // ListFriends lists local friend records. Names and descriptions are local
+  // labels; the existing public export writes them to friends.json, and they
+  // are never read from a remote profile by this RPC.
   rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
 
-  // SetFriendName replaces the local name of an existing friend.
+  // SetFriendName replaces the local name of an existing friend. An empty
+  // value clears the label; non-empty values keep syntax/uniqueness rules.
   rpc SetFriendName(SetFriendNameRequest) returns (SetFriendNameResponse);
 
   // SetFriendDescription replaces the local description of an existing friend.
+  // An empty value clears the note.
   rpc SetFriendDescription(SetFriendDescriptionRequest) returns (SetFriendDescriptionResponse);
 
   // RemoveFriend deletes the local friend row. Pending outbox entries must be
@@ -69,6 +88,11 @@ service RamingaService {
   // Published lists the local public manifest after forcing a fresh scan.
   // This is a local-only view; it is not exposed on the remote HTTP protocol.
   rpc Published(PublishedRequest) returns (PublishedResponse);
+
+  // ListDiscoveries returns the private local index of public content that an
+  // Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
+  // It is not a directory listing, manifest scan or network-wide recommendation.
+  rpc ListDiscoveries(ListDiscoveriesRequest) returns (ListDiscoveriesResponse);
 
   // GetPeerManifest fetches one page of a remote peer's public manifest.
   rpc GetPeerManifest(GetPeerManifestRequest) returns (GetPeerManifestResponse);
@@ -91,7 +115,8 @@ service RamingaService {
   rpc DisconnectPeer(DisconnectPeerRequest) returns (DisconnectPeerResponse);
 
   // Shutdown gracefully stops the daemon. It is token-authenticated and only
-  // reachable over the local Unix socket. The response is written before the
+  // reachable over the selected local API transport (Unix socket by default,
+  // or the explicitly enabled loopback TLS transport). The response is written before the
   // daemon closes the API and stops the node.
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
 
@@ -167,6 +192,14 @@ message StatusResponse {
   // journey events instead of guessing a time. It is informational only and
   // does not change api_version.
   string current_time = 17;
+
+  // max_chat_text_bytes is the daemon's current UTF-8 body limit for one chat
+  // message. Clients must count bytes, not characters, before sending.
+  uint32 max_chat_text_bytes = 18;
+
+  // max_stored_messages is the hard messages-table cap. Message queries only
+  // cover currently retained rows; older rows may already be pruned.
+  uint32 max_stored_messages = 19;
 }
 
 // ConnectionDetail is one live libp2p connection.
@@ -335,6 +368,19 @@ message SendChatRequest {
   // Shells must set it; an older daemon would ignore the unknown field, which is
   // why api_version is bumped so shells reject that combination.
   bool agent_origin = 4;
+
+  // origin declares the local caller model for this send: "human", "agent" or
+  // "unknown". Human is set only by explicit local operator entries (CLI/TUI
+  // and the DSH human composer); Agent tools set "agent" plus agent_origin.
+  // This is provenance, not cryptographic authentication: every holder of the
+  // local API token can claim it. A true agent_origin always wins and is still
+  // checked by the agent guard.
+  string origin = 5;
+
+  // request_id is an optional idempotency key scoped to the target Peer. It is
+  // 1..128 chars of [A-Za-z0-9._:-]. Retrying the same request_id returns the
+  // already persisted message state instead of creating a second message.
+  string request_id = 6;
 }
 
 // SendChatResponse reports the message ID and ACK outcome.
@@ -383,6 +429,19 @@ message SendChatResponse {
 
   // outbox_attempts is the number of automatic resend attempts so far.
   int32 outbox_attempts = 15;
+
+  // delivery_status is the persisted message delivery state: pending, acked,
+  // failed, cancelled or unknown. It remains available after the outbox row is
+  // cleaned up. acked means the protocol ACK was accepted, not that a human
+  // read the message.
+  string delivery_status = 16;
+
+  // replayed is true when request_id matched an already persisted message and
+  // no new message was created or sent.
+  bool replayed = 17;
+
+  // request_id echoes the caller's idempotency key, if any.
+  string request_id = 18;
 }
 
 // RecentMessagesRequest asks for persisted messages.
@@ -395,6 +454,90 @@ message RecentMessagesRequest {
 message RecentMessagesResponse {
   // messages is the returned page.
   repeated StoredMessage messages = 1;
+}
+
+// MessageRetention describes the current bounded history, never a promise of
+// missing older rows.
+message MessageRetention {
+  // retained_messages is the number of message rows currently stored.
+  uint32 retained_messages = 1;
+
+  // oldest_retained_at_unix_ms is the oldest retained message time, or zero
+  // when there are no rows. Rows older than this may already be pruned.
+  int64 oldest_retained_at_unix_ms = 2;
+
+  // max_stored_messages is the configured hard cap.
+  uint32 max_stored_messages = 3;
+}
+
+// ConversationSummary is one Peer's latest retained message and count.
+message ConversationSummary {
+  string peer_id = 1;
+  string last_message_id = 2;
+  // direction is "in" or "out".
+  string direction = 3;
+  // preview is a bounded plain-text excerpt of the latest message.
+  string preview = 4;
+  int64 last_at_unix_ms = 5;
+  // delivery_status is meaningful for outbound messages: pending, acked,
+  // failed, cancelled or unknown. Inbound rows use "received".
+  string delivery_status = 6;
+  // origin is human, agent or unknown for outbound rows; inbound rows are
+  // unknown because a remote sender's local UI entry is not authenticated.
+  string origin = 7;
+  // message_count is the number of currently retained rows for this Peer.
+  uint32 message_count = 8;
+}
+
+message ListConversationsRequest {
+  // limit is 1..100 (default 30).
+  uint32 limit = 1;
+  // before is an opaque cursor from a previous response's next_before.
+  string before = 2;
+}
+
+message ListConversationsResponse {
+  repeated ConversationSummary conversations = 1;
+  // next_before is set only when has_more is true.
+  string next_before = 2;
+  bool has_more = 3;
+  MessageRetention retention = 4;
+}
+
+message ListMessagesRequest {
+  string peer_id = 1;
+  // limit is 1..200 (default 50).
+  uint32 limit = 2;
+  // before is an opaque cursor from a previous response's next_before.
+  string before = 3;
+}
+
+message ListMessagesResponse {
+  // messages is newest first.
+  repeated StoredMessage messages = 1;
+  // next_before pages strictly older than the oldest row in this response.
+  string next_before = 2;
+  bool has_more = 3;
+  MessageRetention retention = 4;
+}
+
+message ListHumanOutboundPeersRequest {
+  // limit is 1..500 (default 100).
+  uint32 limit = 1;
+  // before is an opaque cursor from next_before.
+  string before = 2;
+}
+
+message HumanOutboundPeer {
+  string peer_id = 1;
+  int64 first_at_unix_ms = 2;
+  int64 last_at_unix_ms = 3;
+}
+
+message ListHumanOutboundPeersResponse {
+  repeated HumanOutboundPeer peers = 1;
+  string next_before = 2;
+  bool has_more = 3;
 }
 
 // OutboxListRequest asks for durable outbox entries.
@@ -467,6 +610,26 @@ message StoredMessage {
 
   // acked_at_unix_ms is the ACK time, or zero when unacked.
   int64 acked_at_unix_ms = 7;
+
+  // delivery_status is the persisted state for outbound rows: pending, acked,
+  // failed, cancelled or unknown. Inbound rows use "received". An old outbound
+  // row without enough evidence is "unknown", never assumed pending.
+  string delivery_status = 8;
+
+  // delivery_error is a bounded, honest reason for failed or pending rows.
+  string delivery_error = 9;
+
+  // origin is human, agent or unknown. Rows created before provenance existed
+  // are always unknown; direction=out alone never proves a human sent them.
+  string origin = 10;
+
+  // delivery_updated_at_unix_ms is when delivery_status last changed, or zero
+  // when the old row has no recorded change time.
+  int64 delivery_updated_at_unix_ms = 11;
+
+  // client_request_id is the local idempotency key that produced this row, or
+  // empty for sends without one. It is used to reconcile an ambiguous UI send.
+  string client_request_id = 12;
 }
 
 // EventsRequest has no fields.
@@ -1022,7 +1185,9 @@ message ListFriendsResponse {
 
 message SetFriendNameRequest {
   string peer_id = 1;
-  string name = 2;
+  // Presence-aware: omitting name is invalid and must not clear the label.
+  // An explicitly present empty string clears the local name.
+  optional string name = 2;
 }
 
 message SetFriendNameResponse {
@@ -1031,7 +1196,9 @@ message SetFriendNameResponse {
 
 message SetFriendDescriptionRequest {
   string peer_id = 1;
-  string description = 2;
+  // Presence-aware: omitting description is invalid and must not clear the
+  // note. An explicitly present empty string clears the local description.
+  optional string description = 2;
 }
 
 message SetFriendDescriptionResponse {
@@ -1073,6 +1240,34 @@ message PublishedResponse {
   // friends_synced_at_unix_ms is the mtime of friends.json, i.e. when its
   // contents last changed, not the last time friends were synced.
   int64 friends_synced_at_unix_ms = 4;
+}
+
+message ListDiscoveriesRequest {
+  // limit is 1..100 (default 20).
+  uint32 limit = 1;
+  // before is an opaque cursor from a previous response's next_before.
+  string before = 2;
+  // familiar_only restricts the page to authors with a durable human-outbound
+  // relation, independent of the bounded message retention window.
+  bool familiar_only = 3;
+}
+
+message Discovery {
+  string id = 1;
+  string peer_id = 2;
+  string path = 3;
+  string sha256 = 4;
+  int64 size_bytes = 5;
+  int64 fetched_at_unix_ms = 6;
+  // source records the local Agent tool that fetched the file, for example
+  // "raminga_content_get". It is local provenance, not a remote signature.
+  string source = 7;
+}
+
+message ListDiscoveriesResponse {
+  repeated Discovery discoveries = 1;
+  string next_before = 2;
+  bool has_more = 3;
 }
 
 // DisconnectPeerRequest asks the node to close all connections to a peer.
@@ -1160,7 +1355,15 @@ message GetPeerFriendsResponse {
   repeated PeerFriendClaim friends = 2;
   bool limited = 3;
 }
-message DownloadPeerFileRequest { string peer_id = 1; string path = 2; }
+message DownloadPeerFileRequest {
+  string peer_id = 1;
+  string path = 2;
+  // record_discovery is set only by an Agent acquisition tool after a real
+  // fetch. Defaults false so manual downloads and old clients stay unattributed.
+  bool record_discovery = 3;
+  // discovery_source names the local tool, e.g. "raminga_content_get".
+  string discovery_source = 4;
+}
 message DownloadPeerFileResponse {
   string phase = 1;
   string path = 2;
@@ -1170,6 +1373,10 @@ message DownloadPeerFileResponse {
   string sha256 = 6;
   bool direct = 7;
   string error = 8;
+  // discovery evidence is populated only when record_discovery was requested.
+  int64 discovery_id = 9;
+  bool discovery_recorded = 10;
+  string discovery_error = 11;
 }
 message ConnectListedPeerRequest {
   string peer_id = 1;

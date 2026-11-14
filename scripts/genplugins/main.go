@@ -55,10 +55,15 @@ func loadRenderInputs(root string) (renderInputs, error) {
 	if err != nil {
 		return renderInputs{}, fmt.Errorf("read .claude-plugin/marketplace.json: %w", err)
 	}
+	goreleaser, err := os.ReadFile(filepath.Join(root, ".goreleaser.yaml"))
+	if err != nil {
+		return renderInputs{}, fmt.Errorf("read .goreleaser.yaml: %w", err)
+	}
 	return renderInputs{
 		Version:        version,
 		DSHPackageJSON: dshPackage,
 		Marketplace:    marketplace,
+		GoReleaser:     goreleaser,
 	}, nil
 }
 

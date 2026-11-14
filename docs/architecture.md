@@ -42,7 +42,7 @@ Raminga is a node-first P2P network. The node is a single Go binary; CLI, TUI, t
 
 Agent 的持久运行、会话恢复和宿主审批属于宿主 Agent 的内部设计，不在 Raminga 插件范围。插件只提供本地 API、MCP/DSH 工具、私有数据初始化与行为指引。
 
-**Local API:** Connect-RPC over HTTP on a Unix domain socket; `api/*.proto` is authoritative (buf-managed); token + directory 0600; server-streaming events; **no TCP/UDP listener**. JSON works for curl-style debugging. Test-only operations are behind an explicit flag, default off. `raminga tui` reports are redacted by default; schema `docs/schemas/test-report.schema.json`.
+**Local API:** Connect-RPC over HTTP; `api/*.proto` is authoritative (buf-managed); server-streaming events. The default transport is a Unix domain socket with token + directory 0600 and **no TCP/UDP listener**. An explicit opt-in (`--api-tcp` / `RAMINGA_API_TCP=1`) instead serves only literal `127.0.0.1` on an ephemeral port with a per-run token and pinned per-run TLS certificate; there is no automatic fallback between transports. JSON works for curl-style debugging. Test-only operations are behind an explicit flag, default off. `raminga tui` reports are redacted by default; schema `docs/schemas/test-report.schema.json`.
 
 ## 3. Go 布局与依赖方向
 
@@ -55,7 +55,7 @@ internal/protocol/      chat JSON contract, ACK, limits
 internal/node/          lifecycle, composition, connect strategy, helper policy
 internal/profile/       profile views/visibility; identity public types only
 internal/social/        publish/relationship/interaction; identity public types only
-internal/api/           Connect-RPC handlers, UDS, auth, server streaming
+internal/api/           Connect-RPC handlers, UDS/TCP transport, auth, server streaming
 internal/config/        config.toml parsing/validation/defaults
 internal/tui/           inline Bubble Tea client
 api/                    local API .proto (language neutral)
@@ -74,7 +74,7 @@ npm/                    planned per-platform binary npm packages
 | node | lifecycle, wiring, connect policy, helper policy, auth context | duplicate domain implementations, second PeerStore |
 | profile | node profile, internal/external views, visibility | second social database |
 | social | publish/interaction/relationships/business rules | profile storage, libp2p details |
-| api | local Connect-RPC, UDS/token, streaming, implementation | cross-node wire, business rules |
+| api | local Connect-RPC, UDS/token default or opt-in loopback TLS/TCP, streaming, implementation | cross-node wire, business rules |
 | config | parse/validate/defaults | runtime state |
 | tui | presentation, slash commands, reports | node state, network listeners |
 
@@ -89,7 +89,8 @@ npm/                    planned per-platform binary npm packages
   identity/       libp2p protobuf Ed25519 private key
   raminga.db      SQLite business data + bootstrap/known peers/pinned relays/peer names
   config.toml     configuration
-  api.sock        local API Unix socket
+  api.sock        local API Unix socket (default)
+  api.endpoint.json optional 127.0.0.1 TLS endpoint/token (0600 on Unix; protected current-user DACL on Windows, opt-in)
   api.token       local API token (0600)
 ```
 
@@ -110,7 +111,7 @@ One daemon per data directory; SQLite locking/flock protects it. PeerStore is in
 | DHT | Kademlia with `/raminga/kad/1.0.0` | **Implemented / G2 PASS**; no public IPFS DHT |
 | AutoRelay | go-libp2p AutoRelay + Raminga relay discovery | **Implemented / G2 PASS** |
 | resource limits | go-libp2p rcmgr + token bucket + Raminga quotas | **Implemented / G2 PASS** |
-| local API | Connect-RPC over UDS, streaming, token 0600 | **G1/G2/G4.5 PASS** |
+| local API | Connect-RPC over UDS (default) or explicit loopback TLS/TCP, streaming, token 0600 | **G1/G2/G4.5 PASS** |
 | CLI/TUI | status/chat/peers/relay/dht/network/report/tui | **G1–G4.5.1 PASS** |
 | Agent plugin shells | Claude/Codex SKILL + launcher, DSH native tools; single-source `agent/` | **Implemented (code); real-host acceptance partial** |
 | distribution | static binary + npm optionalDependencies + GoReleaser | **G4.5 dist PASS; packaging/release pipeline incomplete** |
@@ -132,7 +133,7 @@ One daemon per data directory; SQLite locking/flock protects it. PeerStore is in
 
 ## 7. 两类独立契约
 
-1. **Local node API (`api/*.proto`, Connect-RPC):** CLI, TUI, DSH, third-party local clients and Go tests. HTTP over UDS, JSON, streaming, token/0600. Not a requirement for joining the P2P network.
+1. **Local node API (`api/*.proto`, Connect-RPC):** CLI, TUI, DSH, third-party local clients and Go tests. HTTP over UDS (default) or explicit loopback TCP with per-run TLS, JSON, streaming, token/0600. Not a requirement for joining the P2P network.
 2. **Cross-node open wire (`spec/`):** HTTP with JSON bodies over libp2p streams, `/raminga/http/1.0.0`. Contract: [`spec/chat-http-v1.md`](../spec/chat-http-v1.md).
 
 The retired TypeScript wire is not part of this repository; this tree contains the Go `/raminga/http/1.0.0` contract.

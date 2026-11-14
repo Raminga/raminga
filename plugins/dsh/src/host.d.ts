@@ -104,6 +104,7 @@ declare module '@deepseek-ai/cordis' {
     on(event: string, listener: (...args: any[]) => any): () => void;
     emit(event: string, ...args: unknown[]): void;
     get(name: string): unknown;
+    provide(name: string, value: unknown): () => void;
     [key: string]: unknown;
   }
 

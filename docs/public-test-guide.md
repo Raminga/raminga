@@ -111,7 +111,7 @@ raminga --data-dir ~/raminga-test   # 自动启动 daemon 并打开 TUI
 - 客户端不需要预先配置 `--known-relay`：在 TUI 执行 `/connect <relay 地址>` 后，该 Relay 会成为候选并自动获得 circuit 地址；`/copy` 可复制。
 - `--announce` 只用于你有固定公网地址/NAT 映射的节点；它**不会**创建端口映射。
 - 不要在测试机启用 `--relay-provider`，除非它也有公网可达地址。
-- daemon 只监听 libp2p TCP/UDP；本地 API 仍然只在 `<data-dir>/api.sock`，token 0600，没有 TCP API listener。TUI 不需要 `--enable-test-api`。
+- daemon 只监听 libp2p TCP/UDP；本地 API 默认只在 `<data-dir>/api.sock`，token 0600，没有 TCP API listener。显式 `--api-tcp` 是例外：只在 literal `127.0.0.1` 的临时端口上提供每轮 token + 固定 TLS 证书的本地 API，且不再监听 Unix socket；它不改变 P2P 或 WAN 监听。TUI 不需要 `--enable-test-api`。
 
 查看并复制本机信息：
 

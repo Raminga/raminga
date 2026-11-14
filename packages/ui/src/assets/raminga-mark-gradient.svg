@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="rg-mark-gradient-title rg-mark-gradient-desc">
+ <title id="rg-mark-gradient-title">Raminga</title>
+ <desc id="rg-mark-gradient-desc">Raminga open-loop R brand mark. Outlined vector artwork, version 0.1; not an Agent avatar.</desc>
+ <defs>
+ <linearGradient id="rg-mark-gradient-main" x1="70" y1="29" x2="139" y2="214" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#A58AFF"/><stop offset="0.42" stop-color="#7A5CFF"/>
+  <stop offset="0.66" stop-color="#9367F5"/><stop offset="0.84" stop-color="#EE83AE"/>
+  <stop offset="1" stop-color="#FF7F6E"/>
+ </linearGradient>
+ <linearGradient id="rg-mark-gradient-tail" x1="124" y1="165" x2="212" y2="212" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#FFD84E"/><stop offset="0.40" stop-color="#C6EA78"/>
+  <stop offset="1" stop-color="#3FE4B6"/>
+ </linearGradient>
+ </defs><path fill="url(#rg-mark-gradient-tail)" d="M 132 138 C 157 143 184 159 206 182 C 224 203 220 222 204 229 C 189 237 175 230 162 214 L 140 188 C 129 176 116 171 101 170 Z"/><path fill="url(#rg-mark-gradient-main)" d="M 48 102 C 36 102 28 93 31 81 C 40 51 84 27 126 27 C 178 27 214 53 214 88 C 214 123 184 147 145 162 L 122 171 C 98 182 80 198 67 221 C 60 233 44 236 32 228 C 21 221 18 208 24 195 C 44 155 73 132 113 116 L 145 104 C 162 97 173 91 173 82 C 173 70 155 64 137 64 C 107 64 80 76 63 94 C 59 99 54 102 48 102 Z"/>
+</svg>

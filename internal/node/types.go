@@ -4,25 +4,48 @@ import (
 	"time"
 
 	"github.com/Raminga/raminga/internal/network"
+	"github.com/Raminga/raminga/internal/storage"
+)
+
+// ErrInvalidCursor reports a malformed message or conversation cursor.
+var ErrInvalidCursor = storage.ErrInvalidCursor
+
+// Local send provenance values. They are an operator model, not strong auth.
+const (
+	OriginHuman   = storage.OriginHuman
+	OriginAgent   = storage.OriginAgent
+	OriginUnknown = storage.OriginUnknown
+)
+
+// Delivery states exposed by the local API.
+const (
+	DeliveryPending   = storage.DeliveryPending
+	DeliveryAcked     = storage.DeliveryAcked
+	DeliveryFailed    = storage.DeliveryFailed
+	DeliveryCancelled = storage.DeliveryCancelled
+	DeliveryUnknown   = storage.DeliveryUnknown
+	DeliveryReceived  = storage.DeliveryReceived
 )
 
 // Status is a point-in-time view of the running node.
 type Status struct {
-	PeerID          string
-	NodeID          string
-	ListenAddrs     []string
-	AdvertisedAddrs []string
-	Version         string
-	ProtocolVersion string
-	StartedAt       time.Time
-	Peers           []PeerStatus
-	Connections     []network.ConnInfo
-	TestAPI         bool
-	Supervised      bool
-	DataDir         string
-	GoVersion       string
-	Network         NetworkStatus
-	ContentWarnings []string
+	PeerID            string
+	NodeID            string
+	ListenAddrs       []string
+	AdvertisedAddrs   []string
+	Version           string
+	ProtocolVersion   string
+	StartedAt         time.Time
+	Peers             []PeerStatus
+	Connections       []network.ConnInfo
+	TestAPI           bool
+	Supervised        bool
+	DataDir           string
+	GoVersion         string
+	Network           NetworkStatus
+	ContentWarnings   []string
+	MaxChatTextBytes  int
+	MaxStoredMessages int
 }
 
 // NetworkStatus groups G2 diagnostics. Cached addresses are never online.
@@ -74,7 +97,8 @@ type ConnectResult struct {
 }
 
 // SendResult is the outcome of one SendChat call. Acked is true only when a
-// matching ACK was received and its ACK state was persisted.
+// matching ACK was received and its ACK state was persisted. DeliveryStatus is
+// the durable history state and outlives the outbox row.
 type SendResult struct {
 	MessageID       string
 	Acked           bool
@@ -90,6 +114,9 @@ type SendResult struct {
 	Note            string
 	Error           string
 	OutboxStatus    string
+	DeliveryStatus  string
+	Replayed        bool
+	RequestID       string
 }
 
 // PublishedFile is one file in the local public manifest.
@@ -117,13 +144,90 @@ type Published struct {
 
 // StoredMessage is a persisted message view.
 type StoredMessage struct {
-	MessageID string
+	MessageID         string
+	PeerID            string
+	Direction         string
+	Text              string
+	Acked             bool
+	CreatedAt         time.Time
+	AckedAt           time.Time
+	Origin            string
+	DeliveryStatus    string
+	DeliveryError     string
+	DeliveryUpdatedAt time.Time
+	ClientRequestID   string
+}
+
+// MessageRetention describes currently retained rows, not pruned history.
+type MessageRetention struct {
+	RetainedMessages int
+	OldestAt         time.Time
+	MaxMessages      int
+}
+
+// Conversation is one Peer's latest retained message.
+type Conversation struct {
+	PeerID         string
+	LastMessageID  string
+	Direction      string
+	Preview        string
+	LastAt         time.Time
+	DeliveryStatus string
+	Origin         string
+	MessageCount   int
+}
+
+// HumanOutboundPeer is one durable human-outbound relation.
+type HumanOutboundPeer struct {
+	PeerID  string
+	FirstAt time.Time
+	LastAt  time.Time
+	// PagingRowID and PagingSnapshotID are opaque keyset positions for the
+	// stable relation snapshot. They are not serialized as public relation data.
+	PagingRowID      int64
+	PagingSnapshotID int64
+}
+
+// PublicDiscovery is one successful Agent acquisition from a remote public
+// manifest, with the exact path, hash, time and local acquisition source.
+type PublicDiscovery struct {
+	ID        int64
 	PeerID    string
-	Direction string
-	Text      string
-	Acked     bool
-	CreatedAt time.Time
-	AckedAt   time.Time
+	Path      string
+	SHA256    string
+	SizeBytes int64
+	FetchedAt time.Time
+	Source    string
+}
+
+// PublicDiscoveryPage is one keyset page of discovery evidence.
+type PublicDiscoveryPage struct {
+	Discoveries []PublicDiscovery
+	NextBefore  string
+	HasMore     bool
+}
+
+// MessagePage is one keyset page of retained messages, newest first.
+type MessagePage struct {
+	Messages   []StoredMessage
+	NextBefore string
+	HasMore    bool
+	Retention  MessageRetention
+}
+
+// ConversationPage is one keyset page of conversation summaries.
+type ConversationPage struct {
+	Conversations []Conversation
+	NextBefore    string
+	HasMore       bool
+	Retention     MessageRetention
+}
+
+// HumanOutboundPage is one keyset page of durable human-outbound relations.
+type HumanOutboundPage struct {
+	Peers      []HumanOutboundPeer
+	NextBefore string
+	HasMore    bool
 }
 
 // OutboxEntry is one durable unacknowledged outbound message.

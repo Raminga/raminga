@@ -137,7 +137,12 @@ const HANDLERS: Record<string, Handler> = {
     const frames: unknown[] = [];
     await api.call(async (c) => {
       for await (const frame of c.downloadPeerFile(
-        new DownloadPeerFileRequest({ peerId, path: requestedPath }),
+        new DownloadPeerFileRequest({
+          peerId,
+          path: requestedPath,
+          recordDiscovery: true,
+          discoverySource: 'raminga_content_get',
+        }),
       )) {
         frames.push(frame.toJson({ emitDefaultValues: true }));
       }

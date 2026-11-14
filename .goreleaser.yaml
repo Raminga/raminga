@@ -83,7 +83,7 @@ release:
 snapshot:
   # A snapshot version includes the short commit so two builds that negotiate
   # the same version string can no longer contain different protocols.
-  version_template: "0.1.0-rc.1-snapshot-{{ .ShortCommit }}"
+  version_template: "0.1.0-rc.2-snapshot-{{ .ShortCommit }}"
 
 changelog:
   disable: true

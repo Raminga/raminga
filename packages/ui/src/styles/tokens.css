@@ -1,0 +1,21 @@
+/* Focused v0.4 palette for the native workspace. Values follow the accepted
+   prototype/design spec; this file intentionally contains no layout rules. */
+:root {
+  --rm-bg: #fafafc;
+  --rm-ink: #121220;
+  --rm-body: #393440;
+  --rm-muted: #68616f;
+  --rm-subtle: #79717f;
+  --rm-line: #e3e0ea;
+  --rm-purple: #7a5cff;
+  --rm-action: #6845ed;
+  --rm-action-deep: #5635cc;
+  --rm-mint: #3fe4b6;
+  --rm-mint-ink: #167958;
+  --rm-coral: #ff7f6e;
+  --rm-yellow: #ffd84e;
+  --rm-soft: #f4f1fa;
+  --rm-hover: #f0edf7;
+  --rm-surface: #ffffff;
+  --rm-backdrop: #12122055;
+}

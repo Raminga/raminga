@@ -1,8 +1,11 @@
-// Package api implements the local Connect-RPC API over a Unix domain socket.
+// Package api implements the local Connect-RPC API.
 //
-// The API is never served on TCP or UDP. Authentication is a bearer token in a
-// 0600 file plus the 0600 socket; test-only RPCs are unavailable unless the
-// daemon was started with --enable-test-api.
+// The default transport is a 0600 Unix domain socket with a 0600 token file.
+// An explicit opt-in mode serves the same authenticated Connect-RPC API only
+// on a per-run ephemeral TCP listener bound to literal 127.0.0.1, protected by
+// a per-run bearer token and a pinned per-run TLS certificate. There is no
+// automatic fallback between the two modes. Test-only RPCs are unavailable
+// unless the daemon was started with --enable-test-api.
 package api
 
 import (
@@ -16,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +27,7 @@ import (
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
 	"github.com/Raminga/raminga/gen/raminga/api/v1/apiv1connect"
+	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/api/paths"
 	"github.com/Raminga/raminga/internal/node"
 )
@@ -35,7 +40,7 @@ const (
 	// APIVersion is the local API contract version reported by Status. Plugin
 	// shells compare it against their expected version and ask for a restart
 	// or upgrade on mismatch instead of failing individual RPCs.
-	APIVersion = "2"
+	APIVersion = "4"
 	// tokenBytes is the entropy of the bearer token.
 	tokenBytes = 32
 )
@@ -44,8 +49,11 @@ const (
 type Backend interface {
 	Status(ctx context.Context) (node.Status, error)
 	Connect(ctx context.Context, peerID, multiaddr string) (node.ConnectResult, error)
-	SendChat(ctx context.Context, peerID, multiaddr, text string) (node.SendResult, error)
+	SendChatOrigin(ctx context.Context, peerID, multiaddr, text, origin, requestID string) (node.SendResult, error)
 	RecentMessages(ctx context.Context, limit int) ([]node.StoredMessage, error)
+	ListMessages(ctx context.Context, peerID, before string, limit int) (node.MessagePage, error)
+	ListConversations(ctx context.Context, before string, limit int) (node.ConversationPage, error)
+	ListHumanOutboundPeers(ctx context.Context, before string, limit int) (node.HumanOutboundPage, error)
 	Outbox(ctx context.Context, limit int) ([]node.OutboxEntry, node.OutboxStats, error)
 	CancelOutbox(ctx context.Context, messageID string) error
 	Subscribe(ctx context.Context) (<-chan node.Event, func(), error)
@@ -62,25 +70,39 @@ type Backend interface {
 	RemoveFriend(ctx context.Context, peerID string, cancelPending bool) (bool, int, error)
 	SyncFriends(ctx context.Context) (bool, error)
 	Published(ctx context.Context) (node.Published, error)
+	ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool) (node.PublicDiscoveryPage, error)
 	GetPeerManifest(ctx context.Context, peerID string, offset, limit int) (node.PeerManifest, error)
 	GetPeerProfile(ctx context.Context, peerID string) (node.PeerProfile, error)
 	GetPeerFriends(ctx context.Context, peerID string) (node.PeerFriends, error)
-	DownloadPeerFile(ctx context.Context, peerID, path string, progress func(node.DownloadProgress)) (node.DownloadResult, error)
+	DownloadPeerFile(ctx context.Context, peerID, path string, progress func(node.DownloadProgress), options node.DownloadOptions) (node.DownloadResult, error)
 	ConnectListedPeer(ctx context.Context, peerID string, addrs []string) (node.ConnectResult, error)
 	Disconnect(ctx context.Context, peerID string) error
 	PausePeer(ctx context.Context, peerID string) error
 }
 
-// Server serves the Connect-RPC API over UDS.
+// Options selects the local API transport. The zero value preserves the Unix
+// domain socket default.
+type Options struct {
+	// EnableTCP serves only the opt-in loopback TCP transport. It never starts
+	// the Unix socket, and a caller cannot silently fall back to either mode.
+	EnableTCP bool
+}
+
+// Server serves the Connect-RPC API over the selected local transport.
 type Server struct {
 	backend    Backend
 	logger     *slog.Logger
 	testAPI    bool
 	agentGuard *agentSendGuard
+	dataDir    string
 	token      string
 	sockPath   string
 	srv        *http.Server
 	ln         net.Listener
+	tcpEnabled bool
+	tcpAddr    string
+	tcpSrv     *http.Server
+	tcpLn      net.Listener
 	errCh      chan error
 	shutdownCh chan struct{}
 }
@@ -91,13 +113,33 @@ func SocketPath(dataDir string) string { return paths.SocketPath(dataDir) }
 // TokenPath returns <dataDir>/api.token.
 func TokenPath(dataDir string) string { return paths.TokenPath(dataDir) }
 
-// NewServer prepares the API server and ensures the 0600 token file exists.
+// NewServer prepares the default Unix-socket API server.
 func NewServer(backend Backend, dataDir string, testAPI bool, logger *slog.Logger) (*Server, error) {
+	return NewServerWithOptions(backend, dataDir, testAPI, logger, Options{})
+}
+
+// NewServerWithOptions prepares the API server for the explicitly selected
+// transport. Unix mode ensures the 0600 UDS token file exists; TCP mode does
+// not read or create that token, because its bearer token is per-run and lives
+// only in the protected discovery document.
+func NewServerWithOptions(backend Backend, dataDir string, testAPI bool, logger *slog.Logger, options Options) (*Server, error) {
 	if backend == nil {
 		return nil, errors.New("api: backend is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if options.EnableTCP {
+		return &Server{
+			backend:    backend,
+			logger:     logger,
+			testAPI:    testAPI,
+			agentGuard: newAgentSendGuard(dataDir),
+			dataDir:    dataDir,
+			tcpEnabled: true,
+			errCh:      make(chan error, 2),
+			shutdownCh: make(chan struct{}, 1),
+		}, nil
 	}
 	token, err := EnsureToken(dataDir)
 	if err != nil {
@@ -112,18 +154,38 @@ func NewServer(backend Backend, dataDir string, testAPI bool, logger *slog.Logge
 		logger:     logger,
 		testAPI:    testAPI,
 		agentGuard: newAgentSendGuard(dataDir),
+		dataDir:    dataDir,
 		token:      token,
 		sockPath:   sockPath,
-		errCh:      make(chan error, 1),
+		errCh:      make(chan error, 2),
 		shutdownCh: make(chan struct{}, 1),
 	}, nil
 }
 
-// Start listens on the Unix socket, applies 0600 and serves the API.
+// Start serves the explicitly selected transport. TCP mode is mutually
+// exclusive with the Unix socket; a stale discovery document is removed before
+// the new per-run document is published.
 func (s *Server) Start(_ context.Context) error {
-	if s.ln != nil {
+	if s.ln != nil || s.tcpLn != nil {
 		return errors.New("api: server already started")
 	}
+	// The daemon holds the data-directory lock before this call. Removing any
+	// previous run's discovery file here prevents a stale token/port/cert from
+	// being used after a crash.
+	if err := endpoint.Remove(s.dataDir); err != nil {
+		return fmt.Errorf("api: %w", err)
+	}
+	if s.tcpEnabled {
+		if err := endpoint.Supported(); err != nil {
+			return fmt.Errorf("api: %w", err)
+		}
+		return s.startTCP()
+	}
+	return s.startUnix()
+}
+
+// startUnix listens on the Unix socket, applies 0600 and serves the API.
+func (s *Server) startUnix() error {
 	if info, err := os.Lstat(s.sockPath); err == nil {
 		if info.Mode()&os.ModeSocket == 0 {
 			return fmt.Errorf("api: refusing to remove non-socket path %q", s.sockPath)
@@ -144,11 +206,8 @@ func (s *Server) Start(_ context.Context) error {
 		return fmt.Errorf("api: set socket permissions: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	path, handler := apiv1connect.NewRamingaServiceHandler(s)
-	mux.Handle(path, handler)
 	s.srv = &http.Server{
-		Handler:           s.withAuth(mux),
+		Handler:           s.withAuth(s.newMux(), s.token),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	s.ln = ln
@@ -161,6 +220,13 @@ func (s *Server) Start(_ context.Context) error {
 	return nil
 }
 
+func (s *Server) newMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	path, handler := apiv1connect.NewRamingaServiceHandler(s)
+	mux.Handle(path, handler)
+	return mux
+}
+
 // Errors reports an unexpected serve failure.
 func (s *Server) Errors() <-chan error { return s.errCh }
 
@@ -168,7 +234,7 @@ func (s *Server) Errors() <-chan error { return s.errCh }
 // the actual stop sequence so the API can finish writing the response first.
 func (s *Server) ShutdownRequests() <-chan struct{} { return s.shutdownCh }
 
-func (s *Server) withAuth(next http.Handler) http.Handler {
+func (s *Server) withAuth(next http.Handler, token string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const prefix = "Bearer "
 		header := r.Header.Get("Authorization")
@@ -176,7 +242,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 		if strings.HasPrefix(header, prefix) {
 			got = strings.TrimPrefix(header, prefix)
 		}
-		if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -184,14 +250,28 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 	})
 }
 
-// Close shuts the API down and removes the socket.
+// Close shuts the selected listener down and removes its discovery artifact.
 func (s *Server) Close(ctx context.Context) error {
-	var err error
+	var errs []error
 	if s.srv != nil {
-		err = s.srv.Shutdown(ctx)
+		errs = append(errs, s.srv.Shutdown(ctx))
 	}
-	_ = os.Remove(s.sockPath)
-	return err
+	if s.tcpSrv != nil {
+		errs = append(errs, s.tcpSrv.Shutdown(ctx))
+	}
+	if s.tcpLn != nil {
+		_ = s.tcpLn.Close()
+	}
+	if s.sockPath != "" {
+		_ = os.Remove(s.sockPath)
+	}
+	// Always remove the discovery artifact: a UDS-mode server also removed a
+	// previous run's stale file at Start, and a TCP-mode server must not leave
+	// a token/port behind after shutdown.
+	if err := endpoint.Remove(s.dataDir); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // EnsureToken loads or creates the 0600 bearer token.
@@ -236,20 +316,22 @@ func (s *Server) Status(ctx context.Context, _ *connect.Request[apiv1.StatusRequ
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	resp := &apiv1.StatusResponse{
-		PeerId:          st.PeerID,
-		NodeId:          st.NodeID,
-		ListenAddrs:     st.ListenAddrs,
-		Version:         st.Version,
-		ProtocolVersion: st.ProtocolVersion,
-		StartedAtUnixMs: st.StartedAt.UnixMilli(),
-		TestApiEnabled:  st.TestAPI,
-		Supervised:      st.Supervised,
-		DataDir:         st.DataDir,
-		GoVersion:       st.GoVersion,
-		AdvertisedAddrs: st.AdvertisedAddrs,
-		Network:         networkStatusToProto(st.Network),
-		ApiVersion:      APIVersion,
-		CurrentTime:     time.Now().UTC().Format(time.RFC3339),
+		PeerId:            st.PeerID,
+		NodeId:            st.NodeID,
+		ListenAddrs:       st.ListenAddrs,
+		Version:           st.Version,
+		ProtocolVersion:   st.ProtocolVersion,
+		StartedAtUnixMs:   st.StartedAt.UnixMilli(),
+		TestApiEnabled:    st.TestAPI,
+		Supervised:        st.Supervised,
+		DataDir:           st.DataDir,
+		GoVersion:         st.GoVersion,
+		AdvertisedAddrs:   st.AdvertisedAddrs,
+		Network:           networkStatusToProto(st.Network),
+		ApiVersion:        APIVersion,
+		CurrentTime:       time.Now().UTC().Format(time.RFC3339),
+		MaxChatTextBytes:  uint32(st.MaxChatTextBytes),
+		MaxStoredMessages: uint32(st.MaxStoredMessages),
 	}
 	for _, p := range st.Peers {
 		resp.Peers = append(resp.Peers, &apiv1.PeerStatus{
@@ -334,7 +416,13 @@ func (s *Server) SendChat(ctx context.Context, req *connect.Request[apiv1.SendCh
 	if req.Msg.GetPeerId() == "" && req.Msg.GetMultiaddr() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("peer_id or multiaddr is required"))
 	}
-	if req.Msg.GetAgentOrigin() {
+	origin, err := sendOrigin(req.Msg.GetOrigin(), req.Msg.GetAgentOrigin())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	// An agent-marked send can never downgrade itself to human to skip the
+	// guard. agent_origin remains the compatibility security switch.
+	if origin == node.OriginAgent {
 		if err := s.agentGuard.check(req.Msg.GetPeerId(), req.Msg.GetMultiaddr(), req.Msg.GetText()); err != nil {
 			s.logger.Warn("agent-origin send blocked",
 				"peer_id", req.Msg.GetPeerId(),
@@ -342,7 +430,7 @@ func (s *Server) SendChat(ctx context.Context, req *connect.Request[apiv1.SendCh
 			return nil, connect.NewError(connect.CodePermissionDenied, err)
 		}
 	}
-	res, err := s.backend.SendChat(ctx, req.Msg.GetPeerId(), req.Msg.GetMultiaddr(), req.Msg.GetText())
+	res, err := s.backend.SendChatOrigin(ctx, req.Msg.GetPeerId(), req.Msg.GetMultiaddr(), req.Msg.GetText(), origin, req.Msg.GetRequestId())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -361,7 +449,28 @@ func (s *Server) SendChat(ctx context.Context, req *connect.Request[apiv1.SendCh
 		Attempts:        dialAttemptsToProto(res.Attempts),
 		Note:            res.Note,
 		OutboxStatus:    res.OutboxStatus,
+		DeliveryStatus:  res.DeliveryStatus,
+		Replayed:        res.Replayed,
+		RequestId:       res.RequestID,
 	}), nil
+}
+
+func sendOrigin(value string, agentOrigin bool) (string, error) {
+	if agentOrigin {
+		return node.OriginAgent, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return node.OriginUnknown, nil
+	case node.OriginHuman:
+		return node.OriginHuman, nil
+	case node.OriginAgent:
+		return node.OriginAgent, nil
+	case node.OriginUnknown:
+		return node.OriginUnknown, nil
+	default:
+		return "", fmt.Errorf("origin must be human, agent or unknown")
+	}
 }
 
 // OutboxList implements the durable outbox listing RPC.
@@ -416,21 +525,122 @@ func (s *Server) RecentMessages(ctx context.Context, req *connect.Request[apiv1.
 	}
 	resp := &apiv1.RecentMessagesResponse{Messages: make([]*apiv1.StoredMessage, 0, len(msgs))}
 	for _, m := range msgs {
-		var ackedAt int64
-		if !m.AckedAt.IsZero() {
-			ackedAt = m.AckedAt.UnixMilli()
-		}
-		resp.Messages = append(resp.Messages, &apiv1.StoredMessage{
-			MessageId:       m.MessageID,
-			PeerId:          m.PeerID,
-			Direction:       m.Direction,
-			Text:            m.Text,
-			Acked:           m.Acked,
-			CreatedAtUnixMs: m.CreatedAt.UnixMilli(),
-			AckedAtUnixMs:   ackedAt,
+		resp.Messages = append(resp.Messages, storedMessageToProto(m))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListMessages implements the stable per-Peer keyset query.
+func (s *Server) ListMessages(ctx context.Context, req *connect.Request[apiv1.ListMessagesRequest]) (*connect.Response[apiv1.ListMessagesResponse], error) {
+	peerID := strings.TrimSpace(req.Msg.GetPeerId())
+	if peerID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("peer_id is required"))
+	}
+	page, err := s.backend.ListMessages(ctx, peerID, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListMessagesResponse{
+		Messages:   make([]*apiv1.StoredMessage, 0, len(page.Messages)),
+		NextBefore: page.NextBefore,
+		HasMore:    page.HasMore,
+		Retention:  retentionToProto(page.Retention),
+	}
+	for _, m := range page.Messages {
+		resp.Messages = append(resp.Messages, storedMessageToProto(m))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListConversations implements the per-Peer conversation summary query.
+func (s *Server) ListConversations(ctx context.Context, req *connect.Request[apiv1.ListConversationsRequest]) (*connect.Response[apiv1.ListConversationsResponse], error) {
+	page, err := s.backend.ListConversations(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListConversationsResponse{
+		Conversations: make([]*apiv1.ConversationSummary, 0, len(page.Conversations)),
+		NextBefore:    page.NextBefore,
+		HasMore:       page.HasMore,
+		Retention:     retentionToProto(page.Retention),
+	}
+	for _, c := range page.Conversations {
+		resp.Conversations = append(resp.Conversations, &apiv1.ConversationSummary{
+			PeerId:         c.PeerID,
+			LastMessageId:  c.LastMessageID,
+			Direction:      c.Direction,
+			Preview:        c.Preview,
+			LastAtUnixMs:   c.LastAt.UnixMilli(),
+			DeliveryStatus: c.DeliveryStatus,
+			Origin:         c.Origin,
+			MessageCount:   uint32(c.MessageCount),
 		})
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// ListHumanOutboundPeers exposes the durable stage-6 relation.
+func (s *Server) ListHumanOutboundPeers(ctx context.Context, req *connect.Request[apiv1.ListHumanOutboundPeersRequest]) (*connect.Response[apiv1.ListHumanOutboundPeersResponse], error) {
+	page, err := s.backend.ListHumanOutboundPeers(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListHumanOutboundPeersResponse{
+		Peers:      make([]*apiv1.HumanOutboundPeer, 0, len(page.Peers)),
+		NextBefore: page.NextBefore,
+		HasMore:    page.HasMore,
+	}
+	for _, p := range page.Peers {
+		resp.Peers = append(resp.Peers, &apiv1.HumanOutboundPeer{
+			PeerId:        p.PeerID,
+			FirstAtUnixMs: p.FirstAt.UnixMilli(),
+			LastAtUnixMs:  p.LastAt.UnixMilli(),
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func pageErrorCode(err error) connect.Code {
+	if errors.Is(err, node.ErrInvalidCursor) {
+		return connect.CodeInvalidArgument
+	}
+	return connect.CodeInternal
+}
+
+func retentionToProto(r node.MessageRetention) *apiv1.MessageRetention {
+	var oldest int64
+	if !r.OldestAt.IsZero() {
+		oldest = r.OldestAt.UnixMilli()
+	}
+	return &apiv1.MessageRetention{
+		RetainedMessages:       uint32(r.RetainedMessages),
+		OldestRetainedAtUnixMs: oldest,
+		MaxStoredMessages:      uint32(r.MaxMessages),
+	}
+}
+
+func storedMessageToProto(m node.StoredMessage) *apiv1.StoredMessage {
+	var ackedAt, deliveryUpdated int64
+	if !m.AckedAt.IsZero() {
+		ackedAt = m.AckedAt.UnixMilli()
+	}
+	if !m.DeliveryUpdatedAt.IsZero() {
+		deliveryUpdated = m.DeliveryUpdatedAt.UnixMilli()
+	}
+	return &apiv1.StoredMessage{
+		MessageId:               m.MessageID,
+		PeerId:                  m.PeerID,
+		Direction:               m.Direction,
+		Text:                    m.Text,
+		Acked:                   m.Acked,
+		CreatedAtUnixMs:         m.CreatedAt.UnixMilli(),
+		AckedAtUnixMs:           ackedAt,
+		DeliveryStatus:          m.DeliveryStatus,
+		DeliveryError:           m.DeliveryError,
+		Origin:                  m.Origin,
+		DeliveryUpdatedAtUnixMs: deliveryUpdated,
+		ClientRequestId:         m.ClientRequestID,
+	}
 }
 
 // eventHeartbeatInterval is short enough to keep a quiet stream healthy and
@@ -534,7 +744,10 @@ func (s *Server) ListFriends(ctx context.Context, _ *connect.Request[apiv1.ListF
 
 // SetFriendName implements the SetFriendName RPC.
 func (s *Server) SetFriendName(ctx context.Context, req *connect.Request[apiv1.SetFriendNameRequest]) (*connect.Response[apiv1.SetFriendNameResponse], error) {
-	f, err := s.backend.SetFriendName(ctx, req.Msg.GetPeerId(), req.Msg.GetName())
+	if req.Msg.Name == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required; omit the field only when no edit is intended, or send an explicit empty string to clear it"))
+	}
+	f, err := s.backend.SetFriendName(ctx, req.Msg.GetPeerId(), *req.Msg.Name)
 	if err != nil {
 		return nil, friendConnectError(err)
 	}
@@ -543,7 +756,10 @@ func (s *Server) SetFriendName(ctx context.Context, req *connect.Request[apiv1.S
 
 // SetFriendDescription implements the SetFriendDescription RPC.
 func (s *Server) SetFriendDescription(ctx context.Context, req *connect.Request[apiv1.SetFriendDescriptionRequest]) (*connect.Response[apiv1.SetFriendDescriptionResponse], error) {
-	f, err := s.backend.SetFriendDescription(ctx, req.Msg.GetPeerId(), req.Msg.GetDescription())
+	if req.Msg.Description == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("description is required; omit the field only when no edit is intended, or send an explicit empty string to clear it"))
+	}
+	f, err := s.backend.SetFriendDescription(ctx, req.Msg.GetPeerId(), *req.Msg.Description)
 	if err != nil {
 		return nil, friendConnectError(err)
 	}
@@ -591,6 +807,33 @@ func (s *Server) Published(ctx context.Context, _ *connect.Request[apiv1.Publish
 	return connect.NewResponse(resp), nil
 }
 
+// ListDiscoveries returns the local, private acquisition index. Rows exist
+// only after an Agent tool successfully fetched a manifest file with evidence
+// recording requested.
+func (s *Server) ListDiscoveries(ctx context.Context, req *connect.Request[apiv1.ListDiscoveriesRequest]) (*connect.Response[apiv1.ListDiscoveriesResponse], error) {
+	page, err := s.backend.ListDiscoveries(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()), req.Msg.GetFamiliarOnly())
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListDiscoveriesResponse{
+		Discoveries: make([]*apiv1.Discovery, 0, len(page.Discoveries)),
+		NextBefore:  page.NextBefore,
+		HasMore:     page.HasMore,
+	}
+	for _, d := range page.Discoveries {
+		resp.Discoveries = append(resp.Discoveries, &apiv1.Discovery{
+			Id:              strconv.FormatInt(d.ID, 10),
+			PeerId:          d.PeerID,
+			Path:            d.Path,
+			Sha256:          d.SHA256,
+			SizeBytes:       d.SizeBytes,
+			FetchedAtUnixMs: d.FetchedAt.UnixMilli(),
+			Source:          d.Source,
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (s *Server) GetPeerManifest(ctx context.Context, req *connect.Request[apiv1.GetPeerManifestRequest]) (*connect.Response[apiv1.GetPeerManifestResponse], error) {
 	page, err := s.backend.GetPeerManifest(ctx, req.Msg.GetPeerId(), int(req.Msg.GetOffset()), int(req.Msg.GetLimit()))
 	if err != nil {
@@ -634,13 +877,21 @@ func (s *Server) DownloadPeerFile(ctx context.Context, req *connect.Request[apiv
 		defer close(done)
 		result, downloadErr = s.backend.DownloadPeerFile(ctx, req.Msg.GetPeerId(), req.Msg.GetPath(), func(p node.DownloadProgress) {
 			_ = stream.Send(&apiv1.DownloadPeerFileResponse{Phase: p.Phase, Path: p.Path, ReceivedBytes: p.Received, TotalBytes: p.Total, Direct: p.Direct})
+		}, node.DownloadOptions{
+			RecordDiscovery: req.Msg.GetRecordDiscovery(),
+			DiscoverySource: req.Msg.GetDiscoverySource(),
 		})
 	}()
 	<-done
 	if downloadErr != nil {
 		return connect.NewError(connect.CodeUnavailable, downloadErr)
 	}
-	return stream.Send(&apiv1.DownloadPeerFileResponse{Phase: "complete", Path: result.Path, ReceivedBytes: result.Size, TotalBytes: result.Size, LocalPath: result.LocalPath, Sha256: result.SHA256, Direct: result.Direct})
+	return stream.Send(&apiv1.DownloadPeerFileResponse{
+		Phase: "complete", Path: result.Path, ReceivedBytes: result.Size, TotalBytes: result.Size,
+		LocalPath: result.LocalPath, Sha256: result.SHA256, Direct: result.Direct,
+		DiscoveryId: result.DiscoveryID, DiscoveryRecorded: result.DiscoveryRecorded,
+		DiscoveryError: result.DiscoveryError,
+	})
 }
 
 // ConnectListedPeer implements the ConnectListedPeer RPC.

@@ -15,34 +15,42 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
 	"github.com/Raminga/raminga/gen/raminga/api/v1/apiv1connect"
 	"github.com/Raminga/raminga/internal/api"
 	"github.com/Raminga/raminga/internal/api/client"
+	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/node"
 )
 
 type fakeBackend struct {
-	chatCh        chan node.Event
-	disconnected  []string
-	paused        []string
-	friends       []node.Friend
-	removePending int
-	sendCalls     int
+	chatCh         chan node.Event
+	lastOrigin     string
+	lastRequestID  string
+	disconnected   []string
+	paused         []string
+	friends        []node.Friend
+	removePending  int
+	sendCalls      int
+	discoveryPage  node.PublicDiscoveryPage
+	downloadOption node.DownloadOptions
 }
 
 func (f *fakeBackend) Status(context.Context) (node.Status, error) {
 	return node.Status{
-		PeerID:          "12D3KooWFake",
-		NodeID:          "node_fake",
-		ListenAddrs:     []string{"/ip4/127.0.0.1/tcp/1"},
-		Version:         "test",
-		ProtocolVersion: "/raminga/http/1.0.0",
-		StartedAt:       time.UnixMilli(1000),
-		DataDir:         "/tmp/fake",
-		GoVersion:       "go-test",
+		PeerID:            "12D3KooWFake",
+		NodeID:            "node_fake",
+		ListenAddrs:       []string{"/ip4/127.0.0.1/tcp/1"},
+		Version:           "test",
+		ProtocolVersion:   "/raminga/http/1.0.0",
+		StartedAt:         time.UnixMilli(1000),
+		DataDir:           "/tmp/fake",
+		GoVersion:         "go-test",
+		MaxChatTextBytes:  4096,
+		MaxStoredMessages: 50000,
 	}, nil
 }
 
@@ -50,13 +58,37 @@ func (f *fakeBackend) Connect(context.Context, string, string) (node.ConnectResu
 	return node.ConnectResult{PeerID: "peer-b", Transport: "tcp", Direct: true}, nil
 }
 
-func (f *fakeBackend) SendChat(_ context.Context, _, _, _ string) (node.SendResult, error) {
+func (f *fakeBackend) SendChatOrigin(_ context.Context, _, _, _, origin, requestID string) (node.SendResult, error) {
 	f.sendCalls++
-	return node.SendResult{MessageID: "m1", Acked: true, AckMessageID: "m1", ACKID: "a1", Error: ""}, nil
+	f.lastOrigin = origin
+	f.lastRequestID = requestID
+	return node.SendResult{
+		MessageID: "m1", Acked: true, AckMessageID: "m1", ACKID: "a1", Error: "",
+		DeliveryStatus: node.DeliveryAcked, OutboxStatus: node.DeliveryAcked, RequestID: requestID,
+	}, nil
 }
 
 func (f *fakeBackend) RecentMessages(context.Context, int) ([]node.StoredMessage, error) {
-	return []node.StoredMessage{{MessageID: "m1", PeerID: "peer-b", Direction: "out", Text: "hi", Acked: true}}, nil
+	return []node.StoredMessage{{MessageID: "m1", PeerID: "peer-b", Direction: "out", Text: "hi", Acked: true, DeliveryStatus: node.DeliveryAcked}}, nil
+}
+
+func (f *fakeBackend) ListMessages(_ context.Context, peerID, _ string, _ int) (node.MessagePage, error) {
+	return node.MessagePage{
+		Messages:  []node.StoredMessage{{MessageID: "m1", PeerID: peerID, Direction: "out", Text: "hi", Acked: true, DeliveryStatus: node.DeliveryAcked}},
+		Retention: node.MessageRetention{RetainedMessages: 1, MaxMessages: 10},
+		HasMore:   true, NextBefore: "cursor-next",
+	}, nil
+}
+
+func (f *fakeBackend) ListConversations(context.Context, string, int) (node.ConversationPage, error) {
+	return node.ConversationPage{
+		Conversations: []node.Conversation{{PeerID: "peer-b", LastMessageID: "m1", Direction: "out", Preview: "hi", DeliveryStatus: node.DeliveryAcked, MessageCount: 1}},
+		Retention:     node.MessageRetention{RetainedMessages: 1, MaxMessages: 10},
+	}, nil
+}
+
+func (f *fakeBackend) ListHumanOutboundPeers(context.Context, string, int) (node.HumanOutboundPage, error) {
+	return node.HumanOutboundPage{Peers: []node.HumanOutboundPeer{{PeerID: "peer-b"}}}, nil
 }
 
 func (f *fakeBackend) Outbox(context.Context, int) ([]node.OutboxEntry, node.OutboxStats, error) {
@@ -242,6 +274,81 @@ func TestFriendsAPI(t *testing.T) {
 	if err != nil || !rem.GetRemoved() {
 		t.Fatalf("remove=%v err=%v", rem, err)
 	}
+}
+
+func friendWireBody(peerID string, field protowire.Number, value string, present bool) []byte {
+	var body []byte
+	body = protowire.AppendTag(body, 1, protowire.BytesType)
+	body = protowire.AppendString(body, peerID)
+	if present {
+		body = protowire.AppendTag(body, field, protowire.BytesType)
+		body = protowire.AppendString(body, value)
+	}
+	return body
+}
+
+// TestFriendEditPresenceSemantics pins the release-blocker contract: a missing
+// optional field is InvalidArgument and never mutates, while a present empty
+// field clears and old non-empty wire clients keep their field numbers.
+func TestFriendEditPresenceSemantics(t *testing.T) {
+	ts := startTCPTestServer(t)
+	doc, found, err := endpoint.ReadIfPresent(ts.dir)
+	if err != nil || !found {
+		t.Fatalf("read endpoint found=%v err=%v", found, err)
+	}
+	ts.backend.friends = []node.Friend{{PeerID: "peer-b", Name: "alice", Description: "note"}}
+	post := func(procedure string, body []byte) (int, string) {
+		t.Helper()
+		return rawTCPPost(t, doc, procedure, "application/proto", string(body))
+	}
+	unchanged := func(label, wantName, wantDescription string) {
+		t.Helper()
+		if len(ts.backend.friends) != 1 || ts.backend.friends[0].Name != wantName || ts.backend.friends[0].Description != wantDescription {
+			t.Fatalf("%s mutated friend: %+v", label, ts.backend.friends)
+		}
+	}
+
+	// Omitted name (only field 1 on the wire) is not a deletion request.
+	if code, body := post(apiv1connect.RamingaServiceSetFriendNameProcedure, friendWireBody("peer-b", 2, "", false)); code != http.StatusBadRequest {
+		t.Fatalf("omitted name status=%d body=%s, want 400", code, body)
+	}
+	unchanged("omitted name", "alice", "note")
+	if code, body := post(apiv1connect.RamingaServiceSetFriendDescriptionProcedure, friendWireBody("peer-b", 2, "", false)); code != http.StatusBadRequest {
+		t.Fatalf("omitted description status=%d body=%s, want 400", code, body)
+	}
+	unchanged("omitted description", "alice", "note")
+
+	// Explicit empty names clear only the named field.
+	if code, body := post(apiv1connect.RamingaServiceSetFriendNameProcedure, friendWireBody("peer-b", 2, "", true)); code != http.StatusOK {
+		t.Fatalf("explicit empty name status=%d body=%s, want 200", code, body)
+	}
+	unchanged("explicit empty name", "", "note")
+	if code, body := post(apiv1connect.RamingaServiceSetFriendDescriptionProcedure, friendWireBody("peer-b", 2, "", true)); code != http.StatusOK {
+		t.Fatalf("explicit empty description status=%d body=%s, want 200", code, body)
+	}
+	unchanged("explicit empty description", "", "")
+
+	// An old non-empty wire client uses exactly field 2 as a length-delimited
+	// string; that shape must remain valid and must not clear the other field.
+	if code, body := post(apiv1connect.RamingaServiceSetFriendNameProcedure, friendWireBody("peer-b", 2, "legacy", true)); code != http.StatusOK {
+		t.Fatalf("old nonempty name status=%d body=%s, want 200", code, body)
+	}
+	unchanged("old nonempty name", "legacy", "")
+	if code, body := post(apiv1connect.RamingaServiceSetFriendDescriptionProcedure, friendWireBody("peer-b", 2, "old note", true)); code != http.StatusOK {
+		t.Fatalf("old nonempty description status=%d body=%s, want 200", code, body)
+	}
+	unchanged("old nonempty description", "legacy", "old note")
+
+	// JSON clients use the proto3 optional JSON name without presence; omission
+	// must fail the same way as binary omission.
+	if code, body := rawTCPPost(t, doc, apiv1connect.RamingaServiceSetFriendNameProcedure, "application/json", `{"peerId":"peer-b"}`); code != http.StatusBadRequest {
+		t.Fatalf("JSON omitted name status=%d body=%s, want 400", code, body)
+	}
+	unchanged("JSON omitted name", "legacy", "old note")
+	if code, body := rawTCPPost(t, doc, apiv1connect.RamingaServiceSetFriendNameProcedure, "application/json", `{"peerId":"peer-b","name":""}`); code != http.StatusOK {
+		t.Fatalf("JSON explicit empty name status=%d body=%s, want 200", code, body)
+	}
+	unchanged("JSON explicit empty name", "", "old note")
 }
 
 func TestRemoveFriendPendingOutboxAPI(t *testing.T) {
@@ -553,11 +660,19 @@ func (f *fakeBackend) GetPeerProfile(context.Context, string) (node.PeerProfile,
 func (f *fakeBackend) GetPeerFriends(context.Context, string) (node.PeerFriends, error) {
 	return node.PeerFriends{PeerID: "peer-b"}, nil
 }
-func (f *fakeBackend) DownloadPeerFile(_ context.Context, _ string, _ string, progress func(node.DownloadProgress)) (node.DownloadResult, error) {
+func (f *fakeBackend) ListDiscoveries(context.Context, string, int, bool) (node.PublicDiscoveryPage, error) {
+	return f.discoveryPage, nil
+}
+
+func (f *fakeBackend) DownloadPeerFile(_ context.Context, _ string, _ string, progress func(node.DownloadProgress), options node.DownloadOptions) (node.DownloadResult, error) {
+	f.downloadOption = options
 	if progress != nil {
 		progress(node.DownloadProgress{Phase: "download", Received: 1, Total: 1})
 	}
-	return node.DownloadResult{PeerID: "peer-b", Path: "a", LocalPath: "/tmp/a", Size: 1}, nil
+	return node.DownloadResult{
+		PeerID: "peer-b", Path: "a", LocalPath: "/tmp/a", Size: 1, SHA256: "aa",
+		DiscoveryID: 7, DiscoveryRecorded: options.RecordDiscovery,
+	}, nil
 }
 func (f *fakeBackend) ConnectListedPeer(context.Context, string, []string) (node.ConnectResult, error) {
 	return node.ConnectResult{PeerID: "peer-b"}, nil
