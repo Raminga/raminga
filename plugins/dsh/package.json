@@ -89,7 +89,8 @@
     "gen": "buf generate --template buf.gen.ts.yaml",
     "test": "node --test test/framing.test.mjs test/agent-init.test.mjs test/generated.test.mjs test/untrusted.test.mjs test/config.test.mjs test/tcp-endpoint.test.mjs test/ui-messaging.test.mjs test/ui-contract.test.mjs test/panel-runtime.test.mjs test/ui-bridge.test.mjs test/ui-contacts.test.mjs test/client-errors.test.mjs test/local-data.test.mjs test/ui-stage6.test.mjs",
     "build:ui": "node scripts/build-ui-client.mjs",
-    "test:integration": "node --test test/bridge.integration.test.mjs test/dial-failure.integration.test.mjs test/ui-messaging.integration.test.mjs"
+    "test:integration": "node --test test/bridge.integration.test.mjs test/dial-failure.integration.test.mjs test/ui-messaging.integration.test.mjs",
+    "test:windows": "node --test test/windows-api.integration.test.mjs"
   },
   "type": "module",
   "version": "0.1.0-rc.2"

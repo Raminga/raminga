@@ -135,6 +135,7 @@ func newRootCmd() *cobra.Command {
 		newTUICmd(),
 		newReportCmd(),
 		newMCPCmd(),
+		newInternalAPIEndpointCmd(),
 	)
 	return root
 }

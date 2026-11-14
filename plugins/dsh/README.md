@@ -33,27 +33,38 @@ a diagnostic when it cannot start the daemon. The node data directory is
 
 ## Local API transport
 
-The default remains the Unix socket `<data-dir>/api.sock` with
-`<data-dir>/api.token` (0600). For environments that need a loopback TCP
-control channel (for example a host that cannot map the Unix socket), opt in
-explicitly:
+On macOS/Linux the default remains the Unix socket `<data-dir>/api.sock` with
+`<data-dir>/api.token` (0600). On Windows the default is the loopback TCP
+transport, because Node's `socketPath` maps to a named pipe rather than the
+daemon's AF_UNIX socket. Set `apiTcp` explicitly to override the platform
+default:
 
 ```jsonc
 // DSH plugin config
-{ "apiTcp": true }
+{ "apiTcp": true }   // force TCP
+{ "apiTcp": false }  // Unix path unless the env opts in (macOS/Linux)
 ```
 
-or set `RAMINGA_API_TCP=1` before auto-start. The daemon then serves only
-literal `127.0.0.1` on an ephemeral port, with a per-run bearer token and a
-per-run self-signed certificate pinned by SHA-256. Discovery lives in
-`<data-dir>/api.endpoint.json` (0600, atomically written under the daemon data
-directory lock and removed on stop). The plugin re-reads the endpoint and
-reconnects after a daemon restart; a stale/unreachable endpoint is a clear
-error and **never** falls back to the Unix socket. Hostname/chain verification
-stays enabled, the per-run certificate is pinned, and no environment proxy is
-used. The token and endpoint stay in the Host process: they are not sent to
-the renderer, logged, or included in tool output. Restarting the daemon
-rotates the port, token and certificate.
+`RAMINGA_API_TCP=1` / `RAMINGA_API_TCP=0` is the environment equivalent. On
+Windows an explicit config value wins over the environment and the platform
+default, so `apiTcp: false` is never silently upgraded to TCP. On macOS/Linux
+TCP is enabled by `apiTcp: true` **or** a truthy `RAMINGA_API_TCP`, preserving
+the original opt-in behavior (`apiTcp: false` does not suppress an explicit
+environment opt-in there). The TCP mode serves only literal `127.0.0.1` on an
+ephemeral port, with a per-run bearer token and per-run self-signed certificate
+pinned by SHA-256. Discovery lives in
+`<data-dir>/api.endpoint.json`, atomically written under the daemon data
+directory lock and removed on stop. On Windows the file is created with a
+protected DACL for the current user SID; Node does not open it by pathname but
+asks the local `raminga` binary to validate the owner/DACL/type and read it
+through one handle, then receives the document over a private stdout pipe. The
+plugin re-reads and revalidates the endpoint on each client refresh and
+reconnects after a daemon restart; a stale/unreachable or widened-ACL endpoint
+is a clear error and **never** falls back to the Unix socket. Hostname/chain
+verification stays enabled, the per-run certificate is pinned, and no
+environment proxy is used. The token and endpoint stay in the Host process:
+they are not sent to the renderer, logged, put on a command line, or included
+in tool output. Restarting the daemon rotates the port, token and certificate.
 
 ## Native main workspace
 

@@ -18,12 +18,31 @@ export class RamingaApi {
         this.config = config;
     }
     selectEndpoint() {
-        const endpoint = readTcpEndpoint(this.config.dataDir);
+        const endpoint = readTcpEndpoint(this.config.dataDir, this.config.endpointPath, {
+            ramingaBin: this.config.ramingaBin,
+            platform: this.config.platform,
+        });
         if (endpoint === null && this.config.apiTcp) {
             throw new Error('Raminga loopback TCP API was explicitly enabled, but no protected endpoint is available; ' +
                 'the plugin does not fall back to the Unix socket.');
         }
         return endpoint;
+    }
+    /**
+     * On Windows an explicit false is honored, not overridden. It rejects the
+     * loopback TCP API even when a protected endpoint still describes a live
+     * daemon, and no transport is started. Node's socketPath is a named pipe
+     * there, so the DSH client has no usable Unix transport either.
+     */
+    assertWindowsTransport() {
+        if (this.config.platform !== 'win32' || this.config.apiTcp)
+            return;
+        throw new Error('Raminga apiTcp is false on Windows; the DSH client will not connect to the loopback TCP API ' +
+            '(even if an endpoint already exists) and will not start a daemon. ' +
+            'This can come from an existing plugin profile that persisted the old default. ' +
+            'The DSH client cannot use the daemon AF_UNIX socket (Node maps that path to a named pipe). ' +
+            'Set apiTcp to true or remove the key to use the Windows default, then restart the daemon with ' +
+            'the loopback TCP local API. The plugin did not silently enable TCP.');
     }
     buildClient() {
         const endpoint = this.selectEndpoint();
@@ -57,6 +76,10 @@ export class RamingaApi {
     }
     /** True only when the daemon answers a Status call. Never starts one. */
     async probeStatus() {
+        // The transport switch is authoritative. Do not let a leftover HTTPS
+        // descriptor make a Windows false configuration probe or connect.
+        if (this.config.platform === 'win32' && !this.config.apiTcp)
+            return false;
         try {
             const built = this.buildClient();
             const res = await built.client.status(new StatusRequest(), { timeoutMs: 1500 });
@@ -68,6 +91,7 @@ export class RamingaApi {
         }
     }
     async ensure() {
+        this.assertWindowsTransport();
         // Auto-start only before the first successful client build. After a panel
         // has been opened, a stopped/restarted daemon must remain visibly down
         // until an external restart or a later retry succeeds; a read must not

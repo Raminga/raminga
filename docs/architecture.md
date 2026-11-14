@@ -90,7 +90,7 @@ npm/                    planned per-platform binary npm packages
   raminga.db      SQLite business data + bootstrap/known peers/pinned relays/peer names
   config.toml     configuration
   api.sock        local API Unix socket (default)
-  api.endpoint.json optional 127.0.0.1 TLS endpoint/token (0600, opt-in)
+  api.endpoint.json optional 127.0.0.1 TLS endpoint/token (0600 on Unix; protected current-user DACL on Windows, opt-in)
   api.token       local API token (0600)
 ```
 

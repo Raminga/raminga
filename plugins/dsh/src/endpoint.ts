@@ -1,5 +1,12 @@
 // Protected discovery document for the optional loopback-TCP local API.
 // This stays entirely host-side: the token never enters the renderer or logs.
+//
+// On Windows the Node client never opens api.endpoint.json by pathname. It
+// asks the local Raminga binary (the same Go implementation used by the CLI)
+// to validate the owner/DACL/type and read the file through one handle, then
+// receives the document over a private stdout pipe. Go is the ACL authority;
+// Node only revalidates the document's transport contract and certificate.
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { X509Certificate } from 'node:crypto';
@@ -8,6 +15,9 @@ import type { ConnectionOptions } from 'node:tls';
 import { ENDPOINT_FILE } from './config.js';
 
 const MAX_ENDPOINT_BYTES = 64 << 10;
+const WINDOWS_READ_TIMEOUT_MS = 5_000;
+const WINDOWS_READ_MAX_BUFFER = 256 << 10;
+const WINDOWS_INTERNAL_COMMAND = 'internal-api-endpoint';
 
 export interface TcpEndpoint {
   address: string;
@@ -21,27 +31,18 @@ export interface TcpEndpoint {
   startedAtUnixMs: number;
 }
 
+export interface ReadEndpointOptions {
+  /** Binary used for the Windows host-private read. Defaults to RAMINGA_BIN/PATH. */
+  ramingaBin?: string;
+  /** Test seam; production uses process.platform. */
+  platform?: NodeJS.Platform;
+}
+
 export function normalizeFingerprint(value: string): string {
   return String(value ?? '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
 }
 
-function windowsEndpointGuard(endpointPath: string): null {
-  let fd: number;
-  try {
-    fd = fs.openSync(endpointPath, fs.constants.O_RDONLY);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw new Error('Raminga TCP endpoint cannot be inspected safely on Windows');
-  }
-  try {
-    throw new Error('Raminga TCP endpoint is not supported on Windows');
-  } finally {
-    fs.closeSync(fd);
-  }
-}
-
 function readEndpointFile(endpointPath: string): string | null {
-  if (process.platform === 'win32') return windowsEndpointGuard(endpointPath);
   if (typeof fs.constants.O_NOFOLLOW !== 'number') {
     throw new Error('Raminga TCP endpoint cannot be read safely on this platform');
   }
@@ -66,7 +67,9 @@ function readEndpointFile(endpointPath: string): string | null {
       throw new Error('Raminga TCP endpoint is not a regular file');
     }
     if ((info.mode & 0o077) !== 0) {
-      throw new Error(`Raminga TCP endpoint permissions ${(info.mode & 0o777).toString(8)} expose secrets; want 0600`);
+      throw new Error(
+        `Raminga TCP endpoint permissions ${(info.mode & 0o777).toString(8)} expose secrets; want 0600`,
+      );
     }
     if (info.size > MAX_ENDPOINT_BYTES) throw new Error('Raminga TCP endpoint is too large');
     const buffer = Buffer.allocUnsafe(MAX_ENDPOINT_BYTES + 1);
@@ -83,18 +86,107 @@ function readEndpointFile(endpointPath: string): string | null {
   }
 }
 
+function windowsBinary(options: ReadEndpointOptions): string {
+  return options.ramingaBin || process.env.RAMINGA_BIN || 'raminga';
+}
+
+function oldBinaryError(binary: string): Error {
+  return new Error(
+    `Raminga binary "${binary}" is too old to read the Windows-protected local API endpoint. ` +
+      'Upgrade or reinstall raminga, then retry. The endpoint was not read by this plugin.',
+  );
+}
+
+/**
+ * Read the endpoint through the local Go binary on Windows. The child receives
+ * only --data-dir (never the token), writes the token-bearing document to a
+ * private stdout pipe, and is never asked to print anything else. We never
+ * include the child's stdout in an error or log.
+ */
+function readWindowsEndpointDocument(
+  dataDir: string,
+  endpointPath: string,
+  options: ReadEndpointOptions,
+): unknown | null {
+  const expectedPath = path.join(dataDir, ENDPOINT_FILE);
+  if (path.resolve(endpointPath) !== path.resolve(expectedPath)) {
+    throw new Error('Raminga TCP endpoint path differs from the protected data-directory path');
+  }
+  const binary = windowsBinary(options);
+  const result = spawnSync(binary, [WINDOWS_INTERNAL_COMMAND, '--data-dir', dataDir], {
+    encoding: 'utf8',
+    timeout: WINDOWS_READ_TIMEOUT_MS,
+    maxBuffer: WINDOWS_READ_MAX_BUFFER,
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.error) {
+    const code = (result.error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      throw new Error(
+        `cannot run the Raminga binary "${binary}" to read the Windows-protected endpoint; ` +
+          'set ramingaBin or install raminga.',
+      );
+    }
+    if (code === 'ETIMEDOUT') {
+      throw new Error('the Raminga binary timed out while reading the Windows-protected endpoint');
+    }
+    throw new Error(`the Raminga binary could not read the Windows-protected endpoint: ${result.error.message}`);
+  }
+  const stderr = typeof result.stderr === 'string' ? result.stderr : '';
+  if (result.status !== 0) {
+    if (/unknown command|unknown flag|flag provided but not defined/i.test(stderr)) {
+      throw oldBinaryError(binary);
+    }
+    const localApiMessage = /raminga:\s*(local API endpoint:.*)$/im.exec(stderr)?.[1]?.trim();
+    if (localApiMessage) {
+      throw new Error(`Raminga TCP endpoint rejected by the Windows ACL reader: ${localApiMessage}`);
+    }
+    throw new Error(
+      `the Raminga binary could not read the Windows-protected endpoint (exit ${String(result.status)}); ` +
+        'the endpoint was not opened by this plugin.',
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(result.stdout ?? ''));
+  } catch {
+    throw new Error('the Raminga binary returned an invalid private endpoint response');
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('the Raminga binary returned an invalid private endpoint response');
+  }
+  const envelope = parsed as Record<string, unknown>;
+  if (typeof envelope.found !== 'boolean') {
+    throw new Error('the Raminga binary returned an invalid private endpoint response');
+  }
+  if (!envelope.found) return null;
+  if (envelope.document === null || typeof envelope.document !== 'object' || Array.isArray(envelope.document)) {
+    throw new Error('the Raminga binary returned an invalid private endpoint document');
+  }
+  return envelope.document;
+}
+
 /** Read and validate the endpoint, or return null when it does not exist. */
 export function readTcpEndpoint(
   dataDir: string,
   endpointPath: string = path.join(dataDir, ENDPOINT_FILE),
+  options: ReadEndpointOptions = {},
 ): TcpEndpoint | null {
-  const raw = readEndpointFile(endpointPath);
-  if (raw === null) return null;
+  const platform = options.platform ?? process.platform;
   let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    throw new Error('Raminga TCP endpoint is not valid JSON');
+  if (platform === 'win32') {
+    const document = readWindowsEndpointDocument(dataDir, endpointPath, options);
+    if (document === null) return null;
+    parsed = document as Record<string, unknown>;
+  } else {
+    const raw = readEndpointFile(endpointPath);
+    if (raw === null) return null;
+    try {
+      parsed = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      throw new Error('Raminga TCP endpoint is not valid JSON');
+    }
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Raminga TCP endpoint has an unsupported version or transport');

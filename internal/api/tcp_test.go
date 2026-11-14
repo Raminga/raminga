@@ -261,9 +261,20 @@ func TestEndpointFileRejectsGroupReadableSecret(t *testing.T) {
 		defer cancel()
 		_ = ts.Close(ctx)
 	}()
+	c, err := client.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if _, err := c.Status(context.Background()); err != nil {
+		t.Fatalf("initial status: %v", err)
+	}
 	path := filepath.Clean(endpoint.Path(dir))
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := c.Status(context.Background()); err == nil || !strings.Contains(err.Error(), "permissions") {
+		t.Fatalf("cached client did not reject group-readable endpoint: %v", err)
 	}
 	if _, err := client.New(dir); err == nil || !strings.Contains(err.Error(), "permissions") {
 		t.Fatalf("group-readable endpoint error = %v", err)

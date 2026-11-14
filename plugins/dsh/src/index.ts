@@ -30,13 +30,13 @@ export const Config = Schema.object({
   dataDir: Schema.string()
     .default('')
     .description('Absolute Raminga data directory; empty means $RAMINGA_DATA_DIR, else ~/.raminga.'),
-  apiTcp: Schema.boolean()
-    .default(false)
-    .description(
-      'Opt in to the authenticated local API on an ephemeral 127.0.0.1 TCP listener ' +
-        'with a per-run token and pinned TLS certificate. Default false keeps the Unix socket. ' +
-        'There is no automatic fallback between transports.',
-    ),
+  apiTcp: Schema.boolean().description(
+    'Use the authenticated local API on an ephemeral 127.0.0.1 TCP listener ' +
+      'with a per-run token and pinned TLS certificate. Defaults to true on Windows ' +
+      'and false on macOS/Linux. On Windows an explicit false wins over the environment; ' +
+      'on macOS/Linux TCP is enabled by apiTcp true or a truthy RAMINGA_API_TCP. ' +
+      'There is no automatic fallback between transports.',
+  ),
   ramingaBin: Schema.string()
     .default('')
     .description(
