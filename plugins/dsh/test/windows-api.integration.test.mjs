@@ -32,25 +32,104 @@ delete process.env.RAMINGA_DATA_DIR;
 
 const testTimeout = 240_000;
 
-function cli(args, timeout = 30_000) {
+function cli(args, timeout = 30_000, env = process.env) {
   return spawnSync(exe, args, {
     encoding: 'utf8',
     timeout,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env,
   });
+}
+
+function unixEnv() {
+  return { ...process.env, RAMINGA_API_TCP: '0' };
 }
 
 // DSH apiTcp:false must not start either transport. Start the Unix daemon
 // directly through the CLI here, with the environment opt-in explicitly off.
+// Windows AF_UNIX sockets are NTFS reparse points: Node's stat/existsSync
+// cannot follow them, so the socket file is not a readiness signal. Only the
+// Go CLI can say whether the daemon is actually serving. Keep the detached
+// child's stderr in a file so a startup failure is diagnosable.
 function startUnixDaemon(dir) {
-  const child = spawn(exe, ['daemon', '--data-dir', dir], {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true,
-    env: { ...process.env, RAMINGA_API_TCP: '0' },
+  const logPath = path.join(dir, 'unix-daemon.log');
+  const logFd = fs.openSync(logPath, 'a', 0o600);
+  const state = { logPath, child: null, exit: null, error: null };
+  try {
+    state.child = spawn(exe, ['daemon', '--data-dir', dir], {
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+      windowsHide: true,
+      env: unixEnv(),
+    });
+  } finally {
+    fs.closeSync(logFd);
+  }
+  state.child.on('error', (error) => {
+    state.error = error;
   });
-  child.unref();
+  state.child.on('exit', (code, signal) => {
+    state.exit = { code, signal };
+  });
+  state.child.unref();
+  return state;
+}
+
+function daemonLogTail(logPath, maxBytes = 8192) {
+  try {
+    const info = fs.statSync(logPath);
+    const start = Math.max(0, info.size - maxBytes);
+    const fd = fs.openSync(logPath, 'r');
+    try {
+      const buffer = Buffer.alloc(maxBytes);
+      const read = fs.readSync(fd, buffer, 0, buffer.length, start);
+      return buffer.subarray(0, read).toString('utf8').trim();
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return '';
+  }
+}
+
+function unixDaemonDiagnostic(message, daemon) {
+  const tail = daemonLogTail(daemon.logPath);
+  return `${message}\n--- ${daemon.logPath} ---\n${tail || '(daemon log is empty)'}`;
+}
+
+// Poll the real Go CLI Status instead of the socket pathname. On failure the
+// error includes the daemon's exit status and stderr tail, not just "timeout".
+async function waitForUnixStatus(dir, daemon, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last;
+  for (;;) {
+    last = cli(['status', '--data-dir', dir], 10_000, unixEnv());
+    if (last.status === 0) return last;
+    if (daemon.error) {
+      throw new Error(
+        unixDaemonDiagnostic(`Unix daemon could not be started: ${daemon.error.message}`, daemon),
+      );
+    }
+    if (daemon.exit) {
+      throw new Error(
+        unixDaemonDiagnostic(
+          `Unix daemon exited before Status was ready (exit ${String(daemon.exit.code)}, signal ${String(daemon.exit.signal)})`,
+          daemon,
+        ),
+      );
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        unixDaemonDiagnostic(
+          `timed out waiting for Unix daemon Status after ${timeoutMs / 1000}s ` +
+            `(last status exit ${String(last.status)}; stderr: ${String(last.stderr).trim()})`,
+          daemon,
+        ),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
 }
 
 function initNode(dir) {
@@ -205,8 +284,16 @@ test('Windows default starts TCP; Status, real event and same-client restart rec
 
 test('Windows explicit false starts no daemon and diagnoses an existing Unix daemon', { timeout: testTimeout }, async (t) => {
   const dir = newDataDir(t, 'raminga-win-false-');
+  let unix;
   t.after(() => {
-    if (!stopNode(dir)) killEndpointProcess(dir);
+    // Stop through the real API first; if it never became ready, kill only the
+    // still-running child we started, never a reused PID.
+    if (!stopNode(dir) && unix?.child.exitCode === null && unix.child.pid) {
+      spawnSync('taskkill', ['/PID', String(unix.child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    }
     removeDirs([dir]);
   });
   initNode(dir);
@@ -222,16 +309,17 @@ test('Windows explicit false starts no daemon and diagnoses an existing Unix dae
     /apiTcp is false on Windows/,
     'DSH must not silently enable TCP when apiTcp is false',
   );
-  assert.equal(fs.existsSync(path.join(dir, 'api.sock')), false, 'false must not start Unix');
   assert.equal(fs.existsSync(path.join(dir, 'api.endpoint.json')), false, 'false must not start TCP');
+  const noDaemon = cli(['status', '--data-dir', dir], 15_000, unixEnv());
+  assert.notEqual(noDaemon.status, 0, 'explicit false must not start a Unix daemon');
 
   // Start the UDS daemon directly through the CLI; DSH false is forbidden to
-  // start either transport.
-  startUnixDaemon(dir);
-  await waitFor(() => fs.existsSync(path.join(dir, 'api.sock')), 'Unix daemon socket');
+  // start either transport. Go Status is the readiness proof because Node
+  // cannot stat a Windows AF_UNIX socket file.
+  unix = startUnixDaemon(dir);
+  const goStatus = await waitForUnixStatus(dir, unix);
+  assert.match(goStatus.stdout, /peer_id:/, 'Go CLI Status must describe the Unix daemon');
   assert.equal(fs.existsSync(path.join(dir, 'api.endpoint.json')), false, 'false must not start TCP');
-  const goStatus = cli(['status', '--data-dir', dir], 15_000);
-  assert.equal(goStatus.status, 0, `Go CLI cannot reach the explicit-false daemon: ${goStatus.stderr}`);
 
   // A new default-TCP client pointed at the same data directory must explain
   // that an existing Unix-socket daemon blocks a second daemon, instead of
