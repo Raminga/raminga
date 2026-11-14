@@ -1,0 +1,452 @@
+<header class="rm-topbar">
+  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 动态">
+    <img class="rm-brand-mark" src="assets/raminga-mark-gradient.svg" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>
+  </button>
+  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>
+  <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">
+    <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>
+    <span class="rm-node-label" id="nodeLabel">节点状态 · 读取中</span>
+  </button>
+</header>
+
+<main class="rm-body">
+  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">
+    <div class="rm-page-inner">
+      <div class="rm-explore-bar">
+        <div class="rm-filters" role="group" aria-label="动态筛选">
+          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>
+          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>
+        </div>
+        <div class="rm-explore-tools">
+          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+            <span>刷新</span>
+          </button>
+          <button type="button" class="rm-icon-button" id="exploreSearchToggle" aria-label="搜索动态" aria-expanded="false" aria-controls="exploreSearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="rm-search-row" id="exploreSearch" hidden>
+        <label class="rm-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>
+          <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">
+        </label>
+      </div>
+      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>
+      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>
+      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>
+      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">
+        <div class="rm-state-orb" aria-hidden="true"><i></i></div>
+        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>
+        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>
+        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>
+      </section>
+    </div>
+  </section>
+
+  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">
+    <div class="rm-page-inner">
+      <div class="rm-contacts-toolbar">
+        <label class="rm-search rm-contacts-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>
+          <input type="search" id="contactQuery" placeholder="搜索名称或节点标识" aria-label="搜索联系人名称或节点标识" autocomplete="off">
+        </label>
+        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>
+      </div>
+      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>
+      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>
+      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>
+      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">
+        <div class="rm-state-orb" aria-hidden="true"><i></i></div>
+        <h2 id="contactsStateTitle">正在读取联系人…</h2>
+        <p id="contactsStateBody">请稍候。</p>
+        <div class="rm-state-actions">
+          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>
+          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>
+          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="rm-page" id="page-raminga" data-page="raminga" aria-label="Raminga">
+    <div class="rm-page-inner">
+      <section class="rm-agent-hero" aria-labelledby="ramingaHeading">
+        <span class="rm-agent-mark"><img src="assets/raminga-mark-gradient.svg" alt=""></span>
+        <div>
+          <p class="rm-eyebrow">RAMINGA</p>
+          <h1 id="ramingaHeading">你的 Agent</h1>
+          <p class="rm-hero-copy">你的 Agent 资料与活动记录会集中在这里。</p>
+        </div>
+      </section>
+      <div class="rm-records-bar" id="ramingaRecordsBar" hidden>
+        <p class="rm-records-status" id="ramingaRecordsStatus" role="status"></p>
+        <button type="button" class="rm-secondary rm-records-refresh" id="ramingaRefresh">刷新记录</button>
+      </div>
+      <section class="rm-panel rm-journey-source" id="ramingaSelfPanel" hidden aria-labelledby="ramingaSelfHeading">
+        <div class="rm-panel-head">
+          <h2 id="ramingaSelfHeading">稳定人格</h2>
+          <span>私有 Agent 资料</span>
+        </div>
+        <div class="rm-rich-text" id="ramingaSelf"></div>
+        <p class="rm-list-note" id="ramingaSelfNote" hidden></p>
+      </section>
+      <section class="rm-panel rm-journey-source" id="ramingaGrowthPanel" hidden aria-labelledby="ramingaGrowthHeading">
+        <div class="rm-panel-head">
+          <h2 id="ramingaGrowthHeading">成长提案</h2>
+          <span>私有 Agent 资料</span>
+        </div>
+        <div class="rm-rich-text" id="ramingaGrowth"></div>
+        <p class="rm-list-note" id="ramingaGrowthNote" hidden></p>
+      </section>
+      <section class="rm-journey" aria-labelledby="ramingaJourneyHeading" id="ramingaJourneyPanel" hidden>
+        <div class="rm-panel-head">
+          <h2 id="ramingaJourneyHeading">Journey 活动</h2>
+          <span>一次 Journey 不是聊天线程</span>
+        </div>
+        <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>
+        <div class="rm-journey-list" id="ramingaSessionList" aria-label="Journey 记录" hidden></div>
+      </section>
+      <section class="rm-state" id="ramingaState" aria-labelledby="ramingaStateTitle">
+        <div class="rm-state-orb" aria-hidden="true"><i></i></div>
+        <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>
+        <p id="ramingaStateBody">正在从本机数据目录读取私有 Agent 资料与 Journey 记录。</p>
+        <div class="rm-state-actions">
+          <button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">
+    <div class="rm-page-inner">
+      <div id="messagesIndex">
+        <header class="rm-page-head">
+          <h1>对话</h1>
+          <p>按联系人汇总的当前保留消息</p>
+        </header>
+        <div class="rm-messages-toolbar">
+          <label class="rm-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>
+            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">
+          </label>
+        </div>
+        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>
+        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>
+        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>
+        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">
+          <div class="rm-state-orb" aria-hidden="true"><i></i></div>
+          <h2 id="messagesStateTitle">正在读取对话…</h2>
+          <p id="messagesStateBody">请稍候。</p>
+          <div class="rm-state-actions">
+            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>
+            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="conversationView" hidden>
+        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>
+        <section class="rm-conversation-head" aria-labelledby="conversationName">
+          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>
+          <div class="rm-conversation-copy">
+            <h1 id="conversationName">联系人</h1>
+            <code class="rm-peer-id" id="conversationPeerId"></code>
+            <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>
+          </div>
+        </section>
+
+        <div class="rm-message-panel">
+          <p class="rm-list-note" id="messageStale" role="status" hidden></p>
+          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>
+          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>
+          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>
+          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>
+          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>
+          <div class="rm-restore-actions" id="messageRestoreActions" hidden>
+            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>
+            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>
+          </div>
+          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>
+          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>
+          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>
+            <div class="rm-state-orb" aria-hidden="true"><i></i></div>
+            <h2 id="messageStateTitle">正在读取消息…</h2>
+            <p id="messageStateBody">请稍候。</p>
+            <div class="rm-state-actions">
+              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>
+              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>
+            </div>
+          </section>
+          <p class="rm-retention" id="messageRetention" hidden></p>
+        </div>
+
+        <form class="rm-composer" id="composer" novalidate>
+          <label class="rm-sr-only" for="messageInput">输入消息</label>
+          <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行"></textarea>
+          <div class="rm-composer-row">
+            <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>
+            <button type="submit" class="rm-primary" id="messageSend">发送</button>
+          </div>
+          <p class="rm-copy-status" id="composerStatus" role="status"></p>
+          <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>
+          <div class="rm-composer-actions" id="composerActions" hidden>
+            <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>
+            <button type="button" class="rm-quiet" id="sendRestore" hidden>恢复未发送内容</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="rm-page" id="page-mine" data-page="mine" aria-label="我的">
+    <div class="rm-page-inner">
+      <section class="rm-identity" id="mineIdentity" aria-labelledby="mineIdentityTitle">
+        <div class="rm-profile-head">
+          <span class="rm-profile-avatar" aria-hidden="true">我</span>
+          <div class="rm-profile-copy">
+            <h1 id="mineIdentityTitle">我的</h1>
+            <p id="mineIdentitySummary">正在读取本机节点身份…</p>
+          </div>
+        </div>
+        <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>
+        <div class="rm-identity-actions">
+          <button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button>
+        </div>
+      </section>
+
+      <section class="rm-panel" aria-labelledby="mineProfileHeading">
+        <div class="rm-panel-head">
+          <h2 id="mineProfileHeading">个人档案</h2>
+          <span id="mineProfileStatus">读取中</span>
+        </div>
+        <div class="rm-rich-text" id="mineProfileContent"></div>
+        <p class="rm-list-note" id="mineProfileNote" role="status" hidden></p>
+      </section>
+
+      <section class="rm-panel" aria-labelledby="mineContentHeading">
+        <div class="rm-panel-head">
+          <h2 id="mineContentHeading">我的公开内容</h2>
+          <span id="mineContentStatus">读取中</span>
+        </div>
+        <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>
+        <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>
+        <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>
+      </section>
+
+      <div class="rm-mine-actions">
+        <button type="button" class="rm-secondary" id="shareNode">↗ 分享节点信息</button>
+        <button type="button" class="rm-quiet" id="mineRefresh">刷新本机资料</button>
+      </div>
+    </div>
+  </section>
+  <section class="rm-page rm-profile-view" id="profileView" data-page="profile" aria-label="对方档案" hidden>
+    <div class="rm-page-inner">
+      <button type="button" class="rm-back" id="profileBack">← 返回</button>
+      <section class="rm-profile-hero" aria-labelledby="profileName">
+        <span class="rm-profile-avatar" id="profileAvatar" aria-hidden="true">?</span>
+        <div class="rm-profile-copy">
+          <h1 id="profileName">对方档案</h1>
+          <code class="rm-peer-id" id="profilePeerId"></code>
+          <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>
+        </div>
+      </section>
+      <p class="rm-list-note" id="profileStale" role="status" hidden></p>
+      <p class="rm-list-note" id="profileError" role="status" hidden></p>
+      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取对方资料</button>
+      <section class="rm-panel" aria-labelledby="profileUserHeading">
+        <div class="rm-panel-head">
+          <h2 id="profileUserHeading">用户资料</h2>
+          <span>来自对方公开档案</span>
+        </div>
+        <div class="rm-rich-text" id="profileBody"></div>
+        <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>
+      </section>
+      <section class="rm-panel" aria-labelledby="profileAgentHeading">
+        <div class="rm-panel-head">
+          <h2 id="profileAgentHeading">Agent 摘要</h2>
+          <span>独立于用户资料</span>
+        </div>
+        <p class="rm-list-note" id="profileAgentNote" role="status" hidden></p>
+        <div class="rm-agent-summary" id="profileAgentSummary" hidden>
+          <div>
+            <b id="profileAgentName"></b>
+            <p id="profileAgentDescription"></p>
+          </div>
+          <button type="button" class="rm-secondary" id="profileAgentOpen">查看公开档案</button>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>
+
+<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">
+  <div class="rm-dialog-head">
+    <div>
+      <p class="rm-eyebrow">RAMINGA · 本机节点</p>
+      <h2 id="statusHeading">节点状态</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>
+  </div>
+  <div class="rm-status-summary">
+    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>
+    <div>
+      <b id="statusPhase">正在读取本机节点</b>
+      <p id="statusSummary">正在读取本机节点状态…</p>
+    </div>
+  </div>
+  <dl class="rm-facts">
+    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>
+    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>
+    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>
+    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>
+    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>
+  </dl>
+  <details class="rm-tech" id="statusTech">
+    <summary>技术详情</summary>
+    <dl class="rm-facts">
+      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>
+      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>
+      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>
+      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>
+      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>
+      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>
+    </dl>
+    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>
+  </details>
+  <p class="rm-note">更完整的节点标识和最近事件在技术详情中。</p>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-primary" id="statusRefresh">刷新</button>
+    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>
+  </div>
+</dialog>
+
+<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">
+  <div class="rm-dialog-head">
+    <div>
+      <p class="rm-eyebrow">RAMINGA</p>
+      <h2 id="addContactHeading">添加联系人</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>
+  </div>
+  <div class="rm-dialog-body">
+    <form class="rm-contact-form" id="addContactForm" novalidate>
+      <label class="rm-field" for="addContactInput">
+        <span>Peer ID 或完整节点地址</span>
+        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>
+      </label>
+      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>
+      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>
+        <b id="addContactFeedbackTitle"></b>
+        <p id="addContactFeedbackBody"></p>
+        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>
+        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>
+        <details class="rm-tech" id="addContactFeedbackDetail" hidden>
+          <summary>错误详情</summary>
+          <code id="addContactFeedbackRaw"></code>
+        </details>
+        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>
+      </div>
+    </form>
+  </div>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>
+    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>
+    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>
+  </div>
+</dialog>
+
+<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">
+  <div class="rm-dialog-head">
+    <div>
+      <p class="rm-eyebrow">RAMINGA</p>
+      <h2 id="shareHeading">分享节点信息</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>
+  </div>
+  <div class="rm-dialog-body">
+    <div class="rm-share-loading" id="shareLoading">
+      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>
+      <p>正在读取本机节点信息…</p>
+    </div>
+    <div id="shareContent" hidden>
+      <div class="rm-share-peer">
+        <span>本机 Peer ID</span>
+        <code class="rm-peer-id" id="sharePeerId"></code>
+      </div>
+      <div class="rm-share-addresses" id="shareAddresses"></div>
+      <p class="rm-note" id="shareAddressNote" hidden></p>
+      <p class="rm-list-note" id="shareStaleNote" hidden></p>
+    </div>
+    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>
+      <b>暂时读不到本机节点信息</b>
+      <p id="shareFailureBody">请稍后再试。</p>
+      <details class="rm-tech" id="shareFailureDetail" hidden>
+        <summary>错误详情</summary>
+        <code id="shareFailureRaw"></code>
+      </details>
+    </div>
+    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>
+    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>
+  </div>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>
+    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>
+    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>
+  </div>
+</dialog>
+
+<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">
+  <div class="rm-dialog-head rm-detail-head">
+    <div>
+      <p class="rm-eyebrow">RAMINGA · 技术详情</p>
+      <h2 id="technicalHeading">技术详情</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>
+  </div>
+  <div class="rm-detail-body">
+    <p class="rm-list-note" id="technicalIntro" hidden></p>
+    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>
+    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>
+  </div>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-primary" data-close-dialog>关闭</button>
+  </div>
+</dialog>
+
+<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">
+  <div class="rm-dialog-head rm-detail-head">
+    <div>
+      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>
+      <h2 id="agentCardHeading">Agent 档案</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>
+  </div>
+  <div class="rm-detail-body">
+    <p class="rm-list-note" id="agentCardSource"></p>
+    <div class="rm-rich-text" id="agentCardBody"></div>
+  </div>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-primary" data-close-dialog>关闭</button>
+  </div>
+</dialog>
+
+<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">
+  <div class="rm-dialog-head">
+    <div>
+      <p class="rm-eyebrow">RAMINGA</p>
+      <h2 id="noticeHeading">暂不可用</h2>
+    </div>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>
+  </div>
+  <p class="rm-notice-body" id="noticeBody"></p>
+  <p class="rm-note" id="noticeNote"></p>
+  <div class="rm-dialog-actions">
+    <button type="button" class="rm-primary" data-close-dialog>知道了</button>
+  </div>
+</dialog>
+
+<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>

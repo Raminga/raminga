@@ -73,6 +73,9 @@ func newChatSendCmd() *cobra.Command {
 			if res.GetOutboxStatus() != "" {
 				_, _ = fmt.Fprintf(w, "outbox_status: %s\n", res.GetOutboxStatus())
 			}
+			if res.GetDeliveryStatus() != "" {
+				_, _ = fmt.Fprintf(w, "delivery_status: %s\n", res.GetDeliveryStatus())
+			}
 			_, _ = fmt.Fprintf(w, "route: %s\ntransport: %s\nremote_multiaddr: %s\nreused: %t\nsource: %s\n",
 				res.GetRoute(), res.GetTransport(), res.GetRemoteMultiaddr(), res.GetReused(), res.GetSource())
 			if res.GetNote() != "" {
@@ -179,8 +182,8 @@ func newChatHistoryCmd() *cobra.Command {
 				return nil
 			}
 			for _, m := range res.GetMessages() {
-				_, _ = fmt.Fprintf(w, "%s direction=%s acked=%t peer=%s text=%q\n",
-					m.GetMessageId(), m.GetDirection(), m.GetAcked(), m.GetPeerId(), m.GetText())
+				_, _ = fmt.Fprintf(w, "%s direction=%s acked=%t delivery=%s origin=%s peer=%s text=%q\n",
+					m.GetMessageId(), m.GetDirection(), m.GetAcked(), m.GetDeliveryStatus(), m.GetOrigin(), m.GetPeerId(), m.GetText())
 			}
 			return nil
 		},

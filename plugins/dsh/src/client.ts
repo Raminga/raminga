@@ -61,23 +61,49 @@ export class RamingaApi {
     this.versionChecked = true;
   }
 
-  async call<T>(fn: (client: RamingaClient) => Promise<T>): Promise<T> {
+  async call<T>(fn: (client: RamingaClient) => Promise<T>, operation = '访问 Raminga 节点'): Promise<T> {
+    let client: RamingaClient;
     try {
-      const client = await this.ensure();
+      client = await this.ensure();
+    } catch (error) {
+      // Reaching the local daemon failed (probe/auto-start/version check).
+      // Only this phase can honestly say the local node is not running.
+      throw describeError(error, this.config.socketPath, { operation, phase: 'ensure' });
+    }
+    try {
       return await fn(client);
     } catch (error) {
-      throw describeError(error, this.config.socketPath);
+      // The local daemon was reachable immediately before this RPC. An
+      // Unavailable returned by a handler (for example a failed remote dial in
+      // Connect) is an operation failure, not a stopped local daemon.
+      throw describeError(error, this.config.socketPath, { operation, phase: 'call' });
     }
   }
 }
 
-function describeError(error: unknown, socketPath: string): Error {
+export interface ErrorContext {
+  operation: string;
+  phase: 'ensure' | 'call';
+}
+
+export function describeError(
+  error: unknown,
+  socketPath: string,
+  context: ErrorContext = { operation: '访问 Raminga 节点', phase: 'ensure' },
+): Error {
   if (error instanceof ConnectError) {
     switch (error.code) {
       case Code.Unavailable:
+        if (context.phase === 'ensure') {
+          return new Error(
+            `Raminga node is not running at ${socketPath}. The plugin tried to auto-start it; ` +
+              `check daemon.log in the data directory for details. (${error.message})`,
+          );
+        }
         return new Error(
-          `Raminga node is not running at ${socketPath}. The plugin tried to auto-start it; ` +
-            `check daemon.log in the data directory for details. (${error.message})`,
+          `${context.operation}没有完成：Raminga 节点返回暂不可用（${error.message}）。` +
+            '本机节点在这次操作前可以访问，这不是自动启动失败。' +
+            (context.operation === '连接节点' ? '请检查目标节点地址和网络后重试。' : '请稍后重试。'),
         );
       case Code.Unauthenticated:
         return new Error(`Raminga local API token mismatch. (${error.message})`);

@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ const (
 	// APIVersion is the local API contract version reported by Status. Plugin
 	// shells compare it against their expected version and ask for a restart
 	// or upgrade on mismatch instead of failing individual RPCs.
-	APIVersion = "2"
+	APIVersion = "4"
 	// tokenBytes is the entropy of the bearer token.
 	tokenBytes = 32
 )
@@ -44,8 +45,11 @@ const (
 type Backend interface {
 	Status(ctx context.Context) (node.Status, error)
 	Connect(ctx context.Context, peerID, multiaddr string) (node.ConnectResult, error)
-	SendChat(ctx context.Context, peerID, multiaddr, text string) (node.SendResult, error)
+	SendChatOrigin(ctx context.Context, peerID, multiaddr, text, origin, requestID string) (node.SendResult, error)
 	RecentMessages(ctx context.Context, limit int) ([]node.StoredMessage, error)
+	ListMessages(ctx context.Context, peerID, before string, limit int) (node.MessagePage, error)
+	ListConversations(ctx context.Context, before string, limit int) (node.ConversationPage, error)
+	ListHumanOutboundPeers(ctx context.Context, before string, limit int) (node.HumanOutboundPage, error)
 	Outbox(ctx context.Context, limit int) ([]node.OutboxEntry, node.OutboxStats, error)
 	CancelOutbox(ctx context.Context, messageID string) error
 	Subscribe(ctx context.Context) (<-chan node.Event, func(), error)
@@ -62,10 +66,11 @@ type Backend interface {
 	RemoveFriend(ctx context.Context, peerID string, cancelPending bool) (bool, int, error)
 	SyncFriends(ctx context.Context) (bool, error)
 	Published(ctx context.Context) (node.Published, error)
+	ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool) (node.PublicDiscoveryPage, error)
 	GetPeerManifest(ctx context.Context, peerID string, offset, limit int) (node.PeerManifest, error)
 	GetPeerProfile(ctx context.Context, peerID string) (node.PeerProfile, error)
 	GetPeerFriends(ctx context.Context, peerID string) (node.PeerFriends, error)
-	DownloadPeerFile(ctx context.Context, peerID, path string, progress func(node.DownloadProgress)) (node.DownloadResult, error)
+	DownloadPeerFile(ctx context.Context, peerID, path string, progress func(node.DownloadProgress), options node.DownloadOptions) (node.DownloadResult, error)
 	ConnectListedPeer(ctx context.Context, peerID string, addrs []string) (node.ConnectResult, error)
 	Disconnect(ctx context.Context, peerID string) error
 	PausePeer(ctx context.Context, peerID string) error
@@ -236,20 +241,22 @@ func (s *Server) Status(ctx context.Context, _ *connect.Request[apiv1.StatusRequ
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	resp := &apiv1.StatusResponse{
-		PeerId:          st.PeerID,
-		NodeId:          st.NodeID,
-		ListenAddrs:     st.ListenAddrs,
-		Version:         st.Version,
-		ProtocolVersion: st.ProtocolVersion,
-		StartedAtUnixMs: st.StartedAt.UnixMilli(),
-		TestApiEnabled:  st.TestAPI,
-		Supervised:      st.Supervised,
-		DataDir:         st.DataDir,
-		GoVersion:       st.GoVersion,
-		AdvertisedAddrs: st.AdvertisedAddrs,
-		Network:         networkStatusToProto(st.Network),
-		ApiVersion:      APIVersion,
-		CurrentTime:     time.Now().UTC().Format(time.RFC3339),
+		PeerId:            st.PeerID,
+		NodeId:            st.NodeID,
+		ListenAddrs:       st.ListenAddrs,
+		Version:           st.Version,
+		ProtocolVersion:   st.ProtocolVersion,
+		StartedAtUnixMs:   st.StartedAt.UnixMilli(),
+		TestApiEnabled:    st.TestAPI,
+		Supervised:        st.Supervised,
+		DataDir:           st.DataDir,
+		GoVersion:         st.GoVersion,
+		AdvertisedAddrs:   st.AdvertisedAddrs,
+		Network:           networkStatusToProto(st.Network),
+		ApiVersion:        APIVersion,
+		CurrentTime:       time.Now().UTC().Format(time.RFC3339),
+		MaxChatTextBytes:  uint32(st.MaxChatTextBytes),
+		MaxStoredMessages: uint32(st.MaxStoredMessages),
 	}
 	for _, p := range st.Peers {
 		resp.Peers = append(resp.Peers, &apiv1.PeerStatus{
@@ -334,7 +341,13 @@ func (s *Server) SendChat(ctx context.Context, req *connect.Request[apiv1.SendCh
 	if req.Msg.GetPeerId() == "" && req.Msg.GetMultiaddr() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("peer_id or multiaddr is required"))
 	}
-	if req.Msg.GetAgentOrigin() {
+	origin, err := sendOrigin(req.Msg.GetOrigin(), req.Msg.GetAgentOrigin())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	// An agent-marked send can never downgrade itself to human to skip the
+	// guard. agent_origin remains the compatibility security switch.
+	if origin == node.OriginAgent {
 		if err := s.agentGuard.check(req.Msg.GetPeerId(), req.Msg.GetMultiaddr(), req.Msg.GetText()); err != nil {
 			s.logger.Warn("agent-origin send blocked",
 				"peer_id", req.Msg.GetPeerId(),
@@ -342,7 +355,7 @@ func (s *Server) SendChat(ctx context.Context, req *connect.Request[apiv1.SendCh
 			return nil, connect.NewError(connect.CodePermissionDenied, err)
 		}
 	}
-	res, err := s.backend.SendChat(ctx, req.Msg.GetPeerId(), req.Msg.GetMultiaddr(), req.Msg.GetText())
+	res, err := s.backend.SendChatOrigin(ctx, req.Msg.GetPeerId(), req.Msg.GetMultiaddr(), req.Msg.GetText(), origin, req.Msg.GetRequestId())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -361,7 +374,28 @@ func (s *Server) SendChat(ctx context.Context, req *connect.Request[apiv1.SendCh
 		Attempts:        dialAttemptsToProto(res.Attempts),
 		Note:            res.Note,
 		OutboxStatus:    res.OutboxStatus,
+		DeliveryStatus:  res.DeliveryStatus,
+		Replayed:        res.Replayed,
+		RequestId:       res.RequestID,
 	}), nil
+}
+
+func sendOrigin(value string, agentOrigin bool) (string, error) {
+	if agentOrigin {
+		return node.OriginAgent, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return node.OriginUnknown, nil
+	case node.OriginHuman:
+		return node.OriginHuman, nil
+	case node.OriginAgent:
+		return node.OriginAgent, nil
+	case node.OriginUnknown:
+		return node.OriginUnknown, nil
+	default:
+		return "", fmt.Errorf("origin must be human, agent or unknown")
+	}
 }
 
 // OutboxList implements the durable outbox listing RPC.
@@ -416,21 +450,122 @@ func (s *Server) RecentMessages(ctx context.Context, req *connect.Request[apiv1.
 	}
 	resp := &apiv1.RecentMessagesResponse{Messages: make([]*apiv1.StoredMessage, 0, len(msgs))}
 	for _, m := range msgs {
-		var ackedAt int64
-		if !m.AckedAt.IsZero() {
-			ackedAt = m.AckedAt.UnixMilli()
-		}
-		resp.Messages = append(resp.Messages, &apiv1.StoredMessage{
-			MessageId:       m.MessageID,
-			PeerId:          m.PeerID,
-			Direction:       m.Direction,
-			Text:            m.Text,
-			Acked:           m.Acked,
-			CreatedAtUnixMs: m.CreatedAt.UnixMilli(),
-			AckedAtUnixMs:   ackedAt,
+		resp.Messages = append(resp.Messages, storedMessageToProto(m))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListMessages implements the stable per-Peer keyset query.
+func (s *Server) ListMessages(ctx context.Context, req *connect.Request[apiv1.ListMessagesRequest]) (*connect.Response[apiv1.ListMessagesResponse], error) {
+	peerID := strings.TrimSpace(req.Msg.GetPeerId())
+	if peerID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("peer_id is required"))
+	}
+	page, err := s.backend.ListMessages(ctx, peerID, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListMessagesResponse{
+		Messages:   make([]*apiv1.StoredMessage, 0, len(page.Messages)),
+		NextBefore: page.NextBefore,
+		HasMore:    page.HasMore,
+		Retention:  retentionToProto(page.Retention),
+	}
+	for _, m := range page.Messages {
+		resp.Messages = append(resp.Messages, storedMessageToProto(m))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListConversations implements the per-Peer conversation summary query.
+func (s *Server) ListConversations(ctx context.Context, req *connect.Request[apiv1.ListConversationsRequest]) (*connect.Response[apiv1.ListConversationsResponse], error) {
+	page, err := s.backend.ListConversations(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListConversationsResponse{
+		Conversations: make([]*apiv1.ConversationSummary, 0, len(page.Conversations)),
+		NextBefore:    page.NextBefore,
+		HasMore:       page.HasMore,
+		Retention:     retentionToProto(page.Retention),
+	}
+	for _, c := range page.Conversations {
+		resp.Conversations = append(resp.Conversations, &apiv1.ConversationSummary{
+			PeerId:         c.PeerID,
+			LastMessageId:  c.LastMessageID,
+			Direction:      c.Direction,
+			Preview:        c.Preview,
+			LastAtUnixMs:   c.LastAt.UnixMilli(),
+			DeliveryStatus: c.DeliveryStatus,
+			Origin:         c.Origin,
+			MessageCount:   uint32(c.MessageCount),
 		})
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// ListHumanOutboundPeers exposes the durable stage-6 relation.
+func (s *Server) ListHumanOutboundPeers(ctx context.Context, req *connect.Request[apiv1.ListHumanOutboundPeersRequest]) (*connect.Response[apiv1.ListHumanOutboundPeersResponse], error) {
+	page, err := s.backend.ListHumanOutboundPeers(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListHumanOutboundPeersResponse{
+		Peers:      make([]*apiv1.HumanOutboundPeer, 0, len(page.Peers)),
+		NextBefore: page.NextBefore,
+		HasMore:    page.HasMore,
+	}
+	for _, p := range page.Peers {
+		resp.Peers = append(resp.Peers, &apiv1.HumanOutboundPeer{
+			PeerId:        p.PeerID,
+			FirstAtUnixMs: p.FirstAt.UnixMilli(),
+			LastAtUnixMs:  p.LastAt.UnixMilli(),
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func pageErrorCode(err error) connect.Code {
+	if errors.Is(err, node.ErrInvalidCursor) {
+		return connect.CodeInvalidArgument
+	}
+	return connect.CodeInternal
+}
+
+func retentionToProto(r node.MessageRetention) *apiv1.MessageRetention {
+	var oldest int64
+	if !r.OldestAt.IsZero() {
+		oldest = r.OldestAt.UnixMilli()
+	}
+	return &apiv1.MessageRetention{
+		RetainedMessages:       uint32(r.RetainedMessages),
+		OldestRetainedAtUnixMs: oldest,
+		MaxStoredMessages:      uint32(r.MaxMessages),
+	}
+}
+
+func storedMessageToProto(m node.StoredMessage) *apiv1.StoredMessage {
+	var ackedAt, deliveryUpdated int64
+	if !m.AckedAt.IsZero() {
+		ackedAt = m.AckedAt.UnixMilli()
+	}
+	if !m.DeliveryUpdatedAt.IsZero() {
+		deliveryUpdated = m.DeliveryUpdatedAt.UnixMilli()
+	}
+	return &apiv1.StoredMessage{
+		MessageId:               m.MessageID,
+		PeerId:                  m.PeerID,
+		Direction:               m.Direction,
+		Text:                    m.Text,
+		Acked:                   m.Acked,
+		CreatedAtUnixMs:         m.CreatedAt.UnixMilli(),
+		AckedAtUnixMs:           ackedAt,
+		DeliveryStatus:          m.DeliveryStatus,
+		DeliveryError:           m.DeliveryError,
+		Origin:                  m.Origin,
+		DeliveryUpdatedAtUnixMs: deliveryUpdated,
+		ClientRequestId:         m.ClientRequestID,
+	}
 }
 
 // eventHeartbeatInterval is short enough to keep a quiet stream healthy and
@@ -591,6 +726,33 @@ func (s *Server) Published(ctx context.Context, _ *connect.Request[apiv1.Publish
 	return connect.NewResponse(resp), nil
 }
 
+// ListDiscoveries returns the local, private acquisition index. Rows exist
+// only after an Agent tool successfully fetched a manifest file with evidence
+// recording requested.
+func (s *Server) ListDiscoveries(ctx context.Context, req *connect.Request[apiv1.ListDiscoveriesRequest]) (*connect.Response[apiv1.ListDiscoveriesResponse], error) {
+	page, err := s.backend.ListDiscoveries(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()), req.Msg.GetFamiliarOnly())
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListDiscoveriesResponse{
+		Discoveries: make([]*apiv1.Discovery, 0, len(page.Discoveries)),
+		NextBefore:  page.NextBefore,
+		HasMore:     page.HasMore,
+	}
+	for _, d := range page.Discoveries {
+		resp.Discoveries = append(resp.Discoveries, &apiv1.Discovery{
+			Id:              strconv.FormatInt(d.ID, 10),
+			PeerId:          d.PeerID,
+			Path:            d.Path,
+			Sha256:          d.SHA256,
+			SizeBytes:       d.SizeBytes,
+			FetchedAtUnixMs: d.FetchedAt.UnixMilli(),
+			Source:          d.Source,
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (s *Server) GetPeerManifest(ctx context.Context, req *connect.Request[apiv1.GetPeerManifestRequest]) (*connect.Response[apiv1.GetPeerManifestResponse], error) {
 	page, err := s.backend.GetPeerManifest(ctx, req.Msg.GetPeerId(), int(req.Msg.GetOffset()), int(req.Msg.GetLimit()))
 	if err != nil {
@@ -634,13 +796,21 @@ func (s *Server) DownloadPeerFile(ctx context.Context, req *connect.Request[apiv
 		defer close(done)
 		result, downloadErr = s.backend.DownloadPeerFile(ctx, req.Msg.GetPeerId(), req.Msg.GetPath(), func(p node.DownloadProgress) {
 			_ = stream.Send(&apiv1.DownloadPeerFileResponse{Phase: p.Phase, Path: p.Path, ReceivedBytes: p.Received, TotalBytes: p.Total, Direct: p.Direct})
+		}, node.DownloadOptions{
+			RecordDiscovery: req.Msg.GetRecordDiscovery(),
+			DiscoverySource: req.Msg.GetDiscoverySource(),
 		})
 	}()
 	<-done
 	if downloadErr != nil {
 		return connect.NewError(connect.CodeUnavailable, downloadErr)
 	}
-	return stream.Send(&apiv1.DownloadPeerFileResponse{Phase: "complete", Path: result.Path, ReceivedBytes: result.Size, TotalBytes: result.Size, LocalPath: result.LocalPath, Sha256: result.SHA256, Direct: result.Direct})
+	return stream.Send(&apiv1.DownloadPeerFileResponse{
+		Phase: "complete", Path: result.Path, ReceivedBytes: result.Size, TotalBytes: result.Size,
+		LocalPath: result.LocalPath, Sha256: result.SHA256, Direct: result.Direct,
+		DiscoveryId: result.DiscoveryID, DiscoveryRecorded: result.DiscoveryRecorded,
+		DiscoveryError: result.DiscoveryError,
+	})
 }
 
 // ConnectListedPeer implements the ConnectListedPeer RPC.

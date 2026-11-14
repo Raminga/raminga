@@ -72,7 +72,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   {
     name: "raminga_content_get",
     summary: "Download one manifest file from a remote peer.",
-    description: "Downloads one file from a remote peer's public manifest. The path must exactly match an entry in the peer's current manifest. Writes the file under \u003cdata-dir\u003e/downloads/ with private 0600 permissions, never executes it, and returns the local path and SHA-256 as evidence.\n",
+    description: "Downloads one file from a remote peer's public manifest. The path must exactly match an entry in the peer's current manifest. Writes the file under \u003cdata-dir\u003e/downloads/ with private 0600 permissions, never executes it, and returns the local path and SHA-256 as evidence. A successful call also records the peer, exact public path, SHA-256, fetch time and tool source in the local private discovery index used by the workspace. That index is evidence of an Agent fetch, not a network-wide recommendation; old files without such a record stay unknown.\n",
     permission: "auto",
     resultUntrusted: true,
     parameters: {"path":{"type":"string","required":true,"description":"Exact manifest path to download."},"peer_id":{"type":"string","required":true,"description":"The remote Peer ID."}},

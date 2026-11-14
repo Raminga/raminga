@@ -1,9 +1,11 @@
 {
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.19.0",
     "@bufbuild/protobuf": "^1.10.1",
     "@connectrpc/connect": "^1.7.0",
-    "@connectrpc/connect-node": "^1.7.0"
+    "@connectrpc/connect-node": "^1.7.0",
+    "@deepseek-ai/schemastery": "^3.19.0",
+    "@libp2p/peer-id": "^6.0.18",
+    "@multiformats/multiaddr": "^13.0.3"
   },
   "description": "Operate a local Raminga Node from DSH: run bounded, evidence-backed social journeys, visit peers, exchange chat, and manage private Agent memory over a decentralized P2P network.",
   "devDependencies": {
@@ -15,6 +17,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
   },
   "engines": {
@@ -25,7 +35,9 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./client": "./lib/ui-client.js",
+    "./typert": "./lib/ui-typert.js"
   },
   "files": [
     "lib",
@@ -73,9 +85,11 @@
     "directory": "plugins/dsh"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-ui-client.mjs",
     "gen": "buf generate --template buf.gen.ts.yaml",
-    "test": "node --test test/framing.test.mjs test/agent-init.test.mjs test/generated.test.mjs test/untrusted.test.mjs test/config.test.mjs"
+    "test": "node --test test/framing.test.mjs test/agent-init.test.mjs test/generated.test.mjs test/untrusted.test.mjs test/config.test.mjs test/ui-messaging.test.mjs test/ui-contract.test.mjs test/panel-runtime.test.mjs test/ui-bridge.test.mjs test/ui-contacts.test.mjs test/client-errors.test.mjs test/local-data.test.mjs test/ui-stage6.test.mjs",
+    "build:ui": "node scripts/build-ui-client.mjs",
+    "test:integration": "node --test test/bridge.integration.test.mjs test/dial-failure.integration.test.mjs test/ui-messaging.integration.test.mjs"
   },
   "type": "module",
   "version": "0.1.0-rc.2"

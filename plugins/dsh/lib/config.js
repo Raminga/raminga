@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 export const SOCKET_FILE = 'api.sock';
 export const TOKEN_FILE = 'api.token';
-export const EXPECTED_API_VERSION = '2';
+export const EXPECTED_API_VERSION = '4';
 const requireFromHere = createRequire(import.meta.url);
 const NPM_OS = {
     darwin: 'darwin',

@@ -25,24 +25,30 @@ import (
 )
 
 type fakeBackend struct {
-	chatCh        chan node.Event
-	disconnected  []string
-	paused        []string
-	friends       []node.Friend
-	removePending int
-	sendCalls     int
+	chatCh         chan node.Event
+	lastOrigin     string
+	lastRequestID  string
+	disconnected   []string
+	paused         []string
+	friends        []node.Friend
+	removePending  int
+	sendCalls      int
+	discoveryPage  node.PublicDiscoveryPage
+	downloadOption node.DownloadOptions
 }
 
 func (f *fakeBackend) Status(context.Context) (node.Status, error) {
 	return node.Status{
-		PeerID:          "12D3KooWFake",
-		NodeID:          "node_fake",
-		ListenAddrs:     []string{"/ip4/127.0.0.1/tcp/1"},
-		Version:         "test",
-		ProtocolVersion: "/raminga/http/1.0.0",
-		StartedAt:       time.UnixMilli(1000),
-		DataDir:         "/tmp/fake",
-		GoVersion:       "go-test",
+		PeerID:            "12D3KooWFake",
+		NodeID:            "node_fake",
+		ListenAddrs:       []string{"/ip4/127.0.0.1/tcp/1"},
+		Version:           "test",
+		ProtocolVersion:   "/raminga/http/1.0.0",
+		StartedAt:         time.UnixMilli(1000),
+		DataDir:           "/tmp/fake",
+		GoVersion:         "go-test",
+		MaxChatTextBytes:  4096,
+		MaxStoredMessages: 50000,
 	}, nil
 }
 
@@ -50,13 +56,37 @@ func (f *fakeBackend) Connect(context.Context, string, string) (node.ConnectResu
 	return node.ConnectResult{PeerID: "peer-b", Transport: "tcp", Direct: true}, nil
 }
 
-func (f *fakeBackend) SendChat(_ context.Context, _, _, _ string) (node.SendResult, error) {
+func (f *fakeBackend) SendChatOrigin(_ context.Context, _, _, _, origin, requestID string) (node.SendResult, error) {
 	f.sendCalls++
-	return node.SendResult{MessageID: "m1", Acked: true, AckMessageID: "m1", ACKID: "a1", Error: ""}, nil
+	f.lastOrigin = origin
+	f.lastRequestID = requestID
+	return node.SendResult{
+		MessageID: "m1", Acked: true, AckMessageID: "m1", ACKID: "a1", Error: "",
+		DeliveryStatus: node.DeliveryAcked, OutboxStatus: node.DeliveryAcked, RequestID: requestID,
+	}, nil
 }
 
 func (f *fakeBackend) RecentMessages(context.Context, int) ([]node.StoredMessage, error) {
-	return []node.StoredMessage{{MessageID: "m1", PeerID: "peer-b", Direction: "out", Text: "hi", Acked: true}}, nil
+	return []node.StoredMessage{{MessageID: "m1", PeerID: "peer-b", Direction: "out", Text: "hi", Acked: true, DeliveryStatus: node.DeliveryAcked}}, nil
+}
+
+func (f *fakeBackend) ListMessages(_ context.Context, peerID, _ string, _ int) (node.MessagePage, error) {
+	return node.MessagePage{
+		Messages:  []node.StoredMessage{{MessageID: "m1", PeerID: peerID, Direction: "out", Text: "hi", Acked: true, DeliveryStatus: node.DeliveryAcked}},
+		Retention: node.MessageRetention{RetainedMessages: 1, MaxMessages: 10},
+		HasMore:   true, NextBefore: "cursor-next",
+	}, nil
+}
+
+func (f *fakeBackend) ListConversations(context.Context, string, int) (node.ConversationPage, error) {
+	return node.ConversationPage{
+		Conversations: []node.Conversation{{PeerID: "peer-b", LastMessageID: "m1", Direction: "out", Preview: "hi", DeliveryStatus: node.DeliveryAcked, MessageCount: 1}},
+		Retention:     node.MessageRetention{RetainedMessages: 1, MaxMessages: 10},
+	}, nil
+}
+
+func (f *fakeBackend) ListHumanOutboundPeers(context.Context, string, int) (node.HumanOutboundPage, error) {
+	return node.HumanOutboundPage{Peers: []node.HumanOutboundPeer{{PeerID: "peer-b"}}}, nil
 }
 
 func (f *fakeBackend) Outbox(context.Context, int) ([]node.OutboxEntry, node.OutboxStats, error) {
@@ -553,11 +583,19 @@ func (f *fakeBackend) GetPeerProfile(context.Context, string) (node.PeerProfile,
 func (f *fakeBackend) GetPeerFriends(context.Context, string) (node.PeerFriends, error) {
 	return node.PeerFriends{PeerID: "peer-b"}, nil
 }
-func (f *fakeBackend) DownloadPeerFile(_ context.Context, _ string, _ string, progress func(node.DownloadProgress)) (node.DownloadResult, error) {
+func (f *fakeBackend) ListDiscoveries(context.Context, string, int, bool) (node.PublicDiscoveryPage, error) {
+	return f.discoveryPage, nil
+}
+
+func (f *fakeBackend) DownloadPeerFile(_ context.Context, _ string, _ string, progress func(node.DownloadProgress), options node.DownloadOptions) (node.DownloadResult, error) {
+	f.downloadOption = options
 	if progress != nil {
 		progress(node.DownloadProgress{Phase: "download", Received: 1, Total: 1})
 	}
-	return node.DownloadResult{PeerID: "peer-b", Path: "a", LocalPath: "/tmp/a", Size: 1}, nil
+	return node.DownloadResult{
+		PeerID: "peer-b", Path: "a", LocalPath: "/tmp/a", Size: 1, SHA256: "aa",
+		DiscoveryID: 7, DiscoveryRecorded: options.RecordDiscovery,
+	}, nil
 }
 func (f *fakeBackend) ConnectListedPeer(context.Context, string, []string) (node.ConnectResult, error) {
 	return node.ConnectResult{PeerID: "peer-b"}, nil

@@ -119,26 +119,39 @@ func (c *Client) Connect(ctx context.Context, peerID, multiaddr string) (*apiv1.
 	return resp.Msg, nil
 }
 
+// Local send provenance constants. They mirror internal/storage without making
+// the CLI depend on daemon storage types.
+const (
+	originHuman = "human"
+	originAgent = "agent"
+)
+
 // SendChat calls SendChat for a human-initiated TUI/CLI send. It deliberately
 // leaves agent_origin unset, so daemon-side agent safety checks do not apply.
 func (c *Client) SendChat(ctx context.Context, peerID, multiaddr, text string) (*apiv1.SendChatResponse, error) {
-	return c.sendChat(ctx, peerID, multiaddr, text, false)
+	return c.sendChat(ctx, peerID, multiaddr, text, false, "")
 }
 
 // SendChatFromAgent calls SendChat with agent_origin set. Every Agent shell
 // must use this method (or set the field directly), so the daemon can reject
 // private-data leaks and excessive automated sends.
 func (c *Client) SendChatFromAgent(ctx context.Context, peerID, multiaddr, text string) (*apiv1.SendChatResponse, error) {
-	return c.sendChat(ctx, peerID, multiaddr, text, true)
+	return c.sendChat(ctx, peerID, multiaddr, text, true, "")
 }
 
-func (c *Client) sendChat(ctx context.Context, peerID, multiaddr, text string, agentOrigin bool) (*apiv1.SendChatResponse, error) {
+func (c *Client) sendChat(ctx context.Context, peerID, multiaddr, text string, agentOrigin bool, requestID string) (*apiv1.SendChatResponse, error) {
 	peerID, multiaddr = peerarg.Normalize(peerID), peerarg.Normalize(multiaddr)
+	origin := originHuman
+	if agentOrigin {
+		origin = originAgent
+	}
 	resp, err := c.svc.SendChat(ctx, connect.NewRequest(&apiv1.SendChatRequest{
 		PeerId:      peerID,
 		Multiaddr:   multiaddr,
 		Text:        text,
 		AgentOrigin: agentOrigin,
+		Origin:      origin,
+		RequestId:   requestID,
 	}))
 	if err != nil {
 		return nil, err
@@ -149,6 +162,33 @@ func (c *Client) sendChat(ctx context.Context, peerID, multiaddr, text string, a
 // RecentMessages calls RecentMessages.
 func (c *Client) RecentMessages(ctx context.Context, limit uint32) (*apiv1.RecentMessagesResponse, error) {
 	resp, err := c.svc.RecentMessages(ctx, connect.NewRequest(&apiv1.RecentMessagesRequest{Limit: limit}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// ListConversations calls the per-Peer summary query.
+func (c *Client) ListConversations(ctx context.Context, before string, limit uint32) (*apiv1.ListConversationsResponse, error) {
+	resp, err := c.svc.ListConversations(ctx, connect.NewRequest(&apiv1.ListConversationsRequest{Before: before, Limit: limit}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// ListMessages calls the stable per-Peer message query.
+func (c *Client) ListMessages(ctx context.Context, peerID, before string, limit uint32) (*apiv1.ListMessagesResponse, error) {
+	resp, err := c.svc.ListMessages(ctx, connect.NewRequest(&apiv1.ListMessagesRequest{PeerId: peerID, Before: before, Limit: limit}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// ListHumanOutboundPeers calls the durable stage-6 relation query.
+func (c *Client) ListHumanOutboundPeers(ctx context.Context, before string, limit uint32) (*apiv1.ListHumanOutboundPeersResponse, error) {
+	resp, err := c.svc.ListHumanOutboundPeers(ctx, connect.NewRequest(&apiv1.ListHumanOutboundPeersRequest{Before: before, Limit: limit}))
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +364,17 @@ func (c *Client) Published(ctx context.Context) (*apiv1.PublishedResponse, error
 	return resp.Msg, nil
 }
 
+// ListDiscoveries reads the private acquisition index with its opaque cursor.
+func (c *Client) ListDiscoveries(ctx context.Context, before string, limit int32, familiarOnly bool) (*apiv1.ListDiscoveriesResponse, error) {
+	resp, err := c.svc.ListDiscoveries(ctx, connect.NewRequest(&apiv1.ListDiscoveriesRequest{
+		Before: before, Limit: uint32(limit), FamiliarOnly: familiarOnly,
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
 func (c *Client) GetPeerManifest(ctx context.Context, peerID string, offset, limit int32) (*apiv1.GetPeerManifestResponse, error) {
 	resp, err := c.svc.GetPeerManifest(ctx, connect.NewRequest(&apiv1.GetPeerManifestRequest{PeerId: peerarg.Normalize(peerID), Offset: offset, Limit: limit}))
 	if err != nil {
@@ -347,6 +398,14 @@ func (c *Client) GetPeerFriends(ctx context.Context, peerID string) (*apiv1.GetP
 }
 func (c *Client) DownloadPeerFile(ctx context.Context, peerID, path string) (*connect.ServerStreamForClient[apiv1.DownloadPeerFileResponse], error) {
 	return c.svc.DownloadPeerFile(ctx, connect.NewRequest(&apiv1.DownloadPeerFileRequest{PeerId: peerarg.Normalize(peerID), Path: path}))
+}
+
+// DownloadPeerFileWithEvidence is used only by the Agent content tool. It asks
+// the daemon to persist the successful acquisition as discovery evidence.
+func (c *Client) DownloadPeerFileWithEvidence(ctx context.Context, peerID, path, source string) (*connect.ServerStreamForClient[apiv1.DownloadPeerFileResponse], error) {
+	return c.svc.DownloadPeerFile(ctx, connect.NewRequest(&apiv1.DownloadPeerFileRequest{
+		PeerId: peerarg.Normalize(peerID), Path: path, RecordDiscovery: true, DiscoverySource: source,
+	}))
 }
 func (c *Client) ConnectListedPeer(ctx context.Context, peerID string, addrs []string) (*apiv1.ConnectListedPeerResponse, error) {
 	resp, err := c.svc.ConnectListedPeer(ctx, connect.NewRequest(&apiv1.ConnectListedPeerRequest{PeerId: peerarg.Normalize(peerID), Addrs: addrs}))

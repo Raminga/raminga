@@ -177,6 +177,22 @@ export class StatusResponse extends Message<StatusResponse> {
    */
   currentTime = "";
 
+  /**
+   * max_chat_text_bytes is the daemon's current UTF-8 body limit for one chat
+   * message. Clients must count bytes, not characters, before sending.
+   *
+   * @generated from field: uint32 max_chat_text_bytes = 18;
+   */
+  maxChatTextBytes = 0;
+
+  /**
+   * max_stored_messages is the hard messages-table cap. Message queries only
+   * cover currently retained rows; older rows may already be pruned.
+   *
+   * @generated from field: uint32 max_stored_messages = 19;
+   */
+  maxStoredMessages = 0;
+
   constructor(data?: PartialMessage<StatusResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -202,6 +218,8 @@ export class StatusResponse extends Message<StatusResponse> {
     { no: 15, name: "supervised", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 16, name: "api_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 17, name: "current_time", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 18, name: "max_chat_text_bytes", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 19, name: "max_stored_messages", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StatusResponse {
@@ -772,6 +790,27 @@ export class SendChatRequest extends Message<SendChatRequest> {
    */
   agentOrigin = false;
 
+  /**
+   * origin declares the local caller model for this send: "human", "agent" or
+   * "unknown". Human is set only by explicit local operator entries (CLI/TUI
+   * and the DSH human composer); Agent tools set "agent" plus agent_origin.
+   * This is provenance, not cryptographic authentication: every holder of the
+   * local API token can claim it. A true agent_origin always wins and is still
+   * checked by the agent guard.
+   *
+   * @generated from field: string origin = 5;
+   */
+  origin = "";
+
+  /**
+   * request_id is an optional idempotency key scoped to the target Peer. It is
+   * 1..128 chars of [A-Za-z0-9._:-]. Retrying the same request_id returns the
+   * already persisted message state instead of creating a second message.
+   *
+   * @generated from field: string request_id = 6;
+   */
+  requestId = "";
+
   constructor(data?: PartialMessage<SendChatRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -784,6 +823,8 @@ export class SendChatRequest extends Message<SendChatRequest> {
     { no: 2, name: "multiaddr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "agent_origin", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "origin", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SendChatRequest {
@@ -914,6 +955,31 @@ export class SendChatResponse extends Message<SendChatResponse> {
    */
   outboxAttempts = 0;
 
+  /**
+   * delivery_status is the persisted message delivery state: pending, acked,
+   * failed, cancelled or unknown. It remains available after the outbox row is
+   * cleaned up. acked means the protocol ACK was accepted, not that a human
+   * read the message.
+   *
+   * @generated from field: string delivery_status = 16;
+   */
+  deliveryStatus = "";
+
+  /**
+   * replayed is true when request_id matched an already persisted message and
+   * no new message was created or sent.
+   *
+   * @generated from field: bool replayed = 17;
+   */
+  replayed = false;
+
+  /**
+   * request_id echoes the caller's idempotency key, if any.
+   *
+   * @generated from field: string request_id = 18;
+   */
+  requestId = "";
+
   constructor(data?: PartialMessage<SendChatResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -937,6 +1003,9 @@ export class SendChatResponse extends Message<SendChatResponse> {
     { no: 13, name: "note", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 14, name: "outbox_status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 15, name: "outbox_attempts", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 16, name: "delivery_status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 17, name: "replayed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 18, name: "request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SendChatResponse {
@@ -1035,6 +1104,519 @@ export class RecentMessagesResponse extends Message<RecentMessagesResponse> {
 
   static equals(a: RecentMessagesResponse | PlainMessage<RecentMessagesResponse> | undefined, b: RecentMessagesResponse | PlainMessage<RecentMessagesResponse> | undefined): boolean {
     return proto3.util.equals(RecentMessagesResponse, a, b);
+  }
+}
+
+/**
+ * MessageRetention describes the current bounded history, never a promise of
+ * missing older rows.
+ *
+ * @generated from message raminga.api.v1.MessageRetention
+ */
+export class MessageRetention extends Message<MessageRetention> {
+  /**
+   * retained_messages is the number of message rows currently stored.
+   *
+   * @generated from field: uint32 retained_messages = 1;
+   */
+  retainedMessages = 0;
+
+  /**
+   * oldest_retained_at_unix_ms is the oldest retained message time, or zero
+   * when there are no rows. Rows older than this may already be pruned.
+   *
+   * @generated from field: int64 oldest_retained_at_unix_ms = 2;
+   */
+  oldestRetainedAtUnixMs = protoInt64.zero;
+
+  /**
+   * max_stored_messages is the configured hard cap.
+   *
+   * @generated from field: uint32 max_stored_messages = 3;
+   */
+  maxStoredMessages = 0;
+
+  constructor(data?: PartialMessage<MessageRetention>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.MessageRetention";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "retained_messages", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "oldest_retained_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "max_stored_messages", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): MessageRetention {
+    return new MessageRetention().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): MessageRetention {
+    return new MessageRetention().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): MessageRetention {
+    return new MessageRetention().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: MessageRetention | PlainMessage<MessageRetention> | undefined, b: MessageRetention | PlainMessage<MessageRetention> | undefined): boolean {
+    return proto3.util.equals(MessageRetention, a, b);
+  }
+}
+
+/**
+ * ConversationSummary is one Peer's latest retained message and count.
+ *
+ * @generated from message raminga.api.v1.ConversationSummary
+ */
+export class ConversationSummary extends Message<ConversationSummary> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string last_message_id = 2;
+   */
+  lastMessageId = "";
+
+  /**
+   * direction is "in" or "out".
+   *
+   * @generated from field: string direction = 3;
+   */
+  direction = "";
+
+  /**
+   * preview is a bounded plain-text excerpt of the latest message.
+   *
+   * @generated from field: string preview = 4;
+   */
+  preview = "";
+
+  /**
+   * @generated from field: int64 last_at_unix_ms = 5;
+   */
+  lastAtUnixMs = protoInt64.zero;
+
+  /**
+   * delivery_status is meaningful for outbound messages: pending, acked,
+   * failed, cancelled or unknown. Inbound rows use "received".
+   *
+   * @generated from field: string delivery_status = 6;
+   */
+  deliveryStatus = "";
+
+  /**
+   * origin is human, agent or unknown for outbound rows; inbound rows are
+   * unknown because a remote sender's local UI entry is not authenticated.
+   *
+   * @generated from field: string origin = 7;
+   */
+  origin = "";
+
+  /**
+   * message_count is the number of currently retained rows for this Peer.
+   *
+   * @generated from field: uint32 message_count = 8;
+   */
+  messageCount = 0;
+
+  constructor(data?: PartialMessage<ConversationSummary>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ConversationSummary";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "last_message_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "direction", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "preview", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "last_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "delivery_status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "origin", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "message_count", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConversationSummary {
+    return new ConversationSummary().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ConversationSummary {
+    return new ConversationSummary().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ConversationSummary {
+    return new ConversationSummary().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ConversationSummary | PlainMessage<ConversationSummary> | undefined, b: ConversationSummary | PlainMessage<ConversationSummary> | undefined): boolean {
+    return proto3.util.equals(ConversationSummary, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListConversationsRequest
+ */
+export class ListConversationsRequest extends Message<ListConversationsRequest> {
+  /**
+   * limit is 1..100 (default 30).
+   *
+   * @generated from field: uint32 limit = 1;
+   */
+  limit = 0;
+
+  /**
+   * before is an opaque cursor from a previous response's next_before.
+   *
+   * @generated from field: string before = 2;
+   */
+  before = "";
+
+  constructor(data?: PartialMessage<ListConversationsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListConversationsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListConversationsRequest {
+    return new ListConversationsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListConversationsRequest {
+    return new ListConversationsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListConversationsRequest {
+    return new ListConversationsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListConversationsRequest | PlainMessage<ListConversationsRequest> | undefined, b: ListConversationsRequest | PlainMessage<ListConversationsRequest> | undefined): boolean {
+    return proto3.util.equals(ListConversationsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListConversationsResponse
+ */
+export class ListConversationsResponse extends Message<ListConversationsResponse> {
+  /**
+   * @generated from field: repeated raminga.api.v1.ConversationSummary conversations = 1;
+   */
+  conversations: ConversationSummary[] = [];
+
+  /**
+   * next_before is set only when has_more is true.
+   *
+   * @generated from field: string next_before = 2;
+   */
+  nextBefore = "";
+
+  /**
+   * @generated from field: bool has_more = 3;
+   */
+  hasMore = false;
+
+  /**
+   * @generated from field: raminga.api.v1.MessageRetention retention = 4;
+   */
+  retention?: MessageRetention;
+
+  constructor(data?: PartialMessage<ListConversationsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListConversationsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "conversations", kind: "message", T: ConversationSummary, repeated: true },
+    { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "retention", kind: "message", T: MessageRetention },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListConversationsResponse {
+    return new ListConversationsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListConversationsResponse {
+    return new ListConversationsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListConversationsResponse {
+    return new ListConversationsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListConversationsResponse | PlainMessage<ListConversationsResponse> | undefined, b: ListConversationsResponse | PlainMessage<ListConversationsResponse> | undefined): boolean {
+    return proto3.util.equals(ListConversationsResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListMessagesRequest
+ */
+export class ListMessagesRequest extends Message<ListMessagesRequest> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * limit is 1..200 (default 50).
+   *
+   * @generated from field: uint32 limit = 2;
+   */
+  limit = 0;
+
+  /**
+   * before is an opaque cursor from a previous response's next_before.
+   *
+   * @generated from field: string before = 3;
+   */
+  before = "";
+
+  constructor(data?: PartialMessage<ListMessagesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListMessagesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 3, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListMessagesRequest {
+    return new ListMessagesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListMessagesRequest {
+    return new ListMessagesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListMessagesRequest {
+    return new ListMessagesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListMessagesRequest | PlainMessage<ListMessagesRequest> | undefined, b: ListMessagesRequest | PlainMessage<ListMessagesRequest> | undefined): boolean {
+    return proto3.util.equals(ListMessagesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListMessagesResponse
+ */
+export class ListMessagesResponse extends Message<ListMessagesResponse> {
+  /**
+   * messages is newest first.
+   *
+   * @generated from field: repeated raminga.api.v1.StoredMessage messages = 1;
+   */
+  messages: StoredMessage[] = [];
+
+  /**
+   * next_before pages strictly older than the oldest row in this response.
+   *
+   * @generated from field: string next_before = 2;
+   */
+  nextBefore = "";
+
+  /**
+   * @generated from field: bool has_more = 3;
+   */
+  hasMore = false;
+
+  /**
+   * @generated from field: raminga.api.v1.MessageRetention retention = 4;
+   */
+  retention?: MessageRetention;
+
+  constructor(data?: PartialMessage<ListMessagesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListMessagesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "messages", kind: "message", T: StoredMessage, repeated: true },
+    { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "retention", kind: "message", T: MessageRetention },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListMessagesResponse {
+    return new ListMessagesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListMessagesResponse {
+    return new ListMessagesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListMessagesResponse {
+    return new ListMessagesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListMessagesResponse | PlainMessage<ListMessagesResponse> | undefined, b: ListMessagesResponse | PlainMessage<ListMessagesResponse> | undefined): boolean {
+    return proto3.util.equals(ListMessagesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListHumanOutboundPeersRequest
+ */
+export class ListHumanOutboundPeersRequest extends Message<ListHumanOutboundPeersRequest> {
+  /**
+   * limit is 1..500 (default 100).
+   *
+   * @generated from field: uint32 limit = 1;
+   */
+  limit = 0;
+
+  /**
+   * before is an opaque cursor from next_before.
+   *
+   * @generated from field: string before = 2;
+   */
+  before = "";
+
+  constructor(data?: PartialMessage<ListHumanOutboundPeersRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListHumanOutboundPeersRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListHumanOutboundPeersRequest {
+    return new ListHumanOutboundPeersRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListHumanOutboundPeersRequest {
+    return new ListHumanOutboundPeersRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListHumanOutboundPeersRequest {
+    return new ListHumanOutboundPeersRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListHumanOutboundPeersRequest | PlainMessage<ListHumanOutboundPeersRequest> | undefined, b: ListHumanOutboundPeersRequest | PlainMessage<ListHumanOutboundPeersRequest> | undefined): boolean {
+    return proto3.util.equals(ListHumanOutboundPeersRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.HumanOutboundPeer
+ */
+export class HumanOutboundPeer extends Message<HumanOutboundPeer> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: int64 first_at_unix_ms = 2;
+   */
+  firstAtUnixMs = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 last_at_unix_ms = 3;
+   */
+  lastAtUnixMs = protoInt64.zero;
+
+  constructor(data?: PartialMessage<HumanOutboundPeer>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.HumanOutboundPeer";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "first_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "last_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HumanOutboundPeer {
+    return new HumanOutboundPeer().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): HumanOutboundPeer {
+    return new HumanOutboundPeer().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): HumanOutboundPeer {
+    return new HumanOutboundPeer().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: HumanOutboundPeer | PlainMessage<HumanOutboundPeer> | undefined, b: HumanOutboundPeer | PlainMessage<HumanOutboundPeer> | undefined): boolean {
+    return proto3.util.equals(HumanOutboundPeer, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListHumanOutboundPeersResponse
+ */
+export class ListHumanOutboundPeersResponse extends Message<ListHumanOutboundPeersResponse> {
+  /**
+   * @generated from field: repeated raminga.api.v1.HumanOutboundPeer peers = 1;
+   */
+  peers: HumanOutboundPeer[] = [];
+
+  /**
+   * @generated from field: string next_before = 2;
+   */
+  nextBefore = "";
+
+  /**
+   * @generated from field: bool has_more = 3;
+   */
+  hasMore = false;
+
+  constructor(data?: PartialMessage<ListHumanOutboundPeersResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListHumanOutboundPeersResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peers", kind: "message", T: HumanOutboundPeer, repeated: true },
+    { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListHumanOutboundPeersResponse {
+    return new ListHumanOutboundPeersResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListHumanOutboundPeersResponse {
+    return new ListHumanOutboundPeersResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListHumanOutboundPeersResponse {
+    return new ListHumanOutboundPeersResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListHumanOutboundPeersResponse | PlainMessage<ListHumanOutboundPeersResponse> | undefined, b: ListHumanOutboundPeersResponse | PlainMessage<ListHumanOutboundPeersResponse> | undefined): boolean {
+    return proto3.util.equals(ListHumanOutboundPeersResponse, a, b);
   }
 }
 
@@ -1431,6 +2013,46 @@ export class StoredMessage extends Message<StoredMessage> {
    */
   ackedAtUnixMs = protoInt64.zero;
 
+  /**
+   * delivery_status is the persisted state for outbound rows: pending, acked,
+   * failed, cancelled or unknown. Inbound rows use "received". An old outbound
+   * row without enough evidence is "unknown", never assumed pending.
+   *
+   * @generated from field: string delivery_status = 8;
+   */
+  deliveryStatus = "";
+
+  /**
+   * delivery_error is a bounded, honest reason for failed or pending rows.
+   *
+   * @generated from field: string delivery_error = 9;
+   */
+  deliveryError = "";
+
+  /**
+   * origin is human, agent or unknown. Rows created before provenance existed
+   * are always unknown; direction=out alone never proves a human sent them.
+   *
+   * @generated from field: string origin = 10;
+   */
+  origin = "";
+
+  /**
+   * delivery_updated_at_unix_ms is when delivery_status last changed, or zero
+   * when the old row has no recorded change time.
+   *
+   * @generated from field: int64 delivery_updated_at_unix_ms = 11;
+   */
+  deliveryUpdatedAtUnixMs = protoInt64.zero;
+
+  /**
+   * client_request_id is the local idempotency key that produced this row, or
+   * empty for sends without one. It is used to reconcile an ambiguous UI send.
+   *
+   * @generated from field: string client_request_id = 12;
+   */
+  clientRequestId = "";
+
   constructor(data?: PartialMessage<StoredMessage>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1446,6 +2068,11 @@ export class StoredMessage extends Message<StoredMessage> {
     { no: 5, name: "acked", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 6, name: "created_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 7, name: "acked_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 8, name: "delivery_status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "delivery_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "origin", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "delivery_updated_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 12, name: "client_request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StoredMessage {
@@ -4204,6 +4831,187 @@ export class PublishedResponse extends Message<PublishedResponse> {
 }
 
 /**
+ * @generated from message raminga.api.v1.ListDiscoveriesRequest
+ */
+export class ListDiscoveriesRequest extends Message<ListDiscoveriesRequest> {
+  /**
+   * limit is 1..100 (default 20).
+   *
+   * @generated from field: uint32 limit = 1;
+   */
+  limit = 0;
+
+  /**
+   * before is an opaque cursor from a previous response's next_before.
+   *
+   * @generated from field: string before = 2;
+   */
+  before = "";
+
+  /**
+   * familiar_only restricts the page to authors with a durable human-outbound
+   * relation, independent of the bounded message retention window.
+   *
+   * @generated from field: bool familiar_only = 3;
+   */
+  familiarOnly = false;
+
+  constructor(data?: PartialMessage<ListDiscoveriesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListDiscoveriesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "familiar_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDiscoveriesRequest {
+    return new ListDiscoveriesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDiscoveriesRequest {
+    return new ListDiscoveriesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDiscoveriesRequest {
+    return new ListDiscoveriesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDiscoveriesRequest | PlainMessage<ListDiscoveriesRequest> | undefined, b: ListDiscoveriesRequest | PlainMessage<ListDiscoveriesRequest> | undefined): boolean {
+    return proto3.util.equals(ListDiscoveriesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.Discovery
+ */
+export class Discovery extends Message<Discovery> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string peer_id = 2;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string path = 3;
+   */
+  path = "";
+
+  /**
+   * @generated from field: string sha256 = 4;
+   */
+  sha256 = "";
+
+  /**
+   * @generated from field: int64 size_bytes = 5;
+   */
+  sizeBytes = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 fetched_at_unix_ms = 6;
+   */
+  fetchedAtUnixMs = protoInt64.zero;
+
+  /**
+   * source records the local Agent tool that fetched the file, for example
+   * "raminga_content_get". It is local provenance, not a remote signature.
+   *
+   * @generated from field: string source = 7;
+   */
+  source = "";
+
+  constructor(data?: PartialMessage<Discovery>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.Discovery";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "fetched_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Discovery {
+    return new Discovery().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Discovery {
+    return new Discovery().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Discovery {
+    return new Discovery().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Discovery | PlainMessage<Discovery> | undefined, b: Discovery | PlainMessage<Discovery> | undefined): boolean {
+    return proto3.util.equals(Discovery, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListDiscoveriesResponse
+ */
+export class ListDiscoveriesResponse extends Message<ListDiscoveriesResponse> {
+  /**
+   * @generated from field: repeated raminga.api.v1.Discovery discoveries = 1;
+   */
+  discoveries: Discovery[] = [];
+
+  /**
+   * @generated from field: string next_before = 2;
+   */
+  nextBefore = "";
+
+  /**
+   * @generated from field: bool has_more = 3;
+   */
+  hasMore = false;
+
+  constructor(data?: PartialMessage<ListDiscoveriesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListDiscoveriesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "discoveries", kind: "message", T: Discovery, repeated: true },
+    { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDiscoveriesResponse {
+    return new ListDiscoveriesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDiscoveriesResponse {
+    return new ListDiscoveriesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDiscoveriesResponse {
+    return new ListDiscoveriesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDiscoveriesResponse | PlainMessage<ListDiscoveriesResponse> | undefined, b: ListDiscoveriesResponse | PlainMessage<ListDiscoveriesResponse> | undefined): boolean {
+    return proto3.util.equals(ListDiscoveriesResponse, a, b);
+  }
+}
+
+/**
  * DisconnectPeerRequest asks the node to close all connections to a peer.
  *
  * @generated from message raminga.api.v1.DisconnectPeerRequest
@@ -4948,6 +5756,21 @@ export class DownloadPeerFileRequest extends Message<DownloadPeerFileRequest> {
    */
   path = "";
 
+  /**
+   * record_discovery is set only by an Agent acquisition tool after a real
+   * fetch. Defaults false so manual downloads and old clients stay unattributed.
+   *
+   * @generated from field: bool record_discovery = 3;
+   */
+  recordDiscovery = false;
+
+  /**
+   * discovery_source names the local tool, e.g. "raminga_content_get".
+   *
+   * @generated from field: string discovery_source = 4;
+   */
+  discoverySource = "";
+
   constructor(data?: PartialMessage<DownloadPeerFileRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4958,6 +5781,8 @@ export class DownloadPeerFileRequest extends Message<DownloadPeerFileRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "record_discovery", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "discovery_source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DownloadPeerFileRequest {
@@ -5021,6 +5846,23 @@ export class DownloadPeerFileResponse extends Message<DownloadPeerFileResponse> 
    */
   error = "";
 
+  /**
+   * discovery evidence is populated only when record_discovery was requested.
+   *
+   * @generated from field: int64 discovery_id = 9;
+   */
+  discoveryId = protoInt64.zero;
+
+  /**
+   * @generated from field: bool discovery_recorded = 10;
+   */
+  discoveryRecorded = false;
+
+  /**
+   * @generated from field: string discovery_error = 11;
+   */
+  discoveryError = "";
+
   constructor(data?: PartialMessage<DownloadPeerFileResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -5037,6 +5879,9 @@ export class DownloadPeerFileResponse extends Message<DownloadPeerFileResponse> 
     { no: 6, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "direct", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 8, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "discovery_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 10, name: "discovery_recorded", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 11, name: "discovery_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DownloadPeerFileResponse {

@@ -5,7 +5,7 @@
 // Package raminga.api.v1 is the local, language-neutral Raminga node API.
 // It is served as Connect-RPC only on a Unix domain socket in the data dir,
 // never on a TCP or UDP network listener.
-import { ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, ListFriendsRequest, ListFriendsResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveFriendRequest, RemoveFriendResponse, SendChatRequest, SendChatResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
+import { ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveFriendRequest, RemoveFriendResponse, SendChatRequest, SendChatResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 /**
  * RamingaService is the G1 local API subset.
@@ -52,7 +52,8 @@ export const RamingaService = {
             kind: MethodKind.Unary,
         },
         /**
-         * RecentMessages returns the most recent persisted messages.
+         * RecentMessages returns the most recent persisted messages. It is retained
+         * for older shells; new clients use ListMessages/ListConversations.
          *
          * @generated from rpc raminga.api.v1.RamingaService.RecentMessages
          */
@@ -60,6 +61,45 @@ export const RamingaService = {
             name: "RecentMessages",
             I: RecentMessagesRequest,
             O: RecentMessagesResponse,
+            kind: MethodKind.Unary,
+        },
+        /**
+         * ListConversations returns one summary per Peer from the currently retained
+         * message rows, newest conversation first. A cursor carries the rowid
+         * snapshot used by the first page so concurrent inserts do not reshuffle the
+         * remaining pages; pruning can still remove rows and is never promised.
+         *
+         * @generated from rpc raminga.api.v1.RamingaService.ListConversations
+         */
+        listConversations: {
+            name: "ListConversations",
+            I: ListConversationsRequest,
+            O: ListConversationsResponse,
+            kind: MethodKind.Unary,
+        },
+        /**
+         * ListMessages returns one Peer's currently retained messages, newest first,
+         * with a stable keyset cursor. Pruned rows are not promised.
+         *
+         * @generated from rpc raminga.api.v1.RamingaService.ListMessages
+         */
+        listMessages: {
+            name: "ListMessages",
+            I: ListMessagesRequest,
+            O: ListMessagesResponse,
+            kind: MethodKind.Unary,
+        },
+        /**
+         * ListHumanOutboundPeers returns the Peers for which this Operator has
+         * accepted and persisted a human-origin outbound message. The relation is
+         * stored independently of the bounded message history.
+         *
+         * @generated from rpc raminga.api.v1.RamingaService.ListHumanOutboundPeers
+         */
+        listHumanOutboundPeers: {
+            name: "ListHumanOutboundPeers",
+            I: ListHumanOutboundPeersRequest,
+            O: ListHumanOutboundPeersResponse,
             kind: MethodKind.Unary,
         },
         /**
@@ -218,6 +258,19 @@ export const RamingaService = {
             name: "Published",
             I: PublishedRequest,
             O: PublishedResponse,
+            kind: MethodKind.Unary,
+        },
+        /**
+         * ListDiscoveries returns the private local index of public content that an
+         * Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
+         * It is not a directory listing, manifest scan or network-wide recommendation.
+         *
+         * @generated from rpc raminga.api.v1.RamingaService.ListDiscoveries
+         */
+        listDiscoveries: {
+            name: "ListDiscoveries",
+            I: ListDiscoveriesRequest,
+            O: ListDiscoveriesResponse,
             kind: MethodKind.Unary,
         },
         /**

@@ -159,6 +159,10 @@ vite.config.ts.timestamp-*
 # Local developer/agent workspace and optional worktrees
 /.local/
 /.worktrees/
+/.claude/worktrees/
+/.dsh-task/
+/prototypes/
+/reports/
 
 # G1 Go build outputs
 /bin/
@@ -166,4 +170,4 @@ vite.config.ts.timestamp-*
 .DS_Store
 
 /.playwright-cli/
-/output/playwright/
+/output/
