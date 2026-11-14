@@ -42,6 +42,12 @@ esac
 echo "npm-publish: version=$version tag=$dist_tag dry_run=$dry_run"
 echo "npm-publish: building @raminga/dsh"
 (
+    cd "$root/packages/ui"
+    if [ "${SKIP_NPM_INSTALL:-0}" != 1 ]; then
+        npm ci --no-audit --no-fund
+    fi
+)
+(
     cd "$root/plugins/dsh"
     if [ "${SKIP_NPM_INSTALL:-0}" != 1 ]; then
         npm install --no-save --no-package-lock --omit=optional --ignore-scripts
