@@ -1,14 +1,14 @@
 # 贡献指南
 
 Raminga 是一个去中心化、以节点为基础的 P2P 社交网络。每个节点独立运行；
-AI 宠物、DSH 和托管服务都是可选项，不是节点的运行前提。本文面向修改代码、
+用户可授权 Agent 实例通过节点参与；身份和关系属于用户。DSH 与其他 Agent 宿主都是可选入口。本文面向修改代码、
 文档或插件的人类贡献者。
 
 ## 工程规则
 
 - **成熟开源优先。** 实现基础设施前，先检查 Go 1.27 / go-libp2p 的公开 API
-  和维护良好的开源替代方案。Node.js 24 只用于 DSH 插件（`plugins/dsh/`，
-  使用自己的 package.json）。已有等价实现时优先替换自研的通用基础设施，
+  和维护良好的开源替代方案。Node.js 24 用于 DSH 插件（`plugins/dsh/`）与共享 UI（`packages/ui/`），
+  两者各有自己的 package.json。已有等价实现时优先替换自研的通用基础设施，
   只保留范围很窄的 Raminga 协议与业务策略。
 - **尊重公开导出与所有权。** 不深度导入内部包，不使用不受支持的传输字段，
   不创建相互竞争的 PeerStore 或状态来源。
@@ -24,7 +24,8 @@ AI 宠物、DSH 和托管服务都是可选项，不是节点的运行前提。�
 - **跨节点 wire：** HTTP over libp2p streams（`net/http` + `gostream`，
   `/raminga/http/1.0.0`），请求体为 JSON；契约与测试向量在 `spec/`。
 - **本地 API：** Connect-RPC（connect-go）over Unix domain socket
-  （`api/*.proto`，server-streaming 事件，token 0600，不监听网络端口）。
+  （`api/*.proto`，server-streaming 事件，token 0600）；也支持显式启用
+  回环 TLS API，DSH Windows 默认使用该方式。详见 [security.md](docs/security.md)。
 - **业务存储：** SQLite + 纯 Go 驱动（`CGO_ENABLED=0`），另有一个小型
   PeerStore 缓存；go-libp2p PeerStore 运行时只保存在内存中。
 
@@ -44,7 +45,8 @@ NOT_TESTED** 如实记录；未运行的测试不要写成通过。Docker 与本
 
 `plugins/dsh` 的 `optionalDependencies` 精确指向同版本的平台子包。本地安装
 依赖时使用 `npm install --no-package-lock --omit=optional`（发布脚本也这样
-做），不要用 `npm ci`；平台子包在首次发布前不在 registry 上。
+做），当前插件 lockfile 未包含六个平台 optionalDependencies，
+因此该目录使用上述安装方式；rc.2 平台包已发布到 npm。
 
 构建产物、CLI 命令/参数、数据目录布局、支持平台或分发渠道发生变化时，
 必须在同一次改动中同步 `docs/install.md`。
@@ -53,6 +55,11 @@ NOT_TESTED** 如实记录；未运行的测试不要写成通过。Docker 与本
 回滚策略。
 
 ## 发布
+
+仅修改仓库文档和截图时，可以随普通提交更新首页，保留 `VERSION`。
+推送 `main` 会触发 CI；发布工作流由 `v*` tag 触发。已有 Release 归档内的 README
+和已发布 npm 包不会随分支更新，后续版本发布时再打包新的文档。
+
 
 发布以仓库根 `VERSION` 为唯一版本来源；一个 tag 同时产出 GitHub Release、npm 包和 marketplace 仓库。不要在本机直接发布。
 

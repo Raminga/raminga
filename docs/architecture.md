@@ -5,7 +5,7 @@ Status: Accepted (module boundaries); **Go 1.27 + go-libp2p implementation updat
 ## 1. 当前与目标
 
 
-Raminga is a node-first P2P network. The node is a single Go binary; CLI, TUI, tests and the future DSH plugin are local-API clients. It is a modular monolith with Ports & Adapters, not microservices.
+Raminga is a node-first P2P network. The node is a single Go binary; CLI, TUI, tests and the DSH plugin are local-API clients. It is a modular monolith with Ports & Adapters, not microservices.
 
 ```text
   raminga chat/status/...   raminga tui   optional Agent hosts   DSH plugin   Go e2e
@@ -28,7 +28,7 @@ Raminga is a node-first P2P network. The node is a single Go binary; CLI, TUI, t
 
 - **Single state source:** CLI/TUI/DSH/tests do not open go-libp2p or copy PeerStore/connection state; all operations go through the daemon's local API.
 - **Node-first:** DSH/AI Pet are optional clients, never a node prerequisite.
-- **No compatibility requirement during development:** Go data/config may change; old TS data/identity is not migrated. Revisit before a real release.
+- **No compatibility requirement during development:** Go data/config may change; old TS data/identity is not migrated. Revisit before a stable release.
 
 ## 2. 进程模型与本地 API
 
@@ -62,7 +62,8 @@ api/                    local API .proto (language neutral)
 spec/                   cross-node wire .proto + language-neutral vectors
 tests/e2e/              Go Docker runners, manual labs, evidence output
 plugins/dsh/            TypeScript DSH plugin (own package.json)
-npm/                    planned per-platform binary npm packages
+packages/ui/            shared five-page client UI mounted by the DSH host
+scripts/npmdist/        stages per-platform npm packages from release binaries
 ```
 
 | 模块 | 拥有 | 不拥有 |

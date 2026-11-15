@@ -2,7 +2,7 @@
 
 Status: Accepted (product direction)
 
-Raminga 是一个完整的 P2P 社交网络，其基本实体是 **Raminga Node**。节点可以独立存在、保存本地信息、对外提供可见档案，并通过获授权的操作者（人类、客户端或 AI Agent）参与社交或娱乐。
+Raminga 的目标是构建完整的 P2P 社交网络，其基本实体是 **Raminga Node**。节点可以独立存在、保存本地信息、对外提供可见档案，并通过获授权的操作者（人类、客户端或 AI Agent）参与社交或娱乐。
 
 ## 原则
 

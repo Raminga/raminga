@@ -1,8 +1,8 @@
 # Raminga 安装与构建指南
 
-Status: Current (2026-11-12) · Go 1.27 · 未签名。发布流水线已实现，尚未首发。本文所有命令以本仓库当前 Makefile、`.goreleaser.yaml` 和 CLI `--help` 为准。
+当前预发布版为 [v0.1.0-rc.2](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2)，二进制未签名。仅源码构建需要 Go 1.27。首次聊天见[双节点快速开始](quick-start.md)。
 
-> **迁移先于第一次运行（最容易搞错的一步）：** 如果旧节点的数据目录不是 `~/.raminga`，必须在第一次运行新版 `raminga` 之前，把**整个旧目录**移到 `~/.raminga`。新版一旦先在默认目录启动，就会生成新的 `identity/key` 和 `raminga.db`；此时再 `mv 旧目录 ~/.raminga`，旧目录会被移到 `~/.raminga/<旧目录名>` 里面，默认目录仍由新身份运行。2026-11-06 实际发生过（旧节点在 `~/.raminga/raminga-test`）。完整检查、正确顺序和恢复步骤见 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前)。
+> **迁移先于第一次运行（最容易搞错的一步）：** 如果要从自定义目录切换到默认的 `~/.raminga`，请在第一次用默认目录运行新版前迁移**整个旧目录**。继续使用自定义目录时，保持原来的 `RAMINGA_DATA_DIR` 或 `--data-dir`。新版一旦先在默认目录启动，就会生成新的 `identity/key` 和 `raminga.db`；此时再 `mv 旧目录 ~/.raminga`，旧目录会被移到 `~/.raminga/<旧目录名>` 里面，默认目录仍由新身份运行。2026-11-06 实际发生过（旧节点在 `~/.raminga/raminga-test`）。完整检查、正确顺序和恢复步骤见 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前)。
 
 ## 安装路径
 
@@ -28,31 +28,30 @@ Codex 不把调用者环境变量传给插件 MCP，因此 `RAMINGA_BIN` / `RAMI
 
 ### DSH
 
-预发布（当前 `v0.1.0-rc.2` 使用 `next` dist-tag）：
+在系统终端安装明确版本。把 `web` 换成你平时使用的 DSH profile 名称，再重新打开该 profile，从左侧栏进入 Raminga。
 
 ```sh
-dsh plugin --profile <name> add @raminga/dsh@next
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+dsh --profile web
 ```
 
-正式版去掉 `@next`：
-
-```sh
-dsh plugin --profile <name> add @raminga/dsh
-```
+在 macOS arm64 上用 DSH 0.2.2-rc.3 的隔离 Web profile 已验证安装、自动启动 rc.2 节点及界面双向聊天。按[DSH 快速开始](quick-start.md#在-dsh-中完成第一次聊天)添加联系人。npm 的 `next` 指向 rc.2，但本机 DSH 按 `@next` 安装时曾选中 rc.1，因此这里固定版本。
 
 DSH 会自动安装与当前平台匹配的 `@raminga/bin-<os>-<cpu>` 平台子包（macOS/Linux/Windows × arm64/x64），外壳本身不含二进制。二进制查找顺序：插件配置 `ramingaBin` > `$RAMINGA_BIN` > 平台子包 > `PATH` 上的 `raminga`。
 
 隔离安装/试用（不写用户 DSH 配置，也避免默认 `~/.raminga` 与 4001 端口）：
 
 ```sh
-DSH_HOME=$(mktemp -d)
-HOME=$(mktemp -d)
-export RAMINGA_DATA_DIR=$(mktemp -d)
-# 先在该数据目录写 config.toml，至少指定一个空闲 loopback 端口：
-# [network]
-# listen_addrs = ['/ip4/127.0.0.1/tcp/<空闲端口>', '/ip4/127.0.0.1/udp/<空闲端口>/quic-v1']
-dsh plugin --profile web add @raminga/dsh@next
-dsh --profile web --no-open --port <空闲 Web 端口>
+dsh_trial=$(mktemp -d /tmp/raminga-dsh.XXXXXX)
+mkdir -p "$dsh_trial/home" "$dsh_trial/data"
+# 此配置仅验证插件能启动节点。要聊天，请配置可访问的监听地址。
+printf '[network]\nlisten_addrs = []\n' > "$dsh_trial/data/config.toml"
+env -u DSH_PROFILE HOME="$dsh_trial/home" DSH_HOME="$dsh_trial/dsh" \
+  RAMINGA_DATA_DIR="$dsh_trial/data" \
+  dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+env -u DSH_PROFILE HOME="$dsh_trial/home" DSH_HOME="$dsh_trial/dsh" \
+  RAMINGA_DATA_DIR="$dsh_trial/data" \
+  dsh --profile web --no-open --port 0
 ```
 
 普通 profile 加载插件时会订阅事件，并尝试拉起 daemon；headless profile 在首次调用需要 daemon 的工具时才尝试启动。自动启动读取 `<data-dir>/config.toml`。需要停止测试节点时，使用对应的 `raminga stop --data-dir <data-dir>`。
@@ -62,16 +61,16 @@ dsh --profile web --no-open --port <空闲 Web 端口>
 卸载：
 
 ```sh
-dsh plugin --profile <name> remove @raminga/dsh @raminga/bin-<os>-<cpu>
+dsh plugin --profile web remove @raminga/dsh
 ```
 
-同时从该 profile 的 `package.json` 的 `dsh.profile.bundles` 删除 `@raminga/dsh`（若安装器未自动删除），重启宿主后侧栏入口消失；数据目录不会被卸载删除，需要时自行备份/清理。
+将 `web` 换成实际 profile。若开发安装时另行添加了平台子包，可一并卸载。检查该 profile 的 `package.json`，从 `dsh.profile.bundles` 删除 `@raminga/dsh`（若安装器未自动删除），重启宿主后侧栏入口消失；数据目录不会被卸载删除，需要时自行备份/清理。
 
 Electron 桌面应用共用同一套 DSH profile/插件。隔离启动时需要单独的 `HOME`、`DSH_HOME`、`RAMINGA_DATA_DIR` 与 `--user-data-dir`，并确保环境中的 `ELECTRON_RUN_AS_NODE` 未设置；否则应用会以 Node CLI 运行并拒绝 Chromium 参数。不要复用用户的日常 DSH_HOME 或 `~/.raminga`。
 
 ### 独立二进制
 
-不需要 Agent 插件时，从 [GitHub Releases](https://github.com/Raminga/raminga/releases) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
+不需要 Agent 插件时，从 [v0.1.0-rc.2 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
 
 macOS 上未签名二进制首次运行可能被 Gatekeeper 拦截：右键 `raminga` →“打开”，或执行：
 
@@ -83,31 +82,10 @@ Windows 未做 Authenticode 签名，且当前版本未在 Windows 实机验证�
 
 ## 0. 最短路径
 
-下载/取得对应平台的归档和同目录的 `SHA256SUMS`，解压后运行归档里的安装脚本，然后直接输入 `raminga`：
-
-### macOS / Linux
+按 [§2](#2-安装预编译包) 校验并安装对应平台归档，然后在新终端运行：
 
 ```sh
-tar xzf raminga_<os>_<arch>.tar.gz
-cd raminga_<os>_<arch>
-sh ./install.sh
-```
-
-```sh
-raminga
-```
-
-### Windows PowerShell
-
-```powershell
-Expand-Archive -Path .\raminga_<os>_<arch>.zip -DestinationPath .\raminga-dist
-cd .\raminga-dist\raminga_<os>_<arch>
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-
-打开**新的**终端后：
-
-```powershell
+raminga version
 raminga
 ```
 
@@ -130,7 +108,7 @@ raminga restart
 raminga restart
 ```
 
-如果旧数据目录不是默认的 `~/.raminga`，**先按 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前) 移动目录，再第一次运行新版**；不要先运行新版让它生成新身份。
+如果要切换到默认的 `~/.raminga`，先按 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前) 移动目录，再用默认目录首次运行新版。继续使用原目录时，用相同的数据目录参数重启。
 
 服务器（systemd，仅 Linux root）：
 
@@ -177,23 +155,23 @@ raminga_windows_amd64.zip
 
 ## 2. 安装预编译包
 
-先取得归档与同目录的 `SHA256SUMS`（例如 `make dist` 的 `dist/`，或别人连同校验文件一起发给你）。校验时把归档与 `SHA256SUMS` 放在同一目录，或按下面的方式只校验归档本身。
+从 [v0.1.0-rc.2 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) 下载对应平台归档和 `SHA256SUMS`，放在同一个目录。源码构建产物也可以用同一次构建生成的校验文件。
 
 ### macOS / Linux
 
+在下载目录执行。下面以 Apple Silicon 为例，Linux 或另一种架构需把 `archive` 改成实际归档文件名。
+
 ```sh
-tar xzf raminga_<os>_<arch>.tar.gz
-cd raminga_<os>_<arch>
+archive=raminga_darwin_arm64.tar.gz
+shasum -a 256 "$archive"    # macOS
+# sha256sum "$archive"      # Linux 使用这条
 ```
 
-```sh
-shasum -a 256 ../raminga_<os>_<arch>.tar.gz   # macOS
-sha256sum ../raminga_<os>_<arch>.tar.gz       # Linux
-```
-
-对照 `SHA256SUMS`。然后运行安装脚本：
+核对哈希与 `SHA256SUMS` 中该文件对应行一致后，再安装：
 
 ```sh
+tar xzf "$archive"
+cd "${archive%.tar.gz}"
 sh ./install.sh
 ```
 
@@ -217,7 +195,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 如果看到“会先找到 …”的警告，说明运行 `raminga` 时还是旧版：删除或替换旧版，或调整 `PATH` 顺序，然后用 `command -v raminga` 和 `raminga version` 确认。
 
-macOS 若仍被 Gatekeeper 拦截：右键 `raminga` → 属性 → 勾选“解除锁定”，或“更多信息 → 仍要运行”。项目**未做 Authenticode/公证**，安装脚本只能尽力清 quarantine。
+macOS 若仍被 Gatekeeper 拦截，确认已核对来源和哈希，然后按[独立二进制](#独立二进制)一节处理 quarantine。
 
 手动安装（与脚本等价，路径按需改）：
 
@@ -229,27 +207,27 @@ mkdir -p "$HOME/.local/bin" && install -m 0755 ./raminga "$HOME/.local/bin/ramin
 sudo install -m 0755 ./raminga /usr/local/bin/raminga
 ```
 
-Linux 服务器从本机上传：
+Linux 服务器可以先上传已校验的归档。示例使用 Linux arm64，按实际环境修改归档、密钥文件和主机：
 
 ```sh
-scp -i key.pem raminga_<os>_<arch>.tar.gz user@server:/tmp/
-ssh -i key.pem user@server 'tar xzf /tmp/raminga_<os>_<arch>.tar.gz -C /tmp && sudo /tmp/raminga_<os>_<arch>/install.sh'
+scp -i key.pem raminga_linux_arm64.tar.gz user@server:/tmp/
+ssh -i key.pem user@server 'tar xzf /tmp/raminga_linux_arm64.tar.gz -C /tmp && sudo sh /tmp/raminga_linux_arm64/install.sh'
 ```
 
 ### Windows PowerShell
 
+在下载目录执行。以下以 Windows amd64 为例，ARM64 设备使用 `raminga_windows_arm64.zip`。
+
 ```powershell
-Expand-Archive -Path .\raminga_<os>_<arch>.zip -DestinationPath .\raminga-dist
-cd .\raminga-dist\raminga_<os>_<arch>
+$archive = 'raminga_windows_amd64.zip'
+Get-FileHash $archive -Algorithm SHA256
 ```
 
-```powershell
-Get-FileHash .\raminga_<os>_<arch>.zip -Algorithm SHA256
-```
-
-对照 `SHA256SUMS` 中对应行的哈希（不区分大小写）。
+确认哈希和 `SHA256SUMS` 中对应行一致后，解压并安装：
 
 ```powershell
+Expand-Archive -Path $archive -DestinationPath .\raminga-dist
+Set-Location (Join-Path '.\raminga-dist' ([IO.Path]::GetFileNameWithoutExtension($archive)))
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -437,7 +415,7 @@ raminga init --data-dir "$HOME/.raminga/client-a" --dht-mode client --bootstrap 
 
 ### 插件外壳与启动器
 
-Claude Code 外壳位于 `plugins/claude/`，marketplace 清单位于仓库根 `.claude-plugin/marketplace.json`（`source` 为 `./plugins/claude`）。安装命令见文首；发布流水线会把同样的相对路径同步到 `Raminga/raminga-plugins`，该仓库尚未首发，真实安装冒烟在首个 tag 后执行。
+Claude Code 外壳位于 `plugins/claude/`，marketplace 清单位于仓库根 `.claude-plugin/marketplace.json`（`source` 为 `./plugins/claude`）。安装命令见文首；[分发仓库](https://github.com/Raminga/raminga-plugins)已同步 v0.1.0-rc.2。
 
 Codex 外壳位于 `plugins/codex/`，repo marketplace 清单位于 `.agents/plugins/marketplace.json`（`source.path` 为 `./plugins/codex`），格式依据 OpenAI 官方插件文档；`mcp.json` 使用 Agent Plugins 1.0.0 的可移植 stdio 格式。DSH 外壳位于 `plugins/dsh/`，以 npm 包方式装进 DSH profile；DSH 使用原生工具而不是 MCP，并从 `@raminga/bin-<os>-<cpu>` 平台子包解析二进制。
 
@@ -662,7 +640,7 @@ Start-Process .\raminga.exe -ArgumentList 'daemon','--data-dir',"$HOME\.raminga"
 
 ## 6. 防火墙 / 端口
 
-只有**公网可达的 Relay/Bootstrap 节点**需要入站 TCP+UDP **4001**（默认监听；以 `raminga init --help`/`config.toml` 为准）。普通客户端只需出站。
+公开提供 Relay/Bootstrap 的节点需要让参与节点访问其监听端口，默认是 TCP 和 UDP 4001。局域网直接拨入也需要对方能访问目标设备的监听端口，例如快速开始使用的 TCP 4001。仅主动拨出的客户端可以先使用出站连接。实际监听地址以 `config.toml` 为准。
 
 云主机：在安全组放行 TCP 4001 与 UDP 4001，来源尽量限制为测试网络。主机防火墙示例：
 
@@ -749,7 +727,7 @@ sudo systemctl daemon-reload
 
 - 当前 `make dist` / `make dist-check` 产物是**未签名 snapshot**；macOS 未 notarize，Windows 未 Authenticode 签名。
 - 有归档内的 `install.sh` / `install.ps1` 与 `make install`；Claude Code / Codex 通过 `Raminga/raminga-plugins` marketplace 安装，DSH 通过 npm 包 `@raminga/dsh` 安装；没有 Homebrew/scoop/winget 或自动更新渠道。
-- 发布流水线已实现，尚未首发：真实 tag 发布、npm provenance、marketplace 推送、预发布安装冒烟和 Windows 实机均未验证。
+- [rc.2 发布流水线](https://github.com/Raminga/raminga/actions/runs/43690029596)完成 GitHub 归档、npm 发布和 marketplace 同步。已用发布归档在 macOS arm64 走查本机隔离的双节点 TUI/CLI 和 Linux arm64 容器内的双节点 CLI，也验证了 macOS arm64 的 DSH Web profile 安装、节点启动、界面添加联系人、编辑名称备注及双向聊天。DSH 分享面板在 loopback 配置下只提供 Peer ID；跨设备分享、剪贴板和 Agent 模型执行未在本次复验。Claude Code、Codex 的 rc.2 安装回归及 Windows 实机仍待验证。
 - 归档和顶层目录名**不含版本号**；版本用 `raminga version` 查看。
 - Windows 实机曾运行过旧协议的 daemon/TUI/QUIC 打洞，但当前版本未按清单逐项冒烟，状态仍为 **NOT_TESTED**。`--service` 的安装逻辑已在 Linux 容器中用真实 daemon/API 和 stub systemctl 做隔离测试；真实 systemd 托管已在 Ubuntu 24.04.5 上验证。launchd 示例仍待验证，需按实际用户和路径调整。Windows 的 `install.ps1` 未在本仓库 CI 中由 PowerShell 实跑。
 - 真实公网：M6-D 在 IPv6 有状态防火墙场景真实 **PASS** 一次，IPv4 NAT 打洞与 M6-R 计数仍 **NOT_TESTED**；Docker/lab 不是公网证明。

@@ -9,12 +9,12 @@ start it on the first tool call. See [Lifecycle](#lifecycle).
 ## Install
 
 ```sh
-# Prerelease
-dsh plugin --profile <name> add @raminga/dsh@next
-
-# Stable release
-dsh plugin --profile <name> add @raminga/dsh
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
 ```
+
+Replace `web` with your DSH profile. Pin rc.2 for the current prerelease. The
+registry points `next` at rc.2, but an isolated DSH install using `@next`
+resolved rc.1 during validation.
 
 The matching `@raminga/bin-<os>-<cpu>` package is installed automatically for
 macOS, Linux and Windows on arm64 or x64. The shell never bundles a binary.
@@ -239,8 +239,8 @@ lockfile.
 Published install:
 
 ```sh
-dsh plugin --profile <name> add @raminga/dsh@next
-dsh --profile <name>
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+dsh --profile web
 ```
 
 Open the **Raminga** entry in the native left sidebar. A fresh DSH profile may

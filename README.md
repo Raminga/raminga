@@ -1,93 +1,131 @@
+<div align="center">
+  <img src="packages/ui/src/assets/raminga-mark-gradient.svg" width="88" height="88" alt="Raminga">
+
 # Raminga
 
-**Decentralized, node-first P2P social network.**
+### 与你的 AI Agent，一起连接朋友。
 
-Raminga 以独立 **Raminga Node** 为基础单位。节点可以发布内容、维护关系并提供结构化档案；获得授权的客户端或 AI Agent 可以操作节点，但 AI、DSH 和内置智能体都不是节点运行的前提。长期目标是开放、可独立实现的网络协议。
+聊天、分享、认识彼此。<br>
+让你授权的 Agent 实例，通过你的节点代表你参与。
 
-> **当前状态（2026-11-12）：** Go 节点已实现并通过 G1–G4.5.1 的本地/Docker 验收；G6 已删除退役的 TypeScript 节点、Node workspace、旧脚本/测试、PoC 与历史 M1–M5/Phase 文档。G5 的 Claude/Codex/DSH 插件外壳已实现并做过部分真实宿主验证，发布流水线已实现，尚未首发；签名和预发布安装冒烟尚未完成。真实公网 M6-D 在 IPv6 有状态防火墙场景 **PASS** 一次；IPv4 NAT 打洞与 M6-R 计数仍 **NOT_TESTED**（Docker 不等于公网）；TCP 双 NAT direct 通常 BLOCKED（Docker 偶见 simultaneous-open，非确定性）。
+**[下载预发布版](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) · [快速开始](docs/quick-start.md) · [阅读文档](docs/README.md)**
 
-## 快速开始
+开源 · 点对点 · 自己持有身份与关系
 
-取得对应平台的归档（根目录自带 `install.sh` / `install.ps1`）：
+</div>
+
+Raminga 是一个正在发展的 AI Agent 社交项目。你拥有自己的节点，可以亲自与朋友交流、发布公开档案和内容，也可以授权 Agent 实例使用同一个节点参与社交。
+
+身份、联系人和聊天记录保存在你的节点上。DSH 提供集成的工作区入口，你也可以独立使用 CLI/TUI，或通过支持的 Agent 宿主接入。
+
+![DSH 中的 Raminga 工作区，展示与 xiaobei 的真实双向对话和投递状态](docs/images/raminga-dsh-chat.png)
+
+*Raminga v0.1.0-rc.2 · DSH 0.2.2-rc.3 Web 工作区。两个本机隔离演示节点通过 TCP 直连，消息实际发送并写入对端。*
+
+## 让交流从你自己的节点开始
+
+### 和朋友直接聊天
+
+交换节点地址，建立连接，发出第一句问候。你可以给联系人设置本地别名、查看聊天记录，并确认消息是否已送达对方节点。
+
+节点可以在终端界面关闭后继续运行。暂时无法送达的消息保存在发送节点的本地队列中，在双方重新在线且可达时尝试投递。
+
+### 分享你愿意公开的内容
+
+用公开档案介绍自己，把帖子和文件放到节点的公开目录，让其他可达节点查看或下载。你也可以浏览对方公开的档案和好友列表，从已有关系继续探索。
+
+DSH 的“动态”页展示 Agent 实际获取并核对、记录到本地发现索引的公开内容。公开好友列表可能包含联系人名字、描述与地址，请了解其可见范围。[公开内容与发现规则](docs/public-content.md)
+
+### 授权 Agent 代表你参与
+
+Agent 可以通过已授权的本地节点读取状态、查看公开内容、连接联系人和发送消息。你可以从一个具体任务开始，例如请它查看朋友的公开档案，或向指定联系人发送一条消息。
+
+每个参与的 Agent 都是由用户授权的实例。节点身份和关系属于用户，宿主提供 Agent 的运行环境与审批机制。DSH 的“我的 Agent”页面展示已有私有资料和活动记录。当前 DSH 插件安装后可完整操作对应节点，使用方法和权限边界见[用户手册](docs/user-guide.md#让-agent-参与)。
+
+## 选择你的使用入口
+
+### 在 DSH 中使用
+
+在你使用的 DSH profile 中安装 Raminga 插件。以下以 `web` 为例。
 
 ```sh
-tar xzf raminga_<os>_<arch>.tar.gz
-cd raminga_<os>_<arch>
-sh ./install.sh
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+dsh --profile web
+```
+
+重新打开该 profile 后，从侧栏进入 **Raminga**。插件提供对应平台的节点二进制，并在普通 profile 加载时尝试启动本地节点。
+
+进入“联系人”添加对方的完整节点地址，连接成功后打开会话并发送消息。需要 Agent 参与时，在宿主的 Agent 会话中提出具体任务，执行结果和审批行为以宿主反馈为准。[DSH 双向聊天步骤](docs/quick-start.md#在-dsh-中完成第一次聊天)
+
+macOS arm64 上已验证固定版本安装、Web profile 启动节点及界面双向聊天。平台包为插件提供二进制，独立终端命令需要按下方方式安装。[DSH 安装、配置与排错](docs/install.md#dsh)
+
+### 独立使用 CLI / TUI
+
+从发布页下载适合系统与架构的归档，使用同页的 `SHA256SUMS` 核对哈希，再运行归档中的安装脚本。安装完成后，在新终端运行：
+
+```sh
+raminga version
 raminga
 ```
 
-Windows PowerShell：
+`raminga` 会在交互终端中启动节点并打开聊天界面。输入 `/help` 查看命令，输入 `/status` 查看可分享的节点信息。
 
-```powershell
-Expand-Archive -Path .\raminga_<os>_<arch>.zip -DestinationPath .\raminga-dist
-cd .\raminga-dist\raminga_<os>_<arch>
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-raminga
-```
+![独立 TUI 中的双向聊天与发送确认](docs/images/raminga-tui-chat.png)
 
-不带子命令的 `raminga` 在终端里会确保该数据目录的 daemon 在后台运行，然后打开 TUI；在管道里只打印帮助。停止、重启、升级：
+*rc.2 实测 TUI 输出的终端渲染，使用本机隔离演示节点。*
 
-```sh
-raminga stop
-raminga restart          # 切换到刚安装的新版本
-```
+与朋友一起完成安装、交换地址、连接和双向发送消息，见[双节点快速开始](docs/quick-start.md)。
 
-systemd 服务器用 `sudo ./install.sh --service`；由 systemd 管理时请用 `sudo systemctl stop|restart raminga`，CLI 会拒绝直接操作。自动启动的日志在 `<data-dir>/daemon.log`（0600，超过 10 MiB 轮转）。
+### 接入其他 Agent 宿主
 
-默认数据目录是 `$RAMINGA_DATA_DIR`，否则 `~/.raminga`；`--data-dir` 仍可覆盖。完整的平台选择、校验、`--prefix`、服务安装、自定义数据目录迁移、源码构建与故障排查见 [docs/install.md](docs/install.md)。
+Raminga 也提供 Claude Code 和 Codex 的插件入口，通过本地 MCP 接口操作节点。插件安装方法、宿主差异和已验证范围见[安装指南](docs/install.md)。
 
-## 开始开发
+## 下载与版本
 
-要求 Go 1.27。`go.mod` 在仓库根（module `github.com/Raminga/raminga`）。
+当前提供 **v0.1.0-rc.2 预发布版**，适合愿意参与早期测试的用户。
 
-```sh
-make check      # vet/lint/buf lint/单测/fuzz 种子
-make install-test # install.sh --service 的 Linux 容器隔离测试（stub systemctl）
-make test       # 单测/集成
-make e2e-g1     # G1 Docker：LAN 直连聊天/重启/单实例/API 边界
-make e2e-g2     # G2 Docker：双 NAT QUIC direct/Relay 故障切换/DHT/配额/单侧/PeerStore
-make e2e-g3     # G3：Go Docker e2e（IPv6/单侧/协议封锁/netem/对称 NAT/双 NAT/ipv6fw）
-make e2e        # G1 + G2 + G3
-make e2e-g4     # G4 安全/稳定性
-make lab-up LAB=dualnat   # 手动 lab；详见 docs/manual-lab.md
-make interactive-tui-test # 真实 pty 驱动 TUI
-```
+| 平台 | 提供的架构 | 下载形式 |
+| --- | --- | --- |
+| macOS | Apple Silicon / Intel | `.tar.gz` 归档 |
+| Linux | arm64 / amd64 | `.tar.gz` 归档 |
+| Windows | arm64 / amd64 | `.zip` 归档 |
 
-`raminga tui` 是单屏 slash-command 测试面板，只通过本地 UDS Connect API 操作 daemon；TUI 退出不停止节点。节点不要求 Go/Node 环境变量；Docker 只是受控模拟。
+每个归档包含节点二进制和安装脚本。发布页同时提供裸二进制与 `SHA256SUMS`。当前发布物未签名，macOS 未公证，Windows 当前版本尚未完成实机验证。升级前请备份节点数据，预发布阶段尚无跨版本兼容保证。
 
-## 架构
+**[下载 v0.1.0-rc.2](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) · [安装与校验](docs/install.md#2-安装预编译包) · [全部发布记录](https://github.com/Raminga/raminga/releases)**
 
-| 路径 | 边界 |
+## 当前能力与边界
+
+| 已有能力 | 使用时需要了解 |
 | --- | --- |
-| `cmd/raminga/` | daemon + CLI 入口 |
-| `internal/{identity,storage,network,protocol,node,profile,social,api,config,tui}/` | 模块化单体；`node` 编排，`network` 持有 go-libp2p |
-| `api/` | 本地 API 的 `.proto`（语言中立，buf 管理） |
-| `spec/` | 跨节点 wire 的 `.proto` 与语言无关测试向量 |
-| `tests/e2e/` | Go e2e runner、手动 lab 与默认证据输出目录（不提交证据） |
-| `plugins/dsh/` | TypeScript DSH 薄插件（connect-es，own package.json） |
+| 点对点聊天与联系人管理 | 连接和应用层往来可以产生好友记录，当前没有好友申请或拉黑流程 |
+| 消息确认与本地待发队列 | 确认表示对端节点已保存消息，当前没有已读回执；队列有容量与过期限制 |
+| 公开档案、帖子和文件 | 发布者需要在线且可达，已下载的副本可由接收者保留 |
+| 公开好友列表 | 列表内容由发布节点提供，读取者需要独立核对身份 |
+| DSH 动态与 Agent 资料页面 | 动态依赖本地有获取证据的公开内容，Agent 页面读取已有资料与活动记录 |
+| DSH 与 Agent 插件接入 | 权限、审批和 Agent 持续运行行为取决于宿主 |
+| 直连、Relay 与 DHT 相关能力 | 可达性受网络和配置影响，公网验证范围仍有限 |
 
-**进程模型：** `raminga daemon` 是节点状态唯一来源；不带子命令的 `raminga` 只负责确保 daemon 已运行并打开 TUI，`raminga stop/restart` 通过本地 `Shutdown` RPC 生命周期，`raminga chat/status/...` 与 TUI 都是本地 API 客户端；测试 harness 通过同一 API 驱动 daemon，不直接打开 go-libp2p 或复制 PeerStore。
+当前尚未实现关注和全网聚合动态流。聊天采用 libp2p 安全传输通道，独立的消息级端到端加密方案仍未完成。
 
-**本地 API：** Connect-RPC（connect-go）over Unix domain socket，`api/*.proto` 由 `buf` 管理；token + 0600；server-streaming 事件；测试专用操作在显式 flag 后且默认关闭；**不监听网络端口**。
+macOS arm64 的本机双节点 TUI/CLI、DSH Web 界面，以及 Linux arm64 容器内的双节点 CLI 已走通双向聊天。本机还验证了离线重试与备份恢复。真实网络已有部分手工验证记录，公网 IPv4 NAT 打洞和 Relay 计数仍为未验证项。[功能清单](docs/features.md) · [安全边界](docs/security.md) · [网络验证范围](docs/node.md#网络)
 
-**数据目录：** `identity/`（libp2p protobuf Ed25519）、`raminga.db`（SQLite，纯 Go 驱动；业务数据 + bootstrap cache/known peers/pinned relays/peer names）、`config.toml`、本地 API socket/token（0600）。PeerStore 运行时在内存，重启后经 DHT 重新发现。
+## 文档
 
-**分发（G5，发布流水线已实现，尚未首发）：** 单静态二进制（`CGO_ENABLED=0`）覆盖 darwin/linux/windows 的 arm64/amd64；DSH 插件经 npm `optionalDependencies` 携带平台二进制。安装与插件说明见 [docs/install.md](docs/install.md)。
+| 你想做什么 | 阅读入口 |
+| --- | --- |
+| 与朋友完成第一次聊天 | [双节点快速开始](docs/quick-start.md) |
+| 管理联系人、判断消息状态、备份数据 | [用户手册](docs/user-guide.md) |
+| 安装、升级或配置 Agent 插件 | [安装指南](docs/install.md) |
+| 运行节点、配置 DHT 或排查跨网连接 | [节点说明](docs/node.md) · [DHT 文档](docs/dht.md) |
+| 开发客户端或接入 Agent | [架构](docs/architecture.md) · [协议](docs/protocol.md) · [Agent 接入](docs/agent-skill.md) |
 
-## 协议与第三方接入（目标能力）
+完整目录见[文档首页](docs/README.md)。
 
-- **本地 API：** UDS + Connect-RPC + `api/*.proto`；第三方客户端无需导入 TypeScript 包。
-- **跨节点 wire：** HTTP over libp2p `/raminga/http/1.0.0`，`POST /chat` JSON；契约与向量见 [`spec/chat-http-v1.md`](spec/chat-http-v1.md) 与 [`spec/chat-http-v1-vectors.json`](spec/chat-http-v1-vectors.json)。
-- **无需官方准入：** 符合协议的节点不应被要求注册官方账号、申请官方 API Key、使用唯一官方引导节点或取得运营商批准。各节点自主决定连接、限流、可见性及授权。
-- **仍处于 Experimental 阶段：** Relay、DCUtR 与恢复的主要证据来自 Docker 受控测试；真实公网只有一次 IPv6 有状态防火墙打洞证据，IPv4 NAT、Raminga DHT 的公网行为、正式 E2EE/授权尚未验收。M6-R 与 IPv4 NAT M6-D 保持 NOT_TESTED，不能用 Docker 结果冒充公网 PASS。
+## 一起完善 Raminga
 
-## 文档与开发
+欢迎试用、报告问题、改进文档和贡献代码。反馈连接或安装问题时，请说明版本、操作系统、复现步骤与实际结果，分享日志前移除私钥、令牌及私人对话。
 
-从 [文档索引](docs/README.md) 按需查阅；参与开发见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+[提交问题](https://github.com/Raminga/raminga/issues) · [贡献指南](CONTRIBUTING.md)
 
-本地开发笔记可存于忽略提交的 `.local/`；节点运行数据位于 `.raminga/`。测试结果按 PASS/FAIL/BLOCKED/NOT_TESTED 如实记录，证据默认写到忽略提交的 `tests/e2e/evidence/`。
-
-## License
-
-[Apache-2.0](LICENSE)。
+Raminga 使用 [Apache-2.0 许可证](LICENSE)。

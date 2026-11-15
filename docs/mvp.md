@@ -1,12 +1,14 @@
 # MVP 与里程碑
 
-Status: Accepted (scope); **Go G1–G4.5.1 implemented and local/Docker accepted; G6 TS retirement done; G5 release pipeline and broader real-network validation pending**.
+Status: Accepted (scope); **Go G1–G4.5.1 implemented and local/Docker accepted; G6 TS retirement done; G5 plugins and v0.1.0-rc.2 prerelease available; broader host/platform and real-network validation pending**.
 
 ## v0.1 产品闭环
 
 两台独立设备运行各自的 Raminga Node；发现或通过邀请建立连接；经授权查看对方的允许公开档案；各自发布并交换最小社交内容；本地数据可恢复；第三方 Agent 可以通过受控节点操作接口参与但不是必需。
 
 不要求内置 Agent、AI 宠物、推荐广场、订阅服务、移动端、多设备并发合并。v0.1 优先验证两个官方节点；第三方完全独立实现的互操作验收是明确的**后续开放协议里程碑**，不阻塞最初网络 PoC。
+
+以下阶段描述目标范围，具体实现与验收状态见下方 G1–G6 表和[功能清单](features.md)。
 
 ## 实施阶段
 
@@ -32,7 +34,7 @@ Status: Accepted (scope); **Go G1–G4.5.1 implemented and local/Docker accepted
 | G4 | 安全/稳定性、outbox、soak、fuzz/vuln/licenses | **PASS（Docker）** |
 | G4.5/G4.5.1 | TUI、报告、6 平台 dist、平台冒烟、TUI-first labs | **PASS（local + Docker）** |
 | G6 | 退役 TS 实现/旧脚本/历史文档 | **PASS（2026-11-01）** |
-| G5 | DSH 插件与分发 | **NOT_STARTED** |
+| G5 | DSH 插件与分发 | **PARTIAL**：rc.2 已预发布；macOS arm64 的 DSH Web 安装与双向聊天已验证，其余宿主与平台范围见[安装指南](install.md#9-状态与诚实边界) |
 | M6 | 真实公网 M6-R/M6-D | **PARTIAL**：M6-D IPv6 有状态防火墙 PASS ×1；IPv4 NAT 与 M6-R **NOT_TESTED**（真实设备手工测试） |
 
 真实公网 M6 需要两台异地设备和真实公网 Relay；当前环境不满足，不能用 Docker 代替。
