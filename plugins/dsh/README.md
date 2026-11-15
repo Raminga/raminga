@@ -2,7 +2,9 @@
 
 Operate a local [Raminga](https://github.com/Raminga/raminga) node from DSH.
 The plugin registers the `raminga_*` tools, injects the Raminga operating
-guide, and starts the local daemon on first use.
+guide, and connects to the local daemon when DSH activates it. A non-headless
+profile also attempts to start the daemon during plugin load; headless runs
+start it on the first tool call. See [Lifecycle](#lifecycle).
 
 ## Install
 
@@ -17,7 +19,67 @@ dsh plugin --profile <name> add @raminga/dsh
 The matching `@raminga/bin-<os>-<cpu>` package is installed automatically for
 macOS, Linux and Windows on arm64 or x64. The shell never bundles a binary.
 
-## Binary selection
+## Lifecycle
+
+### Startup and headless mode
+
+In a non-headless profile, activation starts one long-lived Events
+subscription. Its first client probe runs once DSH has provided the injected
+`tools` and `systemPrompt` services (normally during profile boot), before any
+`raminga_*` call and without opening the Raminga panel. If no daemon answers,
+the plugin spawns `raminga daemon --data-dir <data-dir>` detached, appends its
+stdout/stderr to `<data-dir>/daemon.log`, and waits up to 15 seconds for the
+local API. A daemon that is already running is connected to, not restarted.
+After the first successful client build the plugin checks
+`StatusResponse.api_version` and requires `4`.
+
+In headless/one-shot mode, DSH provides the `headlessStartup` service (or
+`DSH_PROFILE=headless` is set), so the long-lived subscription is skipped and
+the process can exit. The daemon is **not** started at plugin load; the first
+`raminga_*` tool call probes the API and attempts the same auto-start. No tool
+call means no daemon start and no new node data.
+
+The headless decision reads the DSH process environment. Do not launch a
+Web/TUI/desktop acceptance run with a stale `DSH_PROFILE=headless` inherited
+from a parent shell; the plugin will treat it as headless and skip the eager
+start. Use `env -u DSH_PROFILE dsh ...` on macOS/Linux (or remove
+`$env:DSH_PROFILE` in PowerShell) for a clean non-headless check.
+
+The automatic start is a startup behavior, not a supervisor. If the daemon
+stops later, the plugin does not silently spawn a replacement on every read.
+Check `daemon.log` and the tool error, then start it explicitly or restart DSH
+when a new startup attempt is intended.
+
+### Exit and supervision
+
+The plugin never stops a daemon when the panel closes, the plugin unloads, or
+DSH exits. Closing the panel only releases that UI lease and its Events
+stream; the daemon is independent.
+
+Survival after DSH exits depends on how the daemon is managed:
+
+- **Started by this plugin:** the child is spawned detached, `unref()`ed, and
+  has stdout/stderr redirected to `<data-dir>/daemon.log`, so it normally
+  outlives the host process. It is still subject to the host's process
+  supervision: a container teardown, a service manager that kills the whole
+  cgroup/process tree (systemd's default `KillMode=control-group`), a Windows
+  Job Object, or a process-group kill can terminate it.
+- **Started by the CLI, TUI, another host, or manually:** DSH only connects;
+  exiting DSH does not affect that process.
+- **Started by systemd:** `StatusResponse.supervised` is true. DSH does not own
+  it, and `raminga stop` / `raminga restart` refuse; use
+  `sudo systemctl stop|restart raminga`.
+
+For an unmanaged daemon, `raminga stop --data-dir <data-dir>` is the supported
+stop. Do not assume that stopping DSH stops it.
+
+A single successful exit test is not a general guarantee. Verify the actual
+daemon after the host exits with
+`raminga status --data-dir <data-dir> --json`, and stop an isolated node with
+the same binary. The package check below records one local observation; it is
+evidence for that run, not a cross-platform rule.
+
+## Binary selection and CLI PATH
 
 The plugin uses, in order:
 
@@ -26,10 +88,50 @@ The plugin uses, in order:
 3. the installed `@raminga/bin-<os>-<cpu>` package;
 4. `raminga` on `PATH`.
 
-If no bundled package is available, the plugin falls back to `PATH` and reports
-a diagnostic when it cannot start the daemon. The node data directory is
-`$RAMINGA_DATA_DIR`, else `~/.raminga`; it is shared by every host.
+The platform package is resolved from the plugin's installed dependency tree
+and wins over `PATH`, so a normal npm install is deterministic. If no bundled
+package is available, the plugin falls back to `PATH` and reports a diagnostic
+when it cannot start the daemon.
 
+`PATH` here is the environment of the **DSH process**, not the shell where you
+typed `dsh` later and not a terminal opened afterwards. In particular:
+
+- macOS apps launched from Finder/Dock, Windows shortcuts, Electron/desktop
+  launches, systemd/launchd services and containers often receive a minimal
+  PATH. A line in `~/.zshrc` or `~/.bashrc` that adds `~/.local/bin` is not
+  read by those processes.
+- The install scripts update shell profiles for future interactive shells;
+  they cannot change the PATH of an already-running DSH or a GUI launch.
+- The plugin never installs `raminga` into PATH and never invokes `dsh`
+  itself.
+
+Check the install-time CLI and the binary from the same environment that boots
+DSH:
+
+```sh
+command -v dsh
+dsh --version
+command -v raminga
+raminga version
+```
+
+Use `type -a raminga` (bash/zsh) to see every candidate. If the fallback is
+wrong, set an absolute `ramingaBin` in the plugin config (highest precedence)
+or an absolute `RAMINGA_BIN` in the DSH launch environment, then restart DSH.
+Exporting the variable in a different terminal after DSH started has no
+effect. Reinstall the matching platform package when that is the intended
+source. A startup diagnostic names the unresolved package; `daemon.log` has
+the spawn/version error.
+
+The `dsh plugin ...` commands in this README require the DSH CLI on the
+invoking PATH. Use the CLI from the same DSH installation you will boot; if
+`command -v dsh` is empty, use its absolute path or fix PATH. This is
+install-time only: the plugin does not need `dsh` at runtime.
+
+The node data directory is `$RAMINGA_DATA_DIR`, else `~/.raminga`; it is shared
+by every host. For acceptance runs, point both `DSH_HOME` and
+`RAMINGA_DATA_DIR` at temporary directories and give the node a local-only
+`config.toml` (see [Local package check](#local-package-check)).
 
 ## Local API transport
 
@@ -108,6 +210,9 @@ both be on local API `4` for the messaging, discovery and local-profile methods.
 # first checkout: install the shared UI build dependency (esbuild)
 (cd ../../packages/ui && npm ci)
 
+# install the plugin build dependencies without rewriting package-lock.json
+npm install --no-save --no-package-lock --omit=optional --ignore-scripts
+
 # rebuild the shared UI bundle and the DSH client artifact
 npm run build
 
@@ -123,6 +228,12 @@ npm run test:integration
 node ../../scripts/ui-harness/server.mjs
 ```
 
+Do not use `npm ci` in `plugins/dsh`: its committed lockfile does not list the
+six optional platform packages, so npm rejects it as out of sync. Use the
+`npm install --no-save --no-package-lock --omit=optional --ignore-scripts`
+line above; it matches the release helper's install and does not rewrite the
+lockfile.
+
 ### Real DSH loading
 
 Published install:
@@ -132,22 +243,171 @@ dsh plugin --profile <name> add @raminga/dsh@next
 dsh --profile <name>
 ```
 
-Open the **Raminga** entry in the native left sidebar. For a local checkout and
-an isolated acceptance profile that does not modify the user's DSH config or
-node data:
+Open the **Raminga** entry in the native left sidebar. A fresh DSH profile may
+show DSH's own welcome and API-key onboarding overlays first; acknowledge or
+dismiss those before interacting with Raminga. Switching to another native main
+panel must remove the Raminga host; reopening it must restore the view and
+produce one new lease. The shell examples below are for macOS/Linux; on Windows
+use the equivalent PowerShell variables and `raminga.exe`, and remove
+`DSH_PROFILE` with `Remove-Item Env:DSH_PROFILE -ErrorAction SilentlyContinue`.
+
+#### Local checkout
+
+For a local checkout, an isolated acceptance profile, and a local-only node
+that does not touch the user's DSH config or node data, run the following from
+the repository root. Run each subsection's commands in one shell; later blocks
+reuse the variables defined earlier in that subsection.
 
 ```sh
-export DSH_HOME=$(mktemp -d)
-dsh plugin --profile web add "$PWD/plugins/dsh"
-RAMINGA_DATA_DIR=$(mktemp -d) dsh --profile web --no-open --port 4321
+set -eu
+make build
+
+base=$(mktemp -d "${TMPDIR:-/tmp}/raminga-dsh-dev.XXXXXX")
+mkdir -p "$base/home" "$base/dsh-home" "$base/data"
+printf '[network]\nlisten_addrs = []\n' > "$base/data/config.toml"
+
+# Build the shell first; DSH loads lib/, not src/.
+(cd packages/ui && npm ci)
+(cd plugins/dsh && npm install --no-save --no-package-lock --omit=optional --ignore-scripts)
+(cd plugins/dsh && npm run build)
+
+env -u DSH_PROFILE HOME="$base/home" DSH_HOME="$base/dsh-home" \
+  dsh plugin --profile web add "$PWD/plugins/dsh"
+env -u DSH_PROFILE HOME="$base/home" DSH_HOME="$base/dsh-home" \
+  RAMINGA_BIN="$PWD/bin/raminga" RAMINGA_DATA_DIR="$base/data" \
+  dsh --profile web --no-open --port 0
 ```
 
-The printed URL contains a local token. A fresh DSH profile may show DSH's own
-welcome and API-key onboarding overlays first; acknowledge or dismiss those
-before interacting with Raminga. Switching to another native main panel must
-remove the Raminga host; reopening it must restore the view and produce one new
-lease. This was verified against DSH `0.2.2-rc.2` with the isolated
-profile flow above.
+A directory install is a `link:` to the working tree, so the tree must keep its
+`plugins/dsh/node_modules` and cannot be moved while the profile is in use.
+Use the tarball check below for a self-contained package. The last command
+stays in the foreground and prints a URL with a local token; treat that token
+as a secret. `make build` usually reports a git-suffixed version such as
+`0.1.0-rc.2-g<sha>`; the plugin requires local API `4`, not an exact binary
+version. Use the exact-version build in the package check when the version
+string must match the npm package.
+Stop the isolated node before deleting the temporary directory:
+
+```sh
+set -eu
+"$PWD/bin/raminga" stop --data-dir "$base/data"
+```
+
+#### Local package check
+
+This checks real tarballs and platform-package auto-discovery, without
+publishing. Run it from the repository root. The example builds the host
+package for macOS arm64; substitute `GOOS`/`GOARCH`, the npm package name, and
+the executable name for another platform. This is a developer-only package,
+not the six-platform release artifact (the release uses GoReleaser and
+`scripts/npmdist`).
+
+```sh
+set -eu
+base=$(mktemp -d "${TMPDIR:-/tmp}/raminga-dsh-pack.XXXXXX")
+mkdir -p "$base/packs" "$base/bin-darwin-arm64/bin"
+version=$(tr -d '[:space:]' < VERSION)
+
+# Exact version inside the binary so it matches the npm package.
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
+  -ldflags "-s -w -X main.version=$version" \
+  -o "$base/bin-darwin-arm64/bin/raminga" ./cmd/raminga
+chmod 0755 "$base/bin-darwin-arm64/bin/raminga"
+cp LICENSE "$base/bin-darwin-arm64/LICENSE"
+printf '# @raminga/bin-darwin-arm64\n\nLocal development package.\n' \
+  > "$base/bin-darwin-arm64/README.md"
+cat > "$base/bin-darwin-arm64/package.json" <<EOF
+{
+  "name": "@raminga/bin-darwin-arm64",
+  "version": "$version",
+  "license": "Apache-2.0",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": ["bin/raminga", "LICENSE", "README.md"]
+}
+EOF
+
+# Build the shell from the source and files list that the package publishes.
+# Keep the leading ./ so npm treats the argument as a path, not a GitHub
+# shorthand.
+(cd packages/ui && npm ci)
+(cd plugins/dsh && npm install --no-save --no-package-lock --omit=optional --ignore-scripts)
+(cd plugins/dsh && npm run build)
+npm pack ./plugins/dsh --pack-destination "$base/packs"
+npm pack "$base/bin-darwin-arm64" --pack-destination "$base/packs"
+```
+
+Install both tarballs into a clean profile, in the same shell as the previous
+block. The platform package is a plain dependency, so DSH warns that it
+declares no `dsh.bundle`; that warning is expected and it is still what the
+plugin resolves for the binary.
+
+```sh
+mkdir -p "$base/home" "$base/dsh-home" "$base/data"
+printf '[network]\nlisten_addrs = []\n' > "$base/data/config.toml"
+env -u DSH_PROFILE HOME="$base/home" DSH_HOME="$base/dsh-home" \
+  dsh plugin --profile web add \
+    "$base/packs/raminga-dsh-$version.tgz" \
+    "$base/packs/raminga-bin-darwin-arm64-$version.tgz"
+```
+
+The clean profile still fetches the shell's ordinary runtime dependencies
+from the registry; the tarballs only replace `@raminga/dsh` and the platform
+package. Use a warm pnpm store or a private registry for an offline run.
+
+Start the Web profile in the background, wait for the local API, and verify the
+running daemon:
+
+```sh
+env -u DSH_PROFILE HOME="$base/home" DSH_HOME="$base/dsh-home" \
+  RAMINGA_DATA_DIR="$base/data" \
+  dsh --profile web --no-open --port 0 >"$base/dsh.log" 2>&1 &
+dsh_pid=$!
+
+bin="$base/dsh-home/profiles/web/node_modules/@raminga/bin-darwin-arm64/bin/raminga"
+for i in $(seq 1 30); do
+  "$bin" status --data-dir "$base/data" --json >"$base/status.json" 2>/dev/null && break
+  sleep 1
+done
+grep -E '"(version|apiVersion)"' "$base/status.json"
+grep 'daemon ready' "$base/data/daemon.log"
+```
+
+Expected: the `VERSION` value (currently `"0.1.0-rc.2"`) and
+`"apiVersion": "4"`. Because this is a non-headless profile with no tool call
+and no panel open, the daemon starting here is the plugin-load auto-start, not
+a panel action. On macOS/Linux, confirm the process executable points into the
+profile's `@raminga/bin-*` package:
+
+```sh
+pid=$(lsof -t "$base/data/raminga.lock")
+lsof -p "$pid" -a -d txt   # macOS
+readlink "/proc/$pid/exe"  # Linux
+```
+
+To check exit behavior on this host, terminate DSH and re-run `status` before
+stopping the node. Treat the result as a property of this host's supervision,
+not as a universal guarantee (see [Exit and supervision](#exit-and-supervision)):
+
+```sh
+kill "$dsh_pid" 2>/dev/null || true
+wait "$dsh_pid" 2>/dev/null || true
+sleep 2
+if "$bin" status --data-dir "$base/data" --json >"$base/status-after.json" 2>/dev/null; then
+  grep -E '"(version|apiVersion)"' "$base/status-after.json"
+else
+  echo 'daemon did not survive DSH exit on this host'
+fi
+"$bin" stop --data-dir "$base/data" || true
+rm -rf "$base"
+```
+
+The macOS arm64 validation run used DSH `0.2.2-rc.3`, Node `24.22.1`, and Go
+`1.27.4`. The local platform package was selected automatically, the
+non-headless Web profile auto-started the daemon before any tool call,
+`status` reported `version=0.1.0-rc.2` / `apiVersion=4`, and one SIGTERM to the
+Web host left the detached daemon answering. The last observation is not a
+general guarantee.
 
 ## Links
 

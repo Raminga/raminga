@@ -43,6 +43,7 @@ systemd 服务器用 `sudo ./install.sh --service`；由 systemd 管理时请用
 
 ```sh
 make check      # vet/lint/buf lint/单测/fuzz 种子
+make install-test # install.sh --service 的 Linux 容器隔离测试（stub systemctl）
 make test       # 单测/集成
 make e2e-g1     # G1 Docker：LAN 直连聊天/重启/单实例/API 边界
 make e2e-g2     # G2 Docker：双 NAT QUIC direct/Relay 故障切换/DHT/配额/单侧/PeerStore

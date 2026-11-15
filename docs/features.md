@@ -316,7 +316,7 @@ Docker 结果不能代替这项验收。Agent 插件作为后续步骤并行推�
 | --- | --- | --- |
 | 本地 API | Connect-RPC over UDS，token 0600，服务端推送事件流；daemon 是节点状态的唯一写入方 | ✅ Docker/本地 |
 | CLI | 裸 `raminga`（终端内自动启动并打开 TUI）、`init`、`daemon`、`stop`、`restart`、`status`、`connect`、`disconnect`、`chat`、`peers`、`friends`、`content`、`relay`、`network`、`dht`、`report`、`tui`、`version`；`stop/restart` 走 token 保护的本地 `Shutdown` RPC，systemd 托管时拒绝直接操作；`test` 仅在 `--enable-test-api` 下可用 | ✅ Docker/本地 |
-| 生命周期命令 | 裸 `raminga` 确保 daemon 运行并打开 TUI；`init`（`--force` 只重写配置、保留身份）、`daemon`、`stop`、`restart`、`status`、`tui`、`version`；停止/重启走 token 保护的 `Shutdown` RPC，systemd 托管时拒绝直接操作 | ✅ Docker/本地；`--service`/systemd NOT_TESTED |
+| 生命周期命令 | 裸 `raminga` 确保 daemon 运行并打开 TUI；`init`（`--force` 只重写配置、保留身份）、`daemon`、`stop`、`restart`、`status`、`tui`、`version`；停止/重启走 token 保护的 `Shutdown` RPC，systemd 托管时拒绝直接操作 | ✅ Docker/本地；`--service` 隔离测试 PASS；Ubuntu 24.04.5 / systemd 255 真实迁移、失败清理 PASS |
 | TUI | 非全屏聊天式（[ADR-0004](adr/0004-inline-tui.md)）；`/connect`（`/connect <所有者> <节点>` 从对方好友列表连接）、`/disconnect`、`/chat`（输入为空按 `Esc` 退出聊天）、`/status`、`/peers`（`/peers <节点>` 看当前连接和已知地址）、`/diag`、`/outbox`、`/cancel`、`/name`、`/describe`、`/forget`、`/view`、`/posts`、`/peerfriends`（显示对方列的 Peer ID 和地址，未验证）、`/files`、`/get`、`/published`、`/mark`、`/report`、`/copy`、`/clear`、`/help`、`/quit`；中文补全；终端可直接选中复制 | ✅ Docker/本地（当前内联 TUI）；Mac 真实终端手工验收未确认 |
 | 测试报告 | `/report` 导出脱敏的 JSON + Markdown，有 schema | ✅ Docker/本地 |
 | `/mark` 观察时序 | 观察窗口可能早于中继实际停止 | ⚠️ 已知问题 |

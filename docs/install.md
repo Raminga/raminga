@@ -55,7 +55,11 @@ dsh plugin --profile web add @raminga/dsh@next
 dsh --profile web --no-open --port <空闲 Web 端口>
 ```
 
-插件首次进入 Raminga 时会自动拉起 daemon；自动拉起读取 `<data-dir>/config.toml`，不会采用之前 CLI 的临时 `--port` 参数。需要停止时用 `./bin/raminga stop --data-dir <data-dir>`，不要动其他用户 daemon。卸载：
+普通 profile 加载插件时会订阅事件，并尝试拉起 daemon；headless profile 在首次调用需要 daemon 的工具时才尝试启动。自动启动读取 `<data-dir>/config.toml`。需要停止测试节点时，使用对应的 `raminga stop --data-dir <data-dir>`。
+
+平台子包为 DSH 提供二进制，安装插件不会把 `raminga` 加入终端 PATH。CLI 可按下文单独安装，本地链接和 tarball 验收见 [DSH 插件开发安装](../plugins/dsh/README.md#real-dsh-loading)。
+
+卸载：
 
 ```sh
 dsh plugin --profile <name> remove @raminga/dsh @raminga/bin-<os>-<cpu>
@@ -135,7 +139,7 @@ raminga restart
 sudo ./install.sh --service
 ```
 
-以后升级服务器：解压新归档后再次 `sudo ./install.sh --service`（已有 unit 会 `systemctl restart raminga`）。`--service` 默认使用 `$SUDO_USER` 的 `~/.raminga`；自定义数据目录用 `--data-dir` 传入。只有 `--service` 会写 systemd，脚本不会改防火墙。
+以后升级服务器：解压新归档后再次 `sudo ./install.sh --service`。脚本会先核对已有 unit 的用户和数据目录；目标数据目录有独立 daemon 时，只通过该目录的本地 API 停止它，再交给 systemd；等待 `systemctl is-active` 成功且该数据目录的 API 报告 `supervised: true`、身份未变后才提示成功。`--service` 默认使用 `$SUDO_USER` 的 `~/.raminga`；自定义数据目录用 `--data-dir` 传入。只有 `--service` 会写 systemd，脚本不会改防火墙，也不会停止其他 unit/账号/数据目录的进程。
 
 macOS 睡眠**不会**被阻止；需要保持在线时仍可用前台 `caffeinate -i raminga daemon`。本项目没有 curl 一行安装、Homebrew、apt、scoop 或 winget 渠道，安装脚本就在归档里。
 
@@ -259,15 +263,16 @@ SmartScreen 若拦截：右键 `raminga.exe` → 属性 → 勾选“解除锁�
 sudo ./install.sh --service
 ```
 
-要求 Linux + systemd + root。脚本会：
+要求 Linux + systemd + root。脚本按以下顺序工作：
 
-- 安装到 `/usr/local/bin/raminga`；
-- 用 `$SUDO_USER` 作为服务用户；直接以 root 运行时必须用 `--user NAME` 指定用户；
-- 写 `/etc/systemd/system/raminga.service`，`ExecStart=/usr/local/bin/raminga daemon --data-dir <用户主目录>/.raminga`，`Restart=on-failure`；
-- `systemctl daemon-reload`，新 unit 用 `enable --now`，已存在的 unit 用 `restart`；
-- 自定义数据目录通过 `--data-dir DIR` 传入。
+1. **预检已有 unit。** `/etc/systemd/system/raminga.service` 必须是普通文件，`User=` 必须等于本次服务用户，`ExecStart=` 必须指向 `/usr/local/bin/raminga` 且 `--data-dir` 等于本次目标目录。符号链接、mask、任一标准 drop-in 目录（`/etc`、`/run`、`/usr/local/lib`、`/usr/lib`）中的 drop-in，或任一不一致，都会在复制二进制、停止进程之前报错并给出 `systemctl cat` 指引。通过的已有 unit 会原样复用（保留本地的 `Environment=`、`Restart=` 等设置），脚本不重写它。任一标准 unit 目录（`/run`、`/usr/local/lib`、`/usr/lib`、`/lib`）存在同名 unit 时，即使它当前 inactive，脚本也会停止安装，避免新建的 `/etc` unit 遮蔽它。
+2. **识别目标数据目录的 daemon。** 脚本以服务用户身份运行 `raminga status --data-dir DIR`（清空 `RAMINGA_API_TCP`、代理等环境，避免 transport 误判；归档路径不可由该用户读取时，先把 CLI 复制成 root 拥有、该用户可执行的暂存文件，绝不回退到 root 执行），读取本地 API 的 `data_dir`、`supervised`、`peer_id`，并检查 `api.sock`/`api.token`/`api.endpoint.json` 的属主。只有同时满足以下条件才会停止独立 daemon：API 可达、`data_dir` 就是目标目录、`supervised=false`、API 文件属于服务用户。`supervised=true`（由其他 systemd unit 管理）、`data_dir` 不一致、属主不同、API 不可用但存在无法解释的 `api.sock`/`api.endpoint.json`、或状态无法判断时，脚本**停止本次安装**，不停止、不 kill 任何进程，并打印下一步命令；没有 API 运行期文件的全新目录按“无 daemon”处理。唯一例外是已有 `raminga.service` 通过 unit 校验且自身 active：脚本会 `restart` 这个 unit 来修复 API，不会去停其他 unit。
+3. **安全迁移。** 满足条件时，脚本以同一服务用户运行 `raminga stop --data-dir DIR`，让独立 daemon 走正常关闭（不是 `pkill`/`kill`），确认 API 消失后才启动 systemd 服务。
+4. **写 unit（仅新建时）。** 新 unit 为 `ExecStart="/usr/local/bin/raminga" daemon --data-dir "<DIR>"`、`Restart=on-failure`；已有 unit 不覆盖。`systemctl daemon-reload` 后，新 unit 用 `enable --now`，已有 unit 用 `restart`。
+5. **成功前等健康。** 脚本最多等待 `RAMINGA_INSTALL_WAIT_SECONDS` 秒（默认 30，范围 1-300），要求 `systemctl is-active` 为 active，且同一数据目录的 API 返回 `supervised: true`。安装前读到过 Peer ID 时还要求它不变；安装前已存在的 `identity/key` 校验和也不能变。只有全部通过才打印 `已安装并启动 systemd 服务 raminga…`。
+6. **失败清理。** 本次新建的 unit 会 `stop`、`disable` 并删除；已有 unit 会 `stop` 但保留原文件和启用状态。两种情况都不会报告成功，也不会留下一个由本次安装启动、不断重试的服务；若 `systemctl stop` 本身失败，脚本会打印醒目警告并保留 unit 供排查，而不会假装清理完成。查看 `journalctl -u raminga -n 50 --no-pager` 和 `systemctl status raminga --no-pager`。
 
-`--service` 和 `--prefix` 不能同时使用（服务固定 `/usr/local/bin`）。脚本不修改防火墙；公网 Relay/Bootstrap 的端口放行见 §6。
+自定义数据目录通过 `--data-dir DIR` 传入；服务用户用 `$SUDO_USER`，直接以 root 运行时必须用 `--user NAME`。数据目录不能包含双引号、反斜杠、`$` 或 `%`（systemd 会解释这些字符），脚本会拒绝。`--service` 和 `--prefix` 不能同时使用（服务固定 `/usr/local/bin`）。脚本不修改防火墙；公网 Relay/Bootstrap 的端口放行见 §6。
 
 手工 unit（不使用脚本时）等价内容：
 
@@ -299,6 +304,8 @@ journalctl -u raminga -f
 ```
 
 这是为了避免命令行再启动一个不受 systemd 管理的第二个节点。请用 `sudo systemctl stop raminga` / `sudo systemctl restart raminga`。
+
+**验证范围：** 本仓库的 `make install-test` 在 Linux 容器里用真实 daemon 和真实本地 API 跑上述流程，`systemctl`/`journalctl` 是测试替身；它验证脚本逻辑、unit 内容和 API 健康等待，**不**验证真实 systemd 的 unit 解析/重启语义。真实 systemd 的 Linux CI/VM 验收步骤见 [`tests/install/README.md`](../tests/install/README.md)；Ubuntu 24.04.5 / systemd 255 的真实托管验收已通过。
 
 ## 3. 从源码构建
 
@@ -687,7 +694,9 @@ sudo ./install.sh --service
 sudo systemctl status raminga
 ```
 
-已有 unit 会被 `systemctl restart`，所以不需要再手动 `raminga restart`。
+已有 unit 会被预检并以 `systemctl restart` 重启，所以不需要再手动 `raminga restart`。如果目标数据目录之前由手工 `raminga daemon` 启动，脚本会先通过该目录的本地 API 停止它，再交给 systemd；Peer ID 和 `identity/key` 保持不变。已有 unit 指向其他用户或数据目录、目标 daemon 由其他 systemd unit 托管、或 API 状态无法确认时（active 的本 unit 除外），脚本会在停止任何进程前报错并给出指引；不要用 `pkill raminga` 绕过。
+
+失败时脚本不会报告成功：新建的 unit 会 stop/disable/删除，已有 unit 会 stop 但保留。先看 `journalctl -u raminga -n 50 --no-pager`，修复配置/权限后再运行安装。等待时间可用 `RAMINGA_INSTALL_WAIT_SECONDS=60 sudo ./install.sh --service` 调整。
 
 从 2026-11-06 之前的版本升级时要注意：
 
@@ -731,7 +740,10 @@ sudo systemctl daemon-reload
 | Windows SmartScreen | 属性 → 解除锁定或“更多信息→仍要运行”；未签名 |
 | 迁移后 Peer ID 变了 | 先不要删除任何目录：新版可能已在默认目录生成新身份。按 [§4 恢复步骤](#从自定义数据目录迁移到默认目录第一次运行前) 找回旧 `identity/key`，核对 `raminga status` 后再清理 |
 | `~/.raminga` 里出现 `raminga-test/` | 典型的 `mv 旧目录 ~/.raminga`（目标已存在）结果；旧节点被移进子目录，默认目录是新身份。按 §4 恢复，不要直接删子目录 |
-| `--service`/systemd 是否已验证 | 安装脚本和 unit 示例存在，但尚未验证 systemd 托管；需要时按实际用户/路径手工验证，未验证前不要当作生产部署 |
+| `--service` 报已有 unit 的用户/数据目录不一致 | 脚本拒绝覆盖。用 `systemctl cat raminga` 核对；确要更换账号或数据目录时，先备份数据目录、手动调整或移除旧 unit，再重试。不要直接删除 unit 文件绕过 |
+| `--service` 报无法确认 daemon | 本地 API 不可达、`supervised=true`、`data_dir` 或 API 文件属主不匹配。脚本不会停止任何进程；先手动运行 `raminga status --data-dir <DIR>`，由对应账号/unit 停止旧节点，或修复 `api.sock`/`api.token`/`api.endpoint.json` 后重试 |
+| `--service` 等待超时或启动失败 | 服务已被停止（新建 unit 还会被移除）。看 `journalctl -u raminga -n 50 --no-pager`、`systemctl status raminga --no-pager` 和该数据目录的 `daemon.log`；常见原因是端口占用、config.toml 语法、数据目录权限。可用 `RAMINGA_INSTALL_WAIT_SECONDS=60` 放宽等待后重试 |
+| `--service`/systemd 是否已验证 | 安装脚本的隔离测试（Linux 容器 + 真实 daemon/API + stub systemctl）通过；Ubuntu 24.04.5 / systemd 255 上的真实迁移、身份保留和启动失败清理通过。详见 [验收记录](../tests/install/README.md#ci-验收记录) |
 
 ## 9. 状态与诚实边界
 
@@ -739,7 +751,7 @@ sudo systemctl daemon-reload
 - 有归档内的 `install.sh` / `install.ps1` 与 `make install`；Claude Code / Codex 通过 `Raminga/raminga-plugins` marketplace 安装，DSH 通过 npm 包 `@raminga/dsh` 安装；没有 Homebrew/scoop/winget 或自动更新渠道。
 - 发布流水线已实现，尚未首发：真实 tag 发布、npm provenance、marketplace 推送、预发布安装冒烟和 Windows 实机均未验证。
 - 归档和顶层目录名**不含版本号**；版本用 `raminga version` 查看。
-- Windows 实机曾运行过旧协议的 daemon/TUI/QUIC 打洞，但当前版本未按清单逐项冒烟，状态仍为 **NOT_TESTED**；systemd/launchd 示例需按实际用户/路径调整。Windows 的 `install.ps1` 未在本仓库 CI 中由 PowerShell 实跑。
+- Windows 实机曾运行过旧协议的 daemon/TUI/QUIC 打洞，但当前版本未按清单逐项冒烟，状态仍为 **NOT_TESTED**。`--service` 的安装逻辑已在 Linux 容器中用真实 daemon/API 和 stub systemctl 做隔离测试；真实 systemd 托管已在 Ubuntu 24.04.5 上验证。launchd 示例仍待验证，需按实际用户和路径调整。Windows 的 `install.ps1` 未在本仓库 CI 中由 PowerShell 实跑。
 - 真实公网：M6-D 在 IPv6 有状态防火墙场景真实 **PASS** 一次，IPv4 NAT 打洞与 M6-R 计数仍 **NOT_TESTED**；Docker/lab 不是公网证明。
 - HTTP 聊天与内容查看：2026-11-06 在真实网络只验证过直连公网服务器；经中继、打洞、DHT 回退、好友列表找节点在真实网络 **NOT_TESTED**。
 - 归档已带外层目录；解压后先进入 `raminga_<os>_<arch>/` 再运行。

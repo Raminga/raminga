@@ -72,5 +72,5 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 ## 状态边界
 
 - 本文描述的是代码和本地/Docker 验收；真实公网有上述 M6-D 一次 PASS 记录，以及 2026-11-06～07 的手工测试报告（具体项目未单独记录）。TUI 的 Mac 真实终端手工验收状态未确认，Windows 实机和真实剪贴板仍 **NOT_TESTED**。
-- `--service`/systemd 安装脚本存在，但本次验收没有验证 systemd 托管；不要把示例当成已验证的生产部署。
+- `--service`/systemd 安装脚本已做 Linux 容器隔离测试（真实 daemon/API + stub systemctl，覆盖已有 unit、独立 daemon 迁移、身份保留、冲突/失败清理）；Ubuntu 24.04.5 / systemd 255 的真实托管验收已通过，详见 [验收记录](../tests/install/README.md#ci-验收记录)。
 - 当前阶段不承诺跨版本兼容；升级/迁移前先备份身份和数据库，按 [install.md](install.md) 的顺序执行。
