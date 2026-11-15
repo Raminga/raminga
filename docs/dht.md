@@ -65,7 +65,7 @@ query_timeout = "20s"
 
 `enabled = false` 会关闭 DHT：不启动路由表、不发布地址记录、`dht find` 明确返回 disabled。已连接的普通 libp2p 连接、Relay 和显式 multiaddr 连接不受影响。
 
-## 3. 查看 configured 与实际模式
+## 3. 查看配置模式与实际模式
 
 ```sh
 raminga dht status --data-dir "$HOME/.raminga"
@@ -77,7 +77,8 @@ raminga network status --data-dir "$HOME/.raminga"
 | 字段 | 含义 |
 | --- | --- |
 | `enabled` | 配置是否启用 DHT |
-| `configured_mode` | `config.toml` 里的值：client/server/auto |
+| `mode` | 兼容字段：`config.toml` 里的配置模式 client/server/auto |
+| `configured_mode` | 同 `mode`，也是 `config.toml` 里的值：client/server/auto |
 | `active_mode` | 现在实际承担的角色：client/server/unknown/disabled |
 | `protocol` | 固定 `/raminga/kad/1.0.0` |
 | `bootstrap` | 配置的显式 bootstrap multiaddr |
@@ -89,6 +90,8 @@ raminga network status --data-dir "$HOME/.raminga"
 | `last_error` | 最近的 DHT 发现/刷新错误 |
 | `last_publish` / `last_publish_error` | 本机地址记录的发布结果 |
 | `diagnosis` | 对空路由表等状态的归纳说明 |
+
+`dht status` 和 `network status` 的文本输出都保留旧的 `mode:` / `mode=` 字段，值等同 `configured_mode`（配置模式），并同时显示 `active_mode`。`--json` 输出保持 protobuf 字段不变：`mode` 是配置值，`active_mode` 是实际角色。
 
 `active_mode` 不是配置值的复读。libp2p 的 `IpfsDHT.Mode()` 返回的是配置选项，`auto` 永远返回 `auto`，不能说明当前到底在 client 还是 server；Raminga 改为检查 host 是否注册了 `/raminga/kad/1.0.0` 入站 stream handler。注册了是 `server`，没有注册是 `client`；DHT 未启动、无法观察时是 `unknown`；显式配置 server 但 handler 意外缺失时也报 `unknown`，不会猜成 client。`enabled=false` 时是 `disabled`。
 

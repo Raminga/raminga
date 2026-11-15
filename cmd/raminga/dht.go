@@ -37,8 +37,8 @@ func newDHTCmd() *cobra.Command {
 				return printProto(cmd.OutOrStdout(), res, true)
 			}
 			d := res.GetDht()
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "enabled: %t\nconfigured_mode: %s\nactive_mode: %s\nprotocol: %s\nbootstrap: %v\nbootstrap_connected: %d\nconnected_peers: %d\nrouting_table: %v\nlast_bootstrap: %s\nlast_refresh: %s\nlast_error: %s\nlast_publish: %s\nlast_publish_error: %s\ndiagnosis: %s\n",
-				d.GetEnabled(), d.GetMode(), d.GetActiveMode(), d.GetProtocol(),
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "enabled: %t\nmode: %s\nconfigured_mode: %s\nactive_mode: %s\nprotocol: %s\nbootstrap: %v\nbootstrap_connected: %d\nconnected_peers: %d\nrouting_table: %v\nlast_bootstrap: %s\nlast_refresh: %s\nlast_error: %s\nlast_publish: %s\nlast_publish_error: %s\ndiagnosis: %s\n",
+				d.GetEnabled(), d.GetMode(), d.GetMode(), d.GetActiveMode(), d.GetProtocol(),
 				d.GetBootstrapPeers(), d.GetBootstrapConnected(), d.GetConnectedPeers(), d.GetRoutingTablePeers(),
 				formatUnixMillis(d.GetLastBootstrapUnixMs()), formatUnixMillis(d.GetLastRefreshUnixMs()),
 				d.GetLastError(), formatUnixMillis(d.GetLastPublishUnixMs()), d.GetLastPublishError(), dhtDiagnosis(d))
