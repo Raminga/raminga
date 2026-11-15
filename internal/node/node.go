@@ -6,6 +6,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -280,20 +281,22 @@ func (n *Node) Status(ctx context.Context) (Status, error) {
 	cache, _ := n.peerCache(ctx)
 	reach := n.net.AutoNAT()
 	return Status{
-		PeerID:          n.identity.PeerID().String(),
-		NodeID:          n.identity.NodeID(),
-		ListenAddrs:     n.net.ListenAddrs(),
-		AdvertisedAddrs: n.net.AdvertisedAddrs(),
-		Version:         n.version,
-		ProtocolVersion: protocol.HTTPProtocol,
-		StartedAt:       n.startedAt,
-		Peers:           peers,
-		Connections:     n.net.Connections(),
-		TestAPI:         n.testAPI,
-		Supervised:      n.supervised,
-		DataDir:         n.dataDir,
-		GoVersion:       runtime.Version(),
-		ContentWarnings: n.contentWarnings(),
+		PeerID:            n.identity.PeerID().String(),
+		NodeID:            n.identity.NodeID(),
+		ListenAddrs:       n.net.ListenAddrs(),
+		AdvertisedAddrs:   n.net.AdvertisedAddrs(),
+		Version:           n.version,
+		ProtocolVersion:   protocol.HTTPProtocol,
+		StartedAt:         n.startedAt,
+		Peers:             peers,
+		Connections:       n.net.Connections(),
+		TestAPI:           n.testAPI,
+		Supervised:        n.supervised,
+		DataDir:           n.dataDir,
+		GoVersion:         runtime.Version(),
+		ContentWarnings:   n.contentWarnings(),
+		MaxChatTextBytes:  n.cfg.Limits.MaxChatTextBytes,
+		MaxStoredMessages: n.cfg.Storage.MaxStoredMessages,
 		Network: NetworkStatus{
 			Reachability:  reach.State,
 			AutoNAT:       reach,
@@ -443,15 +446,32 @@ func connectResult(out network.DialOutcome) ConnectResult {
 }
 
 // SendChat persists an outbound message, sends it and records a matching ACK.
+// It is the legacy internal entry and records unknown provenance; shells use
+// SendChatOrigin with an explicit human/agent origin.
+func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text string) (SendResult, error) {
+	return n.SendChatOrigin(ctx, peerIDStr, multiaddrStr, text, storage.OriginUnknown, "")
+}
+
+// SendChatOrigin persists an outbound message with local provenance and an
+// optional idempotency key, sends it and records a matching ACK.
 // Transport/ACK failures are returned in SendResult with Acked=false, not as a
 // local RPC error; only invalid input and local persistence errors are errors.
-func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text string) (SendResult, error) {
+// A non-empty requestID maps to one deterministic message ID per Peer: replaying
+// it returns the persisted state and never creates or sends a second message.
+func (n *Node) SendChatOrigin(ctx context.Context, peerIDStr, multiaddrStr, text, origin, requestID string) (SendResult, error) {
 	peerIDStr, multiaddrStr = peerarg.Normalize(peerIDStr), peerarg.Normalize(multiaddrStr)
 	if peerIDStr == "" && multiaddrStr == "" {
 		return SendResult{}, errors.New("node: peer_id or multiaddr is required")
 	}
 	if err := validateText(text, n.cfg.Limits.MaxChatTextBytes); err != nil {
 		return SendResult{}, err
+	}
+	origin = normalizeOrigin(origin)
+	if origin == "" {
+		return SendResult{}, fmt.Errorf("node: invalid send origin %q", origin)
+	}
+	if requestID != "" && !validRequestID(requestID) {
+		return SendResult{}, errors.New("node: request_id must be 1..128 chars of A-Z, a-z, 0-9, . _ : -")
 	}
 
 	var target peer.ID
@@ -474,9 +494,27 @@ func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text strin
 	if target == n.identity.PeerID() {
 		return SendResult{}, errors.New("node: refusing to send chat to self")
 	}
-	_ = n.ResumePeer(ctx, target)
 
 	messageID := protocol.NewMessageID()
+	if requestID != "" {
+		sum := sha256.Sum256([]byte("raminga-send\x00" + target.String() + "\x00" + requestID))
+		messageID = fmt.Sprintf("req-%x", sum[:16])
+		// A repeated request is a status read, not a new send. Check both the
+		// deterministic ID and the unique (peer, request) index so a concurrent
+		// or legacy row can never turn into a duplicate message.
+		if stored, found, err := n.store.GetMessage(ctx, messageID); err != nil {
+			return SendResult{}, err
+		} else if found {
+			return replaySendResult(stored, target.String(), text, origin, requestID)
+		}
+		if stored, found, err := n.store.GetMessageByRequest(ctx, target.String(), requestID); err != nil {
+			return SendResult{}, err
+		} else if found {
+			return replaySendResult(stored, target.String(), text, origin, requestID)
+		}
+	}
+
+	_ = n.ResumePeer(ctx, target)
 	createdAt := time.Now()
 	// Keep the synchronous send and the retry worker from racing on the same ID.
 	if !n.markOutboxInflight(messageID) {
@@ -484,28 +522,30 @@ func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text strin
 	}
 	defer n.clearOutboxInflight(messageID)
 	storeCtx, cancel := context.WithTimeout(ctx, storeTimeout)
-	err := n.store.SaveOutboundWithOutbox(storeCtx, messageID, target.String(), text, multiaddrStr, createdAt,
-		createdAt.Add(n.cfg.OutboxTTL()), n.cfg.Outbox.MaxEntries, n.cfg.Outbox.MaxBytes)
+	err := n.store.SaveOutboundWithOutboxOrigin(storeCtx, messageID, target.String(), text, multiaddrStr, createdAt,
+		createdAt.Add(n.cfg.OutboxTTL()), n.cfg.Outbox.MaxEntries, n.cfg.Outbox.MaxBytes, origin, requestID)
 	cancel()
 	if err != nil {
 		return SendResult{}, err
 	}
-	outboxStatus := "pending"
+	outboxStatus := storage.DeliveryPending
+	res := SendResult{
+		MessageID:      messageID,
+		OutboxStatus:   outboxStatus,
+		DeliveryStatus: storage.DeliveryPending,
+		RequestID:      requestID,
+	}
 	n.restoreFriendAddrs(ctx, target)
 	out, dialErr := n.dialForChat(ctx, target, multiaddrStr)
 	if dialErr != nil {
 		n.logger.Warn("chat send aborted before stream open",
 			"peer_id", target.String(), "message_id", messageID, "error", dialErr)
-		res := SendResult{
-			MessageID:       messageID,
-			OutboxStatus:    outboxStatus,
-			Error:           dialErr.Error(),
-			Reused:          out.Reused,
-			Source:          out.Source,
-			Attempts:        out.Attempts,
-			Note:            out.Note,
-			RemoteMultiaddr: out.RemoteAddr,
-		}
+		res.Error = dialErr.Error()
+		res.Reused = out.Reused
+		res.Source = out.Source
+		res.Attempts = out.Attempts
+		res.Note = out.Note
+		res.RemoteMultiaddr = out.RemoteAddr
 		return res, nil
 	}
 
@@ -517,23 +557,21 @@ func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text strin
 			storeCtx, cancel := context.WithTimeout(ctx, storeTimeout)
 			_ = n.store.FailOutbox(storeCtx, messageID, sendErr.Error())
 			cancel()
-			outboxStatus = "failed"
+			res.DeliveryStatus = storage.DeliveryFailed
+			res.OutboxStatus = storage.DeliveryFailed
 		}
-		return SendResult{MessageID: messageID, OutboxStatus: outboxStatus, Error: sendErr.Error()}, nil
+		res.Error = sendErr.Error()
+		return res, nil
 	}
 
-	res := SendResult{
-		MessageID:       messageID,
-		AckMessageID:    ack.MessageID,
-		ACKID:           ack.AckID,
-		RemoteMultiaddr: out.RemoteAddr,
-		Reused:          out.Reused,
-		Source:          out.Source,
-		Attempts:        out.Attempts,
-		Note:            out.Note,
-		Error:           ack.Error,
-		OutboxStatus:    outboxStatus,
-	}
+	res.AckMessageID = ack.MessageID
+	res.ACKID = ack.AckID
+	res.RemoteMultiaddr = out.RemoteAddr
+	res.Reused = out.Reused
+	res.Source = out.Source
+	res.Attempts = out.Attempts
+	res.Note = out.Note
+	res.Error = ack.Error
 	n.recordFriend(ctx, target, false)
 	if conn, connErr := n.net.ConnectionInfo(target); connErr == nil {
 		res.Route = conn.Route
@@ -551,13 +589,15 @@ func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text strin
 			res.Error = "ACK received but could not be persisted; reporting unacked"
 		} else {
 			res.Acked = true
-			res.OutboxStatus = "acked"
+			res.DeliveryStatus = storage.DeliveryAcked
+			res.OutboxStatus = storage.DeliveryAcked
 		}
 	} else if permanentRejection(ack.Error) {
 		storeCtx, cancel := context.WithTimeout(ctx, storeTimeout)
 		_ = n.store.FailOutbox(storeCtx, messageID, ack.Error)
 		cancel()
-		res.OutboxStatus = "failed"
+		res.DeliveryStatus = storage.DeliveryFailed
+		res.OutboxStatus = storage.DeliveryFailed
 	}
 	n.publish(Event{
 		At: time.Now(),
@@ -569,6 +609,64 @@ func (n *Node) SendChat(ctx context.Context, peerIDStr, multiaddrStr, text strin
 		},
 	})
 	return res, nil
+}
+
+func replaySendResult(stored storage.Message, peerID, text, origin, requestID string) (SendResult, error) {
+	// A request key identifies one Peer, one body and one local source. Do not
+	// let an Agent request replay a human row (or vice versa): the delivery
+	// status would be returned without the corresponding human relation or
+	// provenance semantics. The deterministic message ID makes a hash collision
+	// with another Peer impractical, but the stored fields are checked as well.
+	if stored.Direction != "out" ||
+		stored.PeerID != peerID ||
+		stored.ClientRequestID != requestID ||
+		stored.Text != text ||
+		normalizeOrigin(stored.Origin) != origin {
+		return SendResult{}, errors.New("node: request_id was already used for a different message or origin")
+	}
+	status := stored.DeliveryStatus
+	if status == "" {
+		status = storage.DeliveryUnknown
+	}
+	return SendResult{
+		MessageID:      stored.MessageID,
+		Acked:          status == storage.DeliveryAcked,
+		DeliveryStatus: status,
+		OutboxStatus:   status,
+		Error:          stored.DeliveryError,
+		Replayed:       true,
+		RequestID:      requestID,
+		Note:           "重复请求：返回已持久化的发送状态，没有再次发送。",
+	}, nil
+}
+
+func normalizeOrigin(origin string) string {
+	switch strings.ToLower(strings.TrimSpace(origin)) {
+	case "", storage.OriginUnknown:
+		return storage.OriginUnknown
+	case storage.OriginHuman:
+		return storage.OriginHuman
+	case storage.OriginAgent:
+		return storage.OriginAgent
+	default:
+		return ""
+	}
+}
+
+func validRequestID(value string) bool {
+	if len(value) == 0 || len(value) > 128 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		if r == '.' || r == '_' || r == ':' || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (n *Node) sendChatHTTP(ctx context.Context, target peer.ID, messageID, text string, sentAt time.Time) (*protocol.Ack, error) {
@@ -636,22 +734,145 @@ func (n *Node) RecentMessages(ctx context.Context, limit int) ([]StoredMessage, 
 	}
 	out := make([]StoredMessage, 0, len(msgs))
 	for _, m := range msgs {
-		created := time.UnixMilli(m.CreatedAtMS)
-		var ackedAt time.Time
-		if m.AckedAtMS > 0 {
-			ackedAt = time.UnixMilli(m.AckedAtMS)
-		}
-		out = append(out, StoredMessage{
-			MessageID: m.MessageID,
-			PeerID:    m.PeerID,
-			Direction: m.Direction,
-			Text:      m.Text,
-			Acked:     m.Acked,
-			CreatedAt: created,
-			AckedAt:   ackedAt,
-		})
+		out = append(out, toStoredMessage(m))
 	}
 	return out, nil
+}
+
+// ListMessages returns one Peer's retained messages with a stable cursor.
+func (n *Node) ListMessages(ctx context.Context, peerID, before string, limit int) (MessagePage, error) {
+	cursor, err := storage.DecodeMessageCursor(before)
+	if err != nil {
+		return MessagePage{}, err
+	}
+	msgs, hasMore, err := n.store.ListMessages(ctx, peerID, cursor, limit)
+	if err != nil {
+		return MessagePage{}, err
+	}
+	retention, err := n.store.MessageRetention(ctx)
+	if err != nil {
+		return MessagePage{}, err
+	}
+	page := MessagePage{
+		Messages:  make([]StoredMessage, 0, len(msgs)),
+		HasMore:   hasMore,
+		Retention: toMessageRetention(retention),
+	}
+	for _, m := range msgs {
+		page.Messages = append(page.Messages, toStoredMessage(m))
+	}
+	if hasMore && len(msgs) > 0 {
+		oldest := msgs[len(msgs)-1]
+		page.NextBefore = storage.EncodeMessageCursor(storage.MessageCursor{CreatedAtMS: oldest.CreatedAtMS, MessageID: oldest.MessageID})
+	}
+	return page, nil
+}
+
+// ListConversations returns one summary per Peer from retained messages.
+func (n *Node) ListConversations(ctx context.Context, before string, limit int) (ConversationPage, error) {
+	cursor, err := storage.DecodeConversationCursor(before)
+	if err != nil {
+		return ConversationPage{}, err
+	}
+	rows, hasMore, snapshot, err := n.store.ListConversations(ctx, cursor, limit)
+	if err != nil {
+		return ConversationPage{}, err
+	}
+	retention, err := n.store.MessageRetention(ctx)
+	if err != nil {
+		return ConversationPage{}, err
+	}
+	page := ConversationPage{
+		Conversations: make([]Conversation, 0, len(rows)),
+		HasMore:       hasMore,
+		Retention:     toMessageRetention(retention),
+	}
+	for _, row := range rows {
+		page.Conversations = append(page.Conversations, Conversation{
+			PeerID:         row.PeerID,
+			LastMessageID:  row.LastMessageID,
+			Direction:      row.Direction,
+			Preview:        row.Preview,
+			LastAt:         time.UnixMilli(row.LastAtMS),
+			DeliveryStatus: row.DeliveryStatus,
+			Origin:         row.Origin,
+			MessageCount:   row.MessageCount,
+		})
+	}
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		page.NextBefore = storage.EncodeConversationCursor(storage.ConversationCursor{
+			LastAtMS: last.LastAtMS, PeerID: last.PeerID, SnapshotRowID: snapshot,
+		})
+	}
+	return page, nil
+}
+
+// ListHumanOutboundPeers returns the durable stage-6 relation page.
+func (n *Node) ListHumanOutboundPeers(ctx context.Context, before string, limit int) (HumanOutboundPage, error) {
+	cursor, err := storage.DecodeConversationCursor(before)
+	if err != nil {
+		return HumanOutboundPage{}, err
+	}
+	rows, hasMore, err := n.store.ListHumanOutboundPeers(ctx, cursor, limit)
+	if err != nil {
+		return HumanOutboundPage{}, err
+	}
+	page := HumanOutboundPage{Peers: make([]HumanOutboundPeer, 0, len(rows)), HasMore: hasMore}
+	for _, row := range rows {
+		page.Peers = append(page.Peers, HumanOutboundPeer{
+			PeerID:  row.PeerID,
+			FirstAt: time.UnixMilli(row.FirstAtMS),
+			LastAt:  time.UnixMilli(row.LastAtMS),
+			// Kept internal to this package's page cursor; the RPC exposes only
+			// Peer ID and relation times.
+			PagingRowID:      row.RowID,
+			PagingSnapshotID: row.SnapshotRowID,
+		})
+	}
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		page.NextBefore = storage.EncodeConversationCursor(storage.ConversationCursor{
+			LastAtMS:      last.LastAtMS,
+			PeerID:        last.PeerID,
+			SnapshotRowID: last.SnapshotRowID,
+			RowID:         last.RowID,
+		})
+	}
+	return page, nil
+}
+
+func toStoredMessage(m storage.Message) StoredMessage {
+	created := time.UnixMilli(m.CreatedAtMS)
+	var ackedAt, deliveryUpdated time.Time
+	if m.AckedAtMS > 0 {
+		ackedAt = time.UnixMilli(m.AckedAtMS)
+	}
+	if m.DeliveryUpdatedMS > 0 {
+		deliveryUpdated = time.UnixMilli(m.DeliveryUpdatedMS)
+	}
+	return StoredMessage{
+		MessageID:         m.MessageID,
+		PeerID:            m.PeerID,
+		Direction:         m.Direction,
+		Text:              m.Text,
+		Acked:             m.Acked,
+		CreatedAt:         created,
+		AckedAt:           ackedAt,
+		Origin:            m.Origin,
+		DeliveryStatus:    m.DeliveryStatus,
+		DeliveryError:     m.DeliveryError,
+		DeliveryUpdatedAt: deliveryUpdated,
+		ClientRequestID:   m.ClientRequestID,
+	}
+}
+
+func toMessageRetention(r storage.MessageRetention) MessageRetention {
+	out := MessageRetention{RetainedMessages: r.RetainedMessages, MaxMessages: r.MaxMessages}
+	if r.OldestAtMS > 0 {
+		out.OldestAt = time.UnixMilli(r.OldestAtMS)
+	}
+	return out
 }
 
 // Subscribe returns a buffered event channel and a cancel function.

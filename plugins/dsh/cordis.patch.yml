@@ -17,6 +17,9 @@
         # every other Raminga shell (Claude Code / Codex); do not point this at
         # a per-shell directory.
         dataDir: ''
+        # Leave apiTcp unset to use the platform default: true on Windows
+        # (Node cannot use the daemon AF_UNIX socket), false on macOS/Linux.
+        # Set true/false explicitly to override; there is no fallback.
         # Override path to the raminga binary used to auto-start the daemon.
         # Empty resolves $RAMINGA_BIN, then the matching @raminga/bin-<os>-<cpu>
         # platform package installed with this plugin, then `raminga` on PATH.

@@ -2,7 +2,7 @@
 
 > **当前状态（2026-11-12）：** Go 节点已实现并通过 G1–G4.5.1 的本地/Docker 验收；G6 已删除退役的 TypeScript 节点与旧 M1–M5/Phase 文档。G5 的 Claude/Codex/DSH 插件外壳已实现并做过部分真实宿主验证，发布流水线已实现，尚未首发；签名和预发布安装冒烟尚未完成。真实公网 M6-D 在 IPv6 有状态防火墙场景 **PASS** 一次；IPv4 NAT 打洞、M6-R 与第三方 wire 互操作仍 **NOT_TESTED**。技术选型：HTTP + JSON over libp2p（`spec/`）、Connect-RPC over UDS（`api/*.proto`）、纯 Go SQLite（`raminga.db`）、内存 PeerStore + SQLite 少量缓存。
 
-**测试入口：** `make check`；`make e2e` 依次运行 G1+G2+G3；`make e2e-g1` / `make e2e-g2` / `make e2e-g3` 可单独运行。G4 为独立安全/稳定性套件：`make e2e-g4`、`make soak`（30 分钟双 NAT QUIC）、`make fuzz`、`make vuln`、`make licenses`。G4.5/G4.5.1 增加单屏 slash-command `raminga tui`、本地名字别名、报告导出、`make interactive-tui-test`（真实 pty）、`make dist`/`dist-verify`、`make platform-smoke` 与 `make tui-lab-verify LAB=<五个 lab>`。测试方法、阈值与证据约定见 [testing.md](testing.md)。
+**测试入口：** `make check`；`make install-test`（Linux 容器 + stub systemctl 的安装脚本回归）；`make e2e` 依次运行 G1+G2+G3；`make e2e-g1` / `make e2e-g2` / `make e2e-g3` 可单独运行。G4 为独立安全/稳定性套件：`make e2e-g4`、`make soak`（30 分钟双 NAT QUIC）、`make fuzz`、`make vuln`、`make licenses`。G4.5/G4.5.1 增加单屏 slash-command `raminga tui`、本地名字别名、报告导出、`make interactive-tui-test`（真实 pty）、`make dist`/`dist-verify`、`make platform-smoke` 与 `make tui-lab-verify LAB=<五个 lab>`。测试方法、阈值与证据约定见 [testing.md](testing.md)。
 
 本目录保存长期有效、版本化的项目知识。
 
@@ -14,11 +14,13 @@
 | **长期工程规则：成熟开源优先、少自研、安全与验收** | **[development-principles.md](development-principles.md)** |
 | **第一版三步路线**、全部预期功能、设计要点与当前状态（总表） | [功能与设计清单](features.md) |
 | Node 生命周期、身份与操作者关系 | [node.md](node.md) |
+| **DHT 配置、模式、诊断、地址发布与晚启动恢复** | **[dht.md](dht.md)** |
 | 对内/对外档案与访问语义 | [profile.md](profile.md) |
 | 当前跨节点协议与向量 | [protocol.md](protocol.md) · [契约](../spec/chat-http-v1.md) |
 | 信任边界、加密与授权 | [security.md](security.md) |
 | 测试等级、G4 阈值摘要与验收矩阵 | [testing.md](testing.md) |
 | 当前交付范围 | [mvp.md](mvp.md) |
+| **DSH 主工作区 UI：已确认布局、真实数据语义、daemon 能力与缺口、分阶段验收** | **[布局与接入约定](dsh-workspace-ui.md)** |
 | **公网测试包：`init` 参数、TUI/CLI 走查、Relay/Bootstrap 要求、报告提交、清理（中文）** | **[公网测试指南](public-test-guide.md)** |
 | **手动 Docker 实验室：五个拓扑（lan/onesided/symmetric/dualnat/ipv6fw）的亲自操作、cheat sheet、预期输出与 PASS/FAIL 验证** | **[手动 Docker 实验室](manual-lab.md)** |
 | **Raminga Agent 插件化：单一来源 `agent/`、工具目录、`raminga mcp` 核心二进制与各宿主插件外壳** | **[agent-skill.md](agent-skill.md)** · [插件分发 ADR](adr/0006-agent-plugin-distribution.md) |

@@ -65,11 +65,10 @@ func (n *Node) Friends(ctx context.Context) ([]Friend, error) {
 	return out, nil
 }
 
-// SetFriendName replaces a name for an existing friend.
+// SetFriendName replaces a name for an existing friend. An empty name clears
+// the local label; non-empty names keep the existing syntax/uniqueness rules in
+// storage. This never changes any remotely published profile.
 func (n *Node) SetFriendName(ctx context.Context, peerID, name string) (Friend, error) {
-	if err := storage.ValidateFriendName(name); err != nil {
-		return Friend{}, err
-	}
 	pid, err := peer.Decode(peerID)
 	if err != nil {
 		return Friend{}, fmt.Errorf("无效 Peer ID %q: %w", peerID, err)

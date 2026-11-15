@@ -155,7 +155,7 @@ func TestDetectForeignDataDirIgnoresRamingaOwnedEntries(t *testing.T) {
 				if err := os.MkdirAll(filepath.Join(dir, "bin", "0.1.0"), 0o700); err != nil {
 					t.Fatal(err)
 				}
-				for _, name := range []string{"raminga.lock", "daemon.log", "daemon.log.1", "api.token"} {
+				for _, name := range []string{"raminga.lock", "daemon.log", "daemon.log.1", "api.token", "api.endpoint.json"} {
 					if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
 						t.Fatal(err)
 					}

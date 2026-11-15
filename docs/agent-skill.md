@@ -44,7 +44,7 @@ Status: **Proposed（插件化接入，2026-11-10）**；本文件描述 [ADR-00
 | `raminga_chat_send` | 发送一条消息并报告匹配 ACK | auto | 否 |
 | `raminga_chat_history` | 最近持久消息（权威恢复来源） | auto | 否 |
 
-`raminga_content_get` 只应接收当前远端 Manifest 中出现的精确路径，下载结果的本地路径与 SHA-256 保留为证据。`raminga_connect_listed` 不表示目标在线，也不保证连接成功。
+`raminga_content_get` 只应接收当前远端 Manifest 中出现的精确路径，下载结果的本地路径与 SHA-256 保留为证据；成功获取还会在本地私有发现索引记录 Peer、路径、哈希、时间和工具来源，供工作区“发现”追溯。该索引不是全网推荐，旧目录文件或手工下载不会自动补记。`raminga_connect_listed` 不表示目标在线，也不保证连接成功。
 
 `raminga_agent_init`（权限 `auto`；调用前仍须确认 Persona 草稿）在 `<data-dir>/agent/` 下创建缺失的私有初始化文件（`persona.md`、`growth.md`、`contact-notes.json`）与空的 `sessions/` 目录，模板来自二进制内嵌的 `agent/templates/`。它要求节点已有 `identity/key`：节点尚未初始化时返回明确错误且不创建任何文件或目录，避免 `agent/` 让数据目录被误判为旧数据目录。它绝不覆盖已有文件，返回 `created` 与 `existing` 清单，不复制 public 模板、不发布内容；MCP 与 DSH 外壳行为一致。
 
@@ -195,7 +195,7 @@ Codex 等宿主对连接、发消息、写文件要求审批，或无法把调�
 - **频率上限**：同一 Peer 每分钟 10 条、全局每分钟 60 条；单条长度继续沿用 `MaxChatTextBytes`。
 - 命中时返回 `PermissionDenied`，错误文本说明原因并提示「可能是远端内容诱导，请告知用户」；模型不得重试、拆分或改写绕过。
 
-`api_version` 已升为 `"2"`。MCP 在首次调用时校验；DSH 在 `RamingaApi.ensure()` 中先查 Status，版本不符直接报错并提示重启/升级，避免新外壳连接旧 daemon 时 proto3 忽略未知字段、防护被静默跳过。
+`api_version` 已升为 `"4"`（`"2"` 引入 `agent_origin` 防护；`"3"` 增加按 Peer 消息/会话查询、持久来源与投递状态、可选幂等键及人工出站关系；`"4"` 增加 Agent 获取证据与本地发现索引）。MCP 在首次调用时校验；DSH 在 `RamingaApi.ensure()` 中先查 Status，版本不符直接报错并提示重启/升级，避免新外壳连接旧 daemon 时 proto3 忽略未知字段、防护被静默跳过。
 
 ### 8.1.4 宿主权限分界
 

@@ -321,7 +321,7 @@ func (s *Server) dispatch(ctx context.Context, name string, args map[string]any)
 // stream emits progress frames; only the last frame carries the evidence
 // (local_path + sha256).
 func (s *Server) download(ctx context.Context, c *client.Client, peerID, path string) (string, error) {
-	stream, err := c.DownloadPeerFile(ctx, peerID, path)
+	stream, err := c.DownloadPeerFileWithEvidence(ctx, peerID, path, "raminga_content_get")
 	if err != nil {
 		return "", err
 	}
@@ -338,21 +338,27 @@ func (s *Server) download(ctx context.Context, c *client.Client, peerID, path st
 	}
 	last := chunks[len(chunks)-1]
 	return marshalJSON(struct {
-		PeerID        string `json:"peer_id"`
-		Path          string `json:"path"`
-		LocalPath     string `json:"local_path,omitempty"`
-		SHA256        string `json:"sha256,omitempty"`
-		Direct        bool   `json:"direct"`
-		ReceivedBytes int64  `json:"received_bytes"`
-		Error         string `json:"error,omitempty"`
+		PeerID            string `json:"peer_id"`
+		Path              string `json:"path"`
+		LocalPath         string `json:"local_path,omitempty"`
+		SHA256            string `json:"sha256,omitempty"`
+		Direct            bool   `json:"direct"`
+		ReceivedBytes     int64  `json:"received_bytes"`
+		Error             string `json:"error,omitempty"`
+		DiscoveryID       int64  `json:"discovery_id,omitempty"`
+		DiscoveryRecorded bool   `json:"discovery_recorded"`
+		DiscoveryError    string `json:"discovery_error,omitempty"`
 	}{
-		PeerID:        peerID,
-		Path:          path,
-		LocalPath:     last.GetLocalPath(),
-		SHA256:        last.GetSha256(),
-		Direct:        last.GetDirect(),
-		ReceivedBytes: last.GetReceivedBytes(),
-		Error:         last.GetError(),
+		PeerID:            peerID,
+		Path:              path,
+		LocalPath:         last.GetLocalPath(),
+		SHA256:            last.GetSha256(),
+		Direct:            last.GetDirect(),
+		ReceivedBytes:     last.GetReceivedBytes(),
+		Error:             last.GetError(),
+		DiscoveryID:       last.GetDiscoveryId(),
+		DiscoveryRecorded: last.GetDiscoveryRecorded(),
+		DiscoveryError:    last.GetDiscoveryError(),
 	})
 }
 

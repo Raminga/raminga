@@ -122,7 +122,11 @@ tools:
       Downloads one file from a remote peer's public manifest. The path must
       exactly match an entry in the peer's current manifest. Writes the file under
       <data-dir>/downloads/ with private 0600 permissions, never executes it,
-      and returns the local path and SHA-256 as evidence.
+      and returns the local path and SHA-256 as evidence. A successful call also
+      records the peer, exact public path, SHA-256, fetch time and tool source in
+      the local private discovery index used by the workspace. That index is
+      evidence of an Agent fetch, not a network-wide recommendation; old files
+      without such a record stay unknown.
     permission: auto
     result_untrusted: true
     read_only: false

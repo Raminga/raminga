@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Raminga/raminga/internal/api/client"
+	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/api/paths"
 )
 
@@ -47,6 +48,10 @@ func printNotRunning(cmd *cobra.Command) {
 }
 
 func runStop(cmd *cobra.Command, dataDir string) error {
+	apiTCP, err := localAPITCPMode(dataDir)
+	if err != nil {
+		return err
+	}
 	st, err := localStatus(dataDir, 5*time.Second)
 	if err != nil {
 		printNotRunning(cmd)
@@ -58,7 +63,7 @@ func runStop(cmd *cobra.Command, dataDir string) error {
 	if err := requestShutdown(cmd.Context(), dataDir); err != nil {
 		return err
 	}
-	if err := waitForStop(cmd.Context(), dataDir, autoStartTimeout); err != nil {
+	if err := waitForStop(cmd.Context(), dataDir, autoStartTimeout, apiTCP); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), stoppedMsg)
@@ -66,6 +71,12 @@ func runStop(cmd *cobra.Command, dataDir string) error {
 }
 
 func runRestart(cmd *cobra.Command, dataDir string) error {
+	// Capture the transport before stopping; the endpoint is removed on stop,
+	// but an explicit TCP run must not silently restart on the Unix socket.
+	apiTCP, err := localAPITCPMode(dataDir)
+	if err != nil {
+		return err
+	}
 	st, err := localStatus(dataDir, 5*time.Second)
 	if err == nil {
 		if st.GetSupervised() {
@@ -74,11 +85,11 @@ func runRestart(cmd *cobra.Command, dataDir string) error {
 		if err := requestShutdown(cmd.Context(), dataDir); err != nil {
 			return err
 		}
-		if err := waitForStop(cmd.Context(), dataDir, autoStartTimeout); err != nil {
+		if err := waitForStop(cmd.Context(), dataDir, autoStartTimeout, apiTCP); err != nil {
 			return err
 		}
 	}
-	if err := ensureDaemon(cmd.Context(), cmd, dataDir); err != nil {
+	if err := ensureDaemonWithMode(cmd.Context(), cmd, dataDir, apiTCP); err != nil {
 		return err
 	}
 	st, err = localStatus(dataDir, 5*time.Second)
@@ -107,14 +118,20 @@ func requestShutdown(ctx context.Context, dataDir string) error {
 	return nil
 }
 
-// waitForStop waits until the daemon removes its API socket. The daemon stops
-// the node before closing the API, so the socket disappearing also means the
+// waitForStop waits until the daemon removes the artifact of the transport
+// that served this run. The other transport's path is deliberately ignored: a
+// stale api.sock left by an earlier crashed UDS run must not make a TCP-mode
+// stop time out, and a stale endpoint must not make a UDS stop time out. The
+// daemon stops the node before closing the API, so removal also means the
 // data-dir lock has been released and a restart can claim it.
-func waitForStop(ctx context.Context, dataDir string, timeout time.Duration) error {
-	sock := paths.SocketPath(dataDir)
+func waitForStop(ctx context.Context, dataDir string, timeout time.Duration, apiTCP bool) error {
+	target := paths.SocketPath(dataDir)
+	if apiTCP {
+		target = endpoint.Path(dataDir)
+	}
 	deadline := time.Now().Add(timeout)
 	for {
-		if _, err := os.Lstat(sock); errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Lstat(target); errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		if time.Now().After(deadline) {

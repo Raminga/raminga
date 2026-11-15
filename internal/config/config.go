@@ -777,6 +777,8 @@ type InitOptions struct {
 	AnnounceAddrs  []string
 	KnownRelays    []string
 	BootstrapPeers []string
+	// DHTMode is client, server or auto. Empty preserves the default auto.
+	DHTMode string
 }
 
 // Init creates dataDir and writes a validated default config without starting
@@ -810,6 +812,9 @@ func Init(dataDir string, opts InitOptions) (Config, error) {
 	cfg.Relay.Provider = opts.RelayProvider
 	cfg.Relay.KnownRelays = append([]string(nil), opts.KnownRelays...)
 	cfg.DHT.BootstrapPeers = append([]string(nil), opts.BootstrapPeers...)
+	if opts.DHTMode != "" {
+		cfg.DHT.Mode = opts.DHTMode
+	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid init options: %w", err)
 	}

@@ -7,7 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 export const SOCKET_FILE = 'api.sock';
 export const TOKEN_FILE = 'api.token';
-export const EXPECTED_API_VERSION = '2';
+export const ENDPOINT_FILE = 'api.endpoint.json';
+export const EXPECTED_API_VERSION = '4';
 const requireFromHere = createRequire(import.meta.url);
 const NPM_OS = {
     darwin: 'darwin',
@@ -29,13 +30,76 @@ export function platformPackageName(platform = process.platform, arch = process.
         return null;
     return `@raminga/bin-${npmOS}-${npmCPU}`;
 }
+/** Explicit environment opt-in/out. null means unset or empty. */
+function envTcpSetting(env) {
+    const raw = env.RAMINGA_API_TCP;
+    if (raw === undefined || String(raw).trim() === '')
+        return null;
+    const value = String(raw).trim().toLowerCase();
+    return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
 export function resolveConfig(config, options = {}) {
     const env = options.env ?? process.env;
+    const platform = options.platform ?? process.platform;
+    const arch = options.arch ?? process.arch;
     const dataDir = config.dataDir || env.RAMINGA_DATA_DIR || path.join(os.homedir(), '.raminga');
+    // Windows defaults to the loopback TCP API because Node's socketPath maps to
+    // a named pipe, not the daemon's AF_UNIX socket. An explicit Windows false
+    // wins over the environment and is never silently upgraded to TCP.
+    //
+    // macOS/Linux keep the original opt-in behavior: TCP is enabled by
+    // `apiTcp: true` OR a truthy RAMINGA_API_TCP, so `apiTcp: false` does not
+    // suppress an explicit environment opt-in there.
+    let apiTcp;
+    let apiTcpSource;
+    if (platform === 'win32') {
+        if (config.apiTcp === true || config.apiTcp === false) {
+            apiTcp = config.apiTcp;
+            apiTcpSource = 'config';
+        }
+        else {
+            const envSetting = envTcpSetting(env);
+            if (envSetting !== null) {
+                apiTcp = envSetting;
+                apiTcpSource = 'env';
+            }
+            else {
+                apiTcp = true;
+                apiTcpSource = 'platform-default';
+            }
+        }
+    }
+    else if (config.apiTcp === true) {
+        apiTcp = true;
+        apiTcpSource = 'config';
+    }
+    else {
+        const envSetting = envTcpSetting(env);
+        if (envSetting === true) {
+            apiTcp = true;
+            apiTcpSource = 'env';
+        }
+        else if (config.apiTcp === false) {
+            apiTcp = false;
+            apiTcpSource = 'config';
+        }
+        else if (envSetting === false) {
+            apiTcp = false;
+            apiTcpSource = 'env';
+        }
+        else {
+            apiTcp = false;
+            apiTcpSource = 'platform-default';
+        }
+    }
     const base = {
         dataDir,
         socketPath: path.join(dataDir, SOCKET_FILE),
         tokenPath: path.join(dataDir, TOKEN_FILE),
+        endpointPath: path.join(dataDir, ENDPOINT_FILE),
+        apiTcp,
+        apiTcpSource,
+        platform,
     };
     // Precedence: explicit config > RAMINGA_BIN > npm platform package > PATH.
     if (config.ramingaBin) {
@@ -44,8 +108,6 @@ export function resolveConfig(config, options = {}) {
     if (env.RAMINGA_BIN) {
         return { ...base, ramingaBin: env.RAMINGA_BIN, ramingaBinSource: 'env' };
     }
-    const platform = options.platform ?? process.platform;
-    const arch = options.arch ?? process.arch;
     const packageName = platformPackageName(platform, arch);
     if (packageName) {
         try {

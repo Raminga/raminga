@@ -57,8 +57,12 @@ func ensureDaemonQuiet(ctx context.Context, dataDir string) error {
 	if _, err := localStatus(dataDir, time.Second); err == nil {
 		return nil
 	}
+	apiTCP, err := localAPITCPMode(dataDir)
+	if err != nil {
+		return err
+	}
 	fmt.Fprintln(os.Stderr, startingNodeMsg)
-	done, err := spawnDaemon(dataDir)
+	done, err := spawnDaemon(dataDir, apiTCP)
 	if err != nil {
 		return fmt.Errorf("无法启动节点：%w", err)
 	}

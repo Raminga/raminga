@@ -28,7 +28,7 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 
 - go-libp2p 同时监听 TCP 与 QUIC，默认 IPv4 + IPv6 的 4001；地址公告会追加网卡上的公网地址，并过滤链路本地、未指定、组播和常见虚拟网卡地址。过滤规则和已知限制见 `internal/network/filter.go`。
 - Circuit Relay v2 客户端默认开启；Relay provider 默认关闭，必须显式 `--relay-provider`，并带预约/数据/时长/配额。DCUtR 在经中继建立受限连接后尝试打洞；AutoNAT 在无探测节点时报告“未知”，不当成不可达。
-- 独立 Raminga Kademlia DHT（`/raminga/kad/1.0.0`）用于按 Peer ID 查地址和地址上报；不使用公共 IPFS DHT、公共 STUN 或默认 UPnP/NAT-PMP。
+- 独立 Raminga Kademlia DHT（`/raminga/kad/1.0.0`）用于按 Peer ID 查地址和地址上报；不使用公共 IPFS DHT、公共 STUN 或默认 UPnP/NAT-PMP。`mode` 配置为 client/server/auto，`dht status` 同时显示 configured 与 host 实际承担的 active 角色；`dht add` 只写本地 PeerStore。详见 [DHT 使用与诊断](dht.md)。
 - `/disconnect` 持久暂停一个节点：连接 gater 阻止所有主动拨号，中继预约、DHT 刷新、AutoRelay 和 outbox 重试都不会把它连回来；再次 `/connect` 或发送聊天会解除暂停。断开不是拉黑，对方仍可主动连入。
 - 启动时最多自动连回 3 个主动连接过、未暂停、且支持中继或 DHT 的好友；配置里的预置节点继续生效。
 
@@ -47,7 +47,7 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 
 ## 内容
 
-- 公开内容在 `public/profile/` 和 `public/posts/`；放进去就公开，移出来就取消。第一版没有非公开内容，也没有每条内容的可见范围设置。
+- 公开内容在 `public/profile/` 和 `public/posts/`；放进去就公开，移出来就取消。第一版没有非公开内容，也没有每条内容的可见范围设置。可选公开帖子 schema、作者映射与本地发现索引见 [public-content.md](public-content.md)。
 - 扫描只读 `public/`：跳过隐藏/临时文件和符号链接，拒绝超出 `[content]` 限额的文件和目录总量；默认单文件 100 MiB、`posts/` 1 GiB、`profile/` 10 MiB，可配置。
 - `/manifest` 返回按大小封顶的分页清单（路径、大小、修改时间、SHA-256、版本、Peer ID）；`/files/<path>` 只提供清单里的文件，支持 `Range`/ETag，带 `nosniff` 和 `application/octet-stream`。
 - 下载前先取清单，只下清单里的路径；保存到 `downloads/<Peer ID>/`，先写 `.part`，完成后校验大小和 SHA-256，再原子改名。经中继时只取清单和 ≤64 KiB 的小文件，更大的内容等待直连升级，失败就明确要求直连。
@@ -72,5 +72,5 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 ## 状态边界
 
 - 本文描述的是代码和本地/Docker 验收；真实公网有上述 M6-D 一次 PASS 记录，以及 2026-11-06～07 的手工测试报告（具体项目未单独记录）。TUI 的 Mac 真实终端手工验收状态未确认，Windows 实机和真实剪贴板仍 **NOT_TESTED**。
-- `--service`/systemd 安装脚本存在，但本次验收没有验证 systemd 托管；不要把示例当成已验证的生产部署。
+- `--service`/systemd 安装脚本已做 Linux 容器隔离测试（真实 daemon/API + stub systemctl，覆盖已有 unit、独立 daemon 迁移、身份保留、冲突/失败清理）；Ubuntu 24.04.5 / systemd 255 的真实托管验收已通过，详见 [验收记录](../tests/install/README.md#ci-验收记录)。
 - 当前阶段不承诺跨版本兼容；升级/迁移前先备份身份和数据库，按 [install.md](install.md) 的顺序执行。

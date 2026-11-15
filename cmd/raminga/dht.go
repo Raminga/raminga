@@ -37,12 +37,11 @@ func newDHTCmd() *cobra.Command {
 				return printProto(cmd.OutOrStdout(), res, true)
 			}
 			d := res.GetDht()
-			lastPublish := "-"
-			if d.GetLastPublishUnixMs() > 0 {
-				lastPublish = time.UnixMilli(d.GetLastPublishUnixMs()).UTC().Format(time.RFC3339)
-			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "enabled: %t\nmode: %s\nprotocol: %s\nbootstrap: %v\nrouting_table: %v\nlast_error: %s\nlast_publish: %s\nlast_publish_error: %s\ndiagnosis: %s\n",
-				d.GetEnabled(), d.GetMode(), d.GetProtocol(), d.GetBootstrapPeers(), d.GetRoutingTablePeers(), d.GetLastError(), lastPublish, d.GetLastPublishError(), dhtDiagnosis(d))
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "enabled: %t\nmode: %s\nconfigured_mode: %s\nactive_mode: %s\nprotocol: %s\nbootstrap: %v\nbootstrap_connected: %d\nconnected_peers: %d\nrouting_table: %v\nlast_bootstrap: %s\nlast_refresh: %s\nlast_error: %s\nlast_publish: %s\nlast_publish_error: %s\ndiagnosis: %s\n",
+				d.GetEnabled(), d.GetMode(), d.GetMode(), d.GetActiveMode(), d.GetProtocol(),
+				d.GetBootstrapPeers(), d.GetBootstrapConnected(), d.GetConnectedPeers(), d.GetRoutingTablePeers(),
+				formatUnixMillis(d.GetLastBootstrapUnixMs()), formatUnixMillis(d.GetLastRefreshUnixMs()),
+				d.GetLastError(), formatUnixMillis(d.GetLastPublishUnixMs()), d.GetLastPublishError(), dhtDiagnosis(d))
 			return err
 		},
 	}
@@ -51,7 +50,7 @@ func newDHTCmd() *cobra.Command {
 	var addJSON bool
 	add := &cobra.Command{
 		Use:   "add <peer-multiaddr>",
-		Short: "Manually add a Raminga peer",
+		Short: "Add a local PeerStore hint (does not publish to the DHT or connect)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client.New(dataDirFrom(cmd))
@@ -68,7 +67,8 @@ func newDHTCmd() *cobra.Command {
 			if addJSON {
 				return printProto(cmd.OutOrStdout(), res, true)
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "peer_id: %s\nsource: %s\n", res.GetPeer().GetPeerId(), res.GetPeer().GetSource())
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "peer_id: %s\nsource: %s\nscope: local PeerStore hint only (no DHT publish, connection, or online check)\n",
+				res.GetPeer().GetPeerId(), res.GetPeer().GetSource())
 			return err
 		},
 	}
@@ -113,12 +113,25 @@ func dhtDiagnosis(d *apiv1.DHTStatus) string {
 	}
 	peers := len(d.GetRoutingTablePeers())
 	bootstrap := len(d.GetBootstrapPeers())
+	connected := int(d.GetConnectedPeers())
+	bootstrapConnected := int(d.GetBootstrapConnected())
 	switch {
 	case peers > 0:
-		return fmt.Sprintf("%d routing-table peer(s)", peers)
-	case bootstrap == 0:
-		return "no peers yet; configure dht.bootstrap_peers or add peers"
+		return fmt.Sprintf("%d routing-table peer(s); %d connected peer(s)", peers, connected)
+	case bootstrapConnected > 0:
+		return fmt.Sprintf("connected to %d bootstrap peer(s) but not in the routing table; the peer may be a DHT client or the table has not refreshed", bootstrapConnected)
+	case connected > 0:
+		return fmt.Sprintf("connected to %d peer(s) but none are in the DHT routing table", connected)
+	case bootstrap > 0:
+		return fmt.Sprintf("not connected; %d bootstrap peer(s) configured but no active connection", bootstrap)
 	default:
-		return fmt.Sprintf("no routing peers yet; %d bootstrap peer(s) configured but not connected", bootstrap)
+		return "not connected; no bootstrap peers configured; configure dht.bootstrap_peers or add peers"
 	}
+}
+
+func formatUnixMillis(ms int64) string {
+	if ms <= 0 {
+		return "-"
+	}
+	return time.UnixMilli(ms).UTC().Format(time.RFC3339)
 }

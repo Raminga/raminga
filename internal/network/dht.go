@@ -14,8 +14,10 @@ import (
 	dssync "github.com/ipfs/go-datastore/sync"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/host"
+	corenet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	circuitv2proto "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/proto"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -46,12 +48,19 @@ type DHTPeer struct {
 
 // DHTStatus is a point-in-time diagnostic view.
 type DHTStatus struct {
-	Enabled                   bool
-	Mode                      string
+	Enabled bool
+	// Mode is the mode configured in config.toml: client, server or auto.
+	Mode string
+	// ActiveMode is the mode the host is actually serving now: client, server,
+	// unknown, or disabled. It is derived from registered stream handlers, not
+	// from the configured value; libp2p's Mode() returns the configured option.
+	ActiveMode                string
 	Protocol                  string
 	BootstrapPeers            []string
 	PublicBootstrapConfigured bool
 	RoutingTablePeers         []string
+	ConnectedPeers            int
+	BootstrapConnected        int
 	RelayCandidates           int
 	LastBootstrapAt           time.Time
 	LastRefreshAt             time.Time
@@ -157,10 +166,12 @@ func (d *DHT) Start(ctx context.Context) error {
 	d.ctx, d.cancel = context.WithCancel(ctx)
 	d.started = time.Now()
 	boot, _ := parseAddrInfos(d.cfg.BootstrapPeers)
+	attempted := false
 	for _, info := range boot {
 		if d.cfg.Paused != nil && d.cfg.Paused(info.ID) {
 			continue
 		}
+		attempted = true
 		d.h.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
 		connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		if err := d.h.Connect(connectCtx, info); err != nil {
@@ -169,9 +180,14 @@ func (d *DHT) Start(ctx context.Context) error {
 		}
 		cancel()
 	}
-	d.mu.Lock()
-	d.lastBoot = time.Now().UTC()
-	d.mu.Unlock()
+	if attempted {
+		// last_bootstrap means an attempted bootstrap dial. With no configured
+		// peers (or only paused peers) no attempt happened and the timestamp
+		// must stay zero instead of implying one.
+		d.mu.Lock()
+		d.lastBoot = time.Now().UTC()
+		d.mu.Unlock()
+	}
 	if err := d.d.Bootstrap(ctx); err != nil {
 		d.setError(fmt.Errorf("bootstrap DHT: %w", err))
 	}
@@ -372,15 +388,20 @@ func (d *DHT) AddPeer(_ context.Context, raw string) (DHTPeer, error) {
 // Status returns DHT diagnostics, including discovery failures.
 func (d *DHT) Status() DHTStatus {
 	if d == nil {
-		return DHTStatus{Mode: "disabled"}
+		return DHTStatus{Mode: "disabled", ActiveMode: "disabled"}
 	}
 	d.mu.Lock()
 	lastBoot, lastRefr, lastErr, lastQuery := d.lastBoot, d.lastRefr, d.lastErr, d.lastQuery
 	lastPublish, publishErr := d.lastPublish, d.publishErr
 	d.mu.Unlock()
+	configured := d.cfg.Mode
+	if configured == "" {
+		configured = "auto"
+	}
 	status := DHTStatus{
 		Enabled:                   d.cfg.Enabled,
-		Mode:                      d.cfg.Mode,
+		Mode:                      configured,
+		ActiveMode:                d.activeMode(),
 		Protocol:                  "/raminga/kad/1.0.0",
 		BootstrapPeers:            append([]string(nil), d.cfg.BootstrapPeers...),
 		PublicBootstrapConfigured: false,
@@ -394,13 +415,63 @@ func (d *DHT) Status() DHTStatus {
 	if len(status.BootstrapPeers) == 0 {
 		status.BootstrapPeers = []string{}
 	}
-	if d.d != nil {
-		for _, pid := range d.d.RoutingTable().ListPeers() {
-			status.RoutingTablePeers = append(status.RoutingTablePeers, pid.String())
+	for _, pid := range d.routingPeers() {
+		status.RoutingTablePeers = append(status.RoutingTablePeers, pid.String())
+	}
+	sort.Strings(status.RoutingTablePeers)
+	if d.h != nil {
+		status.ConnectedPeers = len(d.h.Network().Peers())
+		boot, _ := parseAddrInfos(d.cfg.BootstrapPeers)
+		for _, info := range boot {
+			if d.h.Network().Connectedness(info.ID) == corenet.Connected {
+				status.BootstrapConnected++
+			}
 		}
-		sort.Strings(status.RoutingTablePeers)
 	}
 	return status
+}
+
+// activeMode derives the mode the host is actually serving. libp2p's
+// IpfsDHT.Mode() reports the configured option (auto stays auto), so it cannot
+// answer this question. A DHT server registers the Kademlia stream handler;
+// a client removes it. When that handler is unexpectedly absent for an
+// explicitly configured server, report unknown instead of guessing client.
+func (d *DHT) activeMode() string {
+	if d == nil || !d.cfg.Enabled {
+		return "disabled"
+	}
+	if d.d == nil || d.h == nil {
+		return "unknown"
+	}
+	prefix := d.cfg.ProtocolPrefix
+	if prefix == "" {
+		prefix = "/raminga"
+	}
+	serverProtocol := protocol.ID(prefix + "/kad/1.0.0")
+	for _, p := range d.h.Mux().Protocols() {
+		if p == serverProtocol {
+			return "server"
+		}
+	}
+	if d.cfg.Mode == "server" {
+		return "unknown"
+	}
+	return "client"
+}
+
+// routingPeers returns non-self peers currently in the Kademlia routing table.
+func (d *DHT) routingPeers() []peer.ID {
+	if d == nil || d.d == nil || d.h == nil {
+		return nil
+	}
+	peers := d.d.RoutingTable().ListPeers()
+	out := make([]peer.ID, 0, len(peers))
+	for _, pid := range peers {
+		if pid != d.h.ID() {
+			out = append(out, pid)
+		}
+	}
+	return out
 }
 
 // SetRelayCandidateCount is filled by Network.Status.

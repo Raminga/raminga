@@ -46,6 +46,13 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify built binary version
+        if: github.event_name == 'push'
+        run: |
+          set -eu
+          want="raminga $(tr -d '[:space:]' < VERSION)"
+          got=$(./dist/raminga_linux_amd64_v1/raminga version | head -n 1)
+          [ "$got" = "$want" ] || { echo "built binary reports '$got', want '$want'" >&2; exit 1; }
       - name: GoReleaser dry run
         if: github.event_name == 'workflow_dispatch'
         uses: goreleaser/goreleaser-action@v7

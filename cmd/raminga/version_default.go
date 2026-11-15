@@ -2,4 +2,4 @@
 
 package main
 
-const defaultVersion = "0.1.0-rc.1"
+const defaultVersion = "0.1.0-rc.2"

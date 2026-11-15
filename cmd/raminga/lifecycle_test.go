@@ -18,6 +18,8 @@ import (
 	"time"
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
+	"github.com/Raminga/raminga/internal/api/endpoint"
+	"github.com/Raminga/raminga/internal/api/paths"
 )
 
 var (
@@ -620,5 +622,287 @@ func TestInstallScriptTempPrefixAndReinstall(t *testing.T) {
 		if err != nil || !strings.HasPrefix(string(out), "raminga ") {
 			t.Fatalf("installed version: %v %q", err, out)
 		}
+	}
+}
+
+func TestExplicitTCPAPIRestartStatusStop(t *testing.T) {
+	bin := requireCLI(t)
+	dir := initNodeDir(t, bin)
+	t.Cleanup(func() {
+		_, _, _ = runCLI(t, nil, "stop", "--data-dir", dir)
+	})
+	env := []string{"RAMINGA_API_TCP=1"}
+
+	first, stderr, err := runCLI(t, env, "restart", "--data-dir", dir)
+	if err != nil {
+		t.Fatalf("TCP restart: %v\nstdout=%s\nstderr=%s", first, stderr, err)
+	}
+	endpointPath := filepath.Join(dir, "api.endpoint.json")
+	info, err := os.Stat(endpointPath)
+	if err != nil {
+		t.Fatalf("TCP discovery file: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("TCP discovery mode = %o, want 600", info.Mode().Perm())
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "api.sock")); !os.IsNotExist(err) {
+		t.Fatalf("TCP mode created a Unix socket: %v", err)
+	}
+	firstDoc, err := os.ReadFile(endpointPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(firstDoc, []byte(`"network":"tcp"`)) == false {
+		t.Fatalf("unexpected TCP discovery document: %s", firstDoc)
+	}
+	doc, found, err := endpoint.ReadIfPresent(dir)
+	if err != nil || !found {
+		t.Fatalf("validated TCP endpoint found=%v err=%v", found, err)
+	}
+	logRaw, err := os.ReadFile(daemonLogPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(logRaw, []byte(doc.Token)) {
+		t.Fatal("daemon log contains the per-run TCP bearer token")
+	}
+
+	stdout, stderr, err := runCLI(t, env, "status", "--data-dir", dir)
+	if err != nil || !strings.Contains(stdout, "peer_id:") {
+		t.Fatalf("TCP status: %v stdout=%s stderr=%s", err, stdout, stderr)
+	}
+
+	if _, stderr, err := runCLI(t, env, "restart", "--data-dir", dir); err != nil {
+		t.Fatalf("TCP restart two: %v stderr=%s", err, stderr)
+	}
+	secondDoc, err := os.ReadFile(endpointPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(firstDoc, secondDoc) {
+		t.Fatal("TCP discovery document did not rotate across restart")
+	}
+
+	stdout, stderr, err = runCLI(t, env, "stop", "--data-dir", dir)
+	if err != nil || !strings.Contains(stdout, stoppedMsg) {
+		t.Fatalf("TCP stop: %v stdout=%s stderr=%s", err, stdout, stderr)
+	}
+	if _, err := os.Lstat(endpointPath); !os.IsNotExist(err) {
+		t.Fatalf("TCP discovery survived stop: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "api.sock")); !os.IsNotExist(err) {
+		t.Fatalf("TCP mode created a Unix socket after stop: %v", err)
+	}
+}
+
+func TestWaitForStopOnlyWaitsForActiveTransport(t *testing.T) {
+	dir := t.TempDir()
+	sock := paths.SocketPath(dir)
+	ep := endpoint.Path(dir)
+	for _, path := range []string{sock, ep} {
+		if err := os.WriteFile(path, []byte("stale"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// TCP mode must not wait for a stale UDS path left by an earlier run.
+	if err := os.Remove(ep); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForStop(context.Background(), dir, 500*time.Millisecond, true); err != nil {
+		t.Fatalf("TCP stop waited for stale api.sock: %v", err)
+	}
+
+	// UDS mode must likewise ignore a stale TCP discovery document.
+	if err := os.WriteFile(ep, []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(sock); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForStop(context.Background(), dir, 500*time.Millisecond, false); err != nil {
+		t.Fatalf("UDS stop waited for stale endpoint: %v", err)
+	}
+}
+
+// cleanupTCPTest best-effort stops either transport, then removes any leftover
+// discovery file so a rejecting test cannot leave a stale endpoint behind.
+func cleanupTCPTest(t *testing.T, dir string) {
+	t.Helper()
+	t.Cleanup(func() {
+		_, _, _ = runCLI(t, nil, "stop", "--data-dir", dir)
+		_, _, _ = runCLI(t, []string{"RAMINGA_API_TCP=1"}, "stop", "--data-dir", dir)
+		_ = os.Remove(endpoint.Path(dir))
+	})
+}
+
+func TestLocalAPITCPModeDefaultsToUnix(t *testing.T) {
+	apiTCP, err := localAPITCPMode(t.TempDir())
+	if err != nil {
+		t.Fatalf("empty data dir must default to Unix: %v", err)
+	}
+	if apiTCP {
+		t.Fatal("empty data dir selected TCP without explicit opt-in")
+	}
+}
+
+func TestMalformedTCPDiscoveryRefusesAutoStart(t *testing.T) {
+	bin := requireCLI(t)
+	dir := initNodeDir(t, bin)
+	cleanupTCPTest(t, dir)
+
+	endpointPath := endpoint.Path(dir)
+	malformed := []byte("{not-json")
+	if err := os.WriteFile(endpointPath, malformed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(endpointPath, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, err := runCLI(t, nil, "restart", "--data-dir", dir)
+	if err == nil {
+		t.Fatalf("restart with malformed discovery unexpectedly succeeded: stdout=%s stderr=%s", stdout, stderr)
+	}
+	combined := stdout + stderr
+	for _, want := range []string{"api.endpoint.json", "RAMINGA_API_TCP", "未自动启动"} {
+		if !strings.Contains(combined, want) {
+			t.Fatalf("error does not mention %q:\nstdout=%s\nstderr=%s", want, stdout, stderr)
+		}
+	}
+	after, err := os.ReadFile(endpointPath)
+	if err != nil {
+		t.Fatalf("malformed discovery was removed: %v", err)
+	}
+	if !bytes.Equal(after, malformed) {
+		t.Fatalf("malformed discovery was rewritten: %q", after)
+	}
+	if _, err := os.Lstat(paths.SocketPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("malformed discovery caused a Unix daemon start: %v", err)
+	}
+	if _, err := os.Stat(daemonLogPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("malformed discovery caused a daemon spawn: log exists (%v)", err)
+	}
+}
+
+func TestWellFormedDeadTCPDiscoveryRequiresExplicitOptIn(t *testing.T) {
+	bin := requireCLI(t)
+	dir := initNodeDir(t, bin)
+	cleanupTCPTest(t, dir)
+	env := []string{"RAMINGA_API_TCP=1"}
+
+	// Create a real, validated descriptor, then stop the daemon so the
+	// descriptor remains well-formed but its listener and token are dead.
+	if _, stderr, err := runCLI(t, env, "restart", "--data-dir", dir); err != nil {
+		t.Fatalf("start TCP node: %v\nstderr=%s", err, stderr)
+	}
+	staleDoc, err := os.ReadFile(endpoint.Path(dir))
+	if err != nil {
+		t.Fatalf("read TCP discovery: %v", err)
+	}
+	if _, stderr, err := runCLI(t, env, "stop", "--data-dir", dir); err != nil {
+		t.Fatalf("stop TCP node: %v\nstderr=%s", err, stderr)
+	}
+	if _, err := os.Lstat(endpoint.Path(dir)); !os.IsNotExist(err) {
+		t.Fatalf("TCP discovery survived stop: %v", err)
+	}
+	if err := os.WriteFile(endpoint.Path(dir), staleDoc, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(endpoint.Path(dir), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logBefore, _ := os.ReadFile(daemonLogPath(dir))
+
+	if mode, modeErr := localAPITCPMode(dir); modeErr == nil {
+		t.Fatalf("dead descriptor selected TCP mode=%v without explicit opt-in", mode)
+	}
+
+	stdout, stderr, err := runCLI(t, nil, "restart", "--data-dir", dir)
+	if err == nil {
+		t.Fatalf("restart with dead TCP discovery unexpectedly succeeded: stdout=%s stderr=%s", stdout, stderr)
+	}
+	combined := stdout + stderr
+	for _, want := range []string{"api.endpoint.json", "RAMINGA_API_TCP", "未自动启动"} {
+		if !strings.Contains(combined, want) {
+			t.Fatalf("error does not mention %q:\nstdout=%s\nstderr=%s", want, stdout, stderr)
+		}
+	}
+	after, err := os.ReadFile(endpoint.Path(dir))
+	if err != nil {
+		t.Fatalf("dead TCP discovery was removed: %v", err)
+	}
+	if !bytes.Equal(after, staleDoc) {
+		t.Fatal("dead TCP discovery was silently modified")
+	}
+	logAfter, _ := os.ReadFile(daemonLogPath(dir))
+	if !bytes.Equal(logBefore, logAfter) {
+		t.Fatalf("dead TCP discovery caused a daemon spawn (log changed):\n%s", logAfter)
+	}
+	if _, err := os.Lstat(paths.SocketPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("dead TCP discovery caused a Unix daemon start: %v", err)
+	}
+
+	// Explicit opt-in may regenerate stale discovery under the normal daemon
+	// lock and must still start TCP, never Unix.
+	if _, stderr, err := runCLI(t, env, "restart", "--data-dir", dir); err != nil {
+		t.Fatalf("explicit TCP restart with stale discovery: %v\nstderr=%s", err, stderr)
+	}
+	freshDoc, err := os.ReadFile(endpoint.Path(dir))
+	if err != nil {
+		t.Fatalf("read regenerated TCP discovery: %v", err)
+	}
+	if bytes.Equal(freshDoc, staleDoc) {
+		t.Fatal("explicit TCP restart did not regenerate stale discovery")
+	}
+	if _, err := os.Lstat(paths.SocketPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("explicit TCP restart fell back to Unix: %v", err)
+	}
+	stdout, stderr, err = runCLI(t, nil, "status", "--data-dir", dir)
+	if err != nil || !strings.Contains(stdout, "peer_id:") {
+		t.Fatalf("validated endpoint cannot connect to live TCP node: %v stdout=%s stderr=%s", err, stdout, stderr)
+	}
+}
+
+func TestAuthenticatedTCPRestartPreservesModeWithoutEnv(t *testing.T) {
+	bin := requireCLI(t)
+	dir := initNodeDir(t, bin)
+	cleanupTCPTest(t, dir)
+	env := []string{"RAMINGA_API_TCP=1"}
+
+	if _, stderr, err := runCLI(t, env, "restart", "--data-dir", dir); err != nil {
+		t.Fatalf("start TCP node: %v\nstderr=%s", err, stderr)
+	}
+	firstDoc, err := os.ReadFile(endpoint.Path(dir))
+	if err != nil {
+		t.Fatalf("read initial TCP discovery: %v", err)
+	}
+
+	// No env opt-in on this restart: only the successful authenticated live
+	// status may preserve TCP for the replacement daemon.
+	first, stderr, err := runCLI(t, nil, "restart", "--data-dir", dir)
+	if err != nil {
+		t.Fatalf("preserved TCP restart: %v\nstdout=%s\nstderr=%s", first, stderr, err)
+	}
+	if !strings.Contains(first, "已重启节点：raminga") {
+		t.Fatalf("preserved TCP restart output = %q", first)
+	}
+	secondDoc, err := os.ReadFile(endpoint.Path(dir))
+	if err != nil {
+		t.Fatalf("read restarted TCP discovery: %v", err)
+	}
+	if bytes.Equal(firstDoc, secondDoc) {
+		t.Fatal("preserved TCP restart did not rotate discovery")
+	}
+	if _, err := os.Lstat(paths.SocketPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("preserved TCP restart fell back to Unix: %v", err)
+	}
+
+	stdout, stderr, err := runCLI(t, nil, "stop", "--data-dir", dir)
+	if err != nil || !strings.Contains(stdout, stoppedMsg) {
+		t.Fatalf("stop preserved TCP node: %v\nstdout=%s\nstderr=%s", err, stdout, stderr)
+	}
+	if _, err := os.Lstat(endpoint.Path(dir)); !os.IsNotExist(err) {
+		t.Fatalf("TCP discovery survived stop: %v", err)
 	}
 }

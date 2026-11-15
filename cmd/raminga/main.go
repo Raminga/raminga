@@ -16,21 +16,26 @@ import (
 	"github.com/Raminga/raminga/internal/tuiinit"
 )
 
-// version is overridden by -ldflags "-X main.version=...". The fallback is
-// generated from the repository-root VERSION file by scripts/genplugins.
-var version = defaultVersion
+// version is set only by release builds via -ldflags "-X main.version=...".
+// Empty means a plain `go build`; the fallback defaultVersion is generated from
+// the repository-root VERSION file by scripts/genplugins.
+var version string
 
-// buildVersion adds the VCS revision for a plain `go build` that did not pass
-// an ldflags version. Release builds keep their template version verbatim.
+// buildVersion returns the ldflags version verbatim for release builds. A plain
+// `go build` reports defaultVersion plus the VCS revision. The decision must
+// not compare against defaultVersion: a release build of the same version
+// would otherwise gain a -g<commit> suffix and stop matching launchers that
+// pin the exact release version.
 func buildVersion() string {
-	if version != defaultVersion {
-		return version
+	info, _ := debug.ReadBuildInfo()
+	return resolveVersion(version, info)
+}
+
+func resolveVersion(ldflagsVersion string, info *debug.BuildInfo) string {
+	if ldflagsVersion != "" {
+		return ldflagsVersion
 	}
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return version
-	}
-	return versionWithBuildInfo(version, info)
+	return versionWithBuildInfo(defaultVersion, info)
 }
 
 func versionWithBuildInfo(base string, info *debug.BuildInfo) string {
@@ -130,6 +135,7 @@ func newRootCmd() *cobra.Command {
 		newTUICmd(),
 		newReportCmd(),
 		newMCPCmd(),
+		newInternalAPIEndpointCmd(),
 	)
 	return root
 }

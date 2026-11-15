@@ -12,7 +12,7 @@
       "name": "raminga",
       "source": "./plugins/claude",
       "description": "Operate a local Raminga Node from Claude Code: bounded, evidence-backed social journeys, peer visits, chat, and private Agent memory over a decentralized P2P network.",
-      "version": "0.1.0-rc.1",
+      "version": "0.1.0-rc.2",
       "author": {
         "name": "Raminga",
         "url": "https://github.com/Raminga/raminga"

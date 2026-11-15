@@ -32,3 +32,15 @@ func TestVersionWithBuildInfoLeavesReleaseOrUnknown(t *testing.T) {
 		t.Fatalf("version without revision changed: %q", got)
 	}
 }
+
+func TestResolveVersionKeepsReleaseVersionVerbatim(t *testing.T) {
+	info := &debug.BuildInfo{Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "0123456789abcdef"}}}
+	// A release build injects the same string as defaultVersion; it must not
+	// gain a VCS suffix.
+	if got := resolveVersion(defaultVersion, info); got != defaultVersion {
+		t.Fatalf("release build version = %q, want %q", got, defaultVersion)
+	}
+	if got := resolveVersion("", info); got != defaultVersion+"-g0123456" {
+		t.Fatalf("plain build version = %q, want %q", got, defaultVersion+"-g0123456")
+	}
+}

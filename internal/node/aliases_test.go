@@ -57,4 +57,32 @@ func TestFriendNameDescriptionAndUnknown(t *testing.T) {
 	if _, err := n.SetFriendName(ctx, other.PeerID().String(), "b-quic"); err == nil {
 		t.Fatal("duplicate name accepted")
 	}
+	// Empty values clear one field without touching the other. Non-empty
+	// values keep the pre-existing syntax and uniqueness rules above.
+	if _, err := n.SetFriendName(ctx, pid, ""); err != nil {
+		t.Fatalf("clear name: %v", err)
+	}
+	readFriend := func() Friend {
+		t.Helper()
+		friends, err := n.Friends(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, friend := range friends {
+			if friend.PeerID == pid {
+				return friend
+			}
+		}
+		t.Fatalf("friend %s not listed: %+v", pid, friends)
+		return Friend{}
+	}
+	if got := readFriend(); got.Name != "" || got.Description != "hello" {
+		t.Fatalf("after clearing name friend=%+v", got)
+	}
+	if _, err := n.SetFriendDescription(ctx, pid, ""); err != nil {
+		t.Fatalf("clear description: %v", err)
+	}
+	if got := readFriend(); got.Name != "" || got.Description != "" {
+		t.Fatalf("after clearing description friend=%+v", got)
+	}
 }

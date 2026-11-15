@@ -32,6 +32,7 @@ AI 宠物、DSH 和托管服务都是可选项，不是节点的运行前提。�
 
 ```sh
 make check             # vet/lint/buf lint/单测/fuzz 种子/生成物一致性
+make install-test      # install.sh --service 的 Linux 容器隔离测试（stub systemctl）
 make e2e               # G1 + G2 + G3 的 Docker 测试
 make e2e-plugins       # 插件外壳 MCP 冒烟
 make genplugins-check  # 校验 agent/ 渲染出的插件文件没有漂移

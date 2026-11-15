@@ -27,7 +27,7 @@ $(shell mkdir -p $(DOCKER_CONFIG) && ln -sfn $(HOME)/.docker/cli-plugins $(DOCKE
 endif
 endif
 
-.PHONY: check vet lint buf-lint test fuzz-seed genplugins genplugins-check fuzz vuln licenses generate build install cross e2e e2e-g1 e2e-g2 e2e-g3 e2e-g4 e2e-plugins soak lab-up lab-down lab-status lab-verify tui-lab-verify interactive-tui-test dist dist-check dist-verify platform-smoke release-verify-version release-npm-dry-run release-dry-run clean
+.PHONY: check vet lint buf-lint test install-test fuzz-seed genplugins genplugins-check fuzz vuln licenses generate build install cross e2e e2e-g1 e2e-g2 e2e-g3 e2e-g4 e2e-plugins soak lab-up lab-down lab-status lab-verify tui-lab-verify interactive-tui-test dist dist-check dist-verify platform-smoke release-verify-version release-npm-dry-run release-dry-run clean
 
 check: vet lint buf-lint test fuzz-seed genplugins-check
 
@@ -42,6 +42,9 @@ buf-lint:
 
 test:
 	$(GO) test -race ./...
+
+install-test:
+	tests/install/systemd.sh
 
 # Seed-corpus execution only; long fuzzing is a G4 activity.
 fuzz-seed:

@@ -45,6 +45,15 @@ const (
 	// RamingaServiceRecentMessagesProcedure is the fully-qualified name of the RamingaService's
 	// RecentMessages RPC.
 	RamingaServiceRecentMessagesProcedure = "/raminga.api.v1.RamingaService/RecentMessages"
+	// RamingaServiceListConversationsProcedure is the fully-qualified name of the RamingaService's
+	// ListConversations RPC.
+	RamingaServiceListConversationsProcedure = "/raminga.api.v1.RamingaService/ListConversations"
+	// RamingaServiceListMessagesProcedure is the fully-qualified name of the RamingaService's
+	// ListMessages RPC.
+	RamingaServiceListMessagesProcedure = "/raminga.api.v1.RamingaService/ListMessages"
+	// RamingaServiceListHumanOutboundPeersProcedure is the fully-qualified name of the RamingaService's
+	// ListHumanOutboundPeers RPC.
+	RamingaServiceListHumanOutboundPeersProcedure = "/raminga.api.v1.RamingaService/ListHumanOutboundPeers"
 	// RamingaServiceOutboxListProcedure is the fully-qualified name of the RamingaService's OutboxList
 	// RPC.
 	RamingaServiceOutboxListProcedure = "/raminga.api.v1.RamingaService/OutboxList"
@@ -85,6 +94,9 @@ const (
 	// RamingaServicePublishedProcedure is the fully-qualified name of the RamingaService's Published
 	// RPC.
 	RamingaServicePublishedProcedure = "/raminga.api.v1.RamingaService/Published"
+	// RamingaServiceListDiscoveriesProcedure is the fully-qualified name of the RamingaService's
+	// ListDiscoveries RPC.
+	RamingaServiceListDiscoveriesProcedure = "/raminga.api.v1.RamingaService/ListDiscoveries"
 	// RamingaServiceGetPeerManifestProcedure is the fully-qualified name of the RamingaService's
 	// GetPeerManifest RPC.
 	RamingaServiceGetPeerManifestProcedure = "/raminga.api.v1.RamingaService/GetPeerManifest"
@@ -123,8 +135,21 @@ type RamingaServiceClient interface {
 	// SendChat sends one HTTP chat message and reports whether a matching
 	// ACK was received before the deadline.
 	SendChat(context.Context, *connect.Request[v1.SendChatRequest]) (*connect.Response[v1.SendChatResponse], error)
-	// RecentMessages returns the most recent persisted messages.
+	// RecentMessages returns the most recent persisted messages. It is retained
+	// for older shells; new clients use ListMessages/ListConversations.
 	RecentMessages(context.Context, *connect.Request[v1.RecentMessagesRequest]) (*connect.Response[v1.RecentMessagesResponse], error)
+	// ListConversations returns one summary per Peer from the currently retained
+	// message rows, newest conversation first. A cursor carries the rowid
+	// snapshot used by the first page so concurrent inserts do not reshuffle the
+	// remaining pages; pruning can still remove rows and is never promised.
+	ListConversations(context.Context, *connect.Request[v1.ListConversationsRequest]) (*connect.Response[v1.ListConversationsResponse], error)
+	// ListMessages returns one Peer's currently retained messages, newest first,
+	// with a stable keyset cursor. Pruned rows are not promised.
+	ListMessages(context.Context, *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error)
+	// ListHumanOutboundPeers returns the Peers for which this Operator has
+	// accepted and persisted a human-origin outbound message. The relation is
+	// stored independently of the bounded message history.
+	ListHumanOutboundPeers(context.Context, *connect.Request[v1.ListHumanOutboundPeersRequest]) (*connect.Response[v1.ListHumanOutboundPeersResponse], error)
 	// OutboxList returns durable unacknowledged outbound messages and bounds.
 	OutboxList(context.Context, *connect.Request[v1.OutboxListRequest]) (*connect.Response[v1.OutboxListResponse], error)
 	// OutboxCancel cancels one pending outbox entry.
@@ -142,12 +167,15 @@ type RamingaServiceClient interface {
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
-	// ListFriends lists local friend records. Names and descriptions never
-	// leave the node in this task.
+	// ListFriends lists local friend records. Names and descriptions are local
+	// labels; the existing public export writes them to friends.json, and they
+	// are never read from a remote profile by this RPC.
 	ListFriends(context.Context, *connect.Request[v1.ListFriendsRequest]) (*connect.Response[v1.ListFriendsResponse], error)
-	// SetFriendName replaces the local name of an existing friend.
+	// SetFriendName replaces the local name of an existing friend. An empty
+	// value clears the label; non-empty values keep syntax/uniqueness rules.
 	SetFriendName(context.Context, *connect.Request[v1.SetFriendNameRequest]) (*connect.Response[v1.SetFriendNameResponse], error)
 	// SetFriendDescription replaces the local description of an existing friend.
+	// An empty value clears the note.
 	SetFriendDescription(context.Context, *connect.Request[v1.SetFriendDescriptionRequest]) (*connect.Response[v1.SetFriendDescriptionResponse], error)
 	// RemoveFriend deletes the local friend row. Pending outbox entries must be
 	// explicitly cancelled with cancel_pending.
@@ -157,6 +185,10 @@ type RamingaServiceClient interface {
 	// Published lists the local public manifest after forcing a fresh scan.
 	// This is a local-only view; it is not exposed on the remote HTTP protocol.
 	Published(context.Context, *connect.Request[v1.PublishedRequest]) (*connect.Response[v1.PublishedResponse], error)
+	// ListDiscoveries returns the private local index of public content that an
+	// Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
+	// It is not a directory listing, manifest scan or network-wide recommendation.
+	ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error)
 	// GetPeerManifest fetches one page of a remote peer's public manifest.
 	GetPeerManifest(context.Context, *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error)
 	// GetPeerProfile fetches and returns a remote profile/index.md.
@@ -172,7 +204,8 @@ type RamingaServiceClient interface {
 	// or pending outbox activity uses it again.
 	DisconnectPeer(context.Context, *connect.Request[v1.DisconnectPeerRequest]) (*connect.Response[v1.DisconnectPeerResponse], error)
 	// Shutdown gracefully stops the daemon. It is token-authenticated and only
-	// reachable over the local Unix socket. The response is written before the
+	// reachable over the selected local API transport (Unix socket by default,
+	// or the explicitly enabled loopback TLS transport). The response is written before the
 	// daemon closes the API and stops the node.
 	Shutdown(context.Context, *connect.Request[v1.ShutdownRequest]) (*connect.Response[v1.ShutdownResponse], error)
 	// TestDisconnectPeer is a test-only RPC, unavailable unless
@@ -215,6 +248,24 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+RamingaServiceRecentMessagesProcedure,
 			connect.WithSchema(ramingaServiceMethods.ByName("RecentMessages")),
+			connect.WithClientOptions(opts...),
+		),
+		listConversations: connect.NewClient[v1.ListConversationsRequest, v1.ListConversationsResponse](
+			httpClient,
+			baseURL+RamingaServiceListConversationsProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListConversations")),
+			connect.WithClientOptions(opts...),
+		),
+		listMessages: connect.NewClient[v1.ListMessagesRequest, v1.ListMessagesResponse](
+			httpClient,
+			baseURL+RamingaServiceListMessagesProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListMessages")),
+			connect.WithClientOptions(opts...),
+		),
+		listHumanOutboundPeers: connect.NewClient[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse](
+			httpClient,
+			baseURL+RamingaServiceListHumanOutboundPeersProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListHumanOutboundPeers")),
 			connect.WithClientOptions(opts...),
 		),
 		outboxList: connect.NewClient[v1.OutboxListRequest, v1.OutboxListResponse](
@@ -301,6 +352,12 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(ramingaServiceMethods.ByName("Published")),
 			connect.WithClientOptions(opts...),
 		),
+		listDiscoveries: connect.NewClient[v1.ListDiscoveriesRequest, v1.ListDiscoveriesResponse](
+			httpClient,
+			baseURL+RamingaServiceListDiscoveriesProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveries")),
+			connect.WithClientOptions(opts...),
+		),
 		getPeerManifest: connect.NewClient[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse](
 			httpClient,
 			baseURL+RamingaServiceGetPeerManifestProcedure,
@@ -360,33 +417,37 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // ramingaServiceClient implements RamingaServiceClient.
 type ramingaServiceClient struct {
-	status               *connect.Client[v1.StatusRequest, v1.StatusResponse]
-	connect              *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
-	sendChat             *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
-	recentMessages       *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
-	outboxList           *connect.Client[v1.OutboxListRequest, v1.OutboxListResponse]
-	outboxCancel         *connect.Client[v1.OutboxCancelRequest, v1.OutboxCancelResponse]
-	events               *connect.Client[v1.EventsRequest, v1.EventsResponse]
-	peers                *connect.Client[v1.PeersRequest, v1.PeersResponse]
-	relayStatus          *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
-	dhtStatus            *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
-	dhtAddPeer           *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
-	dhtFindPeer          *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
-	listFriends          *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
-	setFriendName        *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
-	setFriendDescription *connect.Client[v1.SetFriendDescriptionRequest, v1.SetFriendDescriptionResponse]
-	removeFriend         *connect.Client[v1.RemoveFriendRequest, v1.RemoveFriendResponse]
-	syncFriends          *connect.Client[v1.SyncFriendsRequest, v1.SyncFriendsResponse]
-	published            *connect.Client[v1.PublishedRequest, v1.PublishedResponse]
-	getPeerManifest      *connect.Client[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse]
-	getPeerProfile       *connect.Client[v1.GetPeerProfileRequest, v1.GetPeerProfileResponse]
-	getPeerFriends       *connect.Client[v1.GetPeerFriendsRequest, v1.GetPeerFriendsResponse]
-	downloadPeerFile     *connect.Client[v1.DownloadPeerFileRequest, v1.DownloadPeerFileResponse]
-	connectListedPeer    *connect.Client[v1.ConnectListedPeerRequest, v1.ConnectListedPeerResponse]
-	disconnectPeer       *connect.Client[v1.DisconnectPeerRequest, v1.DisconnectPeerResponse]
-	shutdown             *connect.Client[v1.ShutdownRequest, v1.ShutdownResponse]
-	testDisconnectPeer   *connect.Client[v1.TestDisconnectPeerRequest, v1.TestDisconnectPeerResponse]
-	testPing             *connect.Client[v1.TestPingRequest, v1.TestPingResponse]
+	status                 *connect.Client[v1.StatusRequest, v1.StatusResponse]
+	connect                *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	sendChat               *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
+	recentMessages         *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
+	listConversations      *connect.Client[v1.ListConversationsRequest, v1.ListConversationsResponse]
+	listMessages           *connect.Client[v1.ListMessagesRequest, v1.ListMessagesResponse]
+	listHumanOutboundPeers *connect.Client[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse]
+	outboxList             *connect.Client[v1.OutboxListRequest, v1.OutboxListResponse]
+	outboxCancel           *connect.Client[v1.OutboxCancelRequest, v1.OutboxCancelResponse]
+	events                 *connect.Client[v1.EventsRequest, v1.EventsResponse]
+	peers                  *connect.Client[v1.PeersRequest, v1.PeersResponse]
+	relayStatus            *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
+	dhtStatus              *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
+	dhtAddPeer             *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
+	dhtFindPeer            *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
+	listFriends            *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
+	setFriendName          *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
+	setFriendDescription   *connect.Client[v1.SetFriendDescriptionRequest, v1.SetFriendDescriptionResponse]
+	removeFriend           *connect.Client[v1.RemoveFriendRequest, v1.RemoveFriendResponse]
+	syncFriends            *connect.Client[v1.SyncFriendsRequest, v1.SyncFriendsResponse]
+	published              *connect.Client[v1.PublishedRequest, v1.PublishedResponse]
+	listDiscoveries        *connect.Client[v1.ListDiscoveriesRequest, v1.ListDiscoveriesResponse]
+	getPeerManifest        *connect.Client[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse]
+	getPeerProfile         *connect.Client[v1.GetPeerProfileRequest, v1.GetPeerProfileResponse]
+	getPeerFriends         *connect.Client[v1.GetPeerFriendsRequest, v1.GetPeerFriendsResponse]
+	downloadPeerFile       *connect.Client[v1.DownloadPeerFileRequest, v1.DownloadPeerFileResponse]
+	connectListedPeer      *connect.Client[v1.ConnectListedPeerRequest, v1.ConnectListedPeerResponse]
+	disconnectPeer         *connect.Client[v1.DisconnectPeerRequest, v1.DisconnectPeerResponse]
+	shutdown               *connect.Client[v1.ShutdownRequest, v1.ShutdownResponse]
+	testDisconnectPeer     *connect.Client[v1.TestDisconnectPeerRequest, v1.TestDisconnectPeerResponse]
+	testPing               *connect.Client[v1.TestPingRequest, v1.TestPingResponse]
 }
 
 // Status calls raminga.api.v1.RamingaService.Status.
@@ -407,6 +468,21 @@ func (c *ramingaServiceClient) SendChat(ctx context.Context, req *connect.Reques
 // RecentMessages calls raminga.api.v1.RamingaService.RecentMessages.
 func (c *ramingaServiceClient) RecentMessages(ctx context.Context, req *connect.Request[v1.RecentMessagesRequest]) (*connect.Response[v1.RecentMessagesResponse], error) {
 	return c.recentMessages.CallUnary(ctx, req)
+}
+
+// ListConversations calls raminga.api.v1.RamingaService.ListConversations.
+func (c *ramingaServiceClient) ListConversations(ctx context.Context, req *connect.Request[v1.ListConversationsRequest]) (*connect.Response[v1.ListConversationsResponse], error) {
+	return c.listConversations.CallUnary(ctx, req)
+}
+
+// ListMessages calls raminga.api.v1.RamingaService.ListMessages.
+func (c *ramingaServiceClient) ListMessages(ctx context.Context, req *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error) {
+	return c.listMessages.CallUnary(ctx, req)
+}
+
+// ListHumanOutboundPeers calls raminga.api.v1.RamingaService.ListHumanOutboundPeers.
+func (c *ramingaServiceClient) ListHumanOutboundPeers(ctx context.Context, req *connect.Request[v1.ListHumanOutboundPeersRequest]) (*connect.Response[v1.ListHumanOutboundPeersResponse], error) {
+	return c.listHumanOutboundPeers.CallUnary(ctx, req)
 }
 
 // OutboxList calls raminga.api.v1.RamingaService.OutboxList.
@@ -479,6 +555,11 @@ func (c *ramingaServiceClient) Published(ctx context.Context, req *connect.Reque
 	return c.published.CallUnary(ctx, req)
 }
 
+// ListDiscoveries calls raminga.api.v1.RamingaService.ListDiscoveries.
+func (c *ramingaServiceClient) ListDiscoveries(ctx context.Context, req *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error) {
+	return c.listDiscoveries.CallUnary(ctx, req)
+}
+
 // GetPeerManifest calls raminga.api.v1.RamingaService.GetPeerManifest.
 func (c *ramingaServiceClient) GetPeerManifest(ctx context.Context, req *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error) {
 	return c.getPeerManifest.CallUnary(ctx, req)
@@ -535,8 +616,21 @@ type RamingaServiceHandler interface {
 	// SendChat sends one HTTP chat message and reports whether a matching
 	// ACK was received before the deadline.
 	SendChat(context.Context, *connect.Request[v1.SendChatRequest]) (*connect.Response[v1.SendChatResponse], error)
-	// RecentMessages returns the most recent persisted messages.
+	// RecentMessages returns the most recent persisted messages. It is retained
+	// for older shells; new clients use ListMessages/ListConversations.
 	RecentMessages(context.Context, *connect.Request[v1.RecentMessagesRequest]) (*connect.Response[v1.RecentMessagesResponse], error)
+	// ListConversations returns one summary per Peer from the currently retained
+	// message rows, newest conversation first. A cursor carries the rowid
+	// snapshot used by the first page so concurrent inserts do not reshuffle the
+	// remaining pages; pruning can still remove rows and is never promised.
+	ListConversations(context.Context, *connect.Request[v1.ListConversationsRequest]) (*connect.Response[v1.ListConversationsResponse], error)
+	// ListMessages returns one Peer's currently retained messages, newest first,
+	// with a stable keyset cursor. Pruned rows are not promised.
+	ListMessages(context.Context, *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error)
+	// ListHumanOutboundPeers returns the Peers for which this Operator has
+	// accepted and persisted a human-origin outbound message. The relation is
+	// stored independently of the bounded message history.
+	ListHumanOutboundPeers(context.Context, *connect.Request[v1.ListHumanOutboundPeersRequest]) (*connect.Response[v1.ListHumanOutboundPeersResponse], error)
 	// OutboxList returns durable unacknowledged outbound messages and bounds.
 	OutboxList(context.Context, *connect.Request[v1.OutboxListRequest]) (*connect.Response[v1.OutboxListResponse], error)
 	// OutboxCancel cancels one pending outbox entry.
@@ -554,12 +648,15 @@ type RamingaServiceHandler interface {
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
-	// ListFriends lists local friend records. Names and descriptions never
-	// leave the node in this task.
+	// ListFriends lists local friend records. Names and descriptions are local
+	// labels; the existing public export writes them to friends.json, and they
+	// are never read from a remote profile by this RPC.
 	ListFriends(context.Context, *connect.Request[v1.ListFriendsRequest]) (*connect.Response[v1.ListFriendsResponse], error)
-	// SetFriendName replaces the local name of an existing friend.
+	// SetFriendName replaces the local name of an existing friend. An empty
+	// value clears the label; non-empty values keep syntax/uniqueness rules.
 	SetFriendName(context.Context, *connect.Request[v1.SetFriendNameRequest]) (*connect.Response[v1.SetFriendNameResponse], error)
 	// SetFriendDescription replaces the local description of an existing friend.
+	// An empty value clears the note.
 	SetFriendDescription(context.Context, *connect.Request[v1.SetFriendDescriptionRequest]) (*connect.Response[v1.SetFriendDescriptionResponse], error)
 	// RemoveFriend deletes the local friend row. Pending outbox entries must be
 	// explicitly cancelled with cancel_pending.
@@ -569,6 +666,10 @@ type RamingaServiceHandler interface {
 	// Published lists the local public manifest after forcing a fresh scan.
 	// This is a local-only view; it is not exposed on the remote HTTP protocol.
 	Published(context.Context, *connect.Request[v1.PublishedRequest]) (*connect.Response[v1.PublishedResponse], error)
+	// ListDiscoveries returns the private local index of public content that an
+	// Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
+	// It is not a directory listing, manifest scan or network-wide recommendation.
+	ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error)
 	// GetPeerManifest fetches one page of a remote peer's public manifest.
 	GetPeerManifest(context.Context, *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error)
 	// GetPeerProfile fetches and returns a remote profile/index.md.
@@ -584,7 +685,8 @@ type RamingaServiceHandler interface {
 	// or pending outbox activity uses it again.
 	DisconnectPeer(context.Context, *connect.Request[v1.DisconnectPeerRequest]) (*connect.Response[v1.DisconnectPeerResponse], error)
 	// Shutdown gracefully stops the daemon. It is token-authenticated and only
-	// reachable over the local Unix socket. The response is written before the
+	// reachable over the selected local API transport (Unix socket by default,
+	// or the explicitly enabled loopback TLS transport). The response is written before the
 	// daemon closes the API and stops the node.
 	Shutdown(context.Context, *connect.Request[v1.ShutdownRequest]) (*connect.Response[v1.ShutdownResponse], error)
 	// TestDisconnectPeer is a test-only RPC, unavailable unless
@@ -623,6 +725,24 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		RamingaServiceRecentMessagesProcedure,
 		svc.RecentMessages,
 		connect.WithSchema(ramingaServiceMethods.ByName("RecentMessages")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListConversationsHandler := connect.NewUnaryHandler(
+		RamingaServiceListConversationsProcedure,
+		svc.ListConversations,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListConversations")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListMessagesHandler := connect.NewUnaryHandler(
+		RamingaServiceListMessagesProcedure,
+		svc.ListMessages,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListMessages")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListHumanOutboundPeersHandler := connect.NewUnaryHandler(
+		RamingaServiceListHumanOutboundPeersProcedure,
+		svc.ListHumanOutboundPeers,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListHumanOutboundPeers")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ramingaServiceOutboxListHandler := connect.NewUnaryHandler(
@@ -709,6 +829,12 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		connect.WithSchema(ramingaServiceMethods.ByName("Published")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ramingaServiceListDiscoveriesHandler := connect.NewUnaryHandler(
+		RamingaServiceListDiscoveriesProcedure,
+		svc.ListDiscoveries,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveries")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ramingaServiceGetPeerManifestHandler := connect.NewUnaryHandler(
 		RamingaServiceGetPeerManifestProcedure,
 		svc.GetPeerManifest,
@@ -773,6 +899,12 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServiceSendChatHandler.ServeHTTP(w, r)
 		case RamingaServiceRecentMessagesProcedure:
 			ramingaServiceRecentMessagesHandler.ServeHTTP(w, r)
+		case RamingaServiceListConversationsProcedure:
+			ramingaServiceListConversationsHandler.ServeHTTP(w, r)
+		case RamingaServiceListMessagesProcedure:
+			ramingaServiceListMessagesHandler.ServeHTTP(w, r)
+		case RamingaServiceListHumanOutboundPeersProcedure:
+			ramingaServiceListHumanOutboundPeersHandler.ServeHTTP(w, r)
 		case RamingaServiceOutboxListProcedure:
 			ramingaServiceOutboxListHandler.ServeHTTP(w, r)
 		case RamingaServiceOutboxCancelProcedure:
@@ -801,6 +933,8 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServiceSyncFriendsHandler.ServeHTTP(w, r)
 		case RamingaServicePublishedProcedure:
 			ramingaServicePublishedHandler.ServeHTTP(w, r)
+		case RamingaServiceListDiscoveriesProcedure:
+			ramingaServiceListDiscoveriesHandler.ServeHTTP(w, r)
 		case RamingaServiceGetPeerManifestProcedure:
 			ramingaServiceGetPeerManifestHandler.ServeHTTP(w, r)
 		case RamingaServiceGetPeerProfileProcedure:
@@ -842,6 +976,18 @@ func (UnimplementedRamingaServiceHandler) SendChat(context.Context, *connect.Req
 
 func (UnimplementedRamingaServiceHandler) RecentMessages(context.Context, *connect.Request[v1.RecentMessagesRequest]) (*connect.Response[v1.RecentMessagesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.RecentMessages is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListConversations(context.Context, *connect.Request[v1.ListConversationsRequest]) (*connect.Response[v1.ListConversationsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListConversations is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListMessages(context.Context, *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListMessages is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListHumanOutboundPeers(context.Context, *connect.Request[v1.ListHumanOutboundPeersRequest]) (*connect.Response[v1.ListHumanOutboundPeersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListHumanOutboundPeers is not implemented"))
 }
 
 func (UnimplementedRamingaServiceHandler) OutboxList(context.Context, *connect.Request[v1.OutboxListRequest]) (*connect.Response[v1.OutboxListResponse], error) {
@@ -898,6 +1044,10 @@ func (UnimplementedRamingaServiceHandler) SyncFriends(context.Context, *connect.
 
 func (UnimplementedRamingaServiceHandler) Published(context.Context, *connect.Request[v1.PublishedRequest]) (*connect.Response[v1.PublishedResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.Published is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListDiscoveries is not implemented"))
 }
 
 func (UnimplementedRamingaServiceHandler) GetPeerManifest(context.Context, *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error) {

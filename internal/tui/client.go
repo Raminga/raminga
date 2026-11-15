@@ -46,7 +46,7 @@ type Client interface {
 	Close()
 }
 
-// APIClient adapts the shared UDS Connect client to Client.
+// APIClient adapts the shared local API Connect client to Client.
 type APIClient struct {
 	c *client.Client
 }

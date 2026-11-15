@@ -68,6 +68,7 @@ nc -vz 203.0.113.10 4001
 ```sh
 # 在公网节点上；把 announce 换成真实公网地址
 raminga init --data-dir ~/raminga-relay \
+  --dht-mode server \
   --relay-provider \
   --announce /ip4/203.0.113.10/tcp/4001 \
   --announce /ip4/203.0.113.10/udp/4001/quic-v1
@@ -81,7 +82,10 @@ raminga daemon --data-dir ~/raminga-relay
 raminga status --data-dir ~/raminga-relay          # peer_id / listen / announce
 raminga relay status --data-dir ~/raminga-relay    # provider.enabled=true 及配额
 raminga network status --data-dir ~/raminga-relay  # DHT / resources / AutoNAT
+raminga dht status --data-dir ~/raminga-relay      # active_mode 应为 server
 ```
+
+公网 Relay/Bootstrap 节点必须显式 `--dht-mode server`：`auto` 在可达性未知时保持 client，不会自动成为可用的 DHT 服务端。字段解释见 [DHT 使用与诊断](dht.md)。
 
 把 `peer_id` 和实际 multiaddr（必须含 `/p2p/<relay-peer-id>`）发给测试机，例如：
 
@@ -100,6 +104,7 @@ raminga network status --data-dir ~/raminga-relay  # DHT / resources / AutoNAT
 
 ```sh
 raminga init --data-dir ~/raminga-test \
+  --dht-mode client \
   --bootstrap /ip4/203.0.113.10/tcp/4001/p2p/<relay-peer-id>
 
 raminga --data-dir ~/raminga-test   # 自动启动 daemon 并打开 TUI
@@ -111,7 +116,7 @@ raminga --data-dir ~/raminga-test   # 自动启动 daemon 并打开 TUI
 - 客户端不需要预先配置 `--known-relay`：在 TUI 执行 `/connect <relay 地址>` 后，该 Relay 会成为候选并自动获得 circuit 地址；`/copy` 可复制。
 - `--announce` 只用于你有固定公网地址/NAT 映射的节点；它**不会**创建端口映射。
 - 不要在测试机启用 `--relay-provider`，除非它也有公网可达地址。
-- daemon 只监听 libp2p TCP/UDP；本地 API 仍然只在 `<data-dir>/api.sock`，token 0600，没有 TCP API listener。TUI 不需要 `--enable-test-api`。
+- daemon 只监听 libp2p TCP/UDP；本地 API 默认只在 `<data-dir>/api.sock`，token 0600，没有 TCP API listener。显式 `--api-tcp` 是例外：只在 literal `127.0.0.1` 的临时端口上提供每轮 token + 固定 TLS 证书的本地 API，且不再监听 Unix socket；它不改变 P2P 或 WAN 监听。TUI 不需要 `--enable-test-api`。
 
 查看并复制本机信息：
 
@@ -289,7 +294,7 @@ go run ./tests/e2e/g45 -report test-report.json \
 Docker/lab 不是公网证据。需要两台**独立异地设备**（不同网络/运营商）和一个双方可达的真实公网 Relay；A/B/R 使用同一 Go commit，记录 `git rev-parse HEAD`、`git status --porcelain`、Go 版本、时间、网络类型、Peer ID/Node ID 与脱敏证据。Relay provider 默认 off，M6 用 `raminga init --relay-provider` 显式开启并在 `config.toml` 调整配额；A/B 只出站，不做静态 DNAT/端口转发/UPnP。A/B 身份必须来自各自 dataDir，不复制。
 
 **M6-R（仅真实公网 Relay）**
-1. Relay R 启动：`raminga init --data-dir ... --relay-provider --announce /dns4/<relay>/tcp/4001` 后启动 `raminga daemon --data-dir ...`（或 systemd）；记录 R 的 Peer ID/公告地址/配额。
+1. Relay R 启动：`raminga init --data-dir ... --dht-mode server --relay-provider --announce /dns4/<relay>/tcp/4001` 后启动 `raminga daemon --data-dir ...`（或 systemd）；记录 R 的 Peer ID/公告地址/配额，并确认 `raminga dht status` 的 `active_mode=server`。
 2. A/B 配置已知 Relay、允许对方 Peer ID，启动 daemon/TUI；在 A `/connect <R multiaddr>`，在 B 同样与 R 建立 reservation；等待双方 `/diag` 显示 R reservation active。
 3. A `/connect <B relayed addr>`（或 `/connect <B peer id>`），`/chat B`；A→B ≥3 条、B→A ≥2 条。每条日志/事件必须显示 `route=relay`、`relayPeerId=R`、匹配的 messageId ACK；记录消息哈希/长度，不存正文。
 4. 记录 R 的转发/预约观测、错误码、时间线。**M6-R 只证明 Relay 路径，不证明 direct。**

@@ -235,10 +235,13 @@ func dhtStatusToProto(st node.DHTStatus) *apiv1.DHTStatus {
 	out := &apiv1.DHTStatus{
 		Enabled:                   st.Enabled,
 		Mode:                      st.Mode,
+		ActiveMode:                st.ActiveMode,
 		Protocol:                  st.Protocol,
 		BootstrapPeers:            st.BootstrapPeers,
 		PublicBootstrapConfigured: st.PublicBootstrapConfigured,
 		RoutingTablePeers:         st.RoutingTablePeers,
+		ConnectedPeers:            int32(st.ConnectedPeers),
+		BootstrapConnected:        int32(st.BootstrapConnected),
 		RelayCandidates:           int32(st.RelayCandidates),
 		LastError:                 st.LastError,
 		LastLookup:                dhtPeerToProto(st.LastLookup),

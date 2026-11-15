@@ -1,0 +1,22 @@
+{
+  "name": "@raminga/ui",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "description": "Mountable Raminga five-page client UI shared by hosts. No daemon or DSH imports.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "preview": "node ../../scripts/ui-harness/server.mjs"
+  },
+  "files": [
+    "src",
+    "scripts",
+    "README.md",
+    ".gitignore"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "31.0.1"
+  }
+}

@@ -1,0 +1,8 @@
+#!/bin/sh
+# journalctl stand-in for tests/install/systemd-inner.sh.
+set -eu
+STATE=${FAKE_SYSTEMD_STATE:-/run/fake-systemd}
+printf '%s\n' "$*" >>"$STATE/calls.log"
+if [ -f "$STATE/unit.log" ]; then
+	tail -n 20 "$STATE/unit.log"
+fi

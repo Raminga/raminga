@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Raminga UI · 分页浏览器夹具</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      flex-direction: column;
+      background: #fafafc;
+      color: #121220;
+      font: 13px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    header {
+      flex: none;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 6px 14px;
+      border-bottom: 1px solid #d9d3e7;
+      background: #f0edf7;
+    }
+    header strong { font-size: 12px; }
+    .badge {
+      padding: 2px 7px;
+      border: 1px solid #cfc5e3;
+      border-radius: 999px;
+      color: #5f5475;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+    .controls button {
+      height: 28px;
+      padding: 0 9px;
+      border: 1px solid #cfc5e3;
+      border-radius: 7px;
+      background: #fff;
+      color: #514769;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    #fixtureState {
+      flex: none;
+      margin: 0;
+      padding: 4px 14px;
+      border-bottom: 1px solid #e3e0ea;
+      background: #fff;
+      color: #68616f;
+      font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+    }
+    #mount { flex: 1; min-height: 0; display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Raminga UI · 分页浏览器夹具</strong>
+    <span class="badge">模拟宿主挂载，非真实 DSH</span>
+    <div class="controls">
+      <button type="button" id="toggleRefresh">暂停自动刷新</button>
+      <button type="button" id="failNext">下一次读取更早失败</button>
+      <button type="button" id="stallOlder">下一次更早游标停滞</button>
+      <button type="button" id="emptyCursorOlder">下一次更早缺游标</button>
+      <button type="button" id="breakInitial">下次打开缺初始游标</button>
+    </div>
+  </header>
+  <p id="fixtureState">正在构造 527 条夹具消息…</p>
+  <div id="mount"></div>
+  <script src="bundle.js"></script>
+  <script src="pagination.js"></script>
+</body>
+</html>

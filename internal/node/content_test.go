@@ -365,6 +365,22 @@ func TestFriendNameAndDescriptionSyncFriendsJSON(t *testing.T) {
 	if !strings.Contains(string(raw), `"description":"hello"`) {
 		t.Fatalf("SetFriendDescription did not sync friends.json: %s", raw)
 	}
+	// Clearing one field is an explicit public-export change and must not
+	// clear the other local field.
+	if _, err := b.node.SetFriendName(ctx, otherID.String(), ""); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(file)
+	if !strings.Contains(string(raw), `"name":""`) || !strings.Contains(string(raw), `"description":"hello"`) {
+		t.Fatalf("clearing name did not preserve description in friends.json: %s", raw)
+	}
+	if _, err := b.node.SetFriendDescription(ctx, otherID.String(), ""); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(file)
+	if !strings.Contains(string(raw), `"name":""`) || !strings.Contains(string(raw), `"description":""`) {
+		t.Fatalf("clearing description did not update friends.json: %s", raw)
+	}
 }
 
 func TestFileClientDisconnectKeepsServing(t *testing.T) {

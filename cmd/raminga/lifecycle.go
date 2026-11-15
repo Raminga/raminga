@@ -14,6 +14,7 @@ import (
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
 	"github.com/Raminga/raminga/internal/api/client"
+	"github.com/Raminga/raminga/internal/api/endpoint"
 )
 
 const (
@@ -45,14 +46,57 @@ func localStatus(dataDir string, timeout time.Duration) (*apiv1.StatusResponse, 
 	return c.Status(ctx)
 }
 
+// envTCPRequested reports the explicit environment opt-in for the loopback
+// TCP local API. It never falls back to UDS by itself.
+func envTCPRequested() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("RAMINGA_API_TCP"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+// localAPITCPMode follows the explicit environment opt-in. A validated
+// endpoint may select TCP only when it answers an authenticated status now; a
+// well-formed but dead descriptor is not an opt-in to start another TCP node.
+// With opt-in off, malformed or unreachable discovery is a clear error so no
+// transport is started and the file is not silently deleted or switched.
+func localAPITCPMode(dataDir string) (bool, error) {
+	if envTCPRequested() {
+		return true, nil
+	}
+	_, found, err := endpoint.ReadIfPresent(dataDir)
+	if err != nil {
+		return false, fmt.Errorf("本地 API 端点无法验证，未自动启动 TCP 或 Unix 传输；请检查或删除 %s，或显式设置 RAMINGA_API_TCP: %w", endpoint.Path(dataDir), err)
+	}
+	if !found {
+		return false, nil
+	}
+	if _, err := localStatus(dataDir, time.Second); err != nil {
+		// Format the probe failure instead of wrapping it: cliErrText unwraps
+		// *connect.Error and would otherwise hide this transport decision.
+		return false, fmt.Errorf("本地 API TCP 端点存在但节点不可达，未自动启动 TCP 或 Unix 传输；若确需 TCP 冷启动请显式设置 RAMINGA_API_TCP=1，或删除 %s: %v", endpoint.Path(dataDir), err)
+	}
+	return true, nil
+}
+
 // ensureDaemon connects to the data-dir daemon, starting a detached one first
 // if the local API is not reachable.
 func ensureDaemon(ctx context.Context, cmd *cobra.Command, dataDir string) error {
+	apiTCP, err := localAPITCPMode(dataDir)
+	if err != nil {
+		return err
+	}
+	return ensureDaemonWithMode(ctx, cmd, dataDir, apiTCP)
+}
+
+func ensureDaemonWithMode(ctx context.Context, cmd *cobra.Command, dataDir string, apiTCP bool) error {
 	if _, err := localStatus(dataDir, time.Second); err == nil {
 		return nil
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), startingNodeMsg)
-	done, err := spawnDaemon(dataDir)
+	done, err := spawnDaemon(dataDir, apiTCP)
 	if err != nil {
 		return fmt.Errorf("无法启动节点：%w", err)
 	}
@@ -63,7 +107,7 @@ func ensureDaemon(ctx context.Context, cmd *cobra.Command, dataDir string) error
 }
 
 // spawnDaemon starts `raminga daemon` detached from the current terminal.
-func spawnDaemon(dataDir string) (<-chan error, error) {
+func spawnDaemon(dataDir string, apiTCP bool) (<-chan error, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("locate executable: %w", err)
@@ -77,7 +121,11 @@ func spawnDaemon(dataDir string) (<-chan error, error) {
 		_ = logFile.Close()
 		return nil, fmt.Errorf("open null device: %w", err)
 	}
-	child := exec.Command(exe, "daemon", "--data-dir", dataDir)
+	args := []string{"daemon", "--data-dir", dataDir}
+	if apiTCP {
+		args = append(args, "--api-tcp")
+	}
+	child := exec.Command(exe, args...)
 	child.Stdin = null
 	child.Stdout = logFile
 	child.Stderr = logFile

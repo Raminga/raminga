@@ -83,6 +83,16 @@ type DownloadResult struct {
 	SHA256    string
 	Resumed   bool
 	Direct    bool
+	// Discovery evidence is set only when the caller explicitly requested it.
+	DiscoveryID       int64
+	DiscoveryRecorded bool
+	DiscoveryError    string
+}
+
+// DownloadOptions controls optional evidence recording for one download.
+type DownloadOptions struct {
+	RecordDiscovery bool
+	DiscoverySource string
 }
 
 func (n *Node) FetchManifest(ctx context.Context, peerID string, offset, limit int) (PeerManifest, error) {
@@ -226,6 +236,14 @@ func validPathSegment(seg string) bool {
 }
 
 func (n *Node) Download(ctx context.Context, peerID, remotePath string, progress func(DownloadProgress)) (DownloadResult, error) {
+	return n.DownloadWithOptions(ctx, peerID, remotePath, progress, DownloadOptions{})
+}
+
+// DownloadWithOptions downloads one manifest file and optionally records the
+// successful acquisition as private discovery evidence. Only Agent tool
+// callers opt in; a manual TUI download, a directory scan or merely listing a
+// manifest does not become a Feed recommendation.
+func (n *Node) DownloadWithOptions(ctx context.Context, peerID, remotePath string, progress func(DownloadProgress), options DownloadOptions) (DownloadResult, error) {
 	pid, err := peer.Decode(peerarg.Normalize(peerID))
 	if err != nil {
 		return DownloadResult{}, fmt.Errorf("invalid peer ID: %w；%s", err, peerarg.WrappedHint)
@@ -355,7 +373,35 @@ func (n *Node) Download(ctx context.Context, peerID, remotePath string, progress
 	}
 	progress(DownloadProgress{Phase: "complete", Path: entry.Path, Received: written, Total: entry.Size, Direct: !res.Limited})
 	n.recordFriend(context.Background(), pid, false)
-	return DownloadResult{PeerID: pid.String(), Path: entry.Path, LocalPath: final, Size: written, SHA256: hash, Resumed: appendMode, Direct: !res.Limited}, nil
+	result := DownloadResult{PeerID: pid.String(), Path: entry.Path, LocalPath: final, Size: written, SHA256: hash, Resumed: appendMode, Direct: !res.Limited}
+	if options.RecordDiscovery {
+		source := strings.TrimSpace(options.DiscoverySource)
+		if !validDiscoverySource(source) {
+			source = "raminga_content_get"
+		}
+		if n.store == nil {
+			result.DiscoveryError = "discovery index is unavailable"
+		} else if row, recordErr := n.store.RecordPublicDiscovery(ctx, pid.String(), entry.Path, hash, written, time.Now().UnixMilli(), source); recordErr != nil {
+			result.DiscoveryError = recordErr.Error()
+		} else {
+			result.DiscoveryID = row.ID
+			result.DiscoveryRecorded = true
+		}
+	}
+	return result, nil
+}
+
+func validDiscoverySource(source string) bool {
+	if source == "" || len(source) > 64 {
+		return false
+	}
+	for _, r := range source {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == '.' || r == ':' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func hashRootFile(root *os.Root, name string) (string, error) {
@@ -558,6 +604,29 @@ func (n *Node) GetPeerProfile(ctx context.Context, peerID string) (PeerProfile, 
 func (n *Node) GetPeerFriends(ctx context.Context, peerID string) (PeerFriends, error) {
 	return n.ViewFriends(ctx, peerID)
 }
-func (n *Node) DownloadPeerFile(ctx context.Context, peerID, path string, progress func(DownloadProgress)) (DownloadResult, error) {
-	return n.Download(ctx, peerID, path, progress)
+
+// DownloadPeerFile is the API-facing variant used by Agent tools that may
+// explicitly record acquisition evidence.
+func (n *Node) DownloadPeerFile(ctx context.Context, peerID, path string, progress func(DownloadProgress), options DownloadOptions) (DownloadResult, error) {
+	return n.DownloadWithOptions(ctx, peerID, path, progress, options)
+}
+
+// ListDiscoveries returns the private discovery index page. It is served
+// only on the local API; the remote content protocol does not expose it.
+func (n *Node) ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool) (PublicDiscoveryPage, error) {
+	if n.store == nil {
+		return PublicDiscoveryPage{}, errors.New("discovery index is unavailable")
+	}
+	rows, err := n.store.ListPublicDiscoveries(ctx, before, limit, familiarOnly)
+	if err != nil {
+		return PublicDiscoveryPage{}, err
+	}
+	page := PublicDiscoveryPage{NextBefore: rows.NextBefore, HasMore: rows.HasMore}
+	for _, row := range rows.Items {
+		page.Discoveries = append(page.Discoveries, PublicDiscovery{
+			ID: row.ID, PeerID: row.PeerID, Path: row.Path, SHA256: row.SHA256,
+			SizeBytes: row.SizeBytes, FetchedAt: time.UnixMilli(row.FetchedAtMS), Source: row.Source,
+		})
+	}
+	return page, nil
 }

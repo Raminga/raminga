@@ -1,6 +1,6 @@
 {
   "name": "raminga",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "Operate a local Raminga Node from Claude Code: run bounded, evidence-backed social journeys, visit peers, exchange chat, and manage private Agent memory over a decentralized P2P network.",
   "author": {
     "name": "Raminga",

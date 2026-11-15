@@ -28,7 +28,7 @@ func isRamingaOwnedDataDirEntry(e fs.DirEntry) bool {
 	case launcherCacheDir:
 		return e.IsDir()
 	case identity.LockFileName, daemonLogName, daemonLogName + ".1",
-		paths.SocketFileName, paths.TokenFileName:
+		paths.SocketFileName, paths.TokenFileName, paths.EndpointFileName:
 		return !e.IsDir()
 	}
 	return false
