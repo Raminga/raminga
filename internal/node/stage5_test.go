@@ -200,6 +200,8 @@ func TestStage5SendReplayRequiresMatchingPeerTextAndOrigin(t *testing.T) {
 }
 
 func TestStage5SendReplayConcurrentAndAfterRestart(t *testing.T) {
+	const text = "concurrent body"
+	const requestID = "concurrent-key"
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	dirA := t.TempDir()
@@ -219,13 +221,13 @@ func TestStage5SendReplayConcurrentAndAfterRestart(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			<-start
-			results[index], errs[index] = a.node.SendChatOrigin(ctx, bPeer, "", "concurrent body", node.OriginHuman, "concurrent-key")
+			results[index], errs[index] = a.node.SendChatOrigin(ctx, bPeer, "", text, node.OriginHuman, requestID)
 		}(i)
 	}
 	close(start)
 	wg.Wait()
 
-	successes := 0
+	originalSends := 0
 	messageID := ""
 	for i := range results {
 		if errs[i] != nil {
@@ -236,29 +238,39 @@ func TestStage5SendReplayConcurrentAndAfterRestart(t *testing.T) {
 			}
 			continue
 		}
-		successes++
-		if !results[i].Acked {
-			t.Fatalf("concurrent result %d = %+v", i, results[i])
+		result := results[i]
+		if result.MessageID == "" || result.RequestID != requestID {
+			t.Fatalf("concurrent result %d has incorrect message or request identity: %+v", i, result)
+		}
+		switch {
+		case !result.Replayed && result.Acked && result.DeliveryStatus == node.DeliveryAcked:
+			originalSends++
+		case result.Replayed && !result.Acked && result.DeliveryStatus == node.DeliveryPending:
+			// A retry can see the persisted row while the original send is
+			// still waiting for its ACK.
+		case result.Replayed && result.Acked && result.DeliveryStatus == node.DeliveryAcked:
+		default:
+			t.Fatalf("unexpected concurrent result %d: %+v", i, result)
 		}
 		if messageID == "" {
-			messageID = results[i].MessageID
-		} else if results[i].MessageID != messageID {
-			t.Fatalf("concurrent results used different message IDs: %q and %q", messageID, results[i].MessageID)
+			messageID = result.MessageID
+		} else if result.MessageID != messageID {
+			t.Fatalf("concurrent results used different message IDs: %q and %q", messageID, result.MessageID)
 		}
 	}
-	if successes == 0 {
-		t.Fatal("no concurrent send succeeded")
+	if originalSends != 1 {
+		t.Fatalf("original successful sends = %d, want exactly one", originalSends)
 	}
 	msgsB, err := b.node.RecentMessages(ctx, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(msgsB) != 1 {
-		t.Fatalf("receiver has %d messages after concurrent sends, want 1", len(msgsB))
+	if len(msgsB) != 1 || msgsB[0].MessageID != messageID || msgsB[0].Text != text {
+		t.Fatalf("receiver messages after concurrent sends = %+v, want one message %q with text %q", msgsB, messageID, text)
 	}
 
-	replay, err := a.node.SendChatOrigin(ctx, bPeer, "", "concurrent body", node.OriginHuman, "concurrent-key")
-	if err != nil || !replay.Replayed || replay.MessageID != messageID {
+	replay, err := a.node.SendChatOrigin(ctx, bPeer, "", text, node.OriginHuman, requestID)
+	if err != nil || !replay.Replayed || !replay.Acked || replay.DeliveryStatus != node.DeliveryAcked || replay.MessageID != messageID {
 		t.Fatalf("replay after concurrency = %+v, %v", replay, err)
 	}
 
@@ -275,8 +287,8 @@ func TestStage5SendReplayConcurrentAndAfterRestart(t *testing.T) {
 	if got := a2.status(t).PeerID; got != aPeer {
 		t.Fatalf("Peer ID changed after restart: %s -> %s", aPeer, got)
 	}
-	afterRestart, err := a2.node.SendChatOrigin(ctx, bPeer, "", "concurrent body", node.OriginHuman, "concurrent-key")
-	if err != nil || !afterRestart.Replayed || afterRestart.MessageID != messageID {
+	afterRestart, err := a2.node.SendChatOrigin(ctx, bPeer, "", text, node.OriginHuman, requestID)
+	if err != nil || !afterRestart.Replayed || !afterRestart.Acked || afterRestart.DeliveryStatus != node.DeliveryAcked || afterRestart.MessageID != messageID {
 		t.Fatalf("replay after restart = %+v, %v", afterRestart, err)
 	}
 	msgsB, err = b.node.RecentMessages(ctx, 20)
