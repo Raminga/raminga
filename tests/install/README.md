@@ -13,7 +13,7 @@ make install-test
 3. 用真实 `raminga` daemon、真实本地 Connect API 和真实 `identity/key`；
 4. 用 `tests/install/fakebin/systemctl` 和 `journalctl` 代替 systemd；替身按 unit 的 `User=` 降权运行 `ExecStart`，以便验证非 root 服务用户的 HTTPS API。
 
-覆盖：全新安装、已有 unit 升级/自定义内容保留、已有/无 unit 的独立 daemon 迁移、非 root 服务用户 + 真实 HTTPS（`--api-tcp`）daemon 迁移（归档仅 root 可读时走安全暂存）、身份保留、unit 用户/数据目录冲突、符号链接 unit、标准目录 drop-in、`/etc` 外同名 unit（active 或 inactive）、其他 systemd unit 托管、API `data_dir`/属主不一致、API discovery 不可用、服务不 active、启动失败、daemon 启动即退出、已有 unit 升级失败、健康等待期间 SIGTERM 清理、带空格的数据目录，以及非 `--service` 安装回归。
+覆盖：全新安装、已有 unit 升级/自定义内容保留、已有/无 unit 的独立 daemon 迁移、非 root 服务用户 + 真实 HTTPS（`--api-tcp`）daemon 迁移（归档仅 root 可读时走安全暂存）、身份保留、unit 用户/数据目录冲突、符号链接 unit、标准目录 drop-in、`/etc` 外同名 unit（active 或 inactive）、其他 systemd unit 托管、API `data_dir`/属主不一致、API discovery 不可用、服务不 active、启动失败、daemon 启动即退出、已有 unit 升级失败、健康等待期间 SIGTERM 清理、停止失败/过渡 ActiveState/disable 失败时保留 unit、带空格的数据目录，以及非 `--service` 安装回归。
 
 **这不是真实 systemd。** 它不能证明 systemd 的 unit 解析、依赖排序、`Restart=on-failure` 节流、enable 符号链接和 journal 语义。CI 的 `systemd-real` job 单独运行下方真实 systemd 验收。
 

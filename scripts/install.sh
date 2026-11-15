@@ -234,6 +234,14 @@ status_field() {
 	printf '%s\n' "$2" | sed -n "s/^$1: //p" | sed -n '1p'
 }
 
+# identity_key_cksum reads identity/key as RUN_USER and only when it is a
+# regular, non-symlink file. Root can read through FIFOs/devices and bypass the
+# service account's permissions, neither of which is appropriate for this check.
+identity_key_cksum() {
+	[ -f "$1" ] && [ ! -L "$1" ] || return 1
+	run_cli cksum "$1" 2>/dev/null
+}
+
 unit_value() {
 	sed -n "s/^$1=//p" "$UNIT" | sed -n '1p'
 }
@@ -457,50 +465,80 @@ service_preflight() {
 		fi
 	fi
 
-	if [ -f "$DATA_DIR/identity/key" ]; then
-		BEFORE_KEY_CKSUM=$(cksum <"$DATA_DIR/identity/key" 2>/dev/null || true)
+	if _key_cksum=$(identity_key_cksum "$DATA_DIR/identity/key"); then
+		BEFORE_KEY_CKSUM=$_key_cksum
 	fi
 }
 
 remove_new_unit() {
 	[ "$UNIT_CREATED" -eq 1 ] || return 0
-	rm -f "$UNIT"
-	systemctl daemon-reload >/dev/null 2>&1 || true
+	if ! rm -f "$UNIT"; then
+		printf 'install.sh: 警告：无法删除新 unit %s；未声称已移除。请手动删除并运行 sudo systemctl daemon-reload。\n' "$UNIT" >&2
+		return 1
+	fi
+	if ! systemctl daemon-reload >/dev/null 2>&1; then
+		printf 'install.sh: 警告：已删除 %s，但 systemctl daemon-reload 失败；systemd 可能仍加载旧 unit。请手动运行 sudo systemctl daemon-reload。\n' "$UNIT" >&2
+		return 1
+	fi
+	return 0
 }
 
 abort_before_start() {
 	[ -z "$UNIT_TMP" ] || rm -f "$UNIT_TMP"
 	UNIT_TMP=
-	remove_new_unit
+	remove_new_unit || true
 	die "$1"
 }
 
 stop_started_service() {
-	systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
+	_stop_ok=0
+	if systemctl stop "$SERVICE_NAME" >/dev/null 2>&1; then
+		_stop_ok=1
+	fi
 	_i=0
-	while systemctl is-active --quiet "$SERVICE_NAME" && [ "$_i" -lt 10 ]; do
+	while :; do
+		_state=$(systemctl show -p ActiveState --value "$SERVICE_NAME" 2>/dev/null || true)
+		case "$_state" in
+		inactive | failed) break ;;
+		esac
+		if [ "$_i" -ge 10 ]; then
+			break
+		fi
 		sleep 1
 		_i=$((_i + 1))
 	done
-	if systemctl is-active --quiet "$SERVICE_NAME"; then
-		if [ "$UNIT_CREATED" -eq 1 ]; then
-			systemctl disable "$SERVICE_NAME" >/dev/null 2>&1 || true
-		fi
-		printf 'install.sh: 警告：无法停止 %s.service；unit 未删除。请立即运行 sudo systemctl stop %s 并检查 journalctl -u %s。\n' \
-			"$SERVICE_NAME" "$SERVICE_NAME" "$SERVICE_NAME" >&2
+	if [ "$_stop_ok" -ne 1 ]; then
+		printf 'install.sh: 警告：systemctl stop %s 返回失败；已按 ActiveState 核对停止状态。\n' "$SERVICE_NAME" >&2
+	fi
+	case "$_state" in
+	inactive | failed) ;;
+	*)
+		printf 'install.sh: 警告：无法确认 %s.service 已停止（ActiveState=%s）；保留 unit，未声称已停止。请立即运行 sudo systemctl stop %s 并检查 journalctl -u %s。\n' \
+			"$SERVICE_NAME" "${_state:-未知}" "$SERVICE_NAME" "$SERVICE_NAME" >&2
 		return 1
-	fi
+		;;
+	esac
 	if [ "$UNIT_CREATED" -eq 1 ]; then
-		systemctl disable "$SERVICE_NAME" >/dev/null 2>&1 || true
-		rm -f "$UNIT"
-		systemctl daemon-reload >/dev/null 2>&1 || true
+		if ! _disable_out=$(systemctl disable "$SERVICE_NAME" 2>&1); then
+			printf 'install.sh: 警告：systemctl disable %s 失败：%s；服务已停止，但新 unit 保留，未声称已移除。请立即运行 sudo systemctl disable %s 并检查 unit。\n' \
+				"$SERVICE_NAME" "${_disable_out:-无输出}" "$SERVICE_NAME" >&2
+			return 1
+		fi
 	fi
-	return 0
+	remove_new_unit
 }
 
 fail_service() {
-	stop_started_service || true
-	die "$1"
+	if stop_started_service; then
+		if [ "$UNIT_CREATED" -eq 1 ]; then
+			die "$1
+install.sh: 服务已停止，新 unit 已移除。"
+		fi
+		die "$1
+install.sh: 服务已停止。"
+	fi
+	die "$1
+install.sh: 清理未完成；未声称服务已停止或 unit 已移除。请按上方警告处理。"
 }
 
 service_interrupted() {
@@ -549,7 +587,11 @@ wait_for_service_health() {
 			fi
 			if [ "$_unit_state" = active ]; then
 				if [ -n "$BEFORE_KEY_CKSUM" ]; then
-					_now_key=$(cksum <"$DATA_DIR/identity/key" 2>/dev/null || true)
+					_now_key=$(identity_key_cksum "$DATA_DIR/identity/key" || true)
+					if [ -z "$_now_key" ]; then
+						HEALTH_DETAIL='identity/key 缺失、不是普通文件或服务用户不可读，无法确认身份保留'
+						return 1
+					fi
 					if [ "$_now_key" != "$BEFORE_KEY_CKSUM" ]; then
 						HEALTH_DETAIL='identity/key 校验和发生变化，身份未保留'
 						return 1
@@ -629,17 +671,17 @@ UNIT_EOF
 	SERVICE_TOUCHED=1
 	if [ "$UNIT_EXISTS" -eq 1 ]; then
 		if ! systemctl restart "$SERVICE_NAME"; then
-			fail_service "systemctl restart $SERVICE_NAME 失败。已停止本次启动的服务；已有 unit 保持不变；未报告安装成功。请查看 journalctl -u $SERVICE_NAME -n 50 --no-pager。"
+			fail_service "systemctl restart $SERVICE_NAME 失败。已有 unit 保持不变；未报告安装成功。请查看 journalctl -u $SERVICE_NAME -n 50 --no-pager。"
 		fi
 	else
 		if ! systemctl enable --now "$SERVICE_NAME"; then
-			fail_service "systemctl enable --now $SERVICE_NAME 失败。已停止本次启动的服务并移除新 unit；未报告安装成功。请查看 journalctl -u $SERVICE_NAME -n 50 --no-pager。"
+			fail_service "systemctl enable --now $SERVICE_NAME 失败。未报告安装成功。请查看 journalctl -u $SERVICE_NAME -n 50 --no-pager。"
 		fi
 	fi
 
 	if ! wait_for_service_health; then
 		fail_service "systemd 服务 $SERVICE_NAME 未在 ${WAIT_SECONDS}s 内达到 active + 本地 API 健康：$HEALTH_DETAIL
-已停止本次启动的服务；未报告安装成功。请查看：
+未报告安装成功。请查看：
   journalctl -u $SERVICE_NAME -n 50 --no-pager
   systemctl status $SERVICE_NAME --no-pager"
 	fi

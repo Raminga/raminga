@@ -23,11 +23,29 @@ is_running() {
 	kill -0 "$pid" 2>/dev/null
 }
 
-is_active() {
-	if [ "${FAKE_SYSTEMD_NEVER_ACTIVE:-0}" = 1 ]; then
-		return 1
+unit_state() {
+	if [ -n "${FAKE_SYSTEMD_ACTIVE_STATE:-}" ]; then
+		printf '%s\n' "$FAKE_SYSTEMD_ACTIVE_STATE"
+		return 0
 	fi
-	is_running
+	if [ "${FAKE_SYSTEMD_NEVER_ACTIVE:-0}" = 1 ]; then
+		printf 'inactive\n'
+		return 0
+	fi
+	if is_running; then
+		printf 'active\n'
+	else
+		printf 'inactive\n'
+	fi
+}
+
+is_active() {
+	case "$(unit_state)" in
+	active | reloading) return 0 ;;
+	*)
+		return 1
+		;;
+	esac
 }
 
 start_unit() {
@@ -67,6 +85,10 @@ start_unit() {
 }
 
 stop_unit() {
+	if [ "${FAKE_SYSTEMD_STOP_FAILS:-0}" = 1 ]; then
+		echo "Failed to stop raminga.service: Operation refused" >&2
+		return 1
+	fi
 	pid=
 	if [ -f "$PIDFILE" ]; then
 		pid=$(cat "$PIDFILE")
@@ -83,6 +105,7 @@ stop_unit() {
 		fi
 	fi
 	rm -f "$PIDFILE"
+	return 0
 }
 
 case "$cmd" in
@@ -100,7 +123,7 @@ is-active)
 		[ "$quiet" -eq 1 ] || echo active
 		exit 0
 	fi
-	[ "$quiet" -eq 1 ] || echo inactive
+	[ "$quiet" -eq 1 ] || unit_state
 	exit 3
 	;;
 is-enabled)
@@ -131,6 +154,10 @@ disable)
 			now=1
 		fi
 	done
+	if [ "${FAKE_SYSTEMD_DISABLE_FAILS:-0}" = 1 ]; then
+		echo "Failed to disable unit: Read-only file system" >&2
+		exit 1
+	fi
 	rm -f "$STATE/enabled"
 	if [ "$now" -eq 1 ]; then
 		stop_unit
@@ -143,10 +170,10 @@ start)
 	;;
 stop)
 	stop_unit
-	exit 0
+	exit $?
 	;;
 restart)
-	stop_unit
+	stop_unit || exit $?
 	start_unit
 	exit 0
 	;;
@@ -185,18 +212,14 @@ show)
 	done
 	case "$prop" in
 	MainPID)
-		if is_active; then
+		if is_running; then
 			cat "$PIDFILE"
 		else
 			echo 0
 		fi
 		;;
 	ActiveState)
-		if is_active; then
-			echo active
-		else
-			echo inactive
-		fi
+		unit_state
 		;;
 	LoadState)
 		if [ -f "$UNIT" ]; then

@@ -18,7 +18,7 @@ TESTBIN=/usr/local/bin/raminga-testbin
 export FAKE_SYSTEMD_STATE=$FAKE_STATE
 export PATH=$FAKEBIN:$PATH
 export RAMINGA_INSTALL_WAIT_SECONDS=${RAMINGA_INSTALL_WAIT_SECONDS:-5}
-unset FAKE_SYSTEMD_FAIL_START FAKE_SYSTEMD_NEVER_ACTIVE FAKE_SYSTEMD_EXIT_AFTER_START FAKE_SYSTEMD_UNSUPERVISED 2>/dev/null || true
+unset FAKE_SYSTEMD_FAIL_START FAKE_SYSTEMD_NEVER_ACTIVE FAKE_SYSTEMD_EXIT_AFTER_START FAKE_SYSTEMD_UNSUPERVISED FAKE_SYSTEMD_STOP_FAILS FAKE_SYSTEMD_DISABLE_FAILS FAKE_SYSTEMD_ACTIVE_STATE 2>/dev/null || true
 
 if ! id -u "$TEST_USER" >/dev/null 2>&1; then
 	if command -v adduser >/dev/null 2>&1; then
@@ -76,6 +76,7 @@ rc_nonzero() { [ "$RC" -ne 0 ]; }
 out_has() { grep -Fq -- "$1" "$TESTROOT/out"; }
 out_lacks() { ! grep -Fq -- "$1" "$TESTROOT/out"; }
 err_has() { grep -Fq -- "$1" "$TESTROOT/err"; }
+err_lacks() { ! grep -Fq -- "$1" "$TESTROOT/err"; }
 unit_exists() { [ -f "$UNIT" ]; }
 unit_missing() { [ ! -e "$UNIT" ] && [ ! -L "$UNIT" ]; }
 unit_is_symlink() { [ -L "$UNIT" ]; }
@@ -790,6 +791,85 @@ assert 'unsupervised: explains supervised=false' err_has 'supervised=false'
 assert 'unsupervised: no success message' out_lacks '已安装并启动 systemd 服务 raminga'
 assert 'unsupervised: new unit removed' unit_missing
 assert 'unsupervised: no process' main_pid_is 0
+
+# ---------------------------------------------------------------------------
+# 12c. Cleanup stop failure: ActiveState still active, so keep the new unit and
+#      report the unproven stop instead of claiming it was removed.
+# ---------------------------------------------------------------------------
+printf '\n== cleanup stop failure ==\n'
+reset_unit
+stopfail_dir=$(new_node stopfail 42124)
+export FAKE_SYSTEMD_UNSUPERVISED=1
+export FAKE_SYSTEMD_STOP_FAILS=1
+export RAMINGA_INSTALL_WAIT_SECONDS=3
+clear_calls
+run_install "$stopfail_dir"
+unset FAKE_SYSTEMD_UNSUPERVISED FAKE_SYSTEMD_STOP_FAILS
+assert 'stop-fail: nonzero exit' rc_nonzero
+assert 'stop-fail: explains supervised=false' err_has 'supervised=false'
+assert 'stop-fail: reports stop failure' err_has 'systemctl stop'
+assert 'stop-fail: reports incomplete cleanup' err_has '清理未完成'
+assert 'stop-fail: queried ActiveState' calls_has 'show -p ActiveState --value raminga'
+assert 'stop-fail: no success message' out_lacks '已安装并启动 systemd 服务 raminga'
+assert 'stop-fail: unit retained' unit_exists
+assert 'stop-fail: service still active' active
+assert 'stop-fail: no removal claim' err_lacks '新 unit 已移除'
+systemctl stop raminga >/dev/null 2>&1 || true
+systemctl disable raminga >/dev/null 2>&1 || true
+rm -f "$UNIT"
+systemctl daemon-reload
+
+# ---------------------------------------------------------------------------
+# 12d. Cleanup sees a transitional ActiveState (deactivating): even though
+#      is-active is false, the stop is not proven, so keep the new unit.
+# ---------------------------------------------------------------------------
+printf '\n== cleanup transitional ActiveState ==\n'
+reset_unit
+transition_dir=$(new_node transition 42125)
+export FAKE_SYSTEMD_UNSUPERVISED=1
+export FAKE_SYSTEMD_ACTIVE_STATE=deactivating
+export RAMINGA_INSTALL_WAIT_SECONDS=2
+clear_calls
+run_install "$transition_dir"
+unset FAKE_SYSTEMD_UNSUPERVISED FAKE_SYSTEMD_ACTIVE_STATE
+assert 'transition: nonzero exit' rc_nonzero
+assert 'transition: explains supervised=false' err_has 'supervised=false'
+assert 'transition: reports ActiveState' err_has 'ActiveState=deactivating'
+assert 'transition: reports incomplete cleanup' err_has '清理未完成'
+assert 'transition: queried ActiveState' calls_has 'show -p ActiveState --value raminga'
+assert 'transition: no success message' out_lacks '已安装并启动 systemd 服务 raminga'
+assert 'transition: unit retained' unit_exists
+assert 'transition: process stopped' no_systemd_pid
+assert 'transition: no removal claim' err_lacks '新 unit 已移除'
+systemctl disable raminga >/dev/null 2>&1 || true
+rm -f "$UNIT"
+systemctl daemon-reload
+
+# ---------------------------------------------------------------------------
+# 12e. Cleanup disable failure: the service is stopped, but the new unit must
+#      be kept because removing it without a successful disable is unsafe.
+# ---------------------------------------------------------------------------
+printf '\n== cleanup disable failure ==\n'
+reset_unit
+disablefail_dir=$(new_node disablefail 42126)
+export FAKE_SYSTEMD_UNSUPERVISED=1
+export FAKE_SYSTEMD_DISABLE_FAILS=1
+export RAMINGA_INSTALL_WAIT_SECONDS=2
+clear_calls
+run_install "$disablefail_dir"
+unset FAKE_SYSTEMD_UNSUPERVISED FAKE_SYSTEMD_DISABLE_FAILS
+assert 'disable-fail: nonzero exit' rc_nonzero
+assert 'disable-fail: explains supervised=false' err_has 'supervised=false'
+assert 'disable-fail: reports disable failure' err_has 'systemctl disable'
+assert 'disable-fail: reports incomplete cleanup' err_has '清理未完成'
+assert 'disable-fail: no success message' out_lacks '已安装并启动 systemd 服务 raminga'
+assert 'disable-fail: unit retained' unit_exists
+assert 'disable-fail: service stopped' no_systemd_pid
+assert 'disable-fail: enable link retained' [ "$(systemctl is-enabled raminga 2>/dev/null || true)" = enabled ]
+assert 'disable-fail: no removal claim' err_lacks '新 unit 已移除'
+systemctl disable raminga >/dev/null 2>&1 || true
+rm -f "$UNIT"
+systemctl daemon-reload
 
 # ---------------------------------------------------------------------------
 # 13. Daemon dies after start (invalid config): cleanup a new unit.
