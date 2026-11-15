@@ -16,6 +16,7 @@ bad="$root/new failure"
 account=raminga-ci
 unit=/etc/systemd/system/raminga.service
 old_pid=
+account_created=false
 cleanup() {
   rc=$?
   trap - EXIT
@@ -32,6 +33,7 @@ cleanup() {
   [[ -z "$old_pid" ]] || kill "$old_pid" 2>/dev/null
   rm -f "$unit" /usr/local/bin/raminga
   systemctl daemon-reload
+  if "$account_created"; then userdel "$account"; fi
   rm -rf "$root"
   exit "$rc"
 }
@@ -39,6 +41,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 useradd --system --no-create-home --home-dir "$root/home" "$account"
+account_created=true
 chmod 0755 "$root"
 install -d -m 0700 "$archive"
 install -m 0755 "$binary" "$archive/raminga"
@@ -58,10 +61,14 @@ expect_install_failure() {
     echo 'FAIL: invalid config reported success' >&2
     return 1
   fi
-  ! grep -Fq '已安装并启动 systemd 服务' "$log"
+  if grep -Fq '已安装并启动 systemd 服务' "$log"; then
+    echo 'FAIL: unsuccessful install printed success' >&2
+    return 1
+  fi
   journalctl --since "@$since" -u raminga.service --no-pager -o cat >"$log.journal.log"
   grep -Ei 'config.*(toml|parse)|toml.*(config|line)' "$log.journal.log"
-  [[ $(systemctl show -p MainPID --value raminga.service) != [1-9]* ]]
+  sleep 2
+  [[ $(systemctl show -p MainPID --value raminga.service) == 0 ]] || return 1
   case "$(systemctl show -p ActiveState --value raminga.service)" in
     inactive|failed) ;;
     *) echo 'FAIL: service still running or scheduled to restart' >&2; return 1 ;;
@@ -90,7 +97,10 @@ systemctl is-enabled --quiet raminga.service
 after=$(status)
 grep -qx 'supervised: true' <<<"$after"
 [[ $(peer <<<"$after") == "$peer_before" && $(sha256sum "$data/identity/key") == "$key_before" ]]
-! kill -0 "$old_pid" 2>/dev/null
+if kill -0 "$old_pid" 2>/dev/null; then
+  echo 'FAIL: original daemon is still running' >&2
+  exit 1
+fi
 wait "$old_pid"
 old_pid=
 pid_before=$(systemctl show -p MainPID --value raminga.service)
