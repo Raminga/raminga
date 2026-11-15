@@ -15,7 +15,7 @@ make install-test
 
 覆盖：全新安装、已有 unit 升级/自定义内容保留、已有/无 unit 的独立 daemon 迁移、非 root 服务用户 + 真实 HTTPS（`--api-tcp`）daemon 迁移（归档仅 root 可读时走安全暂存）、身份保留、unit 用户/数据目录冲突、符号链接 unit、标准目录 drop-in、`/etc` 外同名 unit（active 或 inactive）、其他 systemd unit 托管、API `data_dir`/属主不一致、API discovery 不可用、服务不 active、启动失败、daemon 启动即退出、已有 unit 升级失败、健康等待期间 SIGTERM 清理、带空格的数据目录，以及非 `--service` 安装回归。
 
-**这不是真实 systemd。** 它不能证明 systemd 的 unit 解析、依赖排序、`Restart=on-failure` 节流、enable 符号链接和 journal 语义。本机（macOS）没有真实 systemd，因此这些项保持 **NOT_TESTED**；CI 中同一目标在 Linux 上运行，也只是容器模拟。
+**这不是真实 systemd。** 它不能证明 systemd 的 unit 解析、依赖排序、`Restart=on-failure` 节流、enable 符号链接和 journal 语义。CI 的 `systemd-real` job 单独运行下方真实 systemd 验收。
 
 在 Linux CI 中可把它作为独立步骤：
 
@@ -97,4 +97,16 @@ rm -rf "$DATA" /usr/local/bin/raminga
 | 非法配置升级 | 非零退出，不打印成功，服务 inactive；已有 unit 文件保留 |
 | 冲突 unit/API 属主/`data_dir` | 安装前非零退出，原服务/进程仍可用（可用容器测试覆盖，也可在 VM 中手工构造） |
 
-真实 systemd 验收通过后，把结果（日期、发行版、systemd 版本、PASS/FAIL 和命令）记录到 PR 或验收记录；不要只写“跑过”。本仓库当前没有真实 systemd 的证据，状态仍是 **NOT_TESTED**。
+### CI 验收记录
+
+2026-11-15（Asia/Shanghai），提交 `83f91f7` 在 GitHub 托管 Ubuntu 24.04.5 LTS x64 虚拟机上通过。PID 1 为 systemd 255（`255.4-1ubuntu8.18`）。[CI 日志](https://github.com/Raminga/raminga/actions/runs/43680945152/job/132711215864)
+
+```sh
+CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/raminga" ./cmd/raminga
+sudo bash tests/install/systemd-real.sh "$RUNNER_TEMP/raminga"
+```
+
+- **PASS**：以非 root 用户运行的旧回环 HTTPS daemon 退出，systemd 服务 active、enabled，本地 API 报告由 systemd 托管。Peer ID 和身份密钥保持一致。
+- **PASS**：再次安装重启了同一个 unit，unit 内容和身份保持一致。
+- **PASS**：无效 TOML 导致已有服务启动失败，安装器返回非零，服务停止，原 unit 和密钥保留。
+- **PASS**：无效 TOML 导致新服务启动失败，安装器返回非零，并清理新 unit 和 enable 链接。两条失败路径都检查了实际 systemd 日志和服务不再重启。
