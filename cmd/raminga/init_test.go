@@ -74,6 +74,49 @@ func TestInitForceKeepsPeerID(t *testing.T) {
 	}
 }
 
+func TestInitCommandDHTMode(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "node")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"init", "--data-dir", dir, "--dht-mode", "server"})
+	var out strings.Builder
+	cmd.SetOut(&out)
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DHT.Mode != "server" {
+		t.Fatalf("dht.mode = %q, want server", cfg.DHT.Mode)
+	}
+	if !strings.Contains(out.String(), "dht_mode: server") {
+		t.Fatalf("init output lacks dht_mode: %q", out.String())
+	}
+
+	defaultDir := filepath.Join(t.TempDir(), "default")
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"init", "--data-dir", defaultDir})
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("default init: %v", err)
+	}
+	cfg, err = config.Load(defaultDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DHT.Mode != "auto" {
+		t.Fatalf("default dht.mode = %q, want auto", cfg.DHT.Mode)
+	}
+
+	for _, mode := range []string{"bogus", ""} {
+		cmd = newRootCmd()
+		cmd.SetArgs([]string{"init", "--data-dir", filepath.Join(t.TempDir(), "bad"), "--dht-mode", mode})
+		if err := cmd.ExecuteContext(context.Background()); err == nil {
+			t.Fatalf("invalid --dht-mode %q unexpectedly succeeded", mode)
+		}
+	}
+}
+
 func TestInitCommandRejectsPortsWithListen(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"init", "--data-dir", t.TempDir(), "--tcp-port", "14101", "--listen", "/ip4/127.0.0.1/tcp/14201"})

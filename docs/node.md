@@ -28,7 +28,7 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 
 - go-libp2p 同时监听 TCP 与 QUIC，默认 IPv4 + IPv6 的 4001；地址公告会追加网卡上的公网地址，并过滤链路本地、未指定、组播和常见虚拟网卡地址。过滤规则和已知限制见 `internal/network/filter.go`。
 - Circuit Relay v2 客户端默认开启；Relay provider 默认关闭，必须显式 `--relay-provider`，并带预约/数据/时长/配额。DCUtR 在经中继建立受限连接后尝试打洞；AutoNAT 在无探测节点时报告“未知”，不当成不可达。
-- 独立 Raminga Kademlia DHT（`/raminga/kad/1.0.0`）用于按 Peer ID 查地址和地址上报；不使用公共 IPFS DHT、公共 STUN 或默认 UPnP/NAT-PMP。
+- 独立 Raminga Kademlia DHT（`/raminga/kad/1.0.0`）用于按 Peer ID 查地址和地址上报；不使用公共 IPFS DHT、公共 STUN 或默认 UPnP/NAT-PMP。`mode` 配置为 client/server/auto，`dht status` 同时显示 configured 与 host 实际承担的 active 角色；`dht add` 只写本地 PeerStore。详见 [DHT 使用与诊断](dht.md)。
 - `/disconnect` 持久暂停一个节点：连接 gater 阻止所有主动拨号，中继预约、DHT 刷新、AutoRelay 和 outbox 重试都不会把它连回来；再次 `/connect` 或发送聊天会解除暂停。断开不是拉黑，对方仍可主动连入。
 - 启动时最多自动连回 3 个主动连接过、未暂停、且支持中继或 DHT 的好友；配置里的预置节点继续生效。
 

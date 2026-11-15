@@ -118,6 +118,9 @@ func (d *DHT) publishOnce(ctx context.Context) error {
 	if d.d == nil || !d.cfg.Enabled {
 		return errors.New("DHT is disabled")
 	}
+	if len(d.routingPeers()) == 0 {
+		return errors.New("DHT routing table is empty; address record not published (no DHT peers yet; check bootstrap connectivity and mode)")
+	}
 	addrs := d.publishAddresses()
 	if len(addrs) == 0 {
 		return errors.New("no public or circuit addresses to publish")

@@ -3734,7 +3734,7 @@ type DHTStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// enabled reports whether the DHT is enabled.
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// mode is client, server or auto.
+	// mode is the configured mode: client, server or auto.
 	Mode string `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
 	// protocol is /raminga/kad/1.0.0.
 	Protocol string `protobuf:"bytes,3,opt,name=protocol,proto3" json:"protocol,omitempty"`
@@ -3758,8 +3758,17 @@ type DHTStatus struct {
 	LastPublishUnixMs int64 `protobuf:"varint,12,opt,name=last_publish_unix_ms,json=lastPublishUnixMs,proto3" json:"last_publish_unix_ms,omitempty"`
 	// last_publish_error is the last address-record publish error.
 	LastPublishError string `protobuf:"bytes,13,opt,name=last_publish_error,json=lastPublishError,proto3" json:"last_publish_error,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// active_mode is the mode actually serving now: client, server, unknown or
+	// disabled. It is derived from the registered /raminga/kad/1.0.0 stream
+	// handler, not from the configured mode or libp2p's auto option.
+	ActiveMode string `protobuf:"bytes,14,opt,name=active_mode,json=activeMode,proto3" json:"active_mode,omitempty"`
+	// connected_peers is the number of currently connected libp2p peers.
+	ConnectedPeers int32 `protobuf:"varint,15,opt,name=connected_peers,json=connectedPeers,proto3" json:"connected_peers,omitempty"`
+	// bootstrap_connected is the number of configured bootstrap peers with an
+	// active connection.
+	BootstrapConnected int32 `protobuf:"varint,16,opt,name=bootstrap_connected,json=bootstrapConnected,proto3" json:"bootstrap_connected,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *DHTStatus) Reset() {
@@ -3881,6 +3890,27 @@ func (x *DHTStatus) GetLastPublishError() string {
 		return x.LastPublishError
 	}
 	return ""
+}
+
+func (x *DHTStatus) GetActiveMode() string {
+	if x != nil {
+		return x.ActiveMode
+	}
+	return ""
+}
+
+func (x *DHTStatus) GetConnectedPeers() int32 {
+	if x != nil {
+		return x.ConnectedPeers
+	}
+	return 0
+}
+
+func (x *DHTStatus) GetBootstrapConnected() int32 {
+	if x != nil {
+		return x.BootstrapConnected
+	}
+	return 0
 }
 
 // DhtPeer is one DHT/manual peer lookup result.
@@ -4604,7 +4634,8 @@ func (x *DhtStatusResponse) GetDht() *DHTStatus {
 	return nil
 }
 
-// DhtAddPeerRequest manually adds a peer multiaddr.
+// DhtAddPeerRequest adds a local PeerStore hint. It does not publish to the
+// DHT, contact the peer, or verify that the address is online.
 type DhtAddPeerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// multiaddr includes /p2p/<peer-id>.
@@ -7375,7 +7406,7 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\fmax_circuits\x18\x06 \x01(\x05R\vmaxCircuits\x12?\n" +
 	"\x1creservation_data_limit_bytes\x18\a \x01(\x03R\x19reservationDataLimitBytes\x12A\n" +
 	"\x1dreservation_duration_limit_ms\x18\b \x01(\x03R\x1areservationDurationLimitMs\x12\x14\n" +
-	"\x05error\x18\t \x01(\tR\x05error\"\xb7\x04\n" +
+	"\x05error\x18\t \x01(\tR\x05error\"\xb2\x05\n" +
 	"\tDHTStatus\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x12\n" +
 	"\x04mode\x18\x02 \x01(\tR\x04mode\x12\x1a\n" +
@@ -7392,7 +7423,11 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\vlast_lookup\x18\v \x01(\v2\x17.raminga.api.v1.DhtPeerR\n" +
 	"lastLookup\x12/\n" +
 	"\x14last_publish_unix_ms\x18\f \x01(\x03R\x11lastPublishUnixMs\x12,\n" +
-	"\x12last_publish_error\x18\r \x01(\tR\x10lastPublishError\"\x9b\x01\n" +
+	"\x12last_publish_error\x18\r \x01(\tR\x10lastPublishError\x12\x1f\n" +
+	"\vactive_mode\x18\x0e \x01(\tR\n" +
+	"activeMode\x12'\n" +
+	"\x0fconnected_peers\x18\x0f \x01(\x05R\x0econnectedPeers\x12/\n" +
+	"\x13bootstrap_connected\x18\x10 \x01(\x05R\x12bootstrapConnected\"\x9b\x01\n" +
 	"\aDhtPeer\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x14\n" +
 	"\x05addrs\x18\x02 \x03(\tR\x05addrs\x12\x14\n" +

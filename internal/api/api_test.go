@@ -168,6 +168,26 @@ func TestPermissionsAndStatus(t *testing.T) {
 	}
 }
 
+func TestDHTStatusReportsConfiguredAndActiveMode(t *testing.T) {
+	ts := startServer(t, false)
+	c, err := client.New(ts.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	res, err := c.DhtStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := res.GetDht()
+	if d.GetMode() != "auto" || d.GetActiveMode() != "server" {
+		t.Fatalf("configured=%q active=%q, want auto/server", d.GetMode(), d.GetActiveMode())
+	}
+	if d.GetConnectedPeers() != 2 || d.GetBootstrapConnected() != 1 {
+		t.Fatalf("connected=%d bootstrap_connected=%d, want 2/1", d.GetConnectedPeers(), d.GetBootstrapConnected())
+	}
+}
+
 func TestWrongAndMissingTokenRejected(t *testing.T) {
 	ts := startServer(t, false)
 	for name, token := range map[string]string{"missing": "", "wrong": "not-the-token"} {
@@ -528,7 +548,14 @@ func (f *fakeBackend) AddPeer(_ context.Context, multiaddr string) (node.PeerEnt
 }
 
 func (f *fakeBackend) DHTStatus() node.DHTStatus {
-	return node.DHTStatus{Enabled: true, Mode: "client", Protocol: "/raminga/kad/1.0.0"}
+	return node.DHTStatus{
+		Enabled:            true,
+		Mode:               "auto",
+		ActiveMode:         "server",
+		Protocol:           "/raminga/kad/1.0.0",
+		ConnectedPeers:     2,
+		BootstrapConnected: 1,
+	}
 }
 
 func (f *fakeBackend) DHTFindPeer(context.Context, string) (node.DHTPeer, error) {

@@ -149,6 +149,46 @@ func TestInitWritesPortsAndValidatesStrictly(t *testing.T) {
 	}
 }
 
+func TestDHTModeMissingDefaultsToAuto(t *testing.T) {
+	cfg, err := Parse([]byte("[dht]\nenabled = true\n"))
+	if err != nil {
+		t.Fatalf("Parse old config without dht.mode: %v", err)
+	}
+	if cfg.DHT.Mode != "auto" {
+		t.Fatalf("dht.mode = %q, want auto", cfg.DHT.Mode)
+	}
+}
+
+func TestInitDHTModePreservesDefaultAndValidates(t *testing.T) {
+	cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001})
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if cfg.DHT.Mode != "auto" {
+		t.Fatalf("default dht.mode = %q, want auto", cfg.DHT.Mode)
+	}
+	for _, mode := range []string{"client", "server", "auto"} {
+		dir := t.TempDir()
+		cfg, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14001, DHTMode: mode})
+		if err != nil {
+			t.Fatalf("Init(%s): %v", mode, err)
+		}
+		if cfg.DHT.Mode != mode {
+			t.Fatalf("dht.mode = %q, want %q", cfg.DHT.Mode, mode)
+		}
+		loaded, err := Load(dir)
+		if err != nil {
+			t.Fatalf("Load(%s): %v", mode, err)
+		}
+		if loaded.DHT.Mode != mode {
+			t.Fatalf("loaded dht.mode = %q, want %q", loaded.DHT.Mode, mode)
+		}
+	}
+	if _, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, DHTMode: "bogus"}); err == nil {
+		t.Fatal("invalid dht mode unexpectedly succeeded")
+	}
+}
+
 func TestInitListenOverridesPorts(t *testing.T) {
 	cfg, err := Init(t.TempDir(), InitOptions{ListenAddrs: []string{"/ip4/127.0.0.1/tcp/15001"}})
 	if err != nil {

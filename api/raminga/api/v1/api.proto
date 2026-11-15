@@ -955,7 +955,7 @@ message DHTStatus {
   // enabled reports whether the DHT is enabled.
   bool enabled = 1;
 
-  // mode is client, server or auto.
+  // mode is the configured mode: client, server or auto.
   string mode = 2;
 
   // protocol is /raminga/kad/1.0.0.
@@ -990,6 +990,18 @@ message DHTStatus {
 
   // last_publish_error is the last address-record publish error.
   string last_publish_error = 13;
+
+  // active_mode is the mode actually serving now: client, server, unknown or
+  // disabled. It is derived from the registered /raminga/kad/1.0.0 stream
+  // handler, not from the configured mode or libp2p's auto option.
+  string active_mode = 14;
+
+  // connected_peers is the number of currently connected libp2p peers.
+  int32 connected_peers = 15;
+
+  // bootstrap_connected is the number of configured bootstrap peers with an
+  // active connection.
+  int32 bootstrap_connected = 16;
 }
 
 // DhtPeer is one DHT/manual peer lookup result.
@@ -1139,7 +1151,8 @@ message DhtStatusResponse {
   DHTStatus dht = 1;
 }
 
-// DhtAddPeerRequest manually adds a peer multiaddr.
+// DhtAddPeerRequest adds a local PeerStore hint. It does not publish to the
+// DHT, contact the peer, or verify that the address is online.
 message DhtAddPeerRequest {
   // multiaddr includes /p2p/<peer-id>.
   string multiaddr = 1;

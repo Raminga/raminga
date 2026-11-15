@@ -14,6 +14,7 @@
 | **长期工程规则：成熟开源优先、少自研、安全与验收** | **[development-principles.md](development-principles.md)** |
 | **第一版三步路线**、全部预期功能、设计要点与当前状态（总表） | [功能与设计清单](features.md) |
 | Node 生命周期、身份与操作者关系 | [node.md](node.md) |
+| **DHT 配置、模式、诊断、地址发布与晚启动恢复** | **[dht.md](dht.md)** |
 | 对内/对外档案与访问语义 | [profile.md](profile.md) |
 | 当前跨节点协议与向量 | [protocol.md](protocol.md) · [契约](../spec/chat-http-v1.md) |
 | 信任边界、加密与授权 | [security.md](security.md) |

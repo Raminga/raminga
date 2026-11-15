@@ -81,4 +81,16 @@ func TestDHTDiagnosisEmptyTable(t *testing.T) {
 	if got := dhtDiagnosis(d); !strings.Contains(got, "not connected") {
 		t.Fatalf("diagnosis with bootstrap = %q", got)
 	}
+	d.ConnectedPeers = 1
+	if got := dhtDiagnosis(d); !strings.Contains(got, "connected to 1 peer(s) but none are in the DHT routing table") {
+		t.Fatalf("diagnosis with connected non-bootstrap peer = %q", got)
+	}
+	d.BootstrapConnected = 1
+	if got := dhtDiagnosis(d); !strings.Contains(got, "connected to 1 bootstrap peer(s) but not in the routing table") {
+		t.Fatalf("diagnosis with connected bootstrap peer = %q", got)
+	}
+	d.RoutingTablePeers = []string{"peer"}
+	if got := dhtDiagnosis(d); !strings.Contains(got, "1 routing-table peer(s)") {
+		t.Fatalf("diagnosis with routing peer = %q", got)
+	}
 }

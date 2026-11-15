@@ -21,6 +21,7 @@ func newInitCmd() *cobra.Command {
 		announce      []string
 		knownRelays   []string
 		bootstrap     []string
+		dhtMode       string
 	)
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -29,6 +30,9 @@ func newInitCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if len(listen) > 0 && (cmd.Flags().Changed("tcp-port") || cmd.Flags().Changed("quic-port")) {
 				return fmt.Errorf("--listen cannot be combined with --tcp-port/--quic-port")
+			}
+			if cmd.Flags().Changed("dht-mode") && dhtMode == "" {
+				return fmt.Errorf("--dht-mode must be client, server or auto")
 			}
 			dir := dataDirFrom(cmd)
 			cfg, err := config.Init(dir, config.InitOptions{
@@ -40,6 +44,7 @@ func newInitCmd() *cobra.Command {
 				AnnounceAddrs:  announce,
 				KnownRelays:    knownRelays,
 				BootstrapPeers: bootstrap,
+				DHTMode:        dhtMode,
 			})
 			if err != nil {
 				return err
@@ -56,6 +61,7 @@ func newInitCmd() *cobra.Command {
 					"announce_addrs": cfg.Network.AnnounceAddrs,
 					"known_relays":   cfg.Relay.KnownRelays,
 					"bootstrap":      cfg.DHT.BootstrapPeers,
+					"dht_mode":       cfg.DHT.Mode,
 					"relay_provider": cfg.Relay.Provider,
 				})
 			}
@@ -76,6 +82,7 @@ func newInitCmd() *cobra.Command {
 					_, _ = fmt.Fprintf(w, "  - %s\n", addr)
 				}
 			}
+			_, _ = fmt.Fprintf(w, "dht_mode: %s\n", cfg.DHT.Mode)
 			if len(cfg.DHT.BootstrapPeers) > 0 {
 				_, _ = fmt.Fprintln(w, "bootstrap_peers:")
 				for _, addr := range cfg.DHT.BootstrapPeers {
@@ -95,5 +102,6 @@ func newInitCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&announce, "announce", nil, "advertised multiaddr without /p2p or /p2p-circuit (repeatable)")
 	cmd.Flags().StringArrayVar(&knownRelays, "known-relay", nil, "Raminga relay multiaddr including /p2p/<peer-id> (repeatable)")
 	cmd.Flags().StringArrayVar(&bootstrap, "bootstrap", nil, "Raminga bootstrap multiaddr including /p2p/<peer-id> (repeatable)")
+	cmd.Flags().StringVar(&dhtMode, "dht-mode", "auto", "DHT mode written to config.toml: client, server or auto")
 	return cmd
 }

@@ -37,10 +37,11 @@ func newNetworkCmd() *cobra.Command {
 			}
 			n := st.GetNetwork()
 			_, err = fmt.Fprintf(cmd.OutOrStdout(),
-				"reachability: %s\nprobe_peers: %v\ndcutr: attempts=%d successes=%d failures=%d\ndht: enabled=%t mode=%s protocol=%s routing=%v diagnosis=%s\nrelay_provider: %t\nupnp=%t nat_pmp=%t stun=%t\nresources: conns=%d/%d streams=%d/%d cache=%d\n",
+				"reachability: %s\nprobe_peers: %v\ndcutr: attempts=%d successes=%d failures=%d\ndht: enabled=%t configured_mode=%s active_mode=%s protocol=%s connected=%d bootstrap_connected=%d routing=%v diagnosis=%s\nrelay_provider: %t\nupnp=%t nat_pmp=%t stun=%t\nresources: conns=%d/%d streams=%d/%d cache=%d\n",
 				n.GetReachability(), n.GetAutonat().GetProbePeers(),
 				n.GetDcutr().GetAttempts(), n.GetDcutr().GetSuccesses(), n.GetDcutr().GetFailures(),
-				n.GetDht().GetEnabled(), n.GetDht().GetMode(), n.GetDht().GetProtocol(), n.GetDht().GetRoutingTablePeers(), dhtDiagnosis(n.GetDht()),
+				n.GetDht().GetEnabled(), n.GetDht().GetMode(), n.GetDht().GetActiveMode(), n.GetDht().GetProtocol(),
+				n.GetDht().GetConnectedPeers(), n.GetDht().GetBootstrapConnected(), n.GetDht().GetRoutingTablePeers(), dhtDiagnosis(n.GetDht()),
 				n.GetRelayProvider().GetEnabled(), n.GetUpnp(), n.GetNatPmp(), n.GetStun(),
 				n.GetResources().GetOpenConnections(), n.GetResources().GetMaxConnections(),
 				n.GetResources().GetOpenStreams(), n.GetResources().GetMaxStreams(),

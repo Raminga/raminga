@@ -3251,7 +3251,7 @@ export class DHTStatus extends Message<DHTStatus> {
   enabled = false;
 
   /**
-   * mode is client, server or auto.
+   * mode is the configured mode: client, server or auto.
    *
    * @generated from field: string mode = 2;
    */
@@ -3334,6 +3334,30 @@ export class DHTStatus extends Message<DHTStatus> {
    */
   lastPublishError = "";
 
+  /**
+   * active_mode is the mode actually serving now: client, server, unknown or
+   * disabled. It is derived from the registered /raminga/kad/1.0.0 stream
+   * handler, not from the configured mode or libp2p's auto option.
+   *
+   * @generated from field: string active_mode = 14;
+   */
+  activeMode = "";
+
+  /**
+   * connected_peers is the number of currently connected libp2p peers.
+   *
+   * @generated from field: int32 connected_peers = 15;
+   */
+  connectedPeers = 0;
+
+  /**
+   * bootstrap_connected is the number of configured bootstrap peers with an
+   * active connection.
+   *
+   * @generated from field: int32 bootstrap_connected = 16;
+   */
+  bootstrapConnected = 0;
+
   constructor(data?: PartialMessage<DHTStatus>) {
     super();
     proto3.util.initPartial(data, this);
@@ -3355,6 +3379,9 @@ export class DHTStatus extends Message<DHTStatus> {
     { no: 11, name: "last_lookup", kind: "message", T: DhtPeer },
     { no: 12, name: "last_publish_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 13, name: "last_publish_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "active_mode", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 15, name: "connected_peers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 16, name: "bootstrap_connected", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DHTStatus {
@@ -4017,7 +4044,8 @@ export class DhtStatusResponse extends Message<DhtStatusResponse> {
 }
 
 /**
- * DhtAddPeerRequest manually adds a peer multiaddr.
+ * DhtAddPeerRequest adds a local PeerStore hint. It does not publish to the
+ * DHT, contact the peer, or verify that the address is online.
  *
  * @generated from message raminga.api.v1.DhtAddPeerRequest
  */

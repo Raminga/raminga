@@ -131,7 +131,7 @@ raminga restart
 服务器（systemd，仅 Linux root）：
 
 ```sh
-./raminga init --relay-provider --announce /ip4/<公网IPv4>/tcp/4001 --announce /ip4/<公网IPv4>/udp/4001/quic-v1
+./raminga init --dht-mode server --relay-provider --announce /ip4/<公网IPv4>/tcp/4001 --announce /ip4/<公网IPv4>/udp/4001/quic-v1
 sudo ./install.sh --service
 ```
 
@@ -407,20 +407,22 @@ raminga mcp --data-dir "$HOME/.raminga"
 最小客户端示例：
 
 ```sh
-raminga init --data-dir "$HOME/.raminga/client-a"
+raminga init --data-dir "$HOME/.raminga/client-a" --dht-mode client
 ```
 
 Relay 示例（`<公网IPv4>`、`<R_PEER_ID>` 必须替换为真实值；`<R_PEER_ID>` 来自 Relay 上的 `raminga status`）。不必写 `--listen`，默认同时监听 IPv4/IPv6 的 TCP/QUIC：
 
 ```sh
-raminga init --data-dir "$HOME/.raminga/relay" --relay-provider --announce /ip4/<公网IPv4>/tcp/4001 --announce /ip4/<公网IPv4>/udp/4001/quic-v1
+raminga init --data-dir "$HOME/.raminga/relay" --dht-mode server --relay-provider --announce /ip4/<公网IPv4>/tcp/4001 --announce /ip4/<公网IPv4>/udp/4001/quic-v1
 ```
 
 只有云厂商 1:1 NAT 把公网 IPv4 隐藏在网卡之外时才需要 `--announce`；网卡上已有的公网 IPv6 会自动公告，不要重复写。家庭路由器常阻断入站 IPv6；云服务器需分配 IPv6 并在安全组/主机防火墙放行。没有自动 NAT→IPv6 切换。默认**不会**启用 relay provider、UPnP 或其他额外服务。
 
 ```sh
-raminga init --data-dir "$HOME/.raminga/client-a" --bootstrap /ip4/<公网IPv4>/tcp/4001/p2p/<R_PEER_ID>
+raminga init --data-dir "$HOME/.raminga/client-a" --dht-mode client --bootstrap /ip4/<公网IPv4>/tcp/4001/p2p/<R_PEER_ID>
 ```
+
+`--dht-mode` 接受 `client`、`server`、`auto`，默认 `auto`，只写配置、不启动节点。Relay/Bootstrap 等公网节点应显式用 `--dht-mode server`（`auto` 在可达性未知时保持 client，不能假定它会自动承担 server）；NAT 后的普通节点可用 `client`。不带该 flag 的旧命令和缺少 `mode` 的旧配置仍按 `auto` 工作，不需要迁移。完整语义、`dht status` 字段与晚启动恢复见 [DHT 使用与诊断](dht.md)。
 
 **升级已有数据目录：** `raminga init --force --data-dir ... <同一组 flags>` 只重写 `config.toml` 以采用新默认，保留 `identity/key`、Peer ID 和 `raminga.db`；不加 `--force` 时旧配置的 `listen_addrs` 保持原样。
 
@@ -596,10 +598,11 @@ raminga content published --data-dir "$HOME/.raminga"
 raminga content published --json --data-dir "$HOME/.raminga"
 ```
 
-DHT 状态还会显示 `last_publish` / `last_publish_error`（本机地址记录发布结果）：
+DHT 状态会显示 `configured_mode` / `active_mode`、`bootstrap_connected`、`connected_peers`、`routing_table`、`last_bootstrap`、`last_refresh`、`last_publish` / `last_publish_error` 和空表 `diagnosis`。`active_mode` 是 host 实际是否注册 `/raminga/kad/1.0.0` 入站 handler 得出的角色，不是配置值的复读；`last_bootstrap=-` 表示没有实际 bootstrap 尝试。`dht add` 只写本地 PeerStore，不发布、不连接、不验证在线。空路由表分类与 bootstrap 晚启动恢复见 [DHT 使用与诊断](dht.md)。
 
 ```sh
 raminga dht status --data-dir "$HOME/.raminga"
+raminga network status --data-dir "$HOME/.raminga"
 ```
 
 `raminga --help` 和 `raminga <cmd> --help` 是最终命令/flag 权威；TUI 只需 daemon 已启动，不会自行监听端口。

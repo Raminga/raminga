@@ -648,7 +648,7 @@ func (m *Model) cmdDiag() {
 	n := m.status.GetNetwork()
 	m.appendLog("AutoNAT：enabled=%t state=%s 探测节点=%d", n.GetAutonat().GetEnabled(), n.GetAutonat().GetState(), len(n.GetAutonat().GetProbePeers()))
 	m.appendLog("打洞 DCUtR：尝试 %d · 成功 %d · 失败 %d", n.GetDcutr().GetAttempts(), n.GetDcutr().GetSuccesses(), n.GetDcutr().GetFailures())
-	m.appendLog("DHT：enabled=%t mode=%s 路由节点=%d 错误=%s", n.GetDht().GetEnabled(), n.GetDht().GetMode(), len(n.GetDht().GetRoutingTablePeers()), textsafe.Sanitize(n.GetDht().GetLastError()))
+	m.appendLog("DHT：enabled=%t configured=%s active=%s 连接节点=%d 路由节点=%d 错误=%s", n.GetDht().GetEnabled(), n.GetDht().GetMode(), n.GetDht().GetActiveMode(), n.GetDht().GetConnectedPeers(), len(n.GetDht().GetRoutingTablePeers()), textsafe.Sanitize(n.GetDht().GetLastError()))
 	for _, warning := range m.status.GetContentWarnings() {
 		m.appendLog("内容扫描警告：%s", textsafe.Sanitize(warning))
 	}
