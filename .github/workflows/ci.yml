@@ -34,6 +34,8 @@ jobs:
           restore-keys: |
             golangci-lint-${{ runner.os }}-${{ hashFiles('go.sum', '.golangci.yml') }}-
       - run: make check
+      # Exercise service installation with a real daemon in an isolated Linux container.
+      - run: make install-test
 
   windows-api:
     # No Windows developer machine is available locally. This lane runs the
@@ -98,3 +100,17 @@ jobs:
         env:
           RAMINGA_BIN: ${{ github.workspace }}/bin/raminga.exe
         run: node --test --test-reporter=spec test/windows-api.integration.test.mjs
+
+  systemd-real:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Build Linux daemon
+        run: CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/raminga" ./cmd/raminga
+      - name: Verify real systemd migration and cleanup
+        run: sudo bash tests/install/systemd-real.sh "$RUNNER_TEMP/raminga"
