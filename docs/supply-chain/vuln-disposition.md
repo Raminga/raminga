@@ -13,3 +13,10 @@ beyond the normal dependency upgrade cadence.
 
 No application-level E2EE, message signatures or social-layer authorization is
 claimed by this disposition.
+
+## DSH 运行时依赖维护（2026-11-15）
+
+- **状态：已记录，暂缓处理。** `main` 提交 `1d26019` 的 `0.1.0-rc.2` 发布 dry run 通过，DSH 生产依赖审计按包报 2 项高危、1 项中危。一个包的告警可能汇总多份公告。[发布 dry run](https://github.com/Raminga/raminga/actions/runs/43687099706)
+- **依赖链。** `@connectrpc/connect-node@1.7.0`（中危，由下游依赖传递）→ `undici@5.29.0`（高危）→ `@fastify/busboy@2.1.1`（高危）。[Undici TLS 公告](https://github.com/advisories/GHSA-2m5v-pch6-74hx) · [Busboy 拒绝服务公告](https://github.com/advisories/GHSA-x8mw-p69m-v3mx) · [Busboy 头部注入公告](https://github.com/advisories/GHSA-gxm5-99cw-xjw9)
+- **当前影响判断。** DSH 的回环 HTTPS 使用 Node 原生 `https.request`，证书固定没有经过公告中的 Undici `Agent`。DSH 要求 Node 22+，ConnectRPC 为旧版 Node 提供的 `Headers` 兼容分支不会启用。未发现 DSH 的 ConnectRPC 请求或响应进入 Busboy multipart 解析器的路径。依据本次依赖和调用路径审查，这三条告警暂不列为 `rc.2` 的发布阻塞项。
+- **复核时机。** 更新 ConnectRPC，或引入新的 fetch、HTTP 客户端或 multipart 调用时，重新检查依赖和调用路径，并复测 Windows HTTPS 证书固定及连接行为。
