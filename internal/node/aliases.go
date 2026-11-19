@@ -32,13 +32,14 @@ type Friend struct {
 	Paused            bool
 	FirstSeen         time.Time
 	LastInteraction   time.Time
+	UnreadCount       int
 }
 
 func friendFromStorage(f storage.Friend) Friend {
 	out := Friend{
 		PeerID: f.PeerID, Name: f.Name, Addrs: f.Addrs, Description: f.Description,
 		ManuallyConnected: f.ManuallyConnected, RelayCapable: f.RelayCapable,
-		DHTCapable: f.DHTCapable, Paused: f.Paused,
+		DHTCapable: f.DHTCapable, Paused: f.Paused, UnreadCount: f.UnreadCount,
 	}
 	if f.FirstSeenMS > 0 {
 		out.FirstSeen = time.UnixMilli(f.FirstSeenMS)

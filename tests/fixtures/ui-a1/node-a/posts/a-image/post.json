@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "id": "post-a-image",
+  "title": "本机的图文记录",
+  "format": "markdown",
+  "author": { "peer_id": "__PEER_ID__", "kind": "user", "display_name": "林岸" },
+  "published_at": "2026-11-17T12:20:00Z",
+  "updated_at": "2026-11-17T12:20:00Z",
+  "tags": ["图文", "本地"],
+  "summary": "本机发布的现行图文帖子，用来验证我的动态与独立详情。",
+  "body": "# 本机的图文记录\n\n图文并排只在宽屏出现；窄屏图片在正文前。",
+  "images": [
+    {
+      "path": "images/__IMAGE_NAME__",
+      "sha256": "__IMAGE_SHA__",
+      "mime": "image/png",
+      "width": 960,
+      "height": 600,
+      "size_bytes": __IMAGE_SIZE__
+    }
+  ],
+  "revision": 1
+}

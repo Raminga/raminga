@@ -1,0 +1,4 @@
+- insert:
+    - id: b1-activity-control
+      name: 'b1-activity-control'
+      inject: ['tools']

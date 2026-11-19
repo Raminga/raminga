@@ -1,0 +1,4 @@
+- insert:
+    - id: b3-contact-profile-control
+      name: 'b3-contact-profile-control'
+      inject: ['tools']

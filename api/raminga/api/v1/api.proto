@@ -35,6 +35,17 @@ service RamingaService {
   // with a stable keyset cursor. Pruned rows are not promised.
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
 
+  // MarkConversationRead advances the human read cursor through one retained
+  // message. Reads never write this cursor; only this RPC does.
+  rpc MarkConversationRead(MarkConversationReadRequest) returns (MarkConversationReadResponse);
+
+  // ListFavorites returns only privately bookmarked public posts. Messages and
+  // contacts are not representable as favorites.
+  rpc ListFavorites(ListFavoritesRequest) returns (ListFavoritesResponse);
+
+  // SetFavorite idempotently saves or clears one public-post bookmark.
+  rpc SetFavorite(SetFavoriteRequest) returns (SetFavoriteResponse);
+
   // ListHumanOutboundPeers returns the Peers for which this Operator has
   // accepted and persisted a human-origin outbound message. The relation is
   // stored independently of the bounded message history.
@@ -93,6 +104,21 @@ service RamingaService {
   // Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
   // It is not a directory listing, manifest scan or network-wide recommendation.
   rpc ListDiscoveries(ListDiscoveriesRequest) returns (ListDiscoveriesResponse);
+
+  // Public drafts are private SQLite rows; they are never published until an
+  // explicit PublishPublicDraft call.
+  rpc GetPublicDraft(GetPublicDraftRequest) returns (GetPublicDraftResponse);
+  rpc ListPublicDrafts(ListPublicDraftsRequest) returns (ListPublicDraftsResponse);
+  rpc SavePublicDraft(SavePublicDraftRequest) returns (SavePublicDraftResponse);
+  rpc PutPublicDraftImage(PutPublicDraftImageRequest) returns (PutPublicDraftImageResponse);
+  // GetPublicDraftAsset returns one private draft image/avatar by draft+asset
+  // id. It is local-only, never serves a public URL, and enforces draft scoping.
+  rpc GetPublicDraftAsset(GetPublicDraftAssetRequest) returns (GetPublicDraftAssetResponse);
+  // ImportPublicPost copies one already-published local post into a private
+  // draft that updates the original path instead of publishing a second copy.
+  rpc ImportPublicPost(ImportPublicPostRequest) returns (ImportPublicPostResponse);
+  rpc DeletePublicDraft(DeletePublicDraftRequest) returns (DeletePublicDraftResponse);
+  rpc PublishPublicDraft(PublishPublicDraftRequest) returns (PublishPublicDraftResponse);
 
   // GetPeerManifest fetches one page of a remote peer's public manifest.
   rpc GetPeerManifest(GetPeerManifestRequest) returns (GetPeerManifestResponse);
@@ -487,6 +513,18 @@ message ConversationSummary {
   string origin = 7;
   // message_count is the number of currently retained rows for this Peer.
   uint32 message_count = 8;
+
+  // unread_count counts retained inbound rows newer than the human cursor.
+  // It is a read-only view, never a stored friend/message field.
+  uint32 unread_count = 9;
+
+  // last_read_message_id is the human-facing cursor position, or empty when
+  // the Peer has never been marked read. Same-millisecond messages share one
+  // read batch.
+  string last_read_message_id = 10;
+
+  // last_read_at_unix_ms is the cursor boundary in Unix milliseconds.
+  int64 last_read_at_unix_ms = 11;
 }
 
 message ListConversationsRequest {
@@ -502,6 +540,10 @@ message ListConversationsResponse {
   string next_before = 2;
   bool has_more = 3;
   MessageRetention retention = 4;
+
+  // total_unread is the sum of the same unread definition used for every
+  // ConversationSummary and Friend.unread_count.
+  uint32 total_unread = 5;
 }
 
 message ListMessagesRequest {
@@ -519,6 +561,61 @@ message ListMessagesResponse {
   string next_before = 2;
   bool has_more = 3;
   MessageRetention retention = 4;
+}
+
+// MarkConversationReadRequest names the newest message the human actually saw.
+message MarkConversationReadRequest {
+  string peer_id = 1;
+  // through_message_id must belong to peer_id. The server uses that row's
+  // created_at_ms, never a caller-supplied timestamp.
+  string through_message_id = 2;
+}
+
+message MarkConversationReadResponse {
+  string peer_id = 1;
+  string last_read_message_id = 2;
+  int64 last_read_at_unix_ms = 3;
+  uint32 unread_count = 4;
+}
+
+// Favorite is one privately retained public-post bookmark. There is
+// intentionally no kind/message_id/contact field.
+message Favorite {
+  string id = 1;
+  string peer_id = 2;
+  string path = 3;
+  string sha256 = 4;
+  string title = 5;
+  int64 created_at_unix_ms = 6;
+  // available is evaluated when querying: the target version is still in the
+  // local discovery/public range or a verified downloaded copy.
+  bool available = 7;
+}
+
+message ListFavoritesRequest {
+  // limit is 1..100 (default 50).
+  uint32 limit = 1;
+  // before is an opaque cursor from next_before.
+  string before = 2;
+}
+
+message ListFavoritesResponse {
+  repeated Favorite favorites = 1;
+  string next_before = 2;
+  bool has_more = 3;
+}
+
+message SetFavoriteRequest {
+  string peer_id = 1;
+  string path = 2;
+  string sha256 = 3;
+  string title = 4;
+  bool favorite = 5;
+}
+
+message SetFavoriteResponse {
+  bool favorite = 1;
+  Favorite item = 2;
 }
 
 message ListHumanOutboundPeersRequest {
@@ -1188,6 +1285,10 @@ message Friend {
   bool paused = 8;
   bool relay_capable = 9;
   bool dht_capable = 10;
+
+  // unread_count is a read-only view from the same human cursor used by
+  // ConversationSummary. It is not stored on the friend row.
+  uint32 unread_count = 11;
 }
 
 message ListFriendsRequest {}
@@ -1263,6 +1364,18 @@ message ListDiscoveriesRequest {
   // familiar_only restricts the page to authors with a durable human-outbound
   // relation, independent of the bounded message retention window.
   bool familiar_only = 3;
+
+  // peer_id optionally restricts the page to one author. Empty preserves the
+  // legacy unfiltered behavior.
+  string peer_id = 4;
+
+  // post_candidates_only applies the versioned-post path prefilter inside the
+  // keyset query, before limit/cursor are applied. Ordinary files then never
+  // consume a post page's budget or hide later posts. This is only a candidate
+  // filter: callers still verify each downloaded copy and version through the
+  // controlled reader. Older clients that omit this field keep receiving every
+  // file in the legacy mixed pages.
+  bool post_candidates_only = 5;
 }
 
 message Discovery {
@@ -1272,9 +1385,15 @@ message Discovery {
   string sha256 = 4;
   int64 size_bytes = 5;
   int64 fetched_at_unix_ms = 6;
-  // source records the local Agent tool that fetched the file, for example
-  // "raminga_content_get". It is local provenance, not a remote signature.
+  // source records the most recent local acquisition path, for example
+  // "raminga_content_get" or "raminga_ui_manual". It is local provenance, not
+  // a remote signature.
   string source = 7;
+
+  // sources lists every local acquisition path that fetched this exact
+  // (peer, path, sha256) version, deduplicated in first-seen order. It is
+  // additive: older daemons omit it, so clients fall back to source.
+  repeated string sources = 8;
 }
 
 message ListDiscoveriesResponse {
@@ -1355,6 +1474,165 @@ message GetPeerProfileResponse {
   string text = 3;
   repeated string files = 4;
   bool found = 5;
+  // profile is the structured canonical public profile. Older clients keep
+  // using name/text/files/found; those fields are derived for compatibility.
+  PublicProfile profile = 6;
+}
+
+// PublicProfile is the structured public profile read from
+// profile/profile.json v2, or a legacy agent-card.json/index.md fallback.
+message PublicProfile {
+  string agent_name = 1;
+  string agent_description = 2;
+  repeated string agent_interests = 3;
+  string agent_conversation_style = 4;
+  string human_name = 5;
+  string human_bio_markdown = 6;
+  string avatar_path = 7;
+  string avatar_sha256 = 8;
+  string avatar_mime = 9;
+  // source_path is the actual public file that provided the structured data.
+  string source_path = 10;
+  bool legacy_fallback = 11;
+  // warning is bounded; it never contains a local absolute path.
+  string warning = 12;
+}
+
+message PublicDraftImage {
+  string asset_id = 1;
+  string sha256 = 2;
+  string mime = 3;
+  uint32 width = 4;
+  uint32 height = 5;
+  int64 size_bytes = 6;
+}
+
+message PublicDraft {
+  string draft_id = 1;
+  string kind = 2;                       // "profile" | "post"
+  uint64 revision = 3;
+  string agent_name = 4;
+  string agent_description = 5;
+  repeated string agent_interests = 6;
+  string agent_conversation_style = 7;
+  string human_name = 8;
+  string human_bio_markdown = 9;
+  PublicDraftImage avatar = 10;
+  string title = 11;
+  string body_markdown = 12;
+  repeated string tags = 13;
+  repeated PublicDraftImage images = 14;
+  string published_path = 15;
+  string published_sha256 = 16;
+  uint64 published_revision = 17;
+  int64 created_at_unix_ms = 18;
+  int64 updated_at_unix_ms = 19;
+  string author_kind = 20;                // "user" | "agent"；profile 忽略
+}
+
+message GetPublicDraftRequest { string draft_id = 1; }
+message GetPublicDraftResponse {
+  bool found = 1;
+  PublicDraft draft = 2;
+}
+
+message ListPublicDraftsRequest {
+  string kind = 1;                        // "profile" | "post"；空表示全部
+  uint32 limit = 2;
+  string before = 3;
+}
+message ListPublicDraftsResponse {
+  repeated PublicDraft drafts = 1;
+  string next_before = 2;
+  bool has_more = 3;
+}
+
+message SavePublicDraftRequest {
+  string draft_id = 1;                    // 空表示创建；profile 固定为 "profile"
+  string kind = 2;                        // 创建时必填；已有草稿必须一致
+  uint64 expected_revision = 3;           // 创建为 0；更新必须精确匹配
+  optional string agent_name = 4;
+  optional string agent_description = 5;
+  repeated string agent_interests = 6;
+  optional string agent_conversation_style = 7;
+  optional string human_name = 8;
+  optional string human_bio_markdown = 9;
+  string avatar_asset_id = 10;            // 空表示保留；配合 clear_avatar
+  optional string title = 11;
+  optional string body_markdown = 12;
+  repeated string tags = 13;
+  repeated string image_asset_ids = 14;   // 整体替换；空表示清空
+  bool clear_avatar = 15;
+  optional string author_kind = 16;       // post 必填；"user" | "agent"；profile 忽略
+}
+message SavePublicDraftResponse { PublicDraft draft = 1; }
+
+message PutPublicDraftImageRequest {
+  string draft_id = 1;
+  string role = 2;                        // "avatar" | "image"
+  string filename = 3;                    // 仅用于诊断/格式提示，不决定路径
+  bytes data = 4;
+}
+message PutPublicDraftImageResponse { PublicDraftImage image = 1; }
+
+message GetPublicDraftAssetRequest {
+  string draft_id = 1;
+  string asset_id = 2;
+}
+message GetPublicDraftAssetResponse {
+  PublicDraftImage image = 1;
+  // data is the exact private draft asset bytes. The local bridge converts it
+  // to a short-lived object URL; it is never written to public/ by this RPC.
+  bytes data = 2;
+}
+
+message ImportPublicPostRequest {
+  // path must be an existing posts/*.json or posts/*/post.json whose author
+  // peer_id is this node. Remote or unowned paths are rejected.
+  string path = 1;
+}
+message ImportPublicPostResponse { PublicDraft draft = 1; }
+
+message DeletePublicDraftRequest {
+  string draft_id = 1;
+  uint64 expected_revision = 2;
+}
+message DeletePublicDraftResponse { bool deleted = 1; }
+
+enum PublicPublishStatus {
+  PUBLIC_PUBLISH_STATUS_UNSPECIFIED = 0;
+  PUBLIC_PUBLISH_STATUS_PUBLISHED = 1;
+  PUBLIC_PUBLISH_STATUS_ALREADY_PUBLISHED = 2;
+  PUBLIC_PUBLISH_STATUS_CONFLICT = 3;
+  PUBLIC_PUBLISH_STATUS_INVALID = 4;
+  PUBLIC_PUBLISH_STATUS_PARTIAL = 5;
+}
+
+message PublishFile {
+  string path = 1;
+  int64 size_bytes = 2;
+  string sha256 = 3;
+}
+
+message PublishPublicDraftRequest {
+  string draft_id = 1;
+  uint64 expected_revision = 2;
+  // An empty value is allowed only for a first publish. A draft that already
+  // has published_sha256 must pass the exact current value.
+  string expected_published_sha256 = 3;
+}
+message PublishPublicDraftResponse {
+  PublicPublishStatus status = 1;
+  string error = 2;
+  uint64 current_revision = 3;
+  string current_published_sha256 = 4;
+  repeated PublishFile files = 5;
+  int32 manifest_version = 6;
+  int64 manifest_generated_at_unix_ms = 7;
+  string post_path = 8;
+  string profile_path = 9;
+  repeated string warnings = 10;
+  string manifest_sha256 = 11;
 }
 message PeerFriendClaim {
   string name = 1;

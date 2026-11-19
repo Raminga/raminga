@@ -3,7 +3,7 @@
   "version": "0.0.0-private",
   "private": true,
   "type": "module",
-  "description": "Mountable Raminga five-page client UI shared by hosts. No daemon or DSH imports.",
+  "description": "Mountable Raminga three-page client UI shared by hosts. No daemon or DSH imports.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",

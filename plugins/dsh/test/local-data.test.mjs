@@ -5,13 +5,25 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { generateKeyPair } from '@libp2p/crypto/keys';
+import { peerIdFromPrivateKey } from '@libp2p/peer-id';
 import {
+  MAX_CONTACT_NOTES_BYTES,
+  MAX_CONTACT_PROJECTION_BYTES,
   MAX_POST_BYTES,
+  MAX_PRIVATE_SAVE_BYTES,
+  readContactNotes,
+  readContactProjection,
   readDiscoveryPost,
   readDownloadedAgentCard,
   readJourney,
+  readOwnAgentCard,
   readOwnPosts,
   readOwnPublic,
+  saveContactImpression,
+  savePrivateAgentFile,
+  writeContactProjection,
+  privateSaveTestHooks,
 } from '../lib/local-data.js';
 
 const PEER_A = '12D3KooWCU5mTmYUM99MTejrAGiGhKQDQxLq6M26RnAmXKH9XoSR';
@@ -19,6 +31,18 @@ const PEER_B = '12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6';
 
 async function tempDir() {
   return fs.mkdtemp(path.join(os.tmpdir(), 'raminga-local-data-'));
+}
+
+let generatedPeerIds;
+async function manyPeerIds(count) {
+  if (generatedPeerIds === undefined || generatedPeerIds.length < count) {
+    generatedPeerIds = [];
+    for (let index = 0; index < count; index += 1) {
+      const key = await generateKeyPair('Ed25519');
+      generatedPeerIds.push(peerIdFromPrivateKey(key).toString());
+    }
+  }
+  return generatedPeerIds;
 }
 
 async function write(file, value) {
@@ -198,11 +222,12 @@ test('mine only includes explicit user-authored posts and discloses other files'
   assert.equal(own.profile.state, 'available');
   assert.equal(own.profile.displayName, 'Alice');
   assert.equal(own.posts.state, 'available');
-  assert.deepEqual(own.posts.posts.map((item) => item.title), ['受控公开帖子']);
+  assert.deepEqual(own.posts.posts.map((item) => item.title), ['Agent 内容', '受控公开帖子']);
   assert.equal(own.posts.agentAuthored, 1);
   assert.equal(own.posts.unattributed, 1);
   assert.equal(own.posts.invalid, 1);
-  assert.equal(own.posts.posts[0].authorKind, 'user');
+  assert.equal(own.posts.posts.find((item) => item.title === '受控公开帖子').authorKind, 'user');
+  assert.equal(own.posts.posts.find((item) => item.title === 'Agent 内容').authorKind, 'agent');
 
   const agentOnly = await readOwnPosts(dir, PEER_B);
   assert.deepEqual(agentOnly.posts.map((item) => item.title), ['他人内容']);
@@ -362,4 +387,434 @@ test('Journey rejects a session directory symlink instead of following it', asyn
   const journey = await readJourney(dir);
   assert.equal(journey.sessions.length, 0);
   assert.equal(journey.sessionsState, 'missing');
+});
+
+
+test('private Agent saves are local-only, atomic, backed up and conflict checked', async () => {
+  const dir = await tempDir();
+  const result = await savePrivateAgentFile(dir, 'persona', '# 人格\n\n只在本机。', '');
+  assert.equal(result.saved, true);
+  assert.equal(result.field, 'persona');
+  assert.match(result.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(result.backupName, '');
+  const target = path.join(dir, 'agent', 'persona.md');
+  assert.equal(await fs.readFile(target, 'utf8'), '# 人格\n\n只在本机。');
+  assert.equal((await fs.stat(target)).mode & 0o777, 0o600);
+  assert.equal((await fs.stat(path.join(dir, 'agent'))).mode & 0o777, 0o700);
+  await assert.rejects(fs.stat(path.join(dir, 'public')), /ENOENT/, 'private save never creates public/');
+
+  const sha = result.sha256;
+  const second = await savePrivateAgentFile(dir, 'persona', '# 人格\n\n第二版。', sha);
+  assert.equal(second.saved, true);
+  assert.ok(second.backupName.startsWith('persona.md.bak-'));
+  assert.equal((await fs.stat(path.join(dir, 'agent', second.backupName))).mode & 0o777, 0o600);
+  assert.match(await fs.readFile(path.join(dir, 'agent', second.backupName), 'utf8'), /只在本机/);
+
+  await assert.rejects(
+    savePrivateAgentFile(dir, 'persona', '# 冲突', sha),
+    /已在别处修改/,
+    'stale SHA-256 must not overwrite the newer file',
+  );
+  assert.match(await fs.readFile(target, 'utf8'), /第二版/);
+  await assert.rejects(savePrivateAgentFile(dir, 'persona', '# 太大', 'x'.repeat(64)), /格式无效/);
+  await assert.rejects(savePrivateAgentFile(dir, 'persona', 'x'.repeat(MAX_PRIVATE_SAVE_BYTES + 1), second.sha256), /超过/);
+  assert.match(await fs.readFile(target, 'utf8'), /第二版/);
+});
+
+test('private Agent save rechecks the original hash immediately before commit', async () => {
+  const dir = await tempDir();
+  const first = await savePrivateAgentFile(dir, 'persona', '# 第一版\n', '');
+  const target = path.join(dir, 'agent', 'persona.md');
+  const external = '# 外部编辑\n';
+  privateSaveTestHooks.beforeCommit = async () => {
+    await fs.writeFile(target, external, { mode: 0o600 });
+  };
+  try {
+    await assert.rejects(
+      savePrivateAgentFile(dir, 'persona', '# 本地第二版\n', first.sha256),
+      /准备写入期间/,
+      'an edit between the first hash check and commit must not be overwritten',
+    );
+  } finally {
+    privateSaveTestHooks.beforeCommit = null;
+  }
+  assert.equal(await fs.readFile(target, 'utf8'), external);
+  const leftovers = (await fs.readdir(path.join(dir, 'agent'))).filter((name) => name.includes('.tmp-'));
+  assert.deepEqual(leftovers, [], 'failed save leaves no temporary file');
+});
+
+test('private Agent saves reject symlinks and unknown fields', async () => {
+  const dir = await tempDir();
+  await fs.mkdir(path.join(dir, 'agent'), { recursive: true, mode: 0o700 });
+  const outside = path.join(dir, 'outside.md');
+  await fs.writeFile(outside, '# outside');
+  await fs.symlink(outside, path.join(dir, 'agent', 'growth.md'));
+  await assert.rejects(savePrivateAgentFile(dir, 'growth', '# no', ''), /符号链接/);
+  assert.equal(await fs.readFile(outside, 'utf8'), '# outside');
+  await assert.rejects(savePrivateAgentFile(dir, 'other', 'x', ''), /只允许保存/);
+});
+
+test('own public Agent card is optional and never fabricated', async () => {
+  const dir = await tempDir();
+  const missing = await readOwnAgentCard(dir, PEER_A);
+  assert.equal(missing.state, 'missing');
+  assert.equal(missing.card, null);
+  await write(path.join(dir, 'public', 'profile', 'agent-card.json'), {
+    schema_version: 1,
+    display_name: 'Nova',
+    description: '公开介绍',
+    interests: ['地图'],
+    conversation_style: '简短',
+    updated_at: '2026-11-14T10:00:00Z',
+  });
+  const available = await readOwnAgentCard(dir, PEER_A);
+  assert.equal(available.state, 'available');
+  assert.equal(available.card.displayName, 'Nova');
+  assert.equal(available.card.path, 'profile/agent-card.json');
+  assert.match(available.card.sha256, /^[a-f0-9]{64}$/);
+});
+
+
+function contactNotesV2(overrides = {}) {
+  return {
+    schema_version: 2,
+    unknown_top: { keep: true },
+    contacts: [{
+      peer_id: PEER_A,
+      display_name_snapshot: 'Alice',
+      updated_at: '2026-11-18T10:00:00Z',
+      unknown_contact: 'keep-contact',
+      observations: [{
+        id: 'obs-1', summary: '读过公开散步记录。', observed_at: '2026-11-18T09:50:00Z',
+        unknown_observation: 'keep-observation',
+        evidence_refs: {
+          session_ids: ['s1'], event_ids: ['evt-1'], message_ids: [],
+          content_paths: ['posts/p1/post.json'],
+          content_sha256: ['a'.repeat(64)],
+        },
+      }],
+      impressions: [{
+        id: 'imp-1', summary: '表达克制。', uncertainty: 'medium',
+        created_at: '2026-11-18T09:55:00Z', updated_at: '2026-11-18T09:55:00Z',
+        unknown_impression: 'keep-impression',
+        evidence_refs: { session_ids: ['s1'], event_ids: ['evt-2'], message_ids: [], content_paths: [], content_sha256: [] },
+      }],
+      curiosities: [{
+        id: 'cur-1', question: '下次问问城市声音。', created_at: '2026-11-18T09:56:00Z',
+        unknown_curiosity: 'keep-curiosity',
+        evidence_refs: { session_ids: ['s1'], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
+      }],
+    }],
+    ...overrides,
+  };
+}
+
+test('contact-notes reads v2, keeps v1 empty read-only and never invents missing data', async () => {
+  const dir = await tempDir();
+  const missing = await readContactNotes(dir);
+  assert.equal(missing.state, 'missing');
+  assert.deepEqual(missing.contacts, []);
+
+  const v1 = path.join(dir, 'agent', 'contact-notes.json');
+  await write(v1, '{"schema_version":1,"contacts":[]}\n');
+  const legacy = await readContactNotes(dir);
+  assert.equal(legacy.state, 'available');
+  assert.equal(legacy.schemaVersion, 1);
+  assert.deepEqual(legacy.contacts, []);
+  await assert.rejects(() => saveContactImpression(dir, {
+    peerId: PEER_A, impressionId: '', summary: '不能自动改写', uncertainty: 'low', expectedSha256: legacy.sha256,
+  }), /只读/);
+
+  const v2 = contactNotesV2();
+  const body = JSON.stringify(v2);
+  await write(v1, body);
+  const notes = await readContactNotes(dir);
+  assert.equal(notes.state, 'available');
+  assert.equal(notes.schemaVersion, 2);
+  assert.equal(notes.contacts[0].impressions[0].summary, '表达克制。');
+  assert.match(notes.sha256, /^[a-f0-9]{64}$/);
+
+  await write(v1, '{not json');
+  assert.equal((await readContactNotes(dir)).state, 'error');
+  await write(v1, JSON.stringify({ schema_version: 99, contacts: [] }));
+  assert.equal((await readContactNotes(dir)).state, 'error');
+  await write(v1, Buffer.alloc(MAX_CONTACT_NOTES_BYTES + 1, 0x20));
+  const tooLarge = await readContactNotes(dir);
+  assert.equal(tooLarge.state, 'error');
+  assert.match(tooLarge.error, /超过|1 MiB|1048576/i);
+});
+
+test('contact impression edits preserve unknown fields, evidence and detect SHA-256 conflicts', async () => {
+  const dir = await tempDir();
+  const file = path.join(dir, 'agent', 'contact-notes.json');
+  await write(file, JSON.stringify(contactNotesV2()));
+  const before = await readContactNotes(dir);
+
+  const saved = await saveContactImpression(dir, {
+    peerId: PEER_A,
+    impressionId: 'imp-1',
+    summary: '更新后的私有印象。',
+    uncertainty: 'high',
+    expectedSha256: before.sha256,
+  });
+  assert.equal(saved.saved, true);
+  assert.notEqual(saved.sha256, before.sha256);
+  const after = await readContactNotes(dir);
+  const contact = after.contacts.find((item) => item.peerId === PEER_A);
+  assert.equal(contact.impressions[0].id, 'imp-1');
+  assert.equal(contact.impressions[0].summary, '更新后的私有印象。');
+  assert.equal(contact.impressions[0].uncertainty, 'high');
+  assert.equal(contact.impressions[0].createdAt, '2026-11-18T09:55:00Z');
+  assert.deepEqual(contact.impressions[0].evidenceRefs.eventIds, ['evt-2']);
+
+  const raw = JSON.parse(await fs.readFile(file, 'utf8'));
+  assert.deepEqual(raw.unknown_top, { keep: true });
+  assert.equal(raw.contacts[0].unknown_contact, 'keep-contact');
+  assert.equal(raw.contacts[0].observations[0].unknown_observation, 'keep-observation');
+  assert.equal(raw.contacts[0].impressions[0].unknown_impression, 'keep-impression');
+  assert.equal(raw.contacts[0].curiosities[0].unknown_curiosity, 'keep-curiosity');
+
+  // A stale expected hash must not overwrite the file.
+  const stale = await fs.readFile(file, 'utf8');
+  await assert.rejects(() => saveContactImpression(dir, {
+    peerId: PEER_A,
+    impressionId: 'imp-1',
+    summary: '并发覆盖',
+    uncertainty: 'low',
+    expectedSha256: before.sha256,
+  }), (error) => error.code === 'conflict');
+  assert.equal(await fs.readFile(file, 'utf8'), stale);
+
+  // Adding a new impression keeps the existing ones and requires the current hash.
+  const second = await saveContactImpression(dir, {
+    peerId: PEER_A,
+    impressionId: '',
+    summary: '另一个印象。',
+    uncertainty: 'low',
+    expectedSha256: after.sha256,
+  });
+  assert.equal(second.saved, true);
+  assert.equal(second.contact.impressions.length, 2);
+  assert.equal(second.contact.observations.length, 1);
+  assert.equal(second.contact.curiosities.length, 1);
+
+  // Creating a missing file is explicit and starts from schema v2.
+  const freshDir = await tempDir();
+  const created = await saveContactImpression(freshDir, {
+    peerId: PEER_A,
+    impressionId: '',
+    summary: '第一条印象。',
+    uncertainty: 'medium',
+    expectedSha256: '',
+  });
+  assert.equal(created.saved, true);
+  const fresh = await readContactNotes(freshDir);
+  assert.equal(fresh.schemaVersion, 2);
+  assert.equal(fresh.contacts[0].impressions.length, 1);
+});
+
+test('contact-notes save rejects malformed input and symlinked private storage', async () => {
+  const dir = await tempDir();
+  const file = path.join(dir, 'agent', 'contact-notes.json');
+  await write(file, JSON.stringify(contactNotesV2()));
+  const notes = await readContactNotes(dir);
+  for (const input of [
+    { peerId: 'not-a-peer', impressionId: '', summary: 'x', uncertainty: 'low', expectedSha256: notes.sha256 },
+    { peerId: PEER_A, impressionId: '', summary: '', uncertainty: 'low', expectedSha256: notes.sha256 },
+    { peerId: PEER_A, impressionId: '', summary: 'x', uncertainty: 'certain', expectedSha256: notes.sha256 },
+    { peerId: PEER_A, impressionId: '../bad', summary: 'x', uncertainty: 'low', expectedSha256: notes.sha256 },
+    { peerId: PEER_A, impressionId: 'imp-1', summary: 'x', uncertainty: 'low', expectedSha256: 'bad-hash' },
+    { peerId: PEER_A, impressionId: 'missing', summary: 'x', uncertainty: 'low', expectedSha256: notes.sha256 },
+  ]) {
+    await assert.rejects(() => saveContactImpression(dir, input));
+  }
+
+  const linkDir = await tempDir();
+  const outside = path.join(linkDir, 'outside.json');
+  await write(outside, JSON.stringify(contactNotesV2()));
+  await fs.mkdir(path.join(linkDir, 'agent'), { recursive: true });
+  await fs.symlink(outside, path.join(linkDir, 'agent', 'contact-notes.json'));
+  const linked = await readContactNotes(linkDir);
+  assert.equal(linked.state, 'error');
+  assert.match(linked.error, /符号链接/);
+});
+
+
+test('contact projection stores only validated public metadata and re-verifies local avatar bytes', async () => {
+  const dir = await tempDir();
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=', 'base64');
+  const sha = crypto.createHash('sha256').update(png).digest('hex');
+  const avatarPath = `profile/avatar-${sha.slice(0, 8)}.png`;
+  await write(path.join(dir, 'downloads', PEER_A, avatarPath), png);
+  const now = Date.now();
+  await writeContactProjection(dir, {
+    schemaVersion: 1,
+    updatedAt: now,
+    profiles: [
+      {
+        peerId: PEER_A,
+        displayName: '潮汐线旁的林岸',
+        description: '公开简介。',
+        interests: ['潮汐'],
+        conversationStyle: '慢一点回信。',
+        avatar: { path: avatarPath, sha256: sha, mime: 'image/png', sizeBytes: png.length },
+        source: 'remote-profile',
+        verifiedAt: now,
+      },
+      {
+        peerId: PEER_B,
+        displayName: '无头像的长名字联系人',
+        description: '',
+        interests: [],
+        conversationStyle: '',
+        avatar: null,
+        source: 'remote-profile',
+        verifiedAt: now - 1,
+      },
+    ],
+    clues: [{
+      peerId: PEER_B,
+      name: '星云收集者',
+      description: '公开声明',
+      sourcePeerId: PEER_A,
+      sourceName: '潮汐线旁的林岸',
+      readAt: now - 2,
+    }],
+  });
+
+  const file = path.join(dir, 'agent', 'host', 'dsh', 'contact-list.json');
+  const raw = await fs.readFile(file, 'utf8');
+  assert.ok(Buffer.byteLength(raw) <= MAX_CONTACT_PROJECTION_BYTES);
+  assert.doesNotMatch(raw, /data:|blob:|avatarUrl|avatar_url/);
+  assert.doesNotMatch(raw, new RegExp(dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  const mode = (await fs.stat(file)).mode & 0o777;
+  assert.equal(mode, 0o600, 'the projection is private to the local user');
+  await assert.rejects(() => fs.stat(path.join(dir, 'public', 'contact-list.json')), /ENOENT/);
+
+  const read = await readContactProjection(dir);
+  assert.equal(read.state, 'available');
+  assert.equal(read.profiles.length, 2);
+  const avatarProfile = read.profiles.find((item) => item.peerId === PEER_A);
+  assert.equal(avatarProfile.displayName, '潮汐线旁的林岸');
+  assert.equal(avatarProfile.avatarState, 'ready');
+  assert.match(avatarProfile.avatarUrl, /^data:image\/png;base64,/);
+  assert.equal(avatarProfile.avatarSha256, sha);
+  assert.equal(read.clues.length, 1);
+  assert.equal(read.clues[0].peerId, PEER_B);
+  assert.equal(read.clues[0].sourcePeerId, PEER_A);
+
+  // A damaged or replaced avatar is never shown under the recorded version.
+  await fs.writeFile(path.join(dir, 'downloads', PEER_A, avatarPath), Buffer.from('not a png'));
+  const damaged = await readContactProjection(dir);
+  const damagedProfile = damaged.profiles.find((item) => item.peerId === PEER_A);
+  assert.equal(damagedProfile.avatarState, 'hash-mismatch');
+  assert.equal(damagedProfile.avatarUrl, undefined);
+
+  // A missing avatar has no URL either; the name remains readable.
+  await fs.rm(path.join(dir, 'downloads', PEER_A, avatarPath));
+  const missingAvatar = await readContactProjection(dir);
+  const missingProfile = missingAvatar.profiles.find((item) => item.peerId === PEER_A);
+  assert.equal(missingProfile.avatarState, 'missing');
+  assert.equal(missingProfile.avatarUrl, undefined);
+  assert.equal(missingProfile.displayName, '潮汐线旁的林岸');
+});
+
+test('contact projection fits the legal Chinese maximum and keeps a newer record', async () => {
+  const dir = await tempDir();
+  const ids = await manyPeerIds(129);
+  const baseTime = Date.now();
+  const interests = Array.from({ length: 10 }, (_, index) => '趣'.repeat(79) + String.fromCharCode(0x4e00 + index));
+  const profiles = ids.slice(0, 128).map((peerId, index) => ({
+    peerId,
+    displayName: '名'.repeat(80),
+    description: '介'.repeat(400),
+    interests,
+    conversationStyle: '风'.repeat(300),
+    avatar: null,
+    source: '源'.repeat(40),
+    verifiedAt: baseTime - index,
+  }));
+  const clues = Array.from({ length: 80 }, (_, index) => ({
+    peerId: ids[index],
+    name: '名'.repeat(120),
+    description: '介'.repeat(280),
+    sourcePeerId: ids[127],
+    sourceName: '源'.repeat(80),
+    readAt: baseTime - index,
+  }));
+  await writeContactProjection(dir, { schemaVersion: 1, updatedAt: baseTime, profiles, clues });
+
+  const file = path.join(dir, 'agent', 'host', 'dsh', 'contact-list.json');
+  const firstBytes = await fs.readFile(file);
+  assert.ok(firstBytes.length > 512 * 1024, `the boundary fixture must exceed the old 512 KiB limit, got ${firstBytes.length}`);
+  assert.ok(firstBytes.length <= MAX_CONTACT_PROJECTION_BYTES);
+  const first = await readContactProjection(dir);
+  assert.equal(first.state, 'available');
+  assert.equal(first.profiles.length, 128);
+  assert.equal(first.clues.length, 80);
+  assert.equal(first.profiles[0].peerId, ids[0]);
+  assert.equal(first.clues[0].peerId, ids[0]);
+
+  // A full legal projection must still accept a newer profile and clue: the
+  // writer sorts by the recorded time before applying the fixed count limit.
+  const newerProfile = {
+    ...profiles[0],
+    peerId: ids[128],
+    displayName: '新'.repeat(80),
+    verifiedAt: baseTime + 1000,
+  };
+  await writeContactProjection(dir, { schemaVersion: 1, updatedAt: baseTime + 1000, profiles: [newerProfile, ...profiles], clues });
+  const withProfile = await readContactProjection(dir);
+  assert.equal(withProfile.profiles.length, 128);
+  assert.equal(withProfile.profiles[0].peerId, ids[128]);
+  assert.equal(withProfile.profiles.some((item) => item.peerId === ids[127]), false, 'the oldest profile should be evicted');
+  assert.ok((await fs.stat(file)).size <= MAX_CONTACT_PROJECTION_BYTES);
+
+  const newerClue = {
+    peerId: ids[80],
+    name: '新'.repeat(120),
+    description: '新'.repeat(280),
+    sourcePeerId: ids[126],
+    sourceName: '新'.repeat(80),
+    readAt: baseTime + 1000,
+  };
+  await writeContactProjection(dir, {
+    schemaVersion: 1, updatedAt: baseTime + 1000, profiles: [newerProfile, ...profiles], clues: [newerClue, ...clues],
+  });
+  const withClue = await readContactProjection(dir);
+  assert.equal(withClue.clues.length, 80);
+  assert.ok(withClue.clues.some((item) => item.sourcePeerId === ids[126] && item.peerId === ids[80]));
+  assert.equal(withClue.clues.some((item) => item.sourcePeerId === ids[127] && item.peerId === ids[79]), false,
+    'the oldest clue should be evicted');
+  assert.ok((await fs.stat(file)).size <= MAX_CONTACT_PROJECTION_BYTES);
+});
+
+test('contact projection rejects wrong schema, corrupt JSON and symlinks', async () => {
+  const dir = await tempDir();
+  await write(path.join(dir, 'agent', 'host', 'dsh', 'contact-list.json'), '{bad json');
+  const corrupt = await readContactProjection(dir);
+  assert.equal(corrupt.state, 'error');
+  assert.equal(corrupt.profiles.length, 0);
+
+  await write(path.join(dir, 'agent', 'host', 'dsh', 'contact-list.json'), JSON.stringify({
+    schema_version: 2,
+    profiles: [],
+    clues: [],
+  }));
+  assert.equal((await readContactProjection(dir)).state, 'error');
+
+  const outside = path.join(dir, 'outside.json');
+  await write(outside, JSON.stringify({ schema_version: 1, profiles: [], clues: [] }));
+  await fs.rm(path.join(dir, 'agent', 'host', 'dsh', 'contact-list.json'));
+  await fs.symlink(outside, path.join(dir, 'agent', 'host', 'dsh', 'contact-list.json'));
+  const linked = await readContactProjection(dir);
+  assert.equal(linked.state, 'error');
+  assert.match(linked.error, /符号链接|越过/);
+
+  // A symlinked target must never be silently replaced through the link.
+  await assert.rejects(
+    () => writeContactProjection(dir, { schemaVersion: 1, updatedAt: Date.now(), profiles: [], clues: [] }),
+    /符号链接/,
+  );
+  assert.equal((await fs.readFile(outside, 'utf8')).includes('schema_version'), true);
 });

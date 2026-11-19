@@ -57,11 +57,21 @@ mode = "auto"                  # client | server | auto
 protocol_prefix = "/raminga"   # 固定值
 # 只填 Raminga 节点的显式地址；空数组表示没有 bootstrap。
 bootstrap_peers = []
+# 仅首次初始化时使用发行内置官方列表；不写字段的旧配置不会自动补回。
+bootstrap_preset = false
 refresh_interval = "30s"
 query_timeout = "20s"
 ```
 
 `bootstrap_peers` 的每一项都必须包含 `/p2p/<peer-id>`，不能是 `/p2p-circuit` 地址，也不能是公共 IPFS/libp2p bootstrap；这些会在配置校验时被拒绝。可以重复写多个 Raminga 节点。
+
+### 2.1 首次初始化的引导节点优先级
+
+- 用户显式 `bootstrap_peers` 优先；一旦有自定义列表，就不会再注入发行预置。
+- 没有自定义列表时，全新 `raminga init`（或首次 `Load` 创建配置）会按发行内置官方列表写入；`--no-bootstrap-preset` 明确禁用。
+- 发行预置当前保持**空列表**，直到提供真实公开地址；不会填入示例、文档 IP 或测试 Peer ID。
+- 已有 `config.toml`、升级后的配置、用户把 `bootstrap_peers` 清空后的配置都不会自动补回。加载旧配置时 `bootstrap_preset` 缺失也不会触发写入，`Load` 不重写已有文件。
+- `bootstrap_preset` 是首次初始化/显式 `init` 的记录，不是运行时的第二地址来源；daemon 实际拨号只看 `dht.bootstrap_peers`。
 
 `enabled = false` 会关闭 DHT：不启动路由表、不发布地址记录、`dht find` 明确返回 disabled。已连接的普通 libp2p 连接、Relay 和显式 multiaddr 连接不受影响。
 

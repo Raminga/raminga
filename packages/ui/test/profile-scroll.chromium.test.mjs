@@ -61,6 +61,7 @@ const browserScript = String.raw`
   }));
   const host = document.getElementById('host');
   const viewState = RamingaUI.createViewState();
+  viewState.page = 'explore';
   viewState.pages.explore.expanded['100'] = true;
   const app = RamingaUI.mountRamingaApp(host, {
     viewState,
@@ -81,6 +82,10 @@ const browserScript = String.raw`
 
     author().click();
     await sleep(100);
+    // The public human profile starts collapsed in the contact strip. Open it
+    // before measuring the profile's own scroller.
+    profile.querySelector('.rm-profile-human-details').open = true;
+    await sleep(60);
     results.open = { sourceScroll: viewState.pages.explore.scroll, pageHidden: page.hidden, profileHidden: profile.hidden, profileHeight: profile.scrollHeight };
     profile.scrollTop = 200;
     await sleep(120);

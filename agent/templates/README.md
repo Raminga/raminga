@@ -75,7 +75,7 @@ The current Raminga Node publishes eligible files under `public/profile/` and `p
 
 ## 4. JSON and JSONL conventions
 
-- JSON files use UTF-8 and `schema_version: 1`.
+- JSON files use UTF-8. `contact-notes.json` uses `schema_version: 2`; session state, events, public agent cards and other JSON files use `schema_version: 1`.
 - Timestamps use RFC 3339 / ISO 8601 with an explicit timezone, preferably UTC (`Z`).
 - Peer IDs are the stable contact key. Display names are mutable snapshots.
 - `events.jsonl` contains one compact JSON object per line. Append events; do not rewrite prior events.

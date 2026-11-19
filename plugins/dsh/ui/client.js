@@ -40,6 +40,26 @@ window.__ModuleLoader__.load({
     const requestIdCodec = passthrough('@raminga/dsh#UiRequestId');
     const messageIdCodec = passthrough('@raminga/dsh#MessageId');
     const contentIdCodec = passthrough('@raminga/dsh#UiContentId');
+    const subjectCodec = passthrough('@raminga/dsh#UiFileSubject');
+    const filePathCodec = passthrough('@raminga/dsh#UiPublicFilePath');
+    const sha256Codec = passthrough('@raminga/dsh#UiSha256');
+    const sizeCodec = passthrough('@raminga/dsh#UiByteSize');
+    const privateFieldCodec = passthrough('@raminga/dsh#UiPrivateField');
+    const privateContentCodec = passthrough('@raminga/dsh#UiPrivateContent');
+    const expectedShaCodec = passthrough('@raminga/dsh#UiExpectedSha256');
+    const titleCodec = passthrough('@raminga/dsh#UiFavoriteTitle');
+    const contactInputCodec = passthrough('@raminga/dsh#UiContactImpressionSave');
+    const operationIdCodec = passthrough('@raminga/dsh#UiOperationId');
+    const activityLimitCodec = passthrough('@raminga/dsh#UiActivityLimit');
+    const draftIdCodec = passthrough('@raminga/dsh#UiDraftId');
+    const assetIdCodec = passthrough('@raminga/dsh#UiDraftAssetId');
+    const draftKindCodec = passthrough('@raminga/dsh#UiDraftKind');
+    const draftInputCodec = passthrough('@raminga/dsh#UiPublicDraftSave');
+    const draftRoleCodec = passthrough('@raminga/dsh#UiDraftImageRole');
+    const filenameCodec = passthrough('@raminga/dsh#UiFileName');
+    const imageDataCodec = passthrough('@raminga/dsh#UiImageBase64');
+    const revisionCodec = passthrough('@raminga/dsh#UiDraftRevision');
+    const publishedShaCodec = passthrough('@raminga/dsh#UiPublishedSha256');
     const sessionParam = { name: 'sessionId', wire: 'sessionId', source: 'json', codec: sessionIdCodec };
     const param = {
       force: { name: 'force', wire: 'force', source: 'json', codec: booleanCodec },
@@ -53,6 +73,27 @@ window.__ModuleLoader__.load({
       messageId: { name: 'messageId', wire: 'messageId', source: 'json', codec: messageIdCodec },
       familiar: { name: 'familiar', wire: 'familiar', source: 'json', codec: booleanCodec },
       contentId: { name: 'id', wire: 'id', source: 'json', codec: contentIdCodec },
+      subject: { name: 'subject', wire: 'subject', source: 'json', codec: subjectCodec },
+      filePath: { name: 'path', wire: 'path', source: 'json', codec: filePathCodec },
+      sha256: { name: 'sha256', wire: 'sha256', source: 'json', codec: sha256Codec },
+      size: { name: 'size', wire: 'size', source: 'json', codec: sizeCodec },
+      privateField: { name: 'field', wire: 'field', source: 'json', codec: privateFieldCodec },
+      privateContent: { name: 'content', wire: 'content', source: 'json', codec: privateContentCodec },
+      expectedSha: { name: 'expectedSha256', wire: 'expectedSha256', source: 'json', codec: expectedShaCodec },
+      title: { name: 'title', wire: 'title', source: 'json', codec: titleCodec },
+      favorite: { name: 'favorite', wire: 'favorite', source: 'json', codec: booleanCodec },
+      contactInput: { name: 'input', wire: 'input', source: 'json', codec: contactInputCodec },
+      operationId: { name: 'operationId', wire: 'operationId', source: 'json', codec: operationIdCodec },
+      limit: { name: 'limit', wire: 'limit', source: 'json', codec: activityLimitCodec },
+      draftId: { name: 'draftId', wire: 'draftId', source: 'json', codec: draftIdCodec },
+      assetId: { name: 'assetId', wire: 'assetId', source: 'json', codec: assetIdCodec },
+      draftKind: { name: 'kind', wire: 'kind', source: 'json', codec: draftKindCodec },
+      draftInput: { name: 'input', wire: 'input', source: 'json', codec: draftInputCodec },
+      draftRole: { name: 'role', wire: 'role', source: 'json', codec: draftRoleCodec },
+      filename: { name: 'filename', wire: 'filename', source: 'json', codec: filenameCodec },
+      imageData: { name: 'dataBase64', wire: 'dataBase64', source: 'json', codec: imageDataCodec },
+      revision: { name: 'expectedRevision', wire: 'expectedRevision', source: 'json', codec: revisionCodec },
+      publishedSha: { name: 'expectedPublishedSha256', wire: 'expectedPublishedSha256', source: 'json', codec: publishedShaCodec },
     };
     const descriptors = [
       ['open', 'UiSnapshot', [sessionParam]],
@@ -67,14 +108,41 @@ window.__ModuleLoader__.load({
       ['share', 'UiShareInfo', [sessionParam]],
       ['conversations', 'UiConversations', [sessionParam, param.force]],
       ['messages', 'UiMessagePage', [sessionParam, param.peerId, param.before, param.force]],
+      ['markRead', 'UiMarkRead', [sessionParam, param.peerId, param.messageId]],
+      ['favorites', 'UiFavorites', [sessionParam, param.before, param.force]],
+      ['setFavorite', 'UiFavoriteResult', [sessionParam, param.peerId, param.filePath, param.sha256, param.title, param.favorite]],
+      ['peerDiscoveries', 'UiPeerDiscoveries', [sessionParam, param.peerId, param.force]],
+      ['contactMemory', 'UiContactMemory', [sessionParam, param.peerId]],
+      ['saveContactImpression', 'UiContactImpressionSave', [sessionParam, param.contactInput]],
       ['send', 'UiSendResult', [sessionParam, param.peerId, param.text, param.requestId]],
       ['cancelOutbox', 'UiCancelResult', [sessionParam, param.messageId]],
       ['discoveries', 'UiDiscoveries', [sessionParam, param.familiar, param.force]],
       ['discoveryContent', 'UiDiscoveryContent', [sessionParam, param.contentId]],
       ['humanOutbound', 'UiHumanOutbound', [sessionParam, param.force]],
       ['mine', 'UiMine', [sessionParam, param.force]],
+      ['mineFilePreview', 'UiFilePreview', [sessionParam, param.filePath, param.sha256, param.size]],
       ['peerProfile', 'UiPeerProfile', [sessionParam, param.peerId, param.force]],
+      ['peerFriends', 'UiPeerFriends', [sessionParam, param.peerId, param.force]],
+      ['contactProjection', 'UiContactProjection', [sessionParam]],
+      ['peerManifest', 'UiPeerManifest', [sessionParam, param.peerId, param.force]],
+      ['peerFilePreview', 'UiFilePreview', [sessionParam, param.peerId, param.filePath, param.sha256, param.size]],
+      ['peerPostMeta', 'UiPostMeta', [sessionParam, param.peerId, param.filePath, param.sha256, param.size]],
+      ['peerNodeInfo', 'UiPeerNodeInfo', [sessionParam, param.peerId, param.force]],
+      ['revealDiscovery', 'UiRevealResult', [sessionParam, param.contentId]],
+      ['revealFile', 'UiRevealResult', [sessionParam, param.subject, param.peerId, param.filePath, param.sha256, param.size]],
+      ['bootstrap', 'UiBootstrapInfo', [sessionParam]],
       ['journey', 'UiJourney', [sessionParam, param.force]],
+      ['activity', 'UiActivity', [sessionParam, param.limit]],
+      ['activityDetail', 'UiActivityDetail', [param.operationId]],
+      ['savePrivateAgent', 'UiPrivateAgentSave', [sessionParam, param.privateField, param.privateContent, param.expectedSha]],
+      ['publicDraft', 'UiPublicDraftRead', [sessionParam, param.draftId]],
+      ['publicDrafts', 'UiPublicDraftList', [sessionParam, param.draftKind]],
+      ['savePublicDraft', 'UiPublicDraftSaveResult', [sessionParam, param.draftInput]],
+      ['putPublicDraftImage', 'UiPublicDraftImageResult', [sessionParam, param.draftId, param.draftRole, param.filename, param.imageData]],
+      ['publicDraftAsset', 'UiPublicDraftAssetRead', [sessionParam, param.draftId, param.assetId]],
+      ['importPublicPost', 'UiPublicDraftImportResult', [sessionParam, param.filePath]],
+      ['deletePublicDraft', 'UiPublicDraftDelete', [sessionParam, param.draftId, param.revision]],
+      ['publishPublicDraft', 'UiPublishResult', [sessionParam, param.draftId, param.revision, param.publishedSha]],
       ['locateMessage', 'UiLocatedMessage', [sessionParam, param.peerId, param.messageId]],
     ].map(([method, resultType, parameters]) => ({
       id: `${REMOTE_PACKAGE}#ramingaUi/${method}`,

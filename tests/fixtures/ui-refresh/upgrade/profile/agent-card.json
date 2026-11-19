@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "display_name": "旧岸灯",
+  "description": "升级前就存在的 Agent 公开卡片。",
+  "interests": ["旧数据", "潮汐"],
+  "conversation_style": "简短、克制。",
+  "updated_at": "2026-11-01T08:00:00Z"
+}

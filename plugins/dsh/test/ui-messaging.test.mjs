@@ -13,7 +13,7 @@ function statusResponse() {
     nodeId: 'node-a',
     version: 'test',
     protocolVersion: '1',
-    apiVersion: '4',
+    apiVersion: '6',
     startedAtUnixMs: 1000,
     currentTime: 'now',
     listenAddrs: [],

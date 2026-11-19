@@ -9,7 +9,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 function snapshot(overrides = {}) {
   return {
     sessionId: 'ui-test-0001',
-    status: { peerId: 'peer-a', nodeId: 'node-a', version: 'test', apiVersion: '4', connections: [] },
+    status: { peerId: 'peer-a', nodeId: 'node-a', version: 'test', apiVersion: '6', connections: [] },
     statusAt: 1000,
     error: null,
     errorAt: null,

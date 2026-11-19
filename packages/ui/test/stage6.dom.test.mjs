@@ -112,6 +112,7 @@ test('discovery list expands verified content, opens author profile and restores
       },
       error: null,
     }),
+    onRevealDiscovery: async () => ({ ok: true, status: 'revealed', error: null, at: Date.now() }),
     onLoadPeerProfile: async () => ({
       peerId: PEER_A, localName: 'Alice', remoteName: 'Alice', found: true,
       text: '# Alice\n\n远端**声明**。', files: ['profile/index.md'], at: Date.now(), error: null, freshness: 'live',
@@ -121,7 +122,7 @@ test('discovery list expands verified content, opens author profile and restores
   try {
     await settle();
     const card = ui.shadow.querySelector('.rm-post');
-    assert.match(card.textContent, /Agent 带回/);
+    assert.match(card.textContent, /Agent 获取/);
     assert.equal(card.querySelector('.rm-post-source'), null, 'no flat technical source line');
     const visibleCardText = [' .rm-post-meta', ' .rm-post-time', ' .rm-post-title', ' .rm-post-summary']
       .map((selector) => card.querySelector(selector)?.textContent ?? '').join(' ');
@@ -137,9 +138,16 @@ test('discovery list expands verified content, opens author profile and restores
     assert.match(sourceDetails.textContent, new RegExp('a{64}'));
     assert.match(sourceDetails.textContent, /120 字节/);
 
-    const before = ui.click('#discoveryList [data-expand-post]');
+    assert.equal(ui.shadow.querySelector('#discoveryList .rm-post-toggle'), null, 'the card has no duplicate reading button');
+    const sourceReveal = ui.shadow.querySelector('#discoveryList .rm-source-details .rm-file-reveal');
+    assert.ok(sourceReveal, 'local-copy locating stays inside source details');
+
+    const open = ui.shadow.querySelector('#discoveryList .rm-post-open');
+    open.focus();
+    ui.click(open);
     await settle();
-    const body = ui.shadow.querySelector('.rm-post-body');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const body = ui.shadow.querySelector('#postDetail .rm-post-detail-body');
     assert.ok(body);
     assert.match(body.textContent, /正文/);
     assert.doesNotMatch(body.textContent, /内容版本|字节|raminga_content_get|posts\/a\.json/, 'technical metadata stays in the source details');
@@ -150,15 +158,25 @@ test('discovery list expands verified content, opens author profile and restores
     const link = body.querySelector('a');
     assert.equal(link.getAttribute('href'), 'https://example.com/x');
     assert.equal(link.rel, 'noopener noreferrer nofollow');
+    const detailSource = ui.shadow.querySelector('#postDetail .rm-source-details');
+    assert.ok(detailSource.querySelector('.rm-file-reveal'), 'detail locating lives in source details');
+    ui.click('#postBack');
+    await settle();
 
     const explorePage = ui.shadow.querySelector('#page-explore');
     explorePage.scrollTop = 120;
     ui.click('#exploreRefresh');
     await settle();
+    // The refresh re-renders the list. Under a parallel test-file load the
+    // browser may deliver the scroll restoration on a later task, so wait for
+    // the reading position instead of assuming one microtask is enough. The
+    // assertion still fails if the refresh really loses the position.
+    for (let attempt = 0; attempt < 40 && explorePage.scrollTop !== 120; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
     sourceDetails = ui.shadow.querySelector('.rm-post .rm-source-details');
     assert.equal(sourceDetails.open, true, 'an open source detail survives an explicit refresh');
     assert.equal(explorePage.scrollTop, 120, 'refresh keeps the reading scroll');
-    assert.equal(ui.shadow.querySelector('.rm-post-body')?.textContent.includes('正文'), true, 'expanded body survives refresh');
 
     const avatar = ui.shadow.querySelector('#discoveryList [data-profile-peer]');
     assert.ok(avatar);
@@ -233,8 +251,8 @@ test('familiar filter and empty/error states are distinct', async () => {
   const empty = mountUi({ onLoadDiscoveries: async () => discoveries([]) });
   try {
     await settle();
-    assert.match(empty.text('#exploreStateTitle'), /还没有 Agent 带回的公开内容/);
-    assert.match(empty.text('#exploreStateBody'), /不会自动变成动态/);
+    assert.match(empty.text('#exploreStateTitle'), /还没有获取到公开帖子/);
+    assert.match(empty.text('#exploreStateBody'), /两种来源会分别标注/);
   } finally {
     empty.close();
   }
@@ -325,7 +343,7 @@ test('a cached empty familiar feed updates after a persisted human send without 
   });
   try {
     await settle();
-    assert.match(ui.text('#exploreStateTitle'), /还没有你发过消息的节点带回的内容/);
+    assert.match(ui.text('#exploreStateTitle'), /有过交流的节点还没有公开帖子/);
     assert.doesNotMatch(ui.text('#exploreStateBody'), /持久人工出站记录|raminga_content_get/);
     assert.equal(familiarReads, 1);
 
@@ -352,14 +370,14 @@ test('a cached empty familiar feed updates after a persisted human send without 
     await settle();
     assert.match(ui.shadow.querySelector('#composerStatus').textContent, /等待确认|已经保存/);
 
-    ui.click('button[data-nav="home"]');
+    ui.click('button[data-nav="explore"]');
     await settle();
     assert.equal(ui.viewState.pages.explore.filter, 'familiar');
     assert.equal(ui.shadow.querySelector('#exploreQuery').value, '交流', 'search text survives the return');
     assert.ok(familiarReads >= 2, 'returning to the cached familiar feed revalidates it');
     assert.ok(forceReads >= 1, 'the invalidated read bypasses the host cache');
     assert.match(ui.text('#discoveryList'), /交流对象带回的帖子/);
-    assert.doesNotMatch(ui.text('#exploreStateBody'), /还没有你发过消息/);
+    assert.doesNotMatch(ui.text('#exploreStateBody'), /还没有有过交流/);
   } finally {
     ui.close();
   }
@@ -432,7 +450,7 @@ test('an unknown send only updates familiar after the persisted human row is ver
     input.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
     ui.shadow.querySelector('#composer').dispatchEvent(new ui.dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
-    ui.click('button[data-nav="home"]');
+    ui.click('button[data-nav="explore"]');
     await settle();
     assert.ok(familiarReads >= 2, 'a persisted row resolves the unknown send into a real relation');
     assert.match(ui.text('#discoveryList'), /确认后出现的交流内容/);
@@ -493,7 +511,7 @@ test('an unknown send without a persisted row does not invent a familiar relatio
     input.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
     ui.shadow.querySelector('#composer').dispatchEvent(new ui.dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
-    ui.click('button[data-nav="home"]');
+    ui.click('button[data-nav="explore"]');
     await settle();
     assert.equal(familiarReads, 1, 'an unknown send without a persisted row must not be counted as a relation');
 
@@ -539,7 +557,7 @@ test('cached discovery data is not polled, explicit refresh picks up external co
     explorePage.scrollTop = 64;
     ui.click('button[data-nav="contacts"]');
     await settle();
-    ui.click('button[data-nav="home"]');
+    ui.click('button[data-nav="explore"]');
     await settle();
     assert.equal(calls, 1, 'returning within the revalidation window does not poll');
     data = [first, second];
@@ -548,7 +566,7 @@ test('cached discovery data is not polled, explicit refresh picks up external co
     assert.equal(calls, 2);
     assert.match(ui.text('#discoveryList'), /外部新增文章/);
     assert.equal(ui.shadow.querySelector('#exploreQuery').value, '文章');
-    assert.equal(ui.shadow.querySelector('.rm-post-body')?.textContent.includes('第一篇文章正文'), true, 'expanded row survives');
+    assert.equal(ui.shadow.querySelector('#discoveryList .rm-post-body'), null, 'the independent detail replaces the inline reading row');
     assert.equal(ui.shadow.querySelector('.rm-source-details')?.open, true, 'open source details survive');
     assert.equal(explorePage.scrollTop, 64);
     ui.click('[data-filter="familiar"]');
@@ -643,7 +661,7 @@ test('mine shows the public user profile and only explicit user-authored posts',
   });
   try {
     await settle();
-    assert.match(ui.text('#mineProfileContent'), /公开资料/);
+    assert.match(ui.text('#mineIdentitySummary'), /公开资料/);
     assert.match(ui.text('#minePostList'), /我的公开帖子/);
     assert.match(ui.text('#mineContentNote'), /缺少明确的本人作者声明/);
     assert.match(ui.text('#mineContentNote'), /Agent 署名/);
@@ -668,7 +686,7 @@ test('Journey labels raw values, dedupes one message pointer and keeps history s
   let locateCalls = 0;
   let mismatch = false;
   const ui = mountUi({
-    viewState: { page: 'raminga', pages: { raminga: { scroll: 0, expandedSessions: { s1: true } } } },
+    viewState: { page: 'raminga', pages: { raminga: { scroll: 0, expandedSessions: {} } } },
     onLoadJourney: async () => ({
       state: 'available',
       at: Date.now(),
@@ -698,48 +716,46 @@ test('Journey labels raw values, dedupes one message pointer and keeps history s
   });
   try {
     await settle();
-    const sessionText = ui.text('#ramingaSessionList');
-    assert.match(sessionText, /已完成/);
-    assert.match(sessionText, /探索/);
-    assert.match(sessionText, /观察记录/);
-    assert.match(sessionText, /发出/);
-    assert.match(sessionText, /历史观察/);
-    assert.match(sessionText, /不是 Node 当前投递或 ACK 状态/);
-    const event = ui.shadow.querySelector('.rm-journey-events > li');
-    assert.ok(event);
-    const visible = [
-      '.rm-journey-event-head', '.rm-journey-event-text', '.rm-journey-peer-ref',
-      '.rm-journey-actions', '.rm-journey-evidence',
-    ].map((selector) => event.querySelector(selector)?.textContent ?? '').join(' ');
-    assert.doesNotMatch(visible, /observation|completed|\bexplore\b|\bout\b|m-same/,
-      'raw host values and message IDs stay out of the reading lead');
-    assert.equal(event.querySelectorAll('[data-locate-message]').length, 1,
+    ui.click('#homeActivityRecent');
+    await settle();
+    assert.equal(ui.shadow.querySelector('#page-journey').hidden, false);
+    const detailText = ui.text('#journeyDetail');
+    assert.match(detailText, /已完成/);
+    assert.match(detailText, /探索/);
+    assert.match(detailText, /观察记录/);
+    assert.match(detailText, /发出/);
+    assert.match(detailText, /记录一次观察/);
+    assert.doesNotMatch(ui.text('#journeyDetail .rm-journey-summary'), /observation|completed|\bexplore\b/,
+      'raw host values stay out of the summary lead');
+    const evidence = ui.shadow.querySelector('#journeyDetail .rm-journey-evidence-row');
+    assert.ok(evidence);
+    assert.equal(ui.shadow.querySelectorAll('#journeyDetail [data-journey-locate-peer]').length, 1,
       'one message ID in evidence_refs and message_evidence is one reachable action');
-    const raw = event.querySelector('.rm-journey-record');
-    assert.ok(raw, 'raw values remain reachable in record details');
+    const source = ui.shadow.querySelector('#journeyDetail .rm-journey-source');
+    assert.equal(source.open, false);
+    const raw = ui.shadow.querySelector('#journeyDetail .rm-journey-event-raw');
+    assert.equal(raw.open, false);
     assert.match(raw.textContent, /observation/);
     assert.match(raw.textContent, /\bout\b/);
     assert.match(raw.textContent, /m-same/);
     assert.match(raw.textContent, /尚未确认（仅当时）/);
-    assert.doesNotMatch(visible, /尚未确认|acked/);
 
-    event.querySelector('[data-locate-message]').click();
+    ui.shadow.querySelector('#journeyDetail [data-journey-locate-peer]').click();
     await settle();
     assert.equal(locateCalls, 1);
-    const results = ui.shadow.querySelectorAll('[data-locate-result]');
-    assert.equal(results.length, 1, 'one click produces one result, not a duplicate observation result');
-    assert.match(results[0].textContent, /已不在当前保留消息中/);
-    assert.doesNotMatch(ui.text('#ramingaJourneyMeta'), /已不在当前保留消息中/);
+    const result = ui.shadow.querySelector('#journeyDetail [data-journey-locate-peer]')
+      .closest('.rm-journey-evidence-row').querySelector('.rm-journey-check');
+    assert.match(result.textContent, /已不在当前保留消息中/);
     assert.equal(ui.shadow.querySelector('#page-messages').hidden, true,
       'a clipped reference must not jump into a conversation');
 
     mismatch = true;
-    ui.shadow.querySelector('[data-locate-message]').click();
+    ui.shadow.querySelector('#journeyDetail [data-journey-locate-peer]').click();
     await settle();
     assert.equal(locateCalls, 2);
     assert.equal(ui.shadow.querySelector('#page-messages').hidden, true,
       'a host result for another message ID must not open a conversation');
-    assert.match(ui.text('#ramingaSessionList'), /消息与这条引用不一致/);
+    assert.match(ui.text('#journeyDetail'), /消息与这条引用不一致/);
   } finally {
     ui.close();
   }
@@ -782,9 +798,9 @@ test('Journey refresh forces a host read and preserves expansion, scroll, focus 
   });
   try {
     await settle();
-    assert.match(ui.text('#ramingaGrowth'), /第 1 次更新/);
-    assert.equal(ui.shadow.querySelectorAll('.rm-journey-card').length, 1);
-    const page = ui.shadow.querySelector('#page-raminga');
+    assert.match(ui.shadow.querySelector('#settingsGrowthInput').value, /第 1 次更新/);
+    assert.equal(ui.shadow.querySelectorAll('#ramingaSessionList .rm-journey-tile').length, 0, 'the latest record is featured above the grid');
+    const page = ui.shadow.querySelector('#page-home');
     const listNode = ui.shadow.querySelector('#ramingaSessionList');
     page.scrollTop = 180;
     revision = 2;
@@ -795,12 +811,12 @@ test('Journey refresh forces a host read and preserves expansion, scroll, focus 
     refresh.click();
     await settle();
     assert.deepEqual(calls, [false, true], 'manual refresh forces the host bridge read');
-    assert.match(ui.text('#ramingaGrowth'), /第 2 次更新/);
-    assert.equal(ui.shadow.querySelectorAll('.rm-journey-card').length, 2, 'new Journey directory appears without remount');
+    assert.match(ui.shadow.querySelector('#settingsGrowthInput').value, /第 2 次更新/);
+    assert.equal(ui.shadow.querySelectorAll('#ramingaSessionList .rm-journey-tile').length, 1, 'the non-featured Journey appears without remount');
     assert.equal(ui.shadow.querySelector('#ramingaSessionList'), listNode, 'the list stays mounted');
-    assert.equal(ui.shadow.querySelector('#page-raminga'), page, 'the page stays mounted');
-    assert.equal(ui.shadow.querySelector('[data-session-toggle="s1"]').getAttribute('aria-expanded'), 'true');
-    assert.match(ui.text('#ramingaSessionList'), /报告 2/);
+    assert.equal(ui.shadow.querySelector('#page-home'), page, 'the page stays mounted');
+    assert.match(ui.text('#ramingaSessionList'), /新报告 2/);
+    assert.match(ui.text('#ramingaSessionList'), /第 2 次/);
     assert.equal(page.scrollTop, 180, 'refresh keeps the reading position');
     assert.equal(ui.shadow.activeElement?.dataset?.focusKey, 'journey-refresh', 'refresh keeps focus');
 
@@ -808,16 +824,16 @@ test('Journey refresh forces a host read and preserves expansion, scroll, focus 
     revision = 3;
     refresh.click();
     await settle();
-    assert.match(ui.text('#ramingaGrowth'), /第 2 次更新/, 'failed refresh keeps the previous readable content');
+    assert.match(ui.shadow.querySelector('#settingsGrowthInput').value, /第 2 次更新/, 'failed refresh keeps the previous readable content');
     assert.match(ui.text('#ramingaRecordsStatus'), /刷新没有完成/);
     assert.match(ui.text('#ramingaRecordsStatus'), /旧记录/);
     assert.equal(ui.text('#ramingaRefresh'), '重试刷新');
-    assert.equal(ui.shadow.querySelectorAll('.rm-journey-card').length, 2);
+    assert.equal(ui.shadow.querySelectorAll('#ramingaSessionList .rm-journey-tile').length, 1);
 
     fail = false;
     refresh.click();
     await settle();
-    assert.match(ui.text('#ramingaGrowth'), /第 3 次更新/);
+    assert.match(ui.shadow.querySelector('#settingsGrowthInput').value, /第 3 次更新/);
     assert.doesNotMatch(ui.text('#ramingaRecordsStatus'), /刷新没有完成/);
     assert.equal(ui.text('#ramingaRefresh'), '刷新记录');
   } finally {
@@ -858,7 +874,7 @@ test('Journey refresh coalesces concurrent clicks and ignores a result after clo
     assert.equal(calls, 3, 'a force click during the read becomes one trailing force read');
     assert.equal(pending.length, 2);
     assert.equal(pending[1].force, true);
-    assert.match(ui.text('#ramingaGrowth'), /第 2 次更新/);
+    assert.match(ui.shadow.querySelector('#settingsGrowthInput').value, /第 2 次更新/);
     ui.close();
     pending[1].resolve(payload(3));
     await settle();

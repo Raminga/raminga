@@ -84,15 +84,15 @@ export function refreshedText(statusAt, now = Date.now()) {
   return `${formatRelative(at, now)} · ${formatClock(at)}`;
 }
 
-export function nodePillText(phase, status) {
-  if (phase === 'ready') {
-    const summary = connectionSummary(status);
-    return `节点状态 · ${summary.connections} 条连接`;
-  }
-  if (phase === 'stale') return '节点状态 · 更新中断';
-  if (phase === 'error') return '节点状态 · 暂不可用';
-  if (phase === 'closed') return '节点状态 · 已断开';
-  return '节点状态 · 读取中';
+// The top bar only has room for the node's state. Connection counts and
+// freshness stay in the status dialog, so a narrow header never truncates a
+// mixed status/connection string into an unreadable label.
+export function nodePillText(phase) {
+  if (phase === 'ready') return '节点在线';
+  if (phase === 'stale') return '更新中断';
+  if (phase === 'error') return '暂不可用';
+  if (phase === 'closed') return '已断开';
+  return '读取中';
 }
 
 export function nodePhaseText(phase) {

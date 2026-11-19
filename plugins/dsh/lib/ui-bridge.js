@@ -11,14 +11,18 @@
 // from online to offline by itself. Reads are coalesced per bridge so two open
 // panels (or an event racing a manual refresh) share one daemon call, and the
 // trailing event is reconciled instead of being lost.
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { protoInt64 } from '@bufbuild/protobuf';
 import { isIP } from 'node:net';
+import path from 'node:path';
 import { multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
-import { ConnectRequest, DownloadPeerFileRequest, GetPeerProfileRequest, ListConversationsRequest, ListDiscoveriesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, OutboxCancelRequest, SendChatRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
-import { readDiscoveryPost, readDownloadedAgentCard, readJourney, readOwnPublic, } from './local-data.js';
+import { ConnectRequest, DhtStatusRequest, DeletePublicDraftRequest, DownloadPeerFileRequest, GetPublicDraftAssetRequest, GetPublicDraftRequest, GetPeerManifestRequest, GetPeerFriendsRequest, ListPublicDraftsRequest, PublishedRequest, GetPeerProfileRequest, ImportPublicPostRequest, PublishPublicDraftRequest, PutPublicDraftImageRequest, SavePublicDraftRequest, ListConversationsRequest, ListDiscoveriesRequest, ListFavoritesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, MarkConversationReadRequest, OutboxCancelRequest, PublicPublishStatus, SendChatRequest, SetFavoriteRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
+import { MAX_CONTACT_PROJECTION_AVATAR_BYTES, MAX_CONTACT_PROJECTION_CLUES, MAX_CONTACT_PROJECTION_PROFILES, MAX_MINE_FILES, MAX_MINE_HASH_BYTES, MAX_POST_BYTES, downloadedFileInfo, hashDownloadedFile, hashPublicFile, isVersionedPostPath, isV2PostPath, isPostImagePublicPath, parsePublicPost, postImagePublicPath, readDiscoveryFile, readDiscoveryPost, readDownloadedAgentCard, readDownloadedFile, readDownloadedProfile, readContactProjection, readContactNotes, readDownloadedProfileName, readJourney, readOwnPublic, saveContactImpression, savePrivateAgentFile, writeContactProjection, readPublicFile, LocalDataError, } from './local-data.js';
+import { MAX_HTML_SOURCE, MAX_MEDIA_PREVIEW, MAX_ZIP_ARCHIVE, PublicFileError, buildFilePreview, buildHtmlFilePreview, buildZipFilePreview, fileTypeOf, firstMarkdownHeading, titleFallback, } from './public-files.js';
 import { subscribeEvents, } from './events.js';
 import { UI_INVOCATIONS, UI_SERVICE_KEY } from './ui-typert.js';
+import { readJourneySummary, } from './activity.js';
 const STATUS_TTL_MS = 1500;
 const STATUS_FRESH_MS = 10_000;
 const CONTACTS_TTL_MS = 4000;
@@ -55,15 +59,230 @@ const MAX_DISCOVERY_PARSE = 200;
 const MAX_HUMAN_RELATION_SCAN = 10_000;
 const HUMAN_RELATION_PAGE_LIMIT = 500;
 const PROFILE_TTL_MS = 30_000;
+// Local manifest decoration hashes only a bounded set of small copies; larger
+// copies stay honestly labelled unverified until an explicit read/reveal.
+const MAX_MANIFEST_HASH_FILE = 8 * 1024 * 1024;
+const MAX_MANIFEST_HASH_TOTAL = 48 * 1024 * 1024;
+// Explicit preview/reveal must verify the complete requested version. The
+// daemon publishes at most 100 MiB per file, so this covers a local original.
+const MAX_LOCAL_COPY_HASH = 128 * 1024 * 1024;
 const JOURNEY_TTL_MS = 15_000;
 const MINE_TTL_MS = 15_000;
 const MAX_MESSAGE_LOCATE_PAGES = 20;
 const MESSAGE_LOCATE_LIMIT = 200;
+// Contact memory reads one bounded latest page. Older facts stay in daemon
+// history, but the interaction timeline never pretends to be complete.
+const CONTACT_MEMORY_MESSAGE_LIMIT = 100;
+const CONTACT_MEMORY_MAX_ITEMS = 200;
+function postImagesFromPost(post, postPath, entries) {
+    const byPath = new Map((entries ?? []).map((entry) => [entry.path, entry]));
+    return post.images.map((image) => {
+        const publicPath = postImagePublicPath(postPath, image.path);
+        const entry = entries === undefined ? undefined : byPath.get(publicPath);
+        let manifestState = entries === undefined ? 'unknown' : 'missing';
+        if (entry) {
+            manifestState = entry.sha256.toLowerCase() === image.sha256 && entry.sizeBytes === image.sizeBytes
+                ? 'available'
+                : 'mismatch';
+        }
+        return {
+            path: image.path,
+            publicPath,
+            sha256: image.sha256,
+            mime: image.mime,
+            width: image.width,
+            height: image.height,
+            sizeBytes: image.sizeBytes,
+            manifestState,
+        };
+    });
+}
+/**
+ * Return a usable address for the target peer, or '' when the address cannot
+ * be proven to belong to it. Multiaddr components matter: a relay address
+ * ends with /p2p/<relay>/p2p-circuit and still needs the target peer appended,
+ * while a conflicting trailing /p2p/<other> must never be presented as the
+ * requested target's address.
+ */
+function withPeerSuffix(raw, peerId) {
+    const value = String(raw ?? '').trim();
+    if (value.length === 0 || peerId.length === 0)
+        return '';
+    let parsed;
+    try {
+        parsed = multiaddr(value);
+    }
+    catch {
+        return '';
+    }
+    const components = parsed.getComponents();
+    const circuitIndex = components.findIndex((component) => component.name === 'p2p-circuit');
+    const peerIndexes = components
+        .map((component, index) => ({ component, index }))
+        .filter((entry) => entry.component.name === 'p2p');
+    const targetPeer = (component) => {
+        const rawValue = component.value;
+        return typeof rawValue === 'string' ? (canonicalPeerId(rawValue) ?? '') : '';
+    };
+    if (circuitIndex >= 0) {
+        const after = peerIndexes.filter((entry) => entry.index > circuitIndex);
+        if (after.length > 1)
+            return '';
+        if (after.length === 1) {
+            const entry = after[0];
+            if (entry.index !== components.length - 1)
+                return '';
+            return targetPeer(entry.component) === peerId ? parsed.toString() : '';
+        }
+        // The relay's own /p2p component precedes p2p-circuit. Any other
+        // component after the circuit is not a target peer, so refuse to append.
+        if (circuitIndex !== components.length - 1)
+            return '';
+        try {
+            return parsed.encapsulate(multiaddr(`/p2p/${peerId}`)).toString();
+        }
+        catch {
+            return '';
+        }
+    }
+    const after = peerIndexes;
+    if (after.length > 1)
+        return '';
+    if (after.length === 1) {
+        const entry = after[0];
+        if (entry.index !== components.length - 1)
+            return '';
+        return targetPeer(entry.component) === peerId ? parsed.toString() : '';
+    }
+    try {
+        return parsed.encapsulate(multiaddr(`/p2p/${peerId}`)).toString();
+    }
+    catch {
+        return '';
+    }
+}
 function shortPeer(value) {
     return value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value;
 }
+function validSha256(value) {
+    return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : '';
+}
+function plainTextSummary(value) {
+    const text = String(value ?? '')
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/[#>*_`[\]()]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return text.length > 180 ? `${text.slice(0, 180)}…` : text;
+}
+function draftImageFromProto(raw) {
+    if (raw === undefined)
+        return null;
+    return {
+        assetId: String(raw.assetId ?? ''),
+        sha256: String(raw.sha256 ?? '').toLowerCase(),
+        mime: String(raw.mime ?? ''),
+        width: numberOf(raw.width),
+        height: numberOf(raw.height),
+        sizeBytes: numberOf(raw.sizeBytes),
+    };
+}
+function draftFromProto(raw) {
+    return {
+        draftId: String(raw.draftId ?? ''),
+        kind: String(raw.kind ?? ''),
+        revision: numberOf(raw.revision),
+        agentName: String(raw.agentName ?? ''),
+        agentDescription: String(raw.agentDescription ?? ''),
+        agentInterests: (raw.agentInterests ?? []).map((value) => String(value)),
+        agentConversationStyle: String(raw.agentConversationStyle ?? ''),
+        humanName: String(raw.humanName ?? ''),
+        humanBioMarkdown: String(raw.humanBioMarkdown ?? ''),
+        avatar: draftImageFromProto(raw.avatar),
+        title: String(raw.title ?? ''),
+        bodyMarkdown: String(raw.bodyMarkdown ?? ''),
+        tags: (raw.tags ?? []).map((value) => String(value)),
+        images: (raw.images ?? []).map((value) => draftImageFromProto(value)).filter((value) => value !== null),
+        publishedPath: String(raw.publishedPath ?? ''),
+        publishedSha256: String(raw.publishedSha256 ?? '').toLowerCase(),
+        publishedRevision: numberOf(raw.publishedRevision),
+        createdAtUnixMs: numberOf(raw.createdAtUnixMs),
+        updatedAtUnixMs: numberOf(raw.updatedAtUnixMs),
+        authorKind: String(raw.authorKind ?? ''),
+    };
+}
+function publishStatusFromProto(value) {
+    switch (value) {
+        case PublicPublishStatus.PUBLISHED: return 'published';
+        case PublicPublishStatus.ALREADY_PUBLISHED: return 'already_published';
+        case PublicPublishStatus.CONFLICT: return 'conflict';
+        case PublicPublishStatus.INVALID: return 'invalid';
+        case PublicPublishStatus.PARTIAL: return 'partial';
+        default: return 'unspecified';
+    }
+}
+function parsePostBytes(data, postPath, peerId) {
+    return parsePublicPost(data, postPath, peerId);
+}
+function previewStatusForError(message) {
+    if (/大小|哈希/.test(message))
+        return 'hash-mismatch';
+    if (/不存在/.test(message))
+        return 'copy-missing';
+    if (/超过.*上限|too large/i.test(message))
+        return 'unsupported';
+    return 'error';
+}
+function maxPreviewRead(kind) {
+    switch (kind) {
+        case 'markdown':
+        case 'text':
+        case 'code':
+        case 'json':
+            return 2 * 1024 * 1024;
+        case 'html':
+            return MAX_HTML_SOURCE;
+        case 'zip':
+            return MAX_ZIP_ARCHIVE;
+        case 'image':
+        case 'audio':
+        case 'video':
+            return MAX_MEDIA_PREVIEW;
+        default:
+            return 1;
+    }
+}
+/** P2 only publishes PNG/JPEG post images. Verify the bytes actually match the
+ * content-addressed extension before the browser receives a data URL. */
+function postImageBytesError(filePath, data) {
+    if (!isPostImagePublicPath(filePath))
+        return '';
+    const png = data.length >= 8
+        && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47
+        && data[4] === 0x0d && data[5] === 0x0a && data[6] === 0x1a && data[7] === 0x0a;
+    const jpeg = data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+    const expected = filePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    if ((expected === 'image/png' && !png) || (expected === 'image/jpeg' && !jpeg)) {
+        return `图片字节与 ${filePath} 的 ${expected} 类型不一致，已拒绝展示`;
+    }
+    return '';
+}
+function emptyEvidenceRefs() {
+    return { sessionIds: [], eventIds: [], messageIds: [], contentPaths: [], contentSha256: [] };
+}
+function redactActivityReadError(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return message
+        .replace(/\/(?:Users|home|root|private|var|tmp|etc|opt|Volumes)\/[^\s"')]+/g, '[本地路径已隐去]')
+        .replace(/[A-Za-z]:\\[^\s"']+/g, '[本地路径已隐去]')
+        .slice(0, 240);
+}
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
+}
+function uncertaintyLabel(value) {
+    return value === 'low' ? '低' : value === 'medium' ? '中' : value === 'high' ? '高' : '';
 }
 function atOf(value) {
     const number = Number(value);
@@ -289,6 +508,7 @@ function toUiFriend(friend, status, connectionFresh) {
         connections: links.length,
         directConnections: links.filter((connection) => connection.route === 'direct').length,
         relayConnections: links.filter((connection) => connection.route === 'relay').length,
+        unreadCount: numberOf(friend.unreadCount),
     };
 }
 function toUiStatus(status) {
@@ -318,6 +538,13 @@ function toUiStatus(status) {
             transport: peer.transport,
             route: peer.route,
             addrs: [...peer.addrs],
+        })),
+        peerCache: (status.network?.peerCache ?? []).map((peer) => ({
+            peerId: peer.peerId,
+            addrs: [...peer.addrs],
+            source: peer.source,
+            updatedAt: numberOf(peer.updatedAtUnixMs),
+            expiresAt: numberOf(peer.expiresAtUnixMs),
         })),
         relays: (status.network?.relays ?? []).map((relay) => ({
             relayPeerId: relay.relayPeerId,
@@ -414,6 +641,45 @@ export function mapDaemonEvent(raw) {
     }
     return { id, kind: 'unknown', atUnixMs, summary: '未识别的 daemon 事件' };
 }
+function contactJourneySource(event) {
+    const type = String(event.type ?? '').toLowerCase();
+    if (type === 'visit_completed')
+        return { sourceKind: 'visit', source: '实际访问 · Journey 记录' };
+    if (type === 'visit_started')
+        return { sourceKind: 'visit', source: '访问开始 · Journey 记录' };
+    if (type === 'content_read')
+        return { sourceKind: 'visit', source: '读取公开内容 · Journey 记录' };
+    if (type === 'message_sent' || type === 'message_received') {
+        return { sourceKind: 'journeyEvent', source: 'Journey 记录 · 消息动作（不是聊天正文）' };
+    }
+    if (type === 'reply_timeout')
+        return { sourceKind: 'journeyEvent', source: 'Journey 记录 · 回复等待记录' };
+    if (type === 'candidate_selected' || type === 'candidates_presented' || type === 'peer_skipped') {
+        return event.sourcePeerId
+            ? { sourceKind: 'publicClue', source: '公开线索 · 来源节点公开通讯录中的声明（未自动访问或联系）' }
+            : { sourceKind: 'journeyEvent', source: 'Journey 记录 · 线索选择（未自动建立联系）' };
+    }
+    return { sourceKind: 'journeyEvent', source: 'Journey 记录' };
+}
+/** Pull one human-readable line from a Journey report without copying it. */
+function journeyReportLine(markdown) {
+    for (const line of String(markdown ?? '').split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0 || trimmed.startsWith('#'))
+            continue;
+        const plain = trimmed
+            .replace(/^[-*]\s*/, '')
+            .replace(/[*_`>#]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (plain.length < 4)
+            continue;
+        if (/^(session id|started at|completed at|status|user intent)\b/i.test(plain))
+            continue;
+        return plain.slice(0, 240);
+    }
+    return '';
+}
 export class RamingaUiBridge {
     api;
     service;
@@ -430,7 +696,12 @@ export class RamingaUiBridge {
     messagesTtlMs;
     messagesFreshMs;
     dataDir;
-    postCache = new Map();
+    publisherNameCache = new Map();
+    // Serialize host-owned projection updates so two profile/directory reads
+    // cannot lose each other's entries. The file itself is written atomically.
+    contactProjectionQueue = Promise.resolve();
+    revealPath;
+    activityStore;
     connectTimeoutMs;
     reconcileDelayMs;
     streamReadyTimeoutMs;
@@ -500,6 +771,8 @@ export class RamingaUiBridge {
         this.messagesTtlMs = options.messagesTtlMs ?? MESSAGES_TTL_MS;
         this.messagesFreshMs = options.messagesFreshMs ?? MESSAGES_FRESH_MS;
         this.dataDir = options.dataDir ?? this.api.config?.dataDir ?? '';
+        this.revealPath = options.revealPath;
+        this.activityStore = options.activity ?? null;
         this.connectTimeoutMs = options.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
         this.reconcileDelayMs = options.reconcileDelayMs ?? CONNECTION_RECONCILE_DELAY_MS;
         this.streamReadyTimeoutMs = options.streamReadyTimeoutMs ?? STREAM_READY_TIMEOUT_MS;
@@ -520,14 +793,41 @@ export class RamingaUiBridge {
             share: (sessionId) => this.share(sessionId),
             conversations: (sessionId, force) => this.conversations(sessionId, force === true),
             messages: (sessionId, peerId, before, force) => this.messages(sessionId, peerId, before ?? '', force === true),
+            markRead: (sessionId, peerId, throughMessageId) => this.markRead(sessionId, peerId, throughMessageId),
+            favorites: (sessionId, before, force) => this.favorites(sessionId, before ?? '', force === true),
+            setFavorite: (sessionId, peerId, publicPath, sha256, title, favorite) => this.setFavorite(sessionId, peerId, publicPath, sha256, title, favorite),
+            peerDiscoveries: (sessionId, peerId, force) => this.peerDiscoveries(sessionId, peerId, force === true),
+            contactMemory: (sessionId, peerId) => this.contactMemory(sessionId, peerId),
+            saveContactImpression: (sessionId, input) => this.saveContactImpression(sessionId, input),
             send: (sessionId, peerId, text, requestId) => this.send(sessionId, peerId, text, requestId),
             cancelOutbox: (sessionId, messageId) => this.cancelOutbox(sessionId, messageId),
             discoveries: (sessionId, familiar, force) => this.discoveries(sessionId, familiar === true, force === true),
             discoveryContent: (sessionId, id) => this.discoveryContent(sessionId, id),
             humanOutbound: (sessionId, force) => this.humanOutbound(sessionId, force === true),
             mine: (sessionId, force) => this.mine(sessionId, force === true),
+            mineFilePreview: (sessionId, filePath, expectedSha, expectedSize) => this.mineFilePreview(sessionId, filePath, expectedSha, expectedSize),
             peerProfile: (sessionId, peerId, force) => this.peerProfile(sessionId, peerId, force === true),
+            peerFriends: (sessionId, peerId, force) => this.peerFriends(sessionId, peerId, force === true),
+            contactProjection: (sessionId) => this.contactProjection(sessionId),
+            peerManifest: (sessionId, peerId, force) => this.peerManifest(sessionId, peerId, force === true),
+            peerFilePreview: (sessionId, peerId, filePath, expectedSha, expectedSize) => this.peerFilePreview(sessionId, peerId, filePath, expectedSha, expectedSize),
+            peerPostMeta: (sessionId, peerId, filePath, expectedSha, expectedSize) => this.peerPostMeta(sessionId, peerId, filePath, expectedSha, expectedSize),
+            peerNodeInfo: (sessionId, peerId, force) => this.peerNodeInfo(sessionId, peerId, force === true),
+            revealDiscovery: (sessionId, id) => this.revealDiscovery(sessionId, id),
+            revealFile: (sessionId, subject, peerId, filePath, expectedSha, expectedSize) => this.revealFile(sessionId, subject, peerId, filePath, expectedSha, expectedSize),
+            bootstrap: (sessionId) => this.bootstrap(sessionId),
             journey: (sessionId, force) => this.journey(sessionId, force === true),
+            activity: (sessionId, limit) => this.activity(sessionId, limit),
+            activityDetail: (operationId) => this.activityDetail(operationId),
+            savePrivateAgent: (sessionId, field, content, expectedSha256) => this.savePrivateAgent(sessionId, field, content, expectedSha256),
+            publicDraft: (sessionId, draftId) => this.publicDraft(sessionId, draftId),
+            publicDrafts: (sessionId, kind) => this.publicDrafts(sessionId, kind),
+            savePublicDraft: (sessionId, input) => this.savePublicDraft(sessionId, input),
+            putPublicDraftImage: (sessionId, draftId, role, filename, dataBase64) => this.putPublicDraftImage(sessionId, draftId, role, filename, dataBase64),
+            publicDraftAsset: (sessionId, draftId, assetId) => this.publicDraftAsset(sessionId, draftId, assetId),
+            importPublicPost: (sessionId, publicPath) => this.importPublicPost(sessionId, publicPath),
+            deletePublicDraft: (sessionId, draftId, expectedRevision) => this.deletePublicDraft(sessionId, draftId, expectedRevision),
+            publishPublicDraft: (sessionId, draftId, expectedRevision, expectedPublishedSha256) => this.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256),
             locateMessage: (sessionId, peerId, messageId) => this.locateMessage(sessionId, peerId, messageId),
             getStats: () => this.getStats(),
         };
@@ -568,7 +868,7 @@ export class RamingaUiBridge {
                 friendsStreamEpoch: -1,
                 friendsError: null,
                 friendsErrorAt: 0,
-                conversations: { items: [], at: 0, error: null, errorAt: 0, streamEpoch: -1, retention: null },
+                conversations: { items: [], at: 0, error: null, errorAt: 0, streamEpoch: -1, retention: null, totalUnread: 0 },
                 messages: new Map(),
                 conversationsBusy: null,
                 messagesBusy: new Map(),
@@ -580,11 +880,16 @@ export class RamingaUiBridge {
                 mineBusy: null,
                 peerProfiles: new Map(),
                 peerProfileBusy: new Map(),
+                peerManifests: new Map(),
+                peerManifestBusy: new Map(),
                 journey: { data: null, at: 0, errorAt: 0 },
                 journeyBusy: null,
             };
             this.sessions.set(id, session);
             this.stats.sessionsOpened += 1;
+            // Lease only labels tool calls with the panel that was present. It never
+            // controls an operation's terminal state.
+            this.activityStore?.attachPanelSession(id);
         }
         session.lastPollAt = this.now();
         try {
@@ -909,12 +1214,16 @@ export class RamingaUiBridge {
                     deliveryStatus: String(row.deliveryStatus ?? 'unknown'),
                     origin: String(row.origin ?? 'unknown'),
                     messageCount: numberOf(row.messageCount),
+                    unreadCount: numberOf(row.unreadCount),
+                    lastReadMessageId: String(row.lastReadMessageId ?? ''),
+                    lastReadAt: numberOf(row.lastReadAtUnixMs),
                 }));
                 state.at = at;
                 state.error = null;
                 state.errorAt = 0;
                 state.streamEpoch = streamEpoch;
                 state.retention = toUiRetention(response.retention);
+                state.totalUnread = numberOf(response.totalUnread);
                 this.stats.conversationsReads += 1;
             }
             catch (error) {
@@ -1039,6 +1348,430 @@ export class RamingaUiBridge {
                 hasMore: false,
                 nextBefore: '',
                 retention: null,
+            };
+        }
+    }
+    /**
+     * Advance the human read cursor after the UI proves the conversation is
+     * visible, focused and at the latest page. This is the only browser method
+     * that writes read state; message/list reads never do.
+     */
+    async markRead(sessionId, peerId, throughMessageId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            throw new Error('Peer ID 格式不正确。');
+        const messageId = typeof throughMessageId === 'string' ? throughMessageId.trim() : '';
+        if (messageId.length === 0)
+            throw new Error('没有可标记为已读的消息。');
+        await this.ensureReady();
+        const response = await this.api.call((client) => client.markConversationRead(new MarkConversationReadRequest({ peerId: canonical, throughMessageId: messageId }), { timeoutMs: 5000 }), '标记会话已读');
+        this.assertSessionActive(session);
+        const state = session.conversations;
+        const row = state.items.find((item) => item.peerId === canonical);
+        if (row) {
+            const previous = row.unreadCount;
+            row.unreadCount = numberOf(response.unreadCount);
+            row.lastReadMessageId = String(response.lastReadMessageId ?? messageId);
+            row.lastReadAt = numberOf(response.lastReadAtUnixMs);
+            state.totalUnread = Math.max(0, state.totalUnread - previous + row.unreadCount);
+        }
+        const friend = session.friends.find((item) => canonicalPeerId(item.peerId) === canonical);
+        if (friend)
+            friend.unreadCount = numberOf(response.unreadCount);
+        return {
+            peerId: canonical,
+            lastReadMessageId: String(response.lastReadMessageId ?? messageId),
+            lastReadAt: numberOf(response.lastReadAtUnixMs),
+            unreadCount: numberOf(response.unreadCount),
+        };
+    }
+    /** Read private public-post bookmarks newest first; no message/contact kind. */
+    async favorites(sessionId, before = '', _force = false) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const at = this.now();
+        try {
+            await this.ensureReady();
+            const response = await this.api.call((client) => client.listFavorites(new ListFavoritesRequest({ before: typeof before === 'string' ? before : '', limit: 50 }), { timeoutMs: 4000 }), '读取收藏的动态');
+            this.assertSessionActive(session);
+            return {
+                favorites: (response.favorites ?? []).map((row) => ({
+                    id: String(row.id ?? ''),
+                    peerId: String(row.peerId ?? ''),
+                    path: String(row.path ?? ''),
+                    sha256: String(row.sha256 ?? '').toLowerCase(),
+                    title: String(row.title ?? ''),
+                    createdAt: numberOf(row.createdAtUnixMs),
+                    available: row.available === true,
+                    local: String(row.peerId ?? '') === String(session.status?.peerId ?? ''),
+                })),
+                at,
+                error: null,
+                errorAt: null,
+                freshness: this.listFreshness(at, null, true, this.streamEpoch, DISCOVERY_FRESH_MS),
+                hasMore: response.hasMore === true,
+                nextBefore: String(response.nextBefore ?? ''),
+                total: 0,
+            };
+        }
+        catch (error) {
+            return {
+                favorites: [], at: null, error: errorMessage(error), errorAt: this.now(),
+                freshness: 'unavailable', hasMore: false, nextBefore: '', total: 0,
+            };
+        }
+    }
+    /** Idempotently save or clear one public-post bookmark. */
+    async setFavorite(sessionId, peerId, publicPath, sha256, title, favorite) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            throw new Error('Peer ID 格式不正确。');
+        const digest = validSha256(sha256);
+        if (digest === '')
+            throw new Error('内容 SHA-256 格式无效。');
+        await this.ensureReady();
+        const response = await this.api.call((client) => client.setFavorite(new SetFavoriteRequest({
+            peerId: canonical,
+            path: typeof publicPath === 'string' ? publicPath : '',
+            sha256: digest,
+            title: typeof title === 'string' ? title.slice(0, 200) : '',
+            favorite: favorite === true,
+        }), { timeoutMs: 5000 }), favorite ? '收藏动态' : '取消收藏动态');
+        this.assertSessionActive(session);
+        const item = response.item
+            ? {
+                id: String(response.item.id ?? ''),
+                peerId: String(response.item.peerId ?? ''),
+                path: String(response.item.path ?? ''),
+                sha256: String(response.item.sha256 ?? '').toLowerCase(),
+                title: String(response.item.title ?? ''),
+                createdAt: numberOf(response.item.createdAtUnixMs),
+                available: response.item.available === true,
+                local: String(response.item.peerId ?? '') === String(session.status?.peerId ?? ''),
+            }
+            : null;
+        return { favorite: response.favorite === true, item };
+    }
+    /** Local discovery copies authored by one Peer, never a current manifest. */
+    async peerDiscoveries(sessionId, peerId, _force = false) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            throw new Error('Peer ID 格式不正确。');
+        const at = this.now();
+        try {
+            if (this.dataDir.length === 0)
+                throw new Error('宿主没有提供受控数据目录，无法核对公开内容来源');
+            await this.ensureReady();
+            const rows = [];
+            let before = '';
+            let truncated = false;
+            for (let pageIndex = 0; pageIndex < 10 && rows.length < MAX_DISCOVERY_SCAN; pageIndex += 1) {
+                const response = await this.api.call((client) => client.listDiscoveries(new ListDiscoveriesRequest({ peerId: canonical, limit: DISCOVERY_PAGE_LIMIT, before }), { timeoutMs: 4000 }), '读取联系人的本地公开动态');
+                for (const row of response.discoveries ?? []) {
+                    const source = String(row.source ?? '');
+                    const sources = (row.sources ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
+                    rows.push({
+                        id: String(row.id ?? ''),
+                        peerId: String(row.peerId ?? ''),
+                        path: String(row.path ?? ''),
+                        sha256: String(row.sha256 ?? ''),
+                        sizeBytes: numberOf(row.sizeBytes),
+                        fetchedAt: numberOf(row.fetchedAtUnixMs),
+                        source,
+                        sources: sources.length > 0 ? sources : (source.length > 0 ? [source] : []),
+                    });
+                }
+                if (response.hasMore !== true)
+                    break;
+                const next = String(response.nextBefore ?? '');
+                if (next.length === 0 || next === before)
+                    throw new Error('公开内容索引分页游标没有前进，无法确认已完整读取');
+                before = next;
+                if (pageIndex === 9)
+                    truncated = true;
+            }
+            const postRows = rows.filter((row) => isVersionedPostPath(row.path));
+            const toParse = postRows.slice(0, MAX_DISCOVERY_PARSE);
+            if (postRows.length > toParse.length)
+                truncated = true;
+            const names = await this.resolvePublisherNames([canonical]);
+            const budget = { reads: 0, bytes: 0 };
+            const items = [];
+            let ignored = rows.length - postRows.length;
+            for (const row of toParse) {
+                const item = await this.discoveryItem(row, names.get(canonical) ?? '', budget);
+                if (item === null)
+                    ignored += 1;
+                else
+                    items.push(item);
+            }
+            this.assertSessionActive(session);
+            return {
+                peerId: canonical,
+                items,
+                at,
+                error: null,
+                errorAt: null,
+                freshness: this.listFreshness(at, null, items.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
+                familiar: false,
+                scanned: rows.length,
+                truncated,
+                relationComplete: true,
+                ignored,
+            };
+        }
+        catch (error) {
+            return {
+                peerId: canonical, items: [], at: null, error: errorMessage(error), errorAt: this.now(),
+                freshness: 'unavailable', familiar: false, scanned: 0, truncated: false, relationComplete: false, ignored: 0,
+            };
+        }
+    }
+    /**
+     * Merge private contact memory with real evidence. Messages and Journey
+     * events are facts; contact-notes entries stay private local claims. Nothing
+     * here writes the read cursor or sends data to a peer.
+     */
+    async contactMemory(sessionId, peerId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            throw new Error('Peer ID 格式不正确。');
+        return this.buildContactMemory(session, canonical);
+    }
+    async buildContactMemory(session, peerId) {
+        const at = this.now();
+        const items = [];
+        let truncated = false;
+        let notes = null;
+        let notesError = '';
+        try {
+            notes = await readContactNotes(this.dataDir);
+            if (notes.state === 'error')
+                notesError = notes.error;
+        }
+        catch (error) {
+            notesError = errorMessage(error);
+        }
+        try {
+            await this.ensureReady();
+            const response = await this.api.call((client) => client.listMessages(new ListMessagesRequest({ peerId, limit: CONTACT_MEMORY_MESSAGE_LIMIT }), { timeoutMs: 4000 }), '读取交互消息');
+            if (response.hasMore === true)
+                truncated = true;
+            for (const raw of response.messages ?? []) {
+                const message = toUiMessage(raw);
+                const direction = message.direction === 'in' ? 'in' : 'out';
+                const origin = direction === 'in' ? 'unknown' : message.origin;
+                const source = direction === 'in'
+                    ? '对方消息'
+                    : origin === 'human' ? '本人消息' : origin === 'agent' ? 'Agent 消息' : '来源未知的发出消息';
+                items.push({
+                    id: `message:${message.messageId}`,
+                    kind: 'message',
+                    at: message.createdAt,
+                    summary: message.text.slice(0, 240),
+                    body: message.text,
+                    source,
+                    sourceKind: 'message',
+                    eventType: 'message',
+                    private: true,
+                    evidence: { ...emptyEvidenceRefs(), messageIds: [message.messageId] },
+                    direction,
+                    origin,
+                });
+            }
+        }
+        catch (error) {
+            notesError = notesError || errorMessage(error);
+        }
+        try {
+            const journey = await readJourney(this.dataDir);
+            if (journey.sessionsTruncated)
+                truncated = true;
+            for (const sessionData of journey.sessions) {
+                let sessionRelated = false;
+                for (const event of sessionData.events) {
+                    const related = event.peerId === peerId
+                        || event.sourcePeerId === peerId
+                        || event.messageEvidence?.peerId === peerId;
+                    if (!related)
+                        continue;
+                    sessionRelated = true;
+                    const eventAt = Date.parse(event.timestamp);
+                    if (!Number.isFinite(eventAt) || eventAt <= 0)
+                        continue;
+                    const eventId = `${sessionData.id}:${event.sequence}`;
+                    const meta = contactJourneySource(event);
+                    items.push({
+                        id: `journey:${eventId}`,
+                        kind: 'journey',
+                        at: eventAt,
+                        summary: event.summary || event.type,
+                        body: event.summary || event.type,
+                        source: meta.source,
+                        sourceKind: meta.sourceKind,
+                        eventType: event.type,
+                        sourcePeerId: event.sourcePeerId,
+                        subjectPeerId: event.peerId,
+                        private: true,
+                        evidence: {
+                            sessionIds: [sessionData.id],
+                            eventIds: [eventId],
+                            messageIds: [...event.messageIds],
+                            contentPaths: [...event.contentPaths],
+                            contentSha256: [],
+                        },
+                        direction: '',
+                        origin: '',
+                    });
+                }
+                const visited = Array.isArray(sessionData.state?.visitedPeerIds)
+                    && sessionData.state.visitedPeerIds.includes(peerId);
+                const current = sessionData.state?.currentPeerId === peerId;
+                if (!sessionRelated && !visited && !current)
+                    continue;
+                if (sessionData.reportRead !== 'available' || sessionData.reportMarkdown.trim().length === 0)
+                    continue;
+                const reportAt = Date.parse(sessionData.state?.completedAt || sessionData.state?.updatedAt || sessionData.state?.startedAt || '');
+                const at = Number.isFinite(reportAt) && reportAt > 0 ? reportAt : 0;
+                const line = journeyReportLine(sessionData.reportMarkdown);
+                items.push({
+                    id: `journey-report:${sessionData.id}`,
+                    kind: 'journey',
+                    at,
+                    summary: line || '本次漫游报告（摘要）',
+                    body: '',
+                    source: 'Journey 报告 · 摘要（原文在漫游详情）',
+                    sourceKind: 'journeyReport',
+                    eventType: 'report',
+                    private: true,
+                    evidence: {
+                        ...emptyEvidenceRefs(),
+                        sessionIds: [sessionData.id],
+                    },
+                    direction: '',
+                    origin: '',
+                });
+            }
+        }
+        catch (error) {
+            notesError = notesError || errorMessage(error);
+        }
+        const contact = notes?.contacts.find((item) => item.peerId === peerId) ?? null;
+        if (contact) {
+            for (const observation of contact.observations) {
+                const observed = Date.parse(observation.observedAt);
+                if (!Number.isFinite(observed) || observed <= 0)
+                    continue;
+                items.push({
+                    id: `observation:${observation.id}`,
+                    kind: 'observation',
+                    at: observed,
+                    summary: observation.summary,
+                    body: observation.summary,
+                    source: '私有观察 · contact-notes',
+                    eventType: 'observation',
+                    private: true,
+                    evidence: { ...observation.evidenceRefs },
+                    direction: '',
+                    origin: '',
+                });
+            }
+            for (const impression of contact.impressions) {
+                const stamped = Date.parse(impression.updatedAt || impression.createdAt);
+                if (!Number.isFinite(stamped) || stamped <= 0)
+                    continue;
+                items.push({
+                    id: `impression:${impression.id}`,
+                    kind: 'impression',
+                    at: stamped,
+                    summary: impression.summary,
+                    body: impression.summary,
+                    source: `私有印象${impression.uncertainty ? ` · 确定性 ${uncertaintyLabel(impression.uncertainty) || impression.uncertainty}` : ''}`,
+                    eventType: 'impression',
+                    private: true,
+                    evidence: { ...impression.evidenceRefs },
+                    direction: '',
+                    origin: '',
+                });
+            }
+            for (const curiosity of contact.curiosities) {
+                const stamped = Date.parse(curiosity.createdAt);
+                if (!Number.isFinite(stamped) || stamped <= 0)
+                    continue;
+                items.push({
+                    id: `curiosity:${curiosity.id}`,
+                    kind: 'curiosity',
+                    at: stamped,
+                    summary: curiosity.question,
+                    body: curiosity.question,
+                    source: '私有好奇 · contact-notes',
+                    eventType: 'curiosity',
+                    private: true,
+                    evidence: { ...curiosity.evidenceRefs },
+                    direction: '',
+                    origin: '',
+                });
+            }
+        }
+        items.sort((left, right) => right.at - left.at || left.id.localeCompare(right.id));
+        if (items.length > CONTACT_MEMORY_MAX_ITEMS) {
+            truncated = true;
+            items.length = CONTACT_MEMORY_MAX_ITEMS;
+        }
+        const state = notesError ? 'error' : notes === null || notes.state === 'missing' ? 'missing' : 'available';
+        return {
+            peerId,
+            state,
+            sha256: notes?.sha256 ?? '',
+            schemaVersion: notes?.schemaVersion ?? 0,
+            contact,
+            timeline: items,
+            timelineTruncated: truncated,
+            error: notesError,
+            at,
+        };
+    }
+    /** Save one private impression atomically; never writes public data. */
+    async saveContactImpression(sessionId, input) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        try {
+            const saved = await saveContactImpression(this.dataDir, input);
+            const memory = await this.buildContactMemory(session, saved.contact.peerId);
+            return {
+                saved: true,
+                conflict: false,
+                sha256: saved.sha256,
+                savedAt: saved.savedAt,
+                contact: saved.contact,
+                memory,
+                error: '',
+            };
+        }
+        catch (error) {
+            const conflict = error instanceof LocalDataError && error.code === 'conflict';
+            return {
+                saved: false,
+                conflict,
+                sha256: '',
+                savedAt: 0,
+                contact: null,
+                memory: null,
+                error: errorMessage(error),
             };
         }
     }
@@ -1226,13 +1959,20 @@ export class RamingaUiBridge {
                 let pages = 0;
                 while (rows.length < MAX_DISCOVERY_SCAN && pages < 50) {
                     pages += 1;
-                    const response = await this.api.call((client) => client.listDiscoveries(new ListDiscoveriesRequest({ limit: DISCOVERY_PAGE_LIMIT, before }), { timeoutMs: 4000 }), '读取公开内容索引');
+                    const response = await this.api.call((client) => client.listDiscoveries(new ListDiscoveriesRequest({
+                        limit: DISCOVERY_PAGE_LIMIT,
+                        before,
+                        familiarOnly: familiar,
+                        postCandidatesOnly: true,
+                    }), { timeoutMs: 4000 }), '读取公开内容索引');
                     const page = response.discoveries ?? [];
                     for (const row of page) {
                         if (rows.length >= MAX_DISCOVERY_SCAN) {
                             truncated = true;
                             break;
                         }
+                        const source = String(row.source ?? '');
+                        const sources = (row.sources ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
                         rows.push({
                             id: String(row.id ?? ''),
                             peerId: String(row.peerId ?? ''),
@@ -1240,11 +1980,14 @@ export class RamingaUiBridge {
                             sha256: String(row.sha256 ?? ''),
                             sizeBytes: numberOf(row.sizeBytes),
                             fetchedAt: numberOf(row.fetchedAtUnixMs),
-                            source: String(row.source ?? ''),
+                            source,
+                            sources: sources.length > 0 ? sources : (source.length > 0 ? [source] : []),
                         });
                     }
-                    if (response.hasMore !== true)
+                    if (response.hasMore !== true) {
+                        before = '';
                         break;
+                    }
                     const next = String(response.nextBefore ?? '');
                     if (next.length === 0 || next === before)
                         throw new Error('公开内容索引分页游标没有前进，无法确认已完整读取');
@@ -1258,41 +2001,31 @@ export class RamingaUiBridge {
                     // The daemon still had more pages when the bounded page loop ended.
                     truncated = true;
                 }
-                const matched = familiar ? rows.filter((row) => relation.peers.has(row.peerId)) : rows;
-                const items = [];
-                let ignored = 0;
-                const toParse = matched.slice(0, MAX_DISCOVERY_PARSE);
-                if (matched.length > toParse.length)
+                // The daemon owns the “有过交流” definition: it includes a durable
+                // human relation or a retained real Agent outbound row. Do not re-filter
+                // by the human-only relation client-side, or Agent conversations would
+                // silently disappear from the familiar feed.
+                //
+                // Only recognized versioned posts enter the Feed. The private index
+                // also stores contacts, profiles, attachments and old downloads, but
+                // those belong to the separate public-file surfaces. The daemon applies
+                // the post-shaped path prefilter before its cursor LIMIT, so ordinary
+                // files never consume this page budget. The local filter below remains
+                // a compatibility guard for older daemons that ignore the new field.
+                const postRows = rows.filter((row) => isVersionedPostPath(row.path));
+                const toParse = postRows.slice(0, MAX_DISCOVERY_PARSE);
+                if (postRows.length > toParse.length)
                     truncated = true;
+                const names = await this.resolvePublisherNames(toParse.map((row) => row.peerId));
+                const metaBudget = { reads: 0, bytes: 0 };
+                const items = [];
+                let ignored = rows.length - postRows.length;
                 for (const row of toParse) {
-                    const content = await this.parseDiscoveryRow(row);
-                    if (content.post === null) {
-                        if (content.unreadable) {
-                            items.push({
-                                id: row.id, peerId: row.peerId, path: row.path, sha256: row.sha256,
-                                sizeBytes: row.sizeBytes, fetchedAt: row.fetchedAt, source: row.source,
-                                authorKind: '', authorName: '', title: row.path, summary: '',
-                                tags: [], publishedAt: '',
-                                contentState: 'unreadable', contentError: content.error,
-                            });
-                        }
-                        else {
-                            ignored += 1;
-                        }
-                        continue;
-                    }
-                    items.push({
-                        id: row.id, peerId: row.peerId, path: row.path, sha256: row.sha256,
-                        sizeBytes: row.sizeBytes, fetchedAt: row.fetchedAt, source: row.source,
-                        authorKind: content.post.authorKind,
-                        authorName: content.post.authorName,
-                        title: content.post.title,
-                        summary: content.post.summary,
-                        tags: content.post.tags,
-                        publishedAt: content.post.publishedAt,
-                        contentState: 'available',
-                        contentError: '',
-                    });
+                    const item = await this.discoveryItem(row, names.get(row.peerId) ?? '', metaBudget);
+                    if (item === null)
+                        ignored += 1;
+                    else
+                        items.push(item);
                 }
                 if (!this.isSessionActive(session))
                     return;
@@ -1322,37 +2055,91 @@ export class RamingaUiBridge {
         session.discoveryBusy.set(key, promise);
         return promise;
     }
-    async parseDiscoveryRow(row) {
-        const cacheKey = `${row.sha256.toLowerCase()}\u0000${row.path}`;
-        const cached = this.postCache.get(cacheKey);
-        if (cached !== undefined && this.now() - cached.at < 5 * 60_000) {
-            return { post: cached.post, error: cached.error, unreadable: cached.post === null && cached.error.length > 0 };
-        }
-        let result;
+    /**
+     * Verify one discovery row as a recognizable versioned post (v1 or v2).
+     * Non-post public files are not Feed items at all. A post row whose local
+     * copy is missing or no longer matches its recorded version stays visible
+     * with an explicit error so the reader is not silently told it vanished.
+     */
+    async discoveryItem(row, publisherName, budget) {
+        if (!isVersionedPostPath(row.path))
+            return null;
+        const item = {
+            id: row.id,
+            peerId: row.peerId,
+            publisherName: publisherName || shortPeer(row.peerId),
+            path: row.path,
+            name: path.posix.basename(row.path),
+            sha256: row.sha256,
+            sizeBytes: row.sizeBytes,
+            modifiedAt: 0,
+            fetchedAt: row.fetchedAt,
+            source: row.source,
+            sources: [...row.sources],
+            kind: 'markdown',
+            mime: 'text/markdown',
+            previewable: true,
+            title: titleFallback(row.path),
+            summary: '',
+            tags: [],
+            publishedAt: '',
+            authorKind: '',
+            authorName: '',
+            contentState: 'available',
+            contentError: '',
+            images: [],
+        };
         try {
-            const post = await readDiscoveryPost(this.dataDir, row);
-            result = { post, error: '', unreadable: false };
+            const info = await downloadedFileInfo(this.dataDir, row.peerId, row.path);
+            item.modifiedAt = info.modifiedAt;
+            if (info.size !== row.sizeBytes) {
+                item.contentState = 'hash-mismatch';
+                item.contentError = `本地副本大小 ${info.size} 字节与发现记录 ${row.sizeBytes} 字节不一致，不能当作同一版本`;
+                return item;
+            }
         }
         catch (error) {
-            const message = errorMessage(error);
-            // Missing/corrupt downloaded bytes are a display state for a traceable
-            // row. A well-formed file that is not a versioned post is not shown as a
-            // post at all, but its count is disclosed.
-            const unreadable = !/不是公开帖子|author|作者|schema_version|format|标题|正文|JSON|author\.kind|published_at/i.test(message);
-            result = { post: null, error: message, unreadable };
+            item.contentState = error instanceof Error && /不存在/.test(error.message) ? 'copy-missing' : 'unreadable';
+            item.contentError = error instanceof Error ? error.message : String(error);
+            return item;
         }
-        if (this.postCache.size > 256) {
-            const first = this.postCache.keys().next().value;
-            if (first !== undefined)
-                this.postCache.delete(first);
+        // Reading every post body on a feed refresh is bounded: beyond the budget
+        // the row still stays recognizable by its versioned path and can be read
+        // from the detail page, but no title/summary is invented from the path.
+        if (budget.reads >= 40 || budget.bytes >= 8 * 1024 * 1024 || row.sizeBytes > 512 * 1024) {
+            item.contentState = 'downloaded-unverified';
+            item.contentError = '本次只读取了有界数量的帖子正文；打开详情时会再核对。';
+            return item;
         }
-        this.postCache.set(cacheKey, { at: this.now(), ...result });
-        return result;
+        budget.reads += 1;
+        budget.bytes += row.sizeBytes;
+        try {
+            const post = await readDiscoveryPost(this.dataDir, row);
+            item.title = post.title;
+            item.summary = post.summary;
+            item.tags = [...post.tags];
+            item.publishedAt = post.publishedAt;
+            item.authorKind = post.authorKind;
+            item.authorName = post.authorName;
+            item.images = postImagesFromPost(post, row.path);
+            return item;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            // A well-formed file that is not a versioned post (wrong schema,
+            // reserved-looking path, invalid author) is not a Feed item; count it as
+            // ignored instead of disguising it as a text post.
+            if (!/不存在|大小|哈希/.test(message))
+                return null;
+            item.contentState = /大小|哈希/.test(message) ? 'hash-mismatch' : 'copy-missing';
+            item.contentError = message;
+            return item;
+        }
     }
     discoveriesSnapshot(session, familiar) {
         const state = session.discoveries.get(familiar ? 'familiar' : 'all') ?? this.emptyDiscoveriesState(familiar);
         return {
-            items: state.items.map((item) => ({ ...item, tags: [...item.tags] })),
+            items: state.items.map((item) => ({ ...item, sources: [...item.sources], tags: [...item.tags] })),
             at: state.at > 0 ? state.at : null,
             error: state.error,
             errorAt: state.errorAt > 0 ? state.errorAt : null,
@@ -1379,26 +2166,1151 @@ export class RamingaUiBridge {
         }
         if (row === null)
             throw new Error('没有找到这条公开内容，请先刷新动态');
-        if (row.contentState === 'unreadable') {
+        const base = {
+            ok: false,
+            status: 'error',
+            kind: row.kind,
+            mime: row.mime,
+            title: row.title,
+            text: '',
+            html: '',
+            dataUrl: '',
+            warnings: [],
+            missingResources: [],
+            error: '',
+            post: null,
+            subject: 'discovery',
+            id: row.id,
+            peerId: row.peerId,
+            path: row.path,
+            sha256: row.sha256,
+            sizeBytes: row.sizeBytes,
+            source: row.source,
+            sources: [...row.sources],
+            fetchedAt: row.fetchedAt,
+            localCopy: row.contentState === 'available' ? 'downloaded-unverified' : row.contentState,
+            acquisition: 'none',
+            discoveryRecorded: false,
+            discoveryError: '',
+        };
+        if (row.contentState !== 'available' && row.contentState !== 'downloaded-unverified') {
             return {
-                ok: false, id: row.id, peerId: row.peerId, path: row.path, sha256: row.sha256,
-                sizeBytes: row.sizeBytes, source: row.source, fetchedAt: row.fetchedAt, post: null,
+                ...base,
+                localCopy: row.contentState,
+                status: row.contentState === 'copy-missing' ? 'copy-missing'
+                    : row.contentState === 'hash-mismatch' ? 'hash-mismatch' : 'error',
                 error: row.contentError || '本地副本不可读取',
             };
         }
-        try {
-            const post = await readDiscoveryPost(this.dataDir, row);
+        const type = fileTypeOf(row.path);
+        if (!type.previewable) {
+            try {
+                const actual = await hashDownloadedFile(this.dataDir, row.peerId, row.path, MAX_LOCAL_COPY_HASH);
+                if (actual.sha256 !== row.sha256.toLowerCase() || actual.size !== row.sizeBytes) {
+                    return {
+                        ...base,
+                        status: 'hash-mismatch',
+                        localCopy: 'hash-mismatch',
+                        error: '本地副本的 SHA-256/大小与发现记录不一致；不会当作同一版本。',
+                    };
+                }
+            }
+            catch (error) {
+                const message = errorMessage(error);
+                const status = /不存在/.test(message) ? 'copy-missing' : 'error';
+                return { ...base, status, localCopy: status === 'copy-missing' ? 'copy-missing' : 'unreadable', error: message };
+            }
             return {
-                ok: true, id: row.id, peerId: row.peerId, path: row.path, sha256: row.sha256,
-                sizeBytes: row.sizeBytes, source: row.source, fetchedAt: row.fetchedAt,
-                post: { ...post, contentState: 'available' }, error: null,
+                ...base,
+                status: 'unsupported',
+                localCopy: 'available',
+                acquisition: 'local-copy',
+                error: `${row.path} 是 ${type.mime} 文件；原件已保存在本机，可使用“在文件夹中显示”定位，不加载该格式预览。`,
+            };
+        }
+        const limit = maxPreviewRead(type.kind);
+        let data;
+        try {
+            data = await readDiscoveryFile(this.dataDir, row, limit);
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            return { ...base, status: previewStatusForError(message), error: message };
+        }
+        const preview = await this.previewBytes('discovery', row.peerId, row.path, row.sha256, row.sizeBytes, data, {
+            discoveryRecorded: false,
+            discoveryError: '',
+            source: row.source,
+            sources: row.sources,
+            fetchedAt: row.fetchedAt,
+            localCopy: 'available',
+            acquisition: 'local-copy',
+        });
+        return {
+            ...base,
+            ...preview,
+            id: row.id,
+            post: preview.post ? { ...preview.post, contentState: 'available' } : null,
+        };
+    }
+    async resolvePublisherNames(peerIds) {
+        const names = new Map();
+        const unique = [...new Set(peerIds.filter((value) => value.length > 0))].slice(0, 200);
+        for (const peerId of unique) {
+            const cached = this.publisherNameCache.get(peerId);
+            if (cached && this.now() - cached.at < 5 * 60_000) {
+                if (cached.name.length > 0)
+                    names.set(peerId, cached.name);
+                continue;
+            }
+            // Discovery cards must not turn one feed read into up to hundreds of
+            // remote profile downloads. Use a name already learned from a profile
+            // visit or the locally downloaded profile/index.md; otherwise the card
+            // keeps the short Peer ID fallback.
+            const name = (await readDownloadedProfileName(this.dataDir, peerId)).trim().slice(0, 120);
+            this.publisherNameCache.set(peerId, { at: this.now(), name });
+            if (name.length > 0)
+                names.set(peerId, name);
+        }
+        return names;
+    }
+    previewFailure(subject, peerId, filePath, sha256, sizeBytes, status, error, source = '', sources = [], fetchedAt = 0, localCopy = 'unreadable', acquisition = 'none') {
+        const type = fileTypeOf(filePath);
+        return {
+            ok: false, status, kind: type.kind, mime: type.mime, title: titleFallback(filePath),
+            text: '', html: '', dataUrl: '', warnings: [], missingResources: [], error, post: null,
+            subject, peerId, path: filePath, sha256, sizeBytes, source, sources: [...sources], fetchedAt,
+            localCopy, acquisition, discoveryRecorded: false, discoveryError: '',
+        };
+    }
+    async previewBytes(subject, peerId, filePath, sha256, sizeBytes, data, options) {
+        const type = fileTypeOf(filePath);
+        try {
+            const imageProblem = postImageBytesError(filePath, data);
+            if (imageProblem.length > 0) {
+                return {
+                    ...this.previewFailure(subject, peerId, filePath, sha256, sizeBytes, 'unsupported', imageProblem, options.source, options.sources, options.fetchedAt, options.localCopy, options.acquisition),
+                    discoveryRecorded: options.discoveryRecorded,
+                    discoveryError: options.discoveryError,
+                };
+            }
+            let preview;
+            if (type.kind === 'html') {
+                preview = await buildHtmlFilePreview({ data, path: filePath, servingPeerId: peerId });
+            }
+            else if (type.kind === 'zip') {
+                preview = await buildZipFilePreview({ data, path: filePath, servingPeerId: peerId });
+            }
+            else {
+                preview = await buildFilePreview({ data, path: filePath, servingPeerId: peerId });
+            }
+            return {
+                ...preview,
+                ok: preview.status === 'ok' || preview.status === 'resource-error',
+                subject, peerId, path: filePath, sha256, sizeBytes,
+                source: options.source, sources: [...options.sources], fetchedAt: options.fetchedAt,
+                localCopy: options.localCopy, acquisition: options.acquisition,
+                discoveryRecorded: options.discoveryRecorded, discoveryError: options.discoveryError,
             };
         }
         catch (error) {
+            if (error instanceof PublicFileError) {
+                return {
+                    ...this.previewFailure(subject, peerId, filePath, sha256, sizeBytes, error.status, error.message, options.source, options.sources, options.fetchedAt, options.localCopy, options.acquisition),
+                    discoveryRecorded: options.discoveryRecorded,
+                    discoveryError: options.discoveryError,
+                };
+            }
             return {
-                ok: false, id: row.id, peerId: row.peerId, path: row.path, sha256: row.sha256,
-                sizeBytes: row.sizeBytes, source: row.source, fetchedAt: row.fetchedAt, post: null, error: errorMessage(error),
+                ...this.previewFailure(subject, peerId, filePath, sha256, sizeBytes, 'error', errorMessage(error), options.source, options.sources, options.fetchedAt, options.localCopy, options.acquisition),
+                discoveryRecorded: options.discoveryRecorded,
+                discoveryError: options.discoveryError,
             };
+        }
+    }
+    // --- Peer public manifest, node information and manual content reads -----
+    emptyPeerManifest(peerId, publisherName, error) {
+        return {
+            peerId, publisherName: publisherName || shortPeer(peerId), entries: [], source: 'unavailable',
+            at: null, error, errorAt: error.length > 0 ? this.now() : null,
+            freshness: error.length > 0 ? 'unavailable' : 'loading', truncated: false, total: 0,
+        };
+    }
+    peerManifestSnapshot(session, peerId) {
+        const state = session.peerManifests.get(peerId);
+        if (!state)
+            return this.emptyPeerManifest(peerId, '', '正在读取对方公开清单');
+        const data = state.data;
+        const freshness = this.listFreshness(state.at, data.error, data.entries.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS);
+        return {
+            ...data,
+            entries: data.entries.map((entry) => ({ ...entry, sources: [...entry.sources], tags: [...entry.tags] })),
+            at: data.at,
+            freshness,
+        };
+    }
+    async peerManifest(sessionId, peerId, force = false) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            return this.emptyPeerManifest(String(peerId ?? ''), '', 'Peer ID 格式不正确。');
+        const cached = session.peerManifests.get(canonical);
+        if (!force && cached !== undefined && this.now() - cached.at < PROFILE_TTL_MS) {
+            return this.peerManifestSnapshot(session, canonical);
+        }
+        await this.ensurePeerManifest(session, canonical, force);
+        this.assertSessionActive(session);
+        return this.peerManifestSnapshot(session, canonical);
+    }
+    ensurePeerManifest(session, peerId, force) {
+        const existing = session.peerManifestBusy.get(peerId);
+        if (existing !== undefined)
+            return existing;
+        const cached = session.peerManifests.get(peerId);
+        if (!force && cached !== undefined && this.now() - cached.at < PROFILE_TTL_MS)
+            return Promise.resolve();
+        const promise = this.loadPeerManifest(session, peerId).finally(() => {
+            if (session.peerManifestBusy.get(peerId) === promise)
+                session.peerManifestBusy.delete(peerId);
+        });
+        session.peerManifestBusy.set(peerId, promise);
+        return promise;
+    }
+    /** Page through the daemon's persistent discovery evidence and keep rows
+     * for one peer. This is the restart-safe fallback for an offline peer. */
+    async loadDiscoveryEvidence(peerId) {
+        const target = canonicalPeerId(peerId) ?? peerId;
+        const rows = [];
+        let before = '';
+        let truncated = false;
+        let more = false;
+        for (let pages = 0; pages < 50 && rows.length < MAX_DISCOVERY_SCAN; pages += 1) {
+            const response = await this.api.call((client) => client.listDiscoveries(new ListDiscoveriesRequest({ limit: DISCOVERY_PAGE_LIMIT, before, peerId: target }), { timeoutMs: 4000 }), '读取本机公开内容获取记录');
+            const page = response.discoveries ?? [];
+            for (const raw of page) {
+                if (rows.length >= MAX_DISCOVERY_SCAN) {
+                    truncated = true;
+                    break;
+                }
+                const rowPeer = String(raw.peerId ?? '');
+                if ((canonicalPeerId(rowPeer) ?? rowPeer) !== target)
+                    continue;
+                const source = String(raw.source ?? '');
+                const sources = (raw.sources ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
+                rows.push({
+                    id: String(raw.id ?? ''),
+                    peerId: target,
+                    path: String(raw.path ?? ''),
+                    sha256: String(raw.sha256 ?? '').toLowerCase(),
+                    sizeBytes: numberOf(raw.sizeBytes),
+                    fetchedAt: numberOf(raw.fetchedAtUnixMs),
+                    source,
+                    sources: sources.length > 0 ? sources : (source.length > 0 ? [source] : []),
+                });
+            }
+            more = response.hasMore === true;
+            if (!more)
+                break;
+            const next = String(response.nextBefore ?? '');
+            if (next.length === 0 || next === before) {
+                throw new Error('公开内容获取记录分页游标没有前进，无法确认已完整读取');
+            }
+            before = next;
+            if (rows.length >= MAX_DISCOVERY_SCAN) {
+                truncated = true;
+                break;
+            }
+        }
+        if (more)
+            truncated = true;
+        return { rows, truncated };
+    }
+    peerFileEntry(peerId, publisherName, row) {
+        const type = fileTypeOf(row.path);
+        return {
+            id: `${peerId}\u0000${row.sha256}\u0000${row.path}`,
+            peerId,
+            publisherName,
+            path: row.path,
+            name: path.posix.basename(row.path),
+            sha256: row.sha256,
+            sizeBytes: row.sizeBytes,
+            modifiedAt: row.modifiedAt,
+            fetchedAt: row.fetchedAt,
+            source: row.source,
+            sources: [...row.sources],
+            kind: type.kind,
+            mime: type.mime,
+            previewable: type.previewable,
+            title: titleFallback(row.path),
+            summary: '',
+            tags: [],
+            publishedAt: '',
+            authorKind: '',
+            authorName: '',
+            images: row.images?.map((image) => ({ ...image })) ?? [],
+            contentState: row.contentState,
+            contentError: row.contentError,
+        };
+    }
+    /** Rebuild a partial manifest only from local copies whose bytes match a
+     * recorded discovery hash. It is explicitly history, not a current list. */
+    async localHistoryEntries(peerId, publisherName, rows) {
+        const byPath = new Map();
+        for (const row of rows) {
+            if (row.path.length === 0)
+                continue;
+            const list = byPath.get(row.path) ?? [];
+            list.push(row);
+            byPath.set(row.path, list);
+        }
+        const entries = [];
+        let truncated = false;
+        for (const [filePath, candidates] of [...byPath.entries()].sort((left, right) => {
+            const leftAt = Math.max(...left[1].map((row) => row.fetchedAt));
+            const rightAt = Math.max(...right[1].map((row) => row.fetchedAt));
+            return rightAt - leftAt || left[0].localeCompare(right[0]);
+        })) {
+            if (entries.length >= MAX_DISCOVERY_PARSE) {
+                truncated = true;
+                break;
+            }
+            let version;
+            try {
+                version = await hashDownloadedFile(this.dataDir, peerId, filePath, MAX_LOCAL_COPY_HASH);
+            }
+            catch (error) {
+                // Missing copies are not list entries. An oversized or unreadable copy
+                // makes the reconstructed history explicitly incomplete.
+                if (!/不存在/.test(errorMessage(error)))
+                    truncated = true;
+                continue;
+            }
+            const matched = candidates
+                .sort((left, right) => right.fetchedAt - left.fetchedAt)
+                .find((row) => row.sizeBytes === version.size && row.sha256 === version.sha256);
+            if (!matched)
+                continue;
+            entries.push(this.peerFileEntry(peerId, publisherName, {
+                path: filePath,
+                sha256: matched.sha256,
+                sizeBytes: matched.sizeBytes,
+                modifiedAt: version.modifiedAt,
+                fetchedAt: matched.fetchedAt,
+                source: matched.source || 'local-copy',
+                sources: matched.sources.length > 0 ? matched.sources : ['local-copy'],
+                contentState: 'available',
+                contentError: '',
+            }));
+        }
+        return { entries, truncated };
+    }
+    /** Add honest local-copy state to a current remote manifest. Small copies
+     * are hash-verified; larger or over-budget copies stay marked unverified. */
+    async decorateRemoteEntries(peerId, entries, rows) {
+        const byPath = new Map();
+        for (const row of rows) {
+            const list = byPath.get(row.path) ?? [];
+            list.push(row);
+            byPath.set(row.path, list);
+        }
+        let hashedBytes = 0;
+        for (const entry of entries) {
+            const candidates = (byPath.get(entry.path) ?? [])
+                .sort((left, right) => right.fetchedAt - left.fetchedAt);
+            let info;
+            try {
+                info = await downloadedFileInfo(this.dataDir, peerId, entry.path);
+            }
+            catch (error) {
+                const missing = error instanceof Error && /不存在/.test(error.message);
+                if (missing) {
+                    entry.contentState = candidates.length > 0 ? 'copy-missing' : 'not-downloaded';
+                    entry.contentError = candidates.length > 0
+                        ? '本机获取记录存在，但下载副本已缺失；不会当作可读。'
+                        : '本机尚未下载这个文件；展开后可手动获取。';
+                }
+                else {
+                    entry.contentState = 'unreadable';
+                    entry.contentError = error instanceof Error ? error.message : String(error);
+                }
+                entry.source = 'peer-manifest';
+                entry.sources = ['peer-manifest'];
+                entry.fetchedAt = 0;
+                continue;
+            }
+            if (info.size !== entry.sizeBytes) {
+                entry.contentState = 'hash-mismatch';
+                entry.contentError = `本地副本大小 ${info.size} 字节与对方当前清单 ${entry.sizeBytes} 字节不一致，不能当作同一版本。`;
+                continue;
+            }
+            const proven = candidates.find((row) => row.sizeBytes === info.size && row.sha256 === entry.sha256.toLowerCase());
+            const attach = (state, error) => {
+                entry.contentState = state;
+                entry.contentError = error;
+                entry.source = proven?.source || 'local-copy';
+                entry.sources = proven?.sources.length ? [...proven.sources] : ['local-copy'];
+                entry.fetchedAt = proven?.fetchedAt ?? 0;
+            };
+            if (info.size > MAX_MANIFEST_HASH_FILE || hashedBytes + info.size > MAX_MANIFEST_HASH_TOTAL) {
+                attach('downloaded-unverified', '本地有副本；版本较大，阅读或定位时会完整核对，当前不当作已验证。');
+                continue;
+            }
+            hashedBytes += info.size;
+            try {
+                const actual = await hashDownloadedFile(this.dataDir, peerId, entry.path, MAX_LOCAL_COPY_HASH);
+                if (actual.size !== entry.sizeBytes || actual.sha256 !== entry.sha256.toLowerCase()) {
+                    entry.contentState = 'hash-mismatch';
+                    entry.contentError = '本地副本的 SHA-256 与对方当前清单不一致；不会展示或定位为新版本。';
+                    continue;
+                }
+                attach('available', '');
+            }
+            catch (error) {
+                entry.contentState = 'unreadable';
+                entry.contentError = error instanceof Error ? error.message : String(error);
+            }
+        }
+    }
+    async loadPeerManifest(session, peerId) {
+        const at = this.now();
+        const previous = session.peerManifests.get(peerId);
+        const publisherName = session.peerProfiles.get(peerId)?.data.remoteName
+            || this.publisherNameCache.get(peerId)?.name
+            || (await readDownloadedProfileName(this.dataDir, peerId))
+            || shortPeer(peerId);
+        let remoteError = null;
+        try {
+            await this.ensureReady();
+            const entries = [];
+            let offset = 0;
+            let total = 0;
+            let truncated = false;
+            for (let pageIndex = 0; pageIndex < 6; pageIndex += 1) {
+                const response = await this.api.call((client) => client.getPeerManifest(new GetPeerManifestRequest({ peerId, offset, limit: 100 }), { timeoutMs: 8000 }), '读取对方公开清单');
+                total = numberOf(response.total);
+                const page = response.entries ?? [];
+                for (const entry of page) {
+                    if (entries.length >= MAX_DISCOVERY_SCAN) {
+                        truncated = true;
+                        break;
+                    }
+                    const filePath = String(entry.path ?? '');
+                    if (filePath.length === 0)
+                        continue;
+                    entries.push(this.peerFileEntry(peerId, publisherName, {
+                        path: filePath,
+                        sha256: String(entry.sha256 ?? ''),
+                        sizeBytes: numberOf(entry.size),
+                        modifiedAt: numberOf(entry.modifiedUnixMs),
+                        fetchedAt: 0,
+                        source: 'peer-manifest',
+                        sources: ['peer-manifest'],
+                        contentState: 'not-downloaded',
+                        contentError: '',
+                    }));
+                }
+                if (response.limited === true)
+                    truncated = true;
+                offset += page.length;
+                if (page.length === 0 || offset >= total)
+                    break;
+                if (entries.length >= MAX_DISCOVERY_SCAN) {
+                    truncated = true;
+                    break;
+                }
+            }
+            let evidence = { rows: [], truncated: false };
+            try {
+                evidence = await this.loadDiscoveryEvidence(peerId);
+            }
+            catch {
+                // The remote manifest is still usable. Without evidence, local copies
+                // can still be stat/hash-checked below but keep unknown provenance.
+            }
+            await this.decorateRemoteEntries(peerId, entries, evidence.rows);
+            if (!this.isSessionActive(session))
+                return;
+            session.peerManifests.set(peerId, {
+                at,
+                data: {
+                    peerId, publisherName, entries, source: 'remote', at, error: null, errorAt: null,
+                    freshness: 'live', truncated: truncated || evidence.truncated || entries.length < total, total,
+                },
+            });
+            return;
+        }
+        catch (error) {
+            remoteError = errorMessage(error);
+        }
+        if (!this.isSessionActive(session))
+            return;
+        let evidence = { rows: [], truncated: false };
+        let evidenceError = '';
+        try {
+            evidence = await this.loadDiscoveryEvidence(peerId);
+        }
+        catch (error) {
+            evidenceError = errorMessage(error);
+        }
+        const local = await this.localHistoryEntries(peerId, publisherName, evidence.rows);
+        if (!this.isSessionActive(session))
+            return;
+        if (local.entries.length > 0) {
+            const message = `对方当前公开清单读取失败：${remoteError}。以下仅为本机已核对的历史下载副本，不是当前远端完整清单。`;
+            session.peerManifests.set(peerId, {
+                at,
+                data: {
+                    peerId, publisherName, entries: local.entries, source: 'local-history', at,
+                    error: evidenceError.length > 0 ? `${message} 获取记录读取也失败：${evidenceError}` : message,
+                    errorAt: this.now(), freshness: 'stale',
+                    truncated: local.truncated || evidence.truncated, total: local.entries.length,
+                },
+            });
+            return;
+        }
+        if (previous !== undefined) {
+            previous.data = {
+                ...previous.data,
+                error: `对方当前公开清单读取失败：${remoteError}；本机也没有可核对的同版本副本。`,
+                errorAt: this.now(),
+            };
+            return;
+        }
+        const message = evidenceError.length > 0
+            ? `对方当前公开清单读取失败：${remoteError}。读取本机获取记录也失败：${evidenceError}`
+            : `对方当前公开清单读取失败：${remoteError}；本机没有该节点已核对的历史下载副本。`;
+        session.peerManifests.set(peerId, {
+            at,
+            data: { ...this.emptyPeerManifest(peerId, publisherName, message), at, source: 'unavailable' },
+        });
+    }
+    peerNodeSnapshot(session, peerId) {
+        const status = session.status;
+        const freshness = this.freshnessOf(session);
+        const links = status?.connections.filter((connection) => connection.peerId === peerId) ?? [];
+        const peerRecord = status?.peers.find((peer) => peer.peerId === peerId) ?? null;
+        const friend = session.friends.find((row) => row.peerId === peerId);
+        const cached = status?.peerCache.filter((peer) => peer.peerId === peerId) ?? [];
+        const current = [];
+        const known = [];
+        const currentValues = new Set();
+        const add = (list, raw, source, sourceDetail, reachability, observedAt) => {
+            const value = withPeerSuffix(String(raw ?? ''), peerId);
+            if (value.length === 0)
+                return;
+            if (list === known && currentValues.has(value))
+                return;
+            if (list.some((item) => item.multiaddr === value && item.source === source))
+                return;
+            list.push({ multiaddr: value, source, sourceDetail, reachability, observedAt });
+        };
+        for (const link of links) {
+            const value = withPeerSuffix(String(link.remoteMultiaddr ?? ''), peerId);
+            if (value.length === 0)
+                continue;
+            currentValues.add(value);
+            add(current, value, 'connection', link.route || link.transport || 'status', freshness === 'live' ? 'verified' : 'unverified', session.statusAt);
+        }
+        // PeerStatus.Addrs merges active connection addresses, libp2p peerstore
+        // addresses and persisted cache hints. It is not proof that the peer
+        // announced these addresses, so never label them "announced".
+        if (peerRecord) {
+            for (const address of peerRecord.addrs) {
+                add(known, address, 'peerstore', 'peerstore', 'unverified', session.statusAt);
+            }
+        }
+        for (const cacheRow of cached) {
+            for (const address of cacheRow.addrs) {
+                add(known, address, 'cache', String(cacheRow.source ?? ''), 'unverified', numberOf(cacheRow.updatedAt));
+            }
+        }
+        for (const address of friend?.addrs ?? []) {
+            add(known, address, 'contact', 'contact', 'unverified', friend ? numberOf(friend.lastInteractionUnixMs) : null);
+        }
+        const connectionState = freshness === 'live'
+            ? (links.length > 0 ? 'connected' : 'disconnected')
+            : 'unknown';
+        return {
+            peerId,
+            connectionState,
+            directConnections: freshness === 'live' ? links.filter((connection) => connection.route === 'direct').length : 0,
+            relayConnections: freshness === 'live' ? links.filter((connection) => connection.route === 'relay').length : 0,
+            currentAddresses: current,
+            knownAddresses: known,
+            statusAt: session.statusAt > 0 ? session.statusAt : null,
+            freshness,
+            error: session.error,
+        };
+    }
+    async peerNodeInfo(sessionId, peerId, force = false) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null) {
+            return {
+                peerId: String(peerId ?? ''), connectionState: 'unknown', directConnections: 0, relayConnections: 0,
+                currentAddresses: [], knownAddresses: [], statusAt: null, freshness: 'unavailable', error: 'Peer ID 格式不正确。',
+            };
+        }
+        if (force || session.statusAt === 0 || this.now() - session.statusAt > this.statusTtlMs) {
+            await this.reconcileStatus('peer-node-info', { trailing: true });
+        }
+        this.assertSessionActive(session);
+        return this.peerNodeSnapshot(session, canonical);
+    }
+    async peerFilePreview(sessionId, peerId, filePath, expectedSha, expectedSize) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            return this.previewFailure('peer', String(peerId ?? ''), filePath, expectedSha, expectedSize, 'error', 'Peer ID 格式不正确。');
+        const wanted = typeof filePath === 'string' ? filePath : '';
+        if (wanted.length === 0)
+            return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, 'error', '缺少公开文件路径。');
+        // Favorites identify one historical version. If that exact version is
+        // retained locally, read it before any manifest/dial attempt: a local
+        // post must never dial itself, and an offline peer with the exact copy must
+        // stay readable. A missing or different copy falls through to the normal
+        // current-manifest path and is never shown under the requested hash.
+        const requestedSha = validSha256(expectedSha);
+        if (requestedSha !== '' && expectedSize <= 0) {
+            try {
+                const exact = await hashDownloadedFile(this.dataDir, canonical, wanted, MAX_LOCAL_COPY_HASH);
+                if (exact.sha256 === requestedSha && (expectedSize <= 0 || exact.size === expectedSize)) {
+                    const exactType = fileTypeOf(wanted);
+                    if (!exactType.previewable) {
+                        return this.previewFailure('peer', canonical, wanted, requestedSha, exact.size, 'unsupported', `${wanted} 是 ${exactType.mime} 文件；原件已保存在本机，可使用“在文件夹中显示”定位，不加载 PDF/Office 预览库。`, 'local-copy', ['local-copy'], 0, 'available', 'local-copy');
+                    }
+                    const exactLimit = maxPreviewRead(exactType.kind);
+                    if (exact.size > exactLimit) {
+                        return this.previewFailure('peer', canonical, wanted, requestedSha, exact.size, 'unsupported', `${wanted} 超过 ${exactLimit} 字节的预览上限；原件已保存在本机，可使用“在文件夹中显示”定位。`, 'local-copy', ['local-copy'], 0, 'available', 'local-copy');
+                    }
+                    const exactData = await readDownloadedFile(this.dataDir, canonical, wanted, exactLimit);
+                    if (exactData.length !== exact.size || createHash('sha256').update(exactData).digest('hex') !== requestedSha) {
+                        return this.previewFailure('peer', canonical, wanted, requestedSha, exactData.length, 'hash-mismatch', '读取本地副本时文件已变化；没有展示新的字节。', 'local-copy', ['local-copy'], 0, 'hash-mismatch', 'local-copy');
+                    }
+                    return await this.previewBytes('peer', canonical, wanted, requestedSha, exact.size, exactData, {
+                        source: 'local-copy', sources: ['local-copy'], fetchedAt: 0,
+                        localCopy: 'available', acquisition: 'local-copy',
+                        discoveryRecorded: false, discoveryError: '',
+                    });
+                }
+            }
+            catch {
+                // Missing or unreadable local copies fall through to the explicit
+                // manifest/local-history error paths below.
+            }
+        }
+        await this.ensurePeerManifest(session, canonical, false);
+        const manifest = session.peerManifests.get(canonical)?.data;
+        let entry = manifest?.entries.find((item) => item.path === wanted);
+        if (!entry && manifest?.source !== 'remote') {
+            // Local-history only lists paths with discovery rows. A post metadata or
+            // image may have been downloaded by a card read without creating one;
+            // allow it only when the exact requested SHA-256/size is on disk.
+            const localSha = validSha256(expectedSha);
+            if (localSha !== '') {
+                try {
+                    const local = await hashDownloadedFile(this.dataDir, canonical, wanted, MAX_LOCAL_COPY_HASH);
+                    if (local.sha256 === localSha && (expectedSize <= 0 || local.size === expectedSize)) {
+                        entry = this.peerFileEntry(canonical, manifest?.publisherName ?? shortPeer(canonical), {
+                            path: wanted,
+                            sha256: localSha,
+                            sizeBytes: local.size,
+                            modifiedAt: local.modifiedAt,
+                            fetchedAt: 0,
+                            source: 'local-copy',
+                            sources: ['local-copy'],
+                            contentState: 'available',
+                            contentError: '',
+                        });
+                    }
+                }
+                catch {
+                    // Missing or unreadable local copies still return the explicit
+                    // local-history reason below.
+                }
+            }
+        }
+        if (!entry) {
+            const reason = manifest?.source === 'remote'
+                ? '该文件不在对方当前公开清单中，未发起下载。'
+                : '本机没有与请求版本一致的历史下载副本；对方离线时不发起新的下载。';
+            return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, 'error', reason);
+        }
+        if (expectedSha.length > 0 && expectedSha.toLowerCase() !== entry.sha256.toLowerCase()) {
+            return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, 'hash-mismatch', '对方清单中的版本已变化；没有展示新的内容。');
+        }
+        if (expectedSize > 0 && expectedSize !== entry.sizeBytes) {
+            return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, 'hash-mismatch', '对方清单中的大小已变化；没有展示新的内容。');
+        }
+        const type = fileTypeOf(wanted);
+        const versionSha = entry.sha256.toLowerCase();
+        // Embedded post images are part of an already authorized post read. They
+        // are still hash/size checked, but loading a thumbnail must not create a
+        // separate discovery row for an internal image file.
+        const embeddedPostImage = isPostImagePublicPath(wanted);
+        const source = entry.source;
+        const sources = [...entry.sources];
+        const fetchedAt = entry.fetchedAt;
+        let localState = 'unreadable';
+        let localError = '';
+        let localVersion = null;
+        try {
+            localVersion = await hashDownloadedFile(this.dataDir, canonical, wanted, MAX_LOCAL_COPY_HASH);
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            if (/不存在/.test(message)) {
+                localState = entry.contentState === 'copy-missing' ? 'copy-missing' : 'not-downloaded';
+                localError = entry.contentState === 'copy-missing'
+                    ? '本机获取记录存在，但下载副本已缺失；不会伪装成本地阅读。'
+                    : '本机尚未下载这个文件；没有把它当作已有副本。';
+            }
+            else {
+                localState = 'unreadable';
+                localError = message;
+            }
+        }
+        if (localVersion !== null) {
+            if (localVersion.size !== entry.sizeBytes || localVersion.sha256 !== versionSha) {
+                localState = 'hash-mismatch';
+                localError = '本地副本的 SHA-256/大小与请求版本不一致；不会展示或定位为旧版本。';
+            }
+            else {
+                localState = 'available';
+            }
+        }
+        // An explicit version request that still matches the current manifest but
+        // whose local copy has changed must be reported, not silently replaced by
+        // a fresh download. This is what makes a checksum-failed public file
+        // visible instead of hiding the problem behind new bytes.
+        if (requestedSha !== '' && localState === 'hash-mismatch'
+            && localVersion !== null && localVersion.size === entry.sizeBytes) {
+            return this.previewFailure('peer', canonical, wanted, versionSha, entry.sizeBytes, 'hash-mismatch', '本地副本的 SHA-256/大小与所请求版本不一致；不会通过重新获取覆盖本地副本。', source, sources, fetchedAt, 'hash-mismatch', 'none');
+        }
+        if (localState === 'available') {
+            if (!type.previewable) {
+                return this.previewFailure('peer', canonical, wanted, versionSha, entry.sizeBytes, 'unsupported', `${wanted} 是 ${type.mime} 文件；原件已保存在本机，可使用“在文件夹中显示”定位，不加载 PDF/Office 预览库。`, source, sources, fetchedAt, 'available', 'local-copy');
+            }
+            const limit = maxPreviewRead(type.kind);
+            if (entry.sizeBytes > limit) {
+                return this.previewFailure('peer', canonical, wanted, versionSha, entry.sizeBytes, 'unsupported', `${wanted} 超过 ${limit} 字节的预览上限；原件已保存在本机，可使用“在文件夹中显示”定位。`, source, sources, fetchedAt, 'available', 'local-copy');
+            }
+            try {
+                const data = await readDownloadedFile(this.dataDir, canonical, wanted, limit);
+                if (localVersion === null || data.length !== localVersion.size || createHash('sha256').update(data).digest('hex') !== versionSha) {
+                    return this.previewFailure('peer', canonical, wanted, versionSha, data.length, 'hash-mismatch', '读取本地副本时文件已变化；没有展示新的字节。', source, sources, fetchedAt, 'hash-mismatch', 'local-copy');
+                }
+                return await this.previewBytes('peer', canonical, wanted, versionSha, entry.sizeBytes, data, {
+                    source, sources, fetchedAt,
+                    localCopy: 'available', acquisition: 'local-copy',
+                    discoveryRecorded: false, discoveryError: '',
+                });
+            }
+            catch (error) {
+                const message = errorMessage(error);
+                return this.previewFailure('peer', canonical, wanted, versionSha, entry.sizeBytes, previewStatusForError(message), message, source, sources, fetchedAt, 'available', 'local-copy');
+            }
+        }
+        if (manifest?.source !== 'remote') {
+            const status = localState === 'hash-mismatch' ? 'hash-mismatch'
+                : localState === 'copy-missing' ? 'copy-missing'
+                    : localState === 'unreadable' ? 'error' : 'copy-missing';
+            return this.previewFailure('peer', canonical, wanted, versionSha, entry.sizeBytes, status, localError || '对方离线，且本机没有可核对的同一版本副本；没有发起新的下载。', source, sources, fetchedAt, localState, 'none');
+        }
+        // Only a current remote manifest authorizes a new network acquisition.
+        // A local-history list never pretends the peer is reachable.
+        try {
+            const last = await this.downloadPeerFile(canonical, wanted, { recordDiscovery: !embeddedPostImage, discoverySource: 'raminga_ui_manual', timeoutMs: 60_000 }, '手动获取公开文件');
+            if (last === null || last.phase !== 'complete' || last.error.length > 0) {
+                return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, 'resource-error', last?.error || '公开文件下载没有完成。', 'raminga_ui_manual', ['raminga_ui_manual'], this.now(), localState, 'none');
+            }
+            if (last.path !== wanted) {
+                return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, 'hash-mismatch', '下载结果的公开路径与请求不一致；没有展示其他文件。', 'raminga_ui_manual', ['raminga_ui_manual'], this.now(), localState, 'none');
+            }
+            if (last.sha256.toLowerCase() !== versionSha) {
+                return this.previewFailure('peer', canonical, wanted, versionSha, last.totalBytes, 'hash-mismatch', '对方在清单读取后替换了该文件；没有展示新版本。', 'raminga_ui_manual', ['raminga_ui_manual'], this.now(), localState, 'none');
+            }
+            const actual = await hashDownloadedFile(this.dataDir, canonical, wanted, MAX_LOCAL_COPY_HASH);
+            if (actual.sha256 !== versionSha || actual.size !== last.totalBytes) {
+                return this.previewFailure('peer', canonical, wanted, versionSha, last.totalBytes, 'hash-mismatch', '下载后的本地字节与清单版本不一致；没有展示。', 'raminga_ui_manual', ['raminga_ui_manual'], this.now(), 'hash-mismatch', 'downloaded');
+            }
+            const fetchedNow = this.now();
+            entry.contentState = 'available';
+            entry.contentError = '';
+            entry.source = 'raminga_ui_manual';
+            entry.sources = ['raminga_ui_manual'];
+            entry.fetchedAt = fetchedNow;
+            if (!embeddedPostImage)
+                for (const state of session.discoveries.values())
+                    state.at = 0;
+            if (!type.previewable) {
+                return {
+                    ...this.previewFailure('peer', canonical, wanted, versionSha, actual.size, 'unsupported', `${wanted} 是 ${type.mime} 文件；本次已手动获取并核对原件，可使用“在文件夹中显示”定位，不加载 PDF/Office 预览库。`, 'raminga_ui_manual', ['raminga_ui_manual'], fetchedNow, 'available', 'downloaded'),
+                    discoveryRecorded: last.discoveryRecorded,
+                    discoveryError: last.discoveryError,
+                };
+            }
+            const limit = maxPreviewRead(type.kind);
+            if (actual.size > limit) {
+                return {
+                    ...this.previewFailure('peer', canonical, wanted, versionSha, actual.size, 'unsupported', `${wanted} 超过 ${limit} 字节的预览上限；本次已手动获取并核对原件，可使用“在文件夹中显示”定位。`, 'raminga_ui_manual', ['raminga_ui_manual'], fetchedNow, 'available', 'downloaded'),
+                    discoveryRecorded: last.discoveryRecorded,
+                    discoveryError: last.discoveryError,
+                };
+            }
+            const data = await readDownloadedFile(this.dataDir, canonical, wanted, limit);
+            if (data.length !== actual.size || createHash('sha256').update(data).digest('hex') !== versionSha) {
+                return this.previewFailure('peer', canonical, wanted, versionSha, data.length, 'hash-mismatch', '读取刚下载的副本时文件已变化；没有展示新的字节。', 'raminga_ui_manual', ['raminga_ui_manual'], fetchedNow, 'hash-mismatch', 'downloaded');
+            }
+            return await this.previewBytes('peer', canonical, wanted, versionSha, actual.size, data, {
+                source: 'raminga_ui_manual', sources: ['raminga_ui_manual'], fetchedAt: fetchedNow,
+                localCopy: 'available', acquisition: 'downloaded',
+                discoveryRecorded: last.discoveryRecorded, discoveryError: last.discoveryError,
+            });
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            const status = previewStatusForError(message);
+            return this.previewFailure('peer', canonical, wanted, expectedSha, expectedSize, status === 'error' ? 'resource-error' : status, message, 'raminga_ui_manual', ['raminga_ui_manual'], this.now(), localState, 'none');
+        }
+    }
+    /**
+     * Read the bounded v2 post metadata needed to paint card images before the
+     * reader expands the post. It reuses the exact controlled copy/preview path:
+     * a verified local download is preferred, and a current remote manifest may
+     * authorize one metadata download. It never records a discovery row for the
+     * metadata or the embedded images.
+     */
+    async peerPostMeta(sessionId, peerId, filePath, expectedSha, expectedSize) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const wanted = typeof filePath === 'string' ? filePath : '';
+        const empty = (error) => ({
+            found: false, path: wanted, sha256: '', title: '', summary: '', tags: [],
+            publishedAt: '', authorKind: 'unknown', authorName: '', images: [], error,
+        });
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            return empty('Peer ID 格式不正确。');
+        if (!isV2PostPath(wanted))
+            return empty('只有 posts/<id>/post.json 的 v2 图文动态包含配图。');
+        await this.ensureReady();
+        const manifest = session.peerManifests.get(canonical)?.data;
+        const entry = manifest?.entries.find((item) => item.path === wanted);
+        let expected = validSha256(expectedSha) || validSha256(entry?.sha256);
+        let size = Number.isSafeInteger(expectedSize) && expectedSize > 0 ? expectedSize : (entry?.sizeBytes ?? 0);
+        if (expected === '' || !Number.isSafeInteger(size) || size <= 0 || size > MAX_POST_BYTES) {
+            return empty('这条动态的版本信息不完整或超过读取上限，无法核对配图。');
+        }
+        if (entry) {
+            const entrySha = validSha256(entry.sha256);
+            if (entrySha !== '' && entrySha !== expected)
+                return empty('对方动态版本已变化；没有读取新的配图信息。');
+            if (entry.sizeBytes > 0 && entry.sizeBytes !== size)
+                return empty('对方动态大小已变化；没有读取新的配图信息。');
+        }
+        let data = null;
+        let localError = '';
+        try {
+            const local = await hashDownloadedFile(this.dataDir, canonical, wanted, MAX_POST_BYTES);
+            if (local.size !== size || local.sha256 !== expected) {
+                localError = '本机动态副本的 SHA-256/大小与请求版本不一致，不会当作同一版本。';
+            }
+            else {
+                data = await readDownloadedFile(this.dataDir, canonical, wanted, MAX_POST_BYTES);
+                if (data.length !== size || createHash('sha256').update(data).digest('hex') !== expected) {
+                    data = null;
+                    localError = '读取本机动态副本时文件已变化；没有展示新的内容。';
+                }
+            }
+        }
+        catch (error) {
+            localError = errorMessage(error);
+        }
+        if (data === null) {
+            if (manifest?.source !== 'remote' || entry === undefined) {
+                return empty(localError || '本机没有这条动态的已核对副本，且对方当前清单不可用。');
+            }
+            try {
+                const last = await this.downloadPeerFile(canonical, wanted, { recordDiscovery: false, timeoutMs: 8000 }, '读取动态配图信息');
+                if (last === null || last.phase !== 'complete' || last.error.length > 0) {
+                    return empty(last?.error || '动态配图信息下载没有完成。');
+                }
+                if (last.path !== wanted || last.sha256.toLowerCase() !== expected) {
+                    return empty('对方在清单读取后替换了这条动态；没有读取新的配图。');
+                }
+                data = await readDownloadedFile(this.dataDir, canonical, wanted, MAX_POST_BYTES);
+                if (data.length !== size || createHash('sha256').update(data).digest('hex') !== expected) {
+                    return empty('下载后的动态字节与清单版本不一致；没有展示配图。');
+                }
+            }
+            catch (error) {
+                return empty(errorMessage(error));
+            }
+        }
+        let post;
+        try {
+            post = parsePostBytes(data, wanted, canonical);
+        }
+        catch (error) {
+            return empty(error instanceof Error ? error.message : String(error));
+        }
+        const manifestEntries = manifest?.source === 'remote' ? manifest.entries : undefined;
+        const images = postImagesFromPost(post, wanted, manifestEntries);
+        if (entry) {
+            entry.contentState = 'available';
+            entry.contentError = '';
+            entry.kind = 'markdown';
+            entry.mime = 'text/markdown';
+            entry.previewable = true;
+            entry.fetchedAt = entry.fetchedAt > 0 ? entry.fetchedAt : this.now();
+        }
+        return {
+            found: true,
+            path: wanted,
+            sha256: expected,
+            title: post.title,
+            summary: post.summary,
+            tags: [...post.tags],
+            publishedAt: post.publishedAt,
+            authorKind: post.authorKind,
+            authorName: post.authorName,
+            images,
+            error: '',
+        };
+    }
+    async mineFilePreview(sessionId, filePath, expectedSha, expectedSize) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const wanted = typeof filePath === 'string' ? filePath : '';
+        let entry = session.mine.data?.files.find((item) => item.path === wanted);
+        const requestedSha = validSha256(expectedSha);
+        const peerId = entry?.peerId ?? session.status?.peerId ?? '';
+        if (!entry && requestedSha === '') {
+            return this.previewFailure('mine', peerId, wanted, expectedSha, expectedSize, 'error', '该文件不在本机当前已发布清单中。', 'local-public', ['local-public'], 0, 'not-downloaded', 'none');
+        }
+        const type = fileTypeOf(wanted);
+        let actual;
+        try {
+            // Read the controlled local public path directly. Favorites store an
+            // exact version and must not depend on the list still being loaded, nor
+            // dial the local peer to read a file this node already owns.
+            actual = await hashPublicFile(this.dataDir, wanted, MAX_LOCAL_COPY_HASH);
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            const status = /不存在/.test(message) ? 'copy-missing' : 'error';
+            return this.previewFailure('mine', peerId, wanted, requestedSha || entry?.sha256 || '', expectedSize || entry?.sizeBytes || 0, status, message, 'local-public', ['local-public'], 0, status === 'copy-missing' ? 'copy-missing' : 'unreadable', 'none');
+        }
+        // Compare the bytes that were actually read, not just the cached list
+        // hash. A same-size replacement must never display new content under an
+        // old version identifier.
+        if (expectedSize > 0 && actual.size !== expectedSize) {
+            return this.previewFailure('mine', peerId, wanted, requestedSha || entry?.sha256 || '', actual.size, 'hash-mismatch', '本机公开文件实际字节大小与所请求版本不一致；没有展示。', 'local-public', ['local-public'], 0, 'hash-mismatch', 'none');
+        }
+        const expected = requestedSha || entry?.sha256?.toLowerCase() || '';
+        if (expected === '') {
+            return this.previewFailure('mine', peerId, wanted, '', actual.size, 'error', '缺少要核对的公开文件版本。', 'local-public', ['local-public'], 0, 'unreadable', 'none');
+        }
+        if (actual.sha256 !== expected) {
+            return this.previewFailure('mine', peerId, wanted, expected, actual.size, 'hash-mismatch', '本机公开文件实际字节 SHA-256 与所请求版本不一致；没有展示新正文。', 'local-public', ['local-public'], 0, 'hash-mismatch', 'none');
+        }
+        if (entry) {
+            entry.sha256 = actual.sha256;
+            entry.sizeBytes = actual.size;
+            entry.modifiedAt = actual.modifiedAt;
+            entry.contentState = 'available';
+            entry.contentError = '';
+        }
+        const source = 'local-public';
+        const sources = ['local-public'];
+        if (!type.previewable) {
+            return this.previewFailure('mine', peerId, wanted, actual.sha256, actual.size, 'unsupported', `${wanted} 是 ${type.mime} 文件；本机已发布原件可使用“在文件夹中显示”定位，不加载 PDF/Office 预览库。`, source, sources, 0, 'available', 'local-copy');
+        }
+        const limit = maxPreviewRead(type.kind);
+        if (actual.size > limit) {
+            return this.previewFailure('mine', peerId, wanted, actual.sha256, actual.size, 'unsupported', `${wanted} 超过 ${limit} 字节的预览上限；本机已发布原件可使用“在文件夹中显示”定位。`, source, sources, 0, 'available', 'local-copy');
+        }
+        try {
+            const data = await readPublicFile(this.dataDir, wanted, limit);
+            if (data.length !== actual.size || createHash('sha256').update(data).digest('hex') !== actual.sha256) {
+                return this.previewFailure('mine', peerId, wanted, actual.sha256, data.length, 'hash-mismatch', '读取本机公开文件时文件已变化；没有展示新的字节。', source, sources, 0, 'hash-mismatch', 'none');
+            }
+            return await this.previewBytes('mine', peerId, wanted, actual.sha256, actual.size, data, {
+                source, sources, fetchedAt: 0,
+                localCopy: 'available', acquisition: 'local-copy',
+                discoveryRecorded: false, discoveryError: '',
+            });
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            return this.previewFailure('mine', peerId, wanted, actual.sha256, actual.size, previewStatusForError(message), message, source, sources, 0, 'available', 'local-copy');
+        }
+    }
+    async revealControlledPath(absolutePath, at) {
+        if (!this.revealPath) {
+            return { ok: false, status: 'unavailable', error: '当前宿主没有提供“在文件夹中显示”的能力。', at };
+        }
+        try {
+            await this.revealPath(absolutePath);
+            return { ok: true, status: 'revealed', error: null, at };
+        }
+        catch (error) {
+            return { ok: false, status: 'error', error: errorMessage(error), at };
+        }
+    }
+    /** Reveal one already-downloaded discovery original. The browser supplies a
+     * discovery id, never a path; the resolved absolute path stays host-side. */
+    async revealDiscovery(sessionId, id) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const at = this.now();
+        let row = null;
+        for (const state of session.discoveries.values()) {
+            const found = state.items.find((item) => item.id === String(id ?? ''));
+            if (found) {
+                row = found;
+                break;
+            }
+        }
+        if (row === null)
+            return { ok: false, status: 'error', error: '没有找到这条公开内容，请先刷新动态。', at };
+        if (row.contentState === 'copy-missing' || row.contentState === 'unreadable') {
+            return { ok: false, status: 'missing', error: row.contentError || '本地已下载副本缺失，无法定位。', at };
+        }
+        let actual;
+        try {
+            actual = await hashDownloadedFile(this.dataDir, row.peerId, row.path, MAX_LOCAL_COPY_HASH);
+        }
+        catch (error) {
+            return { ok: false, status: /不存在/.test(errorMessage(error)) ? 'missing' : 'error', error: errorMessage(error), at };
+        }
+        if (actual.sha256 !== row.sha256.toLowerCase() || actual.size !== row.sizeBytes) {
+            return {
+                ok: false,
+                status: 'hash-mismatch',
+                error: '本地副本的 SHA-256/大小与发现记录不一致；不会无提示定位为旧版本。',
+                at,
+            };
+        }
+        return this.revealControlledPath(actual.absolutePath, at);
+    }
+    /** Reveal one verified local original for a peer homepage file or one of the
+     * user's own published files. The browser supplies peer/path/version; the
+     * host re-resolves it against the current manifest or Published list and
+     * verifies the actual bytes before asking the host to reveal it. */
+    async revealFile(sessionId, subject, peerId, filePath, expectedSha, expectedSize) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const at = this.now();
+        if (subject !== 'peer' && subject !== 'mine') {
+            return { ok: false, status: 'error', error: '发现动态请使用内容标识定位。', at };
+        }
+        if (!this.revealPath) {
+            return { ok: false, status: 'unavailable', error: '当前宿主没有提供“在文件夹中显示”的能力。', at };
+        }
+        const wanted = typeof filePath === 'string' ? filePath : '';
+        if (wanted.length === 0)
+            return { ok: false, status: 'error', error: '缺少公开文件路径。', at };
+        if (subject === 'peer') {
+            const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+            if (canonical === null)
+                return { ok: false, status: 'error', error: 'Peer ID 格式不正确。', at };
+            await this.ensurePeerManifest(session, canonical, false);
+            const entry = session.peerManifests.get(canonical)?.data.entries.find((item) => item.path === wanted);
+            if (!entry) {
+                return { ok: false, status: 'not-downloaded', error: '该文件不在对方当前清单或本机历史副本中，无法定位。', at };
+            }
+            if (expectedSha.length > 0 && entry.sha256.length > 0 && expectedSha.toLowerCase() !== entry.sha256.toLowerCase()) {
+                return { ok: false, status: 'hash-mismatch', error: '列表中的版本已变化；没有定位其他版本。', at };
+            }
+            if (expectedSize > 0 && entry.sizeBytes !== expectedSize) {
+                return { ok: false, status: 'hash-mismatch', error: '列表中的大小已变化；没有定位其他版本。', at };
+            }
+            const expected = entry.sha256.toLowerCase();
+            if (!/^[a-f0-9]{64}$/.test(expected)) {
+                return { ok: false, status: 'error', error: '清单缺少可核对的内容哈希，无法安全定位。', at };
+            }
+            let actual;
+            try {
+                actual = await hashDownloadedFile(this.dataDir, canonical, wanted, MAX_LOCAL_COPY_HASH);
+            }
+            catch (error) {
+                const message = errorMessage(error);
+                return {
+                    ok: false,
+                    status: /不存在/.test(message) ? 'not-downloaded' : 'error',
+                    error: /不存在/.test(message) ? '本机尚未下载这个文件，无法定位。' : message,
+                    at,
+                };
+            }
+            if (actual.sha256 !== expected || (expectedSize > 0 && actual.size !== expectedSize)) {
+                return { ok: false, status: 'hash-mismatch', error: '本地副本与所请求版本不一致；没有无提示定位旧版本。', at };
+            }
+            return this.revealControlledPath(actual.absolutePath, at);
+        }
+        if (session.mine.data === null)
+            await this.loadMine(session);
+        if (!this.isSessionActive(session))
+            return { ok: false, status: 'error', error: '面板已关闭。', at };
+        const entry = session.mine.data?.files.find((item) => item.path === wanted);
+        if (!entry)
+            return { ok: false, status: 'not-downloaded', error: '该文件不在本机当前已发布清单中，无法定位。', at };
+        if (expectedSha.length > 0 && entry.sha256.length > 0 && expectedSha.toLowerCase() !== entry.sha256.toLowerCase()) {
+            return { ok: false, status: 'hash-mismatch', error: '本机公开清单中的版本已变化；没有定位其他版本。', at };
+        }
+        if (expectedSize > 0 && entry.sizeBytes !== expectedSize) {
+            return { ok: false, status: 'hash-mismatch', error: '本机公开清单中的大小已变化；没有定位其他版本。', at };
+        }
+        let actual;
+        try {
+            actual = await hashPublicFile(this.dataDir, wanted, MAX_LOCAL_COPY_HASH);
+        }
+        catch (error) {
+            return { ok: false, status: /不存在/.test(errorMessage(error)) ? 'missing' : 'error', error: errorMessage(error), at };
+        }
+        const expected = entry.sha256.toLowerCase() || expectedSha.toLowerCase();
+        if (expected.length > 0) {
+            if (actual.sha256 !== expected || (expectedSize > 0 && actual.size !== expectedSize)) {
+                return { ok: false, status: 'hash-mismatch', error: '本机公开文件实际字节与所请求版本不一致；没有定位。', at };
+            }
+        }
+        else if (expectedSize > 0 && actual.size !== expectedSize) {
+            // The Published RPC exposes path/size only. When our bounded list hash
+            // budget omitted a large file's hash, the Published path and size are
+            // the available current-version evidence; do not claim an old hash.
+            return { ok: false, status: 'hash-mismatch', error: '本机公开文件实际大小与已发布清单不一致；没有定位。', at };
+        }
+        return this.revealControlledPath(actual.absolutePath, at);
+    }
+    /** Read-only bootstrap configuration view (DHT status); no edit path. */
+    async bootstrap(sessionId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        try {
+            await this.ensureReady();
+            const response = await this.api.call((client) => client.dhtStatus(new DhtStatusRequest(), { timeoutMs: 4000 }), '读取引导节点配置');
+            const peers = (response.dht?.bootstrapPeers ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
+            return {
+                at: this.now(), peers, error: null,
+                freshness: this.listFreshness(this.now(), null, peers.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
+                source: 'dht-status',
+            };
+        }
+        catch (error) {
+            return { at: null, peers: [], error: errorMessage(error), freshness: 'unavailable', source: 'unavailable' };
         }
     }
     /** Complete stable relation snapshot used by the familiar filter. */
@@ -1496,7 +3408,7 @@ export class RamingaUiBridge {
             scanned: state.scanned,
         };
     }
-    /** Local user profile and explicitly user-authored public posts. */
+    /** Local user profile plus every file under the live public directory. */
     async mine(sessionId, force = false) {
         this.assertOpen();
         const session = this.sessionFor(sessionId);
@@ -1519,7 +3431,105 @@ export class RamingaUiBridge {
             freshness: 'unavailable',
             profile: { state: 'missing', markdown: '', displayName: '', error: '', path: 'profile/index.md', at: null },
             posts: { state: 'missing', posts: [], error: '', unattributed: 0, agentAuthored: 0, invalid: 0, errors: [], truncated: false },
+            agentCard: { state: 'missing', card: null, error: '本机还没有公开 Agent 卡片' },
+            publicProfile: { state: 'missing', profile: null, error: '本机还没有公开资料 profile.json' },
+            files: [],
+            filesTruncated: false,
         };
+    }
+    async mineFiles(listed, peerId, publisherName) {
+        const files = [];
+        let metaReads = 0;
+        let metaBytes = 0;
+        let hashedBytes = 0;
+        for (const info of listed) {
+            const type = fileTypeOf(info.path);
+            let version = null;
+            let contentState = 'available';
+            let contentError = '';
+            if (info.size <= MAX_LOCAL_COPY_HASH && hashedBytes + info.size <= MAX_MINE_HASH_BYTES) {
+                try {
+                    version = await hashPublicFile(this.dataDir, info.path, MAX_LOCAL_COPY_HASH);
+                    hashedBytes += version.size;
+                    if (version.size !== info.size) {
+                        contentState = 'hash-mismatch';
+                        contentError = `本机文件大小 ${version.size} 字节与本次发布清单 ${info.size} 字节不一致；请刷新后重试。`;
+                    }
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    contentState = /不存在/.test(message) ? 'copy-missing' : 'unreadable';
+                    contentError = message;
+                }
+            }
+            const file = {
+                id: `mine\u0000${version?.sha256 ?? ''}\u0000${info.path}`,
+                peerId,
+                publisherName,
+                path: info.path,
+                name: path.posix.basename(info.path),
+                sha256: version?.sha256 ?? '',
+                sizeBytes: version?.size ?? info.size,
+                modifiedAt: version?.modifiedAt ?? 0,
+                fetchedAt: 0,
+                source: 'local-public',
+                sources: ['local-public'],
+                kind: type.kind,
+                mime: type.mime,
+                previewable: type.previewable,
+                title: titleFallback(info.path),
+                summary: '',
+                tags: [],
+                publishedAt: '',
+                authorKind: '',
+                authorName: '',
+                images: [],
+                contentState,
+                contentError,
+            };
+            if (metaReads < 40 && metaBytes < 4 * 1024 * 1024 && info.size <= 256 * 1024
+                && ['markdown', 'json', 'html'].includes(type.kind)) {
+                metaReads += 1;
+                metaBytes += info.size;
+                try {
+                    const data = await readPublicFile(this.dataDir, info.path, Math.max(1024, info.size));
+                    if (type.kind === 'markdown') {
+                        const text = data.toString('utf8');
+                        file.title = firstMarkdownHeading(text) || file.title;
+                        file.summary = plainTextSummary(text);
+                    }
+                    else if (type.kind === 'json' && isVersionedPostPath(info.path)) {
+                        try {
+                            const post = parsePostBytes(data, info.path, peerId);
+                            file.kind = 'markdown';
+                            file.mime = 'text/markdown';
+                            file.title = post.title;
+                            file.summary = post.summary;
+                            file.tags = [...post.tags];
+                            file.publishedAt = post.publishedAt;
+                            file.authorKind = post.authorKind;
+                            file.authorName = post.authorName;
+                            file.images = postImagesFromPost(post, info.path);
+                        }
+                        catch {
+                            file.summary = 'JSON 文本文件';
+                        }
+                    }
+                    else if (type.kind === 'html') {
+                        const text = data.toString('utf8');
+                        const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(text)?.[1]?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                        if (title)
+                            file.title = title.slice(0, 200);
+                    }
+                }
+                catch {
+                    // Metadata from the directory listing remains honest; preview later
+                    // reports any concrete read failure.
+                }
+            }
+            files.push(file);
+        }
+        return files;
     }
     async loadMine(session) {
         if (session.mineBusy !== null)
@@ -1540,16 +3550,87 @@ export class RamingaUiBridge {
                 if (peerId.length === 0)
                     throw new Error('没有读到本机 Peer ID，无法核对本人作者声明');
                 const local = await readOwnPublic(this.dataDir, peerId);
+                // The daemon's Published manifest applies the real per-file/aggregate
+                // limits and exclusions. Never substitute an independent disk walk:
+                // a file that is not published must not appear as public.
+                const published = await this.api.call((client) => client.published(new PublishedRequest(), { timeoutMs: 8000 }), '读取本机已发布清单');
                 if (!this.isSessionActive(session))
                     return;
+                const publishedFiles = (published.files ?? [])
+                    .map((file) => ({ path: String(file.path ?? ''), size: numberOf(file.size) }))
+                    .filter((file) => file.path.length > 0);
+                const publishedPaths = new Set(publishedFiles.map((file) => file.path));
+                const listed = publishedFiles.slice(0, MAX_MINE_FILES);
+                // The Published manifest is authoritative for every displayed part of
+                // Mine, not only the generic file list. An over-limit profile or post
+                // omitted by the daemon must not appear as public through a local scan.
+                const profile = publishedPaths.has(local.profile.path)
+                    ? local.profile
+                    : {
+                        ...local.profile,
+                        state: 'missing',
+                        markdown: '',
+                        displayName: '',
+                        error: '本机公开档案不在节点当前发布清单中，未作为已公开内容展示。',
+                        at: null,
+                    };
+                const posts = {
+                    ...local.posts,
+                    posts: local.posts.posts.filter((post) => publishedPaths.has(post.path)),
+                };
+                const publicProfile = publishedPaths.has('profile/profile.json')
+                    ? local.publicProfile
+                    : {
+                        ...local.publicProfile,
+                        state: 'missing',
+                        profile: null,
+                        error: '本机公开资料 profile.json 不在节点当前发布清单中',
+                    };
+                let agentCard = publishedPaths.has('profile/agent-card.json')
+                    ? local.agentCard
+                    : { state: 'missing', card: null, error: '本机公开 Agent 卡片不在节点当前发布清单中' };
+                if (publicProfile.state === 'available' && publicProfile.profile !== null && publicProfile.profile.agentName) {
+                    const v2 = publicProfile.profile;
+                    agentCard = {
+                        state: 'available',
+                        card: {
+                            schemaVersion: 1,
+                            displayName: v2.agentName,
+                            description: v2.agentDescription,
+                            interests: [...v2.agentInterests],
+                            conversationStyle: v2.agentConversationStyle,
+                            updatedAt: v2.updatedAt,
+                            path: 'profile/profile.json',
+                            sha256: v2.sha256,
+                            avatarPath: v2.avatarPath,
+                            avatarSha256: v2.avatarSha256,
+                            avatarMime: v2.avatarMime,
+                            legacyFallback: false,
+                            sourceWarning: '',
+                        },
+                        error: '',
+                    };
+                }
+                else if (local.agentCard.state === 'available' && local.agentCard.card !== null) {
+                    agentCard = {
+                        ...local.agentCard,
+                        card: { ...local.agentCard.card, legacyFallback: true },
+                    };
+                }
+                const publisherName = profile.displayName || publicProfile.profile?.humanName || shortPeer(peerId);
+                const files = await this.mineFiles(listed, peerId, publisherName);
                 session.mine.data = {
                     peerId,
                     at,
                     error: null,
                     errorAt: null,
                     freshness: this.listFreshness(at, null, true, this.streamEpoch, DISCOVERY_FRESH_MS),
-                    profile: local.profile,
-                    posts: local.posts,
+                    profile,
+                    posts,
+                    agentCard,
+                    publicProfile,
+                    files,
+                    filesTruncated: publishedFiles.length > MAX_MINE_FILES,
                 };
                 session.mine.at = at;
                 session.mine.errorAt = 0;
@@ -1581,11 +3662,226 @@ export class RamingaUiBridge {
         if (!force && cached !== undefined && this.now() - cached.at < PROFILE_TTL_MS)
             return cached.data;
         if (!session.peerProfileBusy.has(canonical)) {
-            session.peerProfileBusy.set(canonical, this.loadPeerProfile(session, canonical));
+            session.peerProfileBusy.set(canonical, this.loadPeerProfile(session, canonical, force));
         }
         await session.peerProfileBusy.get(canonical);
         this.assertSessionActive(session);
         return session.peerProfiles.get(canonical)?.data ?? this.emptyPeerProfile(canonical, '对方公开资料读取失败。', '');
+    }
+    emptyPeerFriends(peerId, error) {
+        return { peerId, friends: [], limited: false, source: 'unavailable', at: null, error };
+    }
+    /** Read a peer's public friends.json through the existing daemon RPC. The
+     * rows are untrusted claims: this method never compares them to local
+     * contacts or treats a name as a visited/known friend. */
+    async peerFriends(sessionId, peerId, _force = false) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+        if (canonical === null)
+            return this.emptyPeerFriends(String(peerId ?? ''), 'Peer ID 格式不正确。');
+        try {
+            await this.ensureReady();
+            const response = await this.api.call((client) => client.getPeerFriends(new GetPeerFriendsRequest({ peerId: canonical }), { timeoutMs: 15_000 }), '读取对方公开通讯录');
+            this.assertSessionActive(session);
+            const friends = [];
+            for (const raw of response.friends ?? []) {
+                if (friends.length >= 200)
+                    break;
+                const claimPeer = canonicalPeerId(String(raw.peerId ?? ''));
+                if (claimPeer === null)
+                    continue;
+                friends.push({
+                    name: String(raw.name ?? '').slice(0, 256),
+                    peerId: claimPeer,
+                    addrs: (raw.addrs ?? []).slice(0, 16).map((addr) => String(addr ?? '')).filter((addr) => addr.length > 0),
+                    description: String(raw.description ?? '').slice(0, 4096),
+                });
+            }
+            const data = {
+                peerId: canonical,
+                friends,
+                limited: response.limited === true,
+                source: 'remote',
+                at: this.now(),
+                error: null,
+            };
+            // This is evidence of a real remote read, not a new network action. A
+            // persistence failure must not turn a successful read into an error.
+            await this.rememberDirectoryClaims(session, canonical, data).catch(() => { });
+            if (!this.isSessionActive(session))
+                return this.emptyPeerFriends(canonical, '面板已关闭');
+            return data;
+        }
+        catch (error) {
+            this.assertSessionActive(session);
+            return this.emptyPeerFriends(canonical, errorMessage(error));
+        }
+    }
+    /**
+     * Read the host-owned, private contact projection. This method deliberately
+     * never calls ensureReady() or this.api: entering the contact list and
+     * loading a saved public name/avatar/clue must not dial, download, read a
+     * profile, or read a remote address book.
+     */
+    async contactProjection(sessionId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const projection = await readContactProjection(this.dataDir);
+        return {
+            state: projection.state,
+            profiles: projection.profiles.map((profile) => ({
+                peerId: profile.peerId,
+                displayName: profile.displayName,
+                description: profile.description,
+                interests: [...profile.interests],
+                conversationStyle: profile.conversationStyle,
+                source: profile.source,
+                verifiedAt: profile.verifiedAt,
+                avatarKey: profile.avatarKey ?? '',
+                avatarUrl: profile.avatarUrl ?? '',
+                avatarMime: profile.avatarMime ?? '',
+                avatarSha256: profile.avatarSha256 ?? '',
+                avatarSizeBytes: profile.avatarSizeBytes ?? 0,
+                avatarState: profile.avatarState ?? (profile.avatar === null ? 'none' : 'missing'),
+                avatarError: profile.avatarError ?? '',
+            })),
+            clues: projection.clues.map((clue) => ({
+                peerId: clue.peerId,
+                name: clue.name,
+                description: clue.description,
+                sourcePeerId: clue.sourcePeerId,
+                sourceName: clue.sourceName,
+                readAt: clue.readAt,
+            })),
+            at: projection.updatedAt,
+            error: projection.error,
+        };
+    }
+    /** Merge one successful profile read into the private projection. */
+    async rememberContactProfile(peerId, data) {
+        if (this.dataDir.length === 0 || data.source !== 'remote' || data.error !== null)
+            return;
+        const card = data.agentCard.state === 'available' ? data.agentCard.card : null;
+        if (card === null) {
+            // A completed read that explicitly reports no public card clears the
+            // prior public snapshot. A failed or local-copy read never does.
+            if (data.agentCard.state === 'missing') {
+                await this.updateContactProjection((projection) => {
+                    projection.profiles = projection.profiles.filter((profile) => profile.peerId !== peerId);
+                });
+            }
+            return;
+        }
+        const displayName = String(card.displayName ?? '').trim().slice(0, 80);
+        if (displayName.length === 0)
+            return;
+        let avatar = null;
+        const avatarPath = String(card.avatarPath ?? '').trim();
+        const avatarSha = /^[a-f0-9]{64}$/i.test(String(card.avatarSha256 ?? ''))
+            ? String(card.avatarSha256).toLowerCase()
+            : '';
+        const avatarMime = card.avatarMime === 'image/png' || card.avatarMime === 'image/jpeg' ? card.avatarMime : '';
+        const manifestEntry = avatarPath.length > 0 && Array.isArray(data.manifest.entries)
+            ? data.manifest.entries.find((entry) => entry.path === avatarPath) ?? null
+            : null;
+        const sizeBytes = manifestEntry === null ? 0 : Number(manifestEntry.sizeBytes);
+        if (avatarPath.length > 0 && avatarSha !== '' && avatarMime !== ''
+            && manifestEntry !== null
+            && String(manifestEntry.sha256 ?? '').toLowerCase() === avatarSha
+            && Number.isSafeInteger(sizeBytes) && sizeBytes > 0
+            && sizeBytes <= MAX_CONTACT_PROJECTION_AVATAR_BYTES) {
+            avatar = { path: avatarPath, sha256: avatarSha, mime: avatarMime, sizeBytes };
+        }
+        const entry = {
+            peerId,
+            displayName,
+            description: String(card.description ?? '').trim().slice(0, 400),
+            interests: (card.interests ?? []).slice(0, 10).map((value) => String(value).slice(0, 80)).filter((value) => value.length > 0),
+            conversationStyle: String(card.conversationStyle ?? '').trim().slice(0, 300),
+            avatar,
+            source: 'remote-profile',
+            verifiedAt: Number(data.at) > 0 ? Number(data.at) : this.now(),
+        };
+        await this.updateContactProjection((projection) => {
+            projection.profiles = [entry, ...projection.profiles.filter((profile) => profile.peerId !== peerId)]
+                .slice(0, MAX_CONTACT_PROJECTION_PROFILES);
+        });
+    }
+    /** Merge one successful remote directory read into the private projection. */
+    async rememberDirectoryClaims(session, sourcePeerId, data) {
+        if (this.dataDir.length === 0 || data.source !== 'remote' || data.error !== null)
+            return;
+        const at = Number(data.at) > 0 ? Number(data.at) : this.now();
+        const sourceProfile = session.peerProfiles.get(sourcePeerId)?.data;
+        const sourceCard = sourceProfile?.agentCard.state === 'available' ? sourceProfile.agentCard.card : null;
+        const sourceName = String(sourceCard?.displayName ?? '').trim()
+            || this.publisherNameCache.get(sourcePeerId)?.name
+            || this.friendName(sourcePeerId)
+            || shortPeer(sourcePeerId);
+        const self = String(session.status?.peerId ?? '');
+        const claims = [];
+        const seen = new Set();
+        for (const friend of data.friends) {
+            const peerId = canonicalPeerId(String(friend.peerId ?? ''));
+            if (peerId === null || peerId === sourcePeerId || (self.length > 0 && peerId === self))
+                continue;
+            if (seen.has(peerId))
+                continue;
+            seen.add(peerId);
+            claims.push({
+                peerId,
+                name: String(friend.name ?? '').trim().slice(0, 120) || shortPeer(peerId),
+                description: String(friend.description ?? '').trim().slice(0, 280),
+                sourcePeerId,
+                sourceName: sourceName.slice(0, 80),
+                readAt: at,
+            });
+            if (claims.length >= MAX_CONTACT_PROJECTION_CLUES)
+                break;
+        }
+        await this.updateContactProjection((projection) => {
+            const merged = new Map(projection.clues.map((clue) => [`${clue.sourcePeerId}\u0000${clue.peerId}`, clue]));
+            for (const [key, clue] of merged) {
+                if (clue.sourcePeerId === sourcePeerId)
+                    merged.delete(key);
+            }
+            for (const claim of claims)
+                merged.set(`${claim.sourcePeerId}\u0000${claim.peerId}`, claim);
+            projection.clues = [...merged.values()]
+                .sort((left, right) => right.readAt - left.readAt)
+                .slice(0, MAX_CONTACT_PROJECTION_CLUES);
+        });
+    }
+    /** Serialize read-modify-write updates and strip runtime-only avatar data. */
+    updateContactProjection(mutator) {
+        const run = this.contactProjectionQueue.catch(() => { }).then(async () => {
+            const current = await readContactProjection(this.dataDir, { avatars: false });
+            const projection = current.state === 'available'
+                ? {
+                    schemaVersion: 1,
+                    updatedAt: current.updatedAt,
+                    profiles: current.profiles.map((profile) => ({
+                        peerId: profile.peerId,
+                        displayName: profile.displayName,
+                        description: profile.description,
+                        interests: [...profile.interests],
+                        conversationStyle: profile.conversationStyle,
+                        avatar: profile.avatar,
+                        source: profile.source,
+                        verifiedAt: profile.verifiedAt,
+                    })),
+                    clues: current.clues.map((clue) => ({ ...clue })),
+                }
+                : { schemaVersion: 1, updatedAt: this.now(), profiles: [], clues: [] };
+            mutator(projection);
+            projection.updatedAt = this.now();
+            await writeContactProjection(this.dataDir, projection);
+        });
+        this.contactProjectionQueue = run.catch(() => { });
+        return run;
     }
     emptyPeerProfile(peerId, error, localName) {
         return {
@@ -1595,13 +3891,19 @@ export class RamingaUiBridge {
             found: false,
             text: '',
             files: [],
+            source: 'unavailable',
             at: null,
             error,
             freshness: 'unavailable',
             agentCard: { state: 'missing', card: null, error: '没有读取到公开 Agent 资料' },
+            manifest: this.emptyPeerManifest(peerId, '', error),
+            node: {
+                peerId, connectionState: 'unknown', directConnections: 0, relayConnections: 0,
+                currentAddresses: [], knownAddresses: [], statusAt: null, freshness: 'unavailable', error,
+            },
         };
     }
-    async loadPeerProfile(session, peerId) {
+    async loadPeerProfile(session, peerId, forcePeerProfileStatus = false) {
         const at = this.now();
         const localName = this.friendName(peerId);
         try {
@@ -1610,7 +3912,29 @@ export class RamingaUiBridge {
             const found = response.found === true;
             const files = (response.files ?? []).slice(0, 200).map((file) => String(file)).filter((file) => file.length > 0 && file.length <= 256);
             let agentCard = { state: 'missing', card: null, error: '对方没有公开 Agent 卡片' };
-            if (found && files.includes('profile/agent-card.json')) {
+            const structured = response.profile;
+            if (structured && structured.agentName) {
+                agentCard = {
+                    state: 'available',
+                    card: {
+                        schemaVersion: 1,
+                        displayName: String(structured.agentName ?? '').slice(0, 64),
+                        description: String(structured.agentDescription ?? '').slice(0, 2000),
+                        interests: (structured.agentInterests ?? []).slice(0, 10).map((value) => String(value).slice(0, 80)),
+                        conversationStyle: String(structured.agentConversationStyle ?? '').slice(0, 1000),
+                        updatedAt: '',
+                        path: String(structured.sourcePath ?? 'profile/profile.json'),
+                        sha256: '',
+                        avatarPath: String(structured.avatarPath ?? ''),
+                        avatarSha256: String(structured.avatarSha256 ?? '').toLowerCase(),
+                        avatarMime: String(structured.avatarMime ?? ''),
+                        legacyFallback: structured.legacyFallback === true,
+                        sourceWarning: String(structured.warning ?? ''),
+                    },
+                    error: '',
+                };
+            }
+            else if (found && files.includes('profile/agent-card.json')) {
                 try {
                     const final = await this.downloadForProfile(peerId, 'profile/agent-card.json');
                     agentCard = await readDownloadedAgentCard(this.dataDir, peerId, final.path, final.sha256, final.size);
@@ -1619,6 +3943,14 @@ export class RamingaUiBridge {
                     agentCard = { state: 'error', card: null, error: errorMessage(error) };
                 }
             }
+            const remoteName = (structured?.humanName ? String(structured.humanName).trim() : '') || String(response.name ?? '').trim();
+            const remoteText = (structured?.humanBioMarkdown ? String(structured.humanBioMarkdown) : '') || String(response.text ?? '');
+            if (remoteName.length > 0)
+                this.publisherNameCache.set(peerId, { at: this.now(), name: remoteName });
+            await this.ensurePeerManifest(session, peerId, forcePeerProfileStatus);
+            // The manifest read may have established a connection. Re-read Status so
+            // the peer homepage does not label a just-connected peer as disconnected.
+            await this.reconcileStatus('peer-profile-node', { trailing: true });
             if (!this.isSessionActive(session))
                 return;
             if (session.peerProfiles.size > 128) {
@@ -1626,21 +3958,27 @@ export class RamingaUiBridge {
                 if (first !== undefined)
                     session.peerProfiles.delete(first);
             }
-            session.peerProfiles.set(peerId, {
+            const data = {
+                peerId,
+                localName,
+                remoteName,
+                found,
+                text: remoteText.slice(0, 256 * 1024),
+                files,
+                source: 'remote',
                 at,
-                data: {
-                    peerId,
-                    localName,
-                    remoteName: String(response.name ?? ''),
-                    found,
-                    text: String(response.text ?? '').slice(0, 256 * 1024),
-                    files,
-                    at,
-                    error: null,
-                    freshness: this.listFreshness(at, null, found, this.streamEpoch, DISCOVERY_FRESH_MS),
-                    agentCard,
-                },
-            });
+                error: null,
+                freshness: this.listFreshness(at, null, found, this.streamEpoch, DISCOVERY_FRESH_MS),
+                agentCard,
+                manifest: this.peerManifestSnapshot(session, peerId),
+                node: this.peerNodeSnapshot(session, peerId),
+            };
+            // Persist only facts this call really returned. This is a local,
+            // private projection; it is never a trigger for another remote read.
+            await this.rememberContactProfile(peerId, data).catch(() => { });
+            if (!this.isSessionActive(session))
+                return;
+            session.peerProfiles.set(peerId, { at, data });
         }
         catch (error) {
             if (!this.isSessionActive(session))
@@ -1650,14 +3988,78 @@ export class RamingaUiBridge {
                 if (first !== undefined)
                     session.peerProfiles.delete(first);
             }
-            session.peerProfiles.set(peerId, {
-                at,
-                data: { ...this.emptyPeerProfile(peerId, errorMessage(error), localName), at },
-            });
+            const message = errorMessage(error);
+            let recovered = null;
+            try {
+                recovered = await this.recoverPeerProfileLocally(session, peerId, localName, message, forcePeerProfileStatus);
+            }
+            catch {
+                recovered = null;
+            }
+            if (!this.isSessionActive(session))
+                return;
+            const previous = session.peerProfiles.get(peerId)?.data;
+            const data = recovered !== null && recovered.source === 'local-copy'
+                ? recovered
+                : previous
+                    ? {
+                        ...previous,
+                        error: message,
+                        freshness: 'stale',
+                        manifest: this.peerManifestSnapshot(session, peerId),
+                        node: this.peerNodeSnapshot(session, peerId),
+                        at,
+                    }
+                    : recovered ?? {
+                        ...this.emptyPeerProfile(peerId, message, localName),
+                        manifest: this.peerManifestSnapshot(session, peerId),
+                        node: this.peerNodeSnapshot(session, peerId),
+                        at,
+                    };
+            session.peerProfiles.set(peerId, { at, data });
         }
         finally {
             session.peerProfileBusy.delete(peerId);
         }
+    }
+    /** Rebuild a peer homepage from verified local downloads after the remote
+     * read failed. This is the restart-safe, explicitly local fallback; it never
+     * claims the peer is online or that the list is the current full manifest. */
+    async recoverPeerProfileLocally(session, peerId, localName, remoteError, force) {
+        await this.ensurePeerManifest(session, peerId, force);
+        const manifest = this.peerManifestSnapshot(session, peerId);
+        const profile = await readDownloadedProfile(this.dataDir, peerId);
+        const files = new Set(manifest.entries.map((entry) => entry.path));
+        if (profile.state === 'available')
+            files.add('profile/index.md');
+        let agentCard = { state: 'missing', card: null, error: '本机没有对方公开 Agent 卡片的历史副本' };
+        if (files.has('profile/agent-card.json')) {
+            const card = await readDownloadedAgentCard(this.dataDir, peerId, 'profile/agent-card.json', '', 0);
+            if (card.state === 'available' && card.card !== null) {
+                agentCard = { state: 'available', card: card.card, error: '' };
+            }
+            else if (card.state === 'error') {
+                agentCard = { state: 'error', card: null, error: card.error };
+            }
+        }
+        const hasLocal = profile.state === 'available' || manifest.entries.length > 0;
+        return {
+            peerId,
+            localName,
+            remoteName: profile.displayName,
+            found: profile.state === 'available',
+            text: profile.markdown.slice(0, 256 * 1024),
+            files: [...files].slice(0, 200),
+            source: hasLocal ? 'local-copy' : 'unavailable',
+            at: this.now(),
+            error: hasLocal
+                ? `读取对方当前公开资料失败：${remoteError.replace(/[。.\s]+$/, '')}。以下来自本机已核对的下载副本，不是当前远端资料。`
+                : remoteError,
+            freshness: hasLocal ? 'stale' : 'unavailable',
+            agentCard,
+            manifest,
+            node: this.peerNodeSnapshot(session, peerId),
+        };
     }
     friendName(peerId) {
         // Friend names are local snapshots already cached for the panel; do not
@@ -1669,9 +4071,14 @@ export class RamingaUiBridge {
         }
         return '';
     }
-    async downloadForProfile(peerId, relative) {
+    async downloadPeerFile(peerId, relative, options, operation) {
         const frames = await this.api.call(async (client) => {
-            const stream = await client.downloadPeerFile(new DownloadPeerFileRequest({ peerId, path: relative, recordDiscovery: false }), { timeoutMs: 30_000 });
+            const stream = await client.downloadPeerFile(new DownloadPeerFileRequest({
+                peerId,
+                path: relative,
+                recordDiscovery: options.recordDiscovery,
+                discoverySource: options.discoverySource ?? '',
+            }), { timeoutMs: options.timeoutMs ?? 30_000 });
             const collected = [];
             for await (const frame of stream) {
                 collected.push({
@@ -1681,17 +4088,213 @@ export class RamingaUiBridge {
                     sha256: String(frame.sha256 ?? ''),
                     totalBytes: numberOf(frame.totalBytes),
                     error: String(frame.error ?? ''),
+                    discoveryRecorded: frame.discoveryRecorded === true,
+                    discoveryError: String(frame.discoveryError ?? ''),
                 });
             }
             return collected;
-        }, '读取对方公开 Agent 卡片');
-        const last = frames.length > 0 ? frames[frames.length - 1] : null;
+        }, operation);
+        return frames.length > 0 ? frames[frames.length - 1] : null;
+    }
+    async downloadForProfile(peerId, relative) {
+        const last = await this.downloadPeerFile(peerId, relative, { recordDiscovery: false, timeoutMs: 30_000 }, '读取对方公开 Agent 卡片');
         if (last === null || last.phase !== 'complete' || last.error.length > 0) {
             throw new Error(last?.error || '公开 Agent 卡片下载没有完成');
         }
         if (last.path !== relative)
             throw new Error('下载结果的公开路径与请求不一致');
         return { path: last.path, localPath: last.localPath, sha256: last.sha256, size: last.totalBytes };
+    }
+    /**
+     * Save one fixed private Markdown file with optimistic conflict detection.
+     * The browser supplies a field name, text and expected SHA-256 only; it
+     * never supplies a path and private text is never written to public/.
+     */
+    async publicDraft(sessionId, draftId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        try {
+            const response = await this.api.call((client) => client.getPublicDraft(new GetPublicDraftRequest({ draftId: String(draftId ?? '') }), { timeoutMs: 8000 }), '读取公开草稿');
+            return { found: response.found === true, draft: response.draft ? draftFromProto(response.draft) : null };
+        }
+        catch (error) {
+            return { found: false, draft: null, error: errorMessage(error) };
+        }
+    }
+    async publicDrafts(sessionId, kind) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const response = await this.api.call((client) => client.listPublicDrafts(new ListPublicDraftsRequest({ kind: String(kind ?? ''), limit: 100 }), { timeoutMs: 8000 }), '读取公开草稿列表');
+        return {
+            drafts: (response.drafts ?? []).map((draft) => draftFromProto(draft)),
+            hasMore: response.hasMore === true,
+            nextBefore: String(response.nextBefore ?? ''),
+        };
+    }
+    async savePublicDraft(sessionId, input) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const revision = Number.isSafeInteger(Number(input?.expectedRevision)) && Number(input.expectedRevision) > 0
+            ? BigInt(Math.trunc(Number(input.expectedRevision)))
+            : protoInt64.zero;
+        const request = new SavePublicDraftRequest({
+            draftId: String(input?.draftId ?? ''),
+            kind: String(input?.kind ?? ''),
+            expectedRevision: revision,
+            agentInterests: (input?.agentInterests ?? []).map((value) => String(value)),
+            tags: (input?.tags ?? []).map((value) => String(value)),
+            imageAssetIds: (input?.imageAssetIds ?? []).map((value) => String(value)),
+            avatarAssetId: String(input?.avatarAssetId ?? ''),
+            clearAvatar: input?.clearAvatar === true,
+        });
+        if (typeof input?.agentName === 'string')
+            request.agentName = input.agentName;
+        if (typeof input?.agentDescription === 'string')
+            request.agentDescription = input.agentDescription;
+        if (typeof input?.agentConversationStyle === 'string')
+            request.agentConversationStyle = input.agentConversationStyle;
+        if (typeof input?.humanName === 'string')
+            request.humanName = input.humanName;
+        if (typeof input?.humanBioMarkdown === 'string')
+            request.humanBioMarkdown = input.humanBioMarkdown;
+        if (typeof input?.title === 'string')
+            request.title = input.title;
+        if (typeof input?.bodyMarkdown === 'string')
+            request.bodyMarkdown = input.bodyMarkdown;
+        if (input?.authorKind === 'user' || input?.authorKind === 'agent')
+            request.authorKind = input.authorKind;
+        const response = await this.api.call((client) => client.savePublicDraft(request, { timeoutMs: 8000 }), '保存公开草稿');
+        if (!response.draft)
+            throw new Error('保存草稿没有返回草稿内容');
+        return { draft: draftFromProto(response.draft) };
+    }
+    async putPublicDraftImage(sessionId, draftId, role, filename, dataBase64) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const raw = String(dataBase64 ?? '');
+        if (raw.length === 0 || raw.length > 12 * 1024 * 1024 || !/^[A-Za-z0-9+/]*={0,2}$/.test(raw)) {
+            throw new Error('图片数据为空、过大或不是有效 base64');
+        }
+        const data = Buffer.from(raw, 'base64');
+        if (data.length === 0 || data.length > 8 * 1024 * 1024)
+            throw new Error('图片超过 8 MiB 上限');
+        const response = await this.api.call((client) => client.putPublicDraftImage(new PutPublicDraftImageRequest({
+            draftId: String(draftId ?? ''), role: String(role ?? ''), filename: String(filename ?? ''), data,
+        }), { timeoutMs: 30_000 }), '保存公开草稿图片');
+        const image = draftImageFromProto(response.image);
+        if (!image)
+            throw new Error('保存图片没有返回资源信息');
+        return { image };
+    }
+    async publicDraftAsset(sessionId, draftId, assetId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const id = String(draftId ?? '');
+        const asset = String(assetId ?? '');
+        if (id.length === 0 || asset.length === 0)
+            throw new Error('draftId 和 assetId 不能为空');
+        const response = await this.api.call((client) => client.getPublicDraftAsset(new GetPublicDraftAssetRequest({ draftId: id, assetId: asset }), { timeoutMs: 8000 }), '读取私有草稿图片');
+        const image = draftImageFromProto(response.image);
+        if (!image || image.assetId !== asset)
+            throw new Error('草稿图片响应与请求的资源不一致');
+        const data = response.data ?? new Uint8Array();
+        if (data.length === 0 || data.length > 8 * 1024 * 1024)
+            throw new Error('草稿图片为空或超过 8 MiB');
+        if (image.sizeBytes !== data.length)
+            throw new Error('草稿图片大小与元数据不一致');
+        return { image, dataBase64: Buffer.from(data).toString('base64') };
+    }
+    async importPublicPost(sessionId, publicPath) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const rel = String(publicPath ?? '');
+        if (!/^(?:posts\/[A-Za-z0-9._-]+\.json|posts\/[A-Za-z0-9._-]+\/post\.json)$/.test(rel)) {
+            throw new Error('只能编辑本机 posts 目录中的公开动态');
+        }
+        const response = await this.api.call((client) => client.importPublicPost(new ImportPublicPostRequest({ path: rel }), { timeoutMs: 30_000 }), '导入公开动态草稿');
+        if (!response.draft)
+            throw new Error('导入动态没有返回草稿');
+        return { draft: draftFromProto(response.draft) };
+    }
+    async deletePublicDraft(sessionId, draftId, expectedRevision) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const response = await this.api.call((client) => client.deletePublicDraft(new DeletePublicDraftRequest({
+            draftId: String(draftId ?? ''), expectedRevision: BigInt(Math.max(0, Math.trunc(Number(expectedRevision) || 0))),
+        }), { timeoutMs: 8000 }), '删除公开草稿');
+        return { deleted: response.deleted === true };
+    }
+    async publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        await this.ensureReady();
+        const response = await this.api.call((client) => client.publishPublicDraft(new PublishPublicDraftRequest({
+            draftId: String(draftId ?? ''),
+            expectedRevision: BigInt(Math.max(0, Math.trunc(Number(expectedRevision) || 0))),
+            expectedPublishedSha256: String(expectedPublishedSha256 ?? ''),
+        }), { timeoutMs: 60_000 }), '发布公开草稿');
+        const result = {
+            status: publishStatusFromProto(response.status),
+            error: String(response.error ?? ''),
+            currentRevision: numberOf(response.currentRevision),
+            currentPublishedSha256: String(response.currentPublishedSha256 ?? '').toLowerCase(),
+            files: (response.files ?? []).map((file) => ({
+                path: String(file.path ?? ''), sizeBytes: numberOf(file.sizeBytes), sha256: String(file.sha256 ?? '').toLowerCase(),
+            })),
+            manifestVersion: numberOf(response.manifestVersion),
+            manifestGeneratedAtUnixMs: numberOf(response.manifestGeneratedAtUnixMs),
+            postPath: String(response.postPath ?? ''),
+            profilePath: String(response.profilePath ?? ''),
+            warnings: (response.warnings ?? []).map((value) => String(value)),
+            manifestSha256: String(response.manifestSha256 ?? '').toLowerCase(),
+        };
+        // A commit changes the public manifest; refresh only after the daemon has
+        // returned the same-snapshot files/digest.
+        if (result.status === 'published' || result.status === 'already_published' || result.status === 'partial') {
+            session.mine.at = 0;
+            session.mine.errorAt = 0;
+            for (const state of session.discoveries.values())
+                state.at = 0;
+        }
+        return result;
+    }
+    async savePrivateAgent(sessionId, field, content, expectedSha256) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        if (field !== 'persona' && field !== 'growth')
+            throw new Error('只允许保存 persona 或 growth');
+        if (typeof content !== 'string')
+            throw new Error('保存内容必须是文本');
+        try {
+            const result = await savePrivateAgentFile(this.dataDir, field, content, expectedSha256);
+            // Force the next Journey read to observe this exact write rather than a
+            // pre-save cached Markdown snapshot.
+            session.journey.at = 0;
+            session.journey.data = null;
+            return result;
+        }
+        catch (error) {
+            if (error instanceof LocalDataError && error.code === 'conflict') {
+                return { saved: false, conflict: true, error: error.message, sha256: '' };
+            }
+            throw error;
+        }
     }
     /** Read private Agent persona/growth and existing Journey schemas. */
     async journey(sessionId, force = false) {
@@ -1741,6 +4344,103 @@ export class RamingaUiBridge {
         })();
         session.journeyBusy = promise;
         return promise;
+    }
+    /**
+     * Read the private tool-call log. This method never opens the daemon, never
+     * writes a file and never changes an operation's terminal state. A read
+     * failure is returned as an error, not as an empty activity list.
+     */
+    async activity(sessionId, limit = 100) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const instanceId = this.activityStore?.pluginInstanceId ?? '';
+        if (this.activityStore === null) {
+            return {
+                operations: [], instanceId, readAt: this.now(), truncated: false, badLines: 0,
+                error: '当前宿主没有提供 Agent 工具活动读取。',
+            };
+        }
+        try {
+            return await this.activityStore.read(limit);
+        }
+        catch (error) {
+            return {
+                operations: [], instanceId, readAt: this.now(), truncated: false, badLines: 0,
+                error: `Agent 工具活动读取失败：${redactActivityReadError(error)}`,
+            };
+        }
+    }
+    /**
+     * Detail for one real tool operation. Only a bounded Journey state summary
+     * is attached; reports/events/persona/growth never leave the host.
+     */
+    async activityDetail(operationId) {
+        if (this.disposed)
+            throw new Error('Raminga UI bridge is disposed');
+        const wanted = typeof operationId === 'string' ? operationId.trim() : '';
+        const empty = {
+            operation: null,
+            evidence: {},
+            journey: null,
+            missingReason: wanted.length === 0
+                ? '没有提供要查看的工具操作。'
+                : '本机没有找到这条工具调用记录。',
+        };
+        if (this.activityStore === null || wanted.length === 0 || wanted.length > 160)
+            return empty;
+        let operation = null;
+        try {
+            const read = await this.activityStore.read(500);
+            operation = read.operations.find((item) => item.operationId === wanted) ?? null;
+        }
+        catch {
+            return { ...empty, missingReason: '本机工具调用记录读取失败，不能确认这条操作。' };
+        }
+        if (operation === null)
+            return empty;
+        const evidence = { ...operation.evidence };
+        // Older records may predate evidence projection; the sanitized target is
+        // still safe and lets the UI offer an honest fallback jump.
+        if (!evidence.peer_id && operation.target.peer_id)
+            evidence.peer_id = operation.target.peer_id;
+        if (!evidence.path && operation.target.path)
+            evidence.path = operation.target.path;
+        let journey = null;
+        let journeyMissing = false;
+        if (operation.journeyId.length > 0) {
+            const summary = await readJourneySummary(this.dataDir, operation.journeyId);
+            if (summary === null) {
+                journeyMissing = true;
+                journey = {
+                    sessionId: operation.journeyId,
+                    exists: false,
+                    status: '',
+                    mode: '',
+                    startedAt: '',
+                    updatedAt: '',
+                    completedAt: '',
+                    currentPeerId: '',
+                    visitedPeerIds: [],
+                };
+            }
+            else {
+                journey = { ...summary, exists: true };
+            }
+        }
+        const peer = evidence.peer_id || operation.target.peer_id || '';
+        let missingReason = '';
+        if (journeyMissing)
+            missingReason = '关联的 Journey 记录已不在本机。';
+        else if (peer.length > 0)
+            missingReason = '';
+        else if ((evidence.message_ids?.length ?? 0) > 0)
+            missingReason = '记录里有消息 ID，但没有可定位的 Peer。';
+        else if (evidence.path || operation.target.path)
+            missingReason = '记录里有公开内容路径，但没有可定位的 Peer。';
+        else
+            missingReason = '本机没有可跳转证据。';
+        return { operation, evidence, journey, missingReason };
     }
     /**
      * Locate a message referenced by a Journey event inside the currently
@@ -1821,6 +4521,7 @@ export class RamingaUiBridge {
             errorAt: state.errorAt > 0 ? state.errorAt : null,
             freshness: this.listFreshness(state.at, state.error, state.items.length > 0, state.streamEpoch, this.conversationsFreshMs),
             retention: state.retention ? { ...state.retention } : null,
+            totalUnread: state.totalUnread,
         };
     }
     messagePageSnapshot(session, peerId) {
@@ -1870,6 +4571,7 @@ export class RamingaUiBridge {
         this.cancelReconcileTimer();
         this.stats.sessionsClosed += this.sessions.size;
         this.sessions.clear();
+        this.activityStore?.detachAllPanelSessions();
         this.closedSessions.clear();
         this.stopEventStream();
         // The same cleanup path runs when the plugin fiber unloads; keep one
@@ -1936,6 +4638,9 @@ export class RamingaUiBridge {
         if (this.sessions.get(session.id) !== session)
             return;
         this.sessions.delete(session.id);
+        // Closing a panel unbinds its lease only. It must never write a terminal
+        // activity result for a tool that may still be executing.
+        this.activityStore?.detachPanelSession(session.id);
         this.stats.sessionsClosed += 1;
         if (this.sessions.size === 0) {
             this.generation += 1;
@@ -2345,8 +5050,8 @@ async function readJourneyPlaceholder(dataDir, at) {
     return {
         state: 'error',
         at,
-        persona: { state: 'missing', markdown: '', error: reason },
-        growth: { state: 'missing', markdown: '', error: reason },
+        persona: { state: 'missing', markdown: '', error: reason, sha256: '' },
+        growth: { state: 'missing', markdown: '', error: reason, sha256: '' },
         sessions: [],
         sessionsState: 'missing',
         sessionsError: reason,

@@ -50,12 +50,12 @@ var RamingaUI = (() => {
   var CSS = `/* Focused v0.4 palette for the native workspace. Values follow the accepted
    prototype/design spec; this file intentionally contains no layout rules. */
 :host {
-  --rm-bg: #fafafc;
-  --rm-ink: #121220;
-  --rm-body: #393440;
-  --rm-muted: #68616f;
+  --rm-bg: #faf9fe;
+  --rm-ink: #171426;
+  --rm-body: #4b445e;
+  --rm-muted: #827990;
   --rm-subtle: #79717f;
-  --rm-line: #e3e0ea;
+  --rm-line: #e9e3f4;
   --rm-purple: #7a5cff;
   --rm-action: #6845ed;
   --rm-action-deep: #5635cc;
@@ -63,7 +63,7 @@ var RamingaUI = (() => {
   --rm-mint-ink: #167958;
   --rm-coral: #ff7f6e;
   --rm-yellow: #ffd84e;
-  --rm-soft: #f4f1fa;
+  --rm-soft: #f3efff;
   --rm-hover: #f0edf7;
   --rm-surface: #ffffff;
   --rm-backdrop: #12122055;
@@ -190,7 +190,7 @@ var RamingaUI = (() => {
   border-radius: 8px;
   transition: color .15s, background .15s;
 }
-.rm-nav button:hover { color: var(--rm-ink); background: var(--rm-hover); }
+.rm-nav button:hover { color: var(--rm-ink); background: transparent; }
 .rm-nav button[aria-current="page"] { color: var(--rm-action); font-weight: 650; }
 .rm-nav-desktop button[aria-current="page"]::after {
   content: "";
@@ -214,8 +214,8 @@ var RamingaUI = (() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex: none;
   min-width: 0;
-  max-width: min(250px, 100%);
   height: 36px;
   padding: 0 13px;
   border: 1px solid var(--rm-line);
@@ -226,7 +226,7 @@ var RamingaUI = (() => {
   transition: border-color .15s, background .15s, color .15s;
 }
 .rm-node:hover { border-color: #c9bcf0; background: var(--rm-soft); color: var(--rm-ink); }
-.rm-node-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-node-label { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .rm-node-dot {
   flex: none;
   width: 7px;
@@ -236,6 +236,7 @@ var RamingaUI = (() => {
   border: 1px solid var(--rm-mint-ink);
 }
 .rm-node-dot[data-phase="loading"] { background: #d4d4ce; border-color: var(--rm-subtle); }
+.rm-node-dot[data-phase="stale"] { background: #f0c96a; border-color: #9a6b10; }
 .rm-node-dot[data-phase="error"] { background: var(--rm-coral); border-color: #a23d2e; }
 .rm-node-dot[data-phase="closed"] { background: transparent; border-color: var(--rm-subtle); }
 
@@ -266,7 +267,50 @@ var RamingaUI = (() => {
   border-bottom: 1px solid var(--rm-line);
 }
 .rm-filters { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.rm-explore-tools { display: flex; align-items: center; gap: 8px; flex: none; }
+.rm-explore-tools { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; }
+.rm-search-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--rm-subtle);
+  font-size: 17px;
+  line-height: 1;
+}
+.rm-search-clear:hover { background: #e8e2f4; color: var(--rm-ink); }
+.rm-search-clear[hidden] { display: none; }
+/* Secondary scan/source disclosure: never a first-screen diagnostic banner. */
+.rm-discovery-scope {
+  margin: 2px 0 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rm-line);
+  color: var(--rm-subtle);
+}
+.rm-discovery-scope > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  color: var(--rm-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.rm-discovery-scope > summary::-webkit-details-marker { display: none; }
+.rm-discovery-scope > summary::before { content: "＋"; color: var(--rm-subtle); font-size: 11px; }
+.rm-discovery-scope[open] > summary::before { content: "－"; }
+.rm-discovery-scope-body {
+  max-width: 680px;
+  padding: 4px 0 2px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.rm-discovery-scope-note { margin: 0 0 4px; }
+.rm-discovery-scope-note:last-child { margin-bottom: 0; }
 .rm-refresh-button {
   display: inline-flex;
   align-items: center;
@@ -337,6 +381,7 @@ var RamingaUI = (() => {
 }
 .rm-search:focus-within { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
 .rm-search svg { width: 18px; height: 18px; color: var(--rm-subtle); }
+.rm-search input:focus-visible { outline: none; }
 .rm-search input {
   flex: 1;
   min-width: 0;
@@ -403,6 +448,8 @@ var RamingaUI = (() => {
 .rm-quiet:hover { background: var(--rm-hover); }
 .rm-quiet[aria-disabled="true"] { opacity: .55; cursor: default; }
 .rm-quiet[aria-disabled="true"]:hover { background: transparent; }
+.rm-quiet:disabled { opacity: .55; cursor: default; }
+.rm-quiet:disabled:hover { background: transparent; }
 .rm-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .rm-quiet-action { background: transparent; border-color: transparent; }
 
@@ -416,6 +463,8 @@ var RamingaUI = (() => {
   color: #7a5b18;
   font-size: 11.5px;
   line-height: 1.65;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .rm-list-retry {
   display: inline-flex;
@@ -539,19 +588,45 @@ var RamingaUI = (() => {
 .rm-back { margin-top: 18px; min-height: 34px; padding: 0 8px; border-radius: 8px; color: var(--rm-action); font-size: 12px; font-weight: 600; }
 .rm-back:hover { background: var(--rm-hover); }
 .rm-conversation-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 13px;
-  margin-top: 14px;
-  padding: 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin-top: 8px;
+  padding: 11px 13px;
   border: 1px solid var(--rm-line);
   border-radius: 14px;
   background: var(--rm-surface);
 }
+.rm-conversation-head > .rm-contact-avatar { overflow: hidden; }
 .rm-conversation-copy { flex: 1; min-width: 0; }
-.rm-conversation-copy h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: -.3px; overflow-wrap: anywhere; }
-.rm-conversation-copy .rm-contact-state { display: inline-block; margin-top: 7px; }
-.rm-conversation-state { padding-top: 40px; }
+.rm-conversation-title { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 9px; min-width: 0; }
+.rm-conversation-copy h1 { margin: 0; font-size: 18px; line-height: 1.35; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.rm-conversation-copy .rm-contact-state { display: inline-block; margin-top: 0; }
+.rm-conversation-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.rm-conversation-profile { min-height: 32px; padding: 0 10px; font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.rm-conversation-profile[hidden] { display: none; }
+.rm-conversation-meta { flex: none; margin: 3px 0 0; color: var(--rm-subtle); font-size: 10.5px; line-height: 1.55; }
+.rm-conversation-meta > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 5px;
+  border-radius: 6px;
+  color: var(--rm-subtle);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.rm-conversation-meta > summary::-webkit-details-marker { display: none; }
+.rm-conversation-meta > summary::before { content: "＋"; margin-right: 4px; font-size: 10px; }
+.rm-conversation-meta[open] > summary::before { content: "－"; }
+.rm-conversation-meta > summary:hover { color: var(--rm-ink); background: var(--rm-hover); }
+.rm-conversation-meta > summary:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 1px; }
+.rm-conversation-meta-body { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 2px 5px 4px; min-width: 0; }
+.rm-conversation-meta-body .rm-peer-id { flex: 1 1 240px; min-width: 0; }
+.rm-conversation-meta-body > span { overflow-wrap: anywhere; }
+.rm-conversation-state { padding-top: 34px; }
 
 /* Honest unavailable and empty states. No demo content is rendered here. */
 .rm-state { padding: 64px 24px 48px; text-align: center; }
@@ -676,8 +751,15 @@ var RamingaUI = (() => {
   min-height: 0;
 }
 #page-messages[data-view="conversation"] .rm-back,
-#page-messages[data-view="conversation"] .rm-conversation-head {
+#page-messages[data-view="conversation"] .rm-conversation-head,
+#page-messages[data-view="conversation"] .rm-conversation-meta {
   flex: none;
+}
+#page-messages[data-view="conversation"] .rm-back {
+  align-self: flex-start;
+  margin-top: 2px;
+  min-height: 30px;
+  padding: 0 5px;
 }
 #page-messages[data-view="conversation"] .rm-message-panel {
   display: flex;
@@ -740,6 +822,18 @@ var RamingaUI = (() => {
   color: var(--rm-subtle);
   font-size: 10.5px;
 }
+.rm-message-origin {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--rm-soft);
+  color: var(--rm-muted);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.rm-message-origin[data-origin="human"] { background: #fbf7ff; color: #644693; }
+.rm-message-origin[data-origin="agent"] { background: #f0eaff; color: #5d4b9b; }
+.rm-message-origin[data-origin="peer"] { background: var(--rm-soft); color: var(--rm-muted); }
+.rm-message-origin[data-origin="unknown"] { background: #f3f2ee; color: #6b655c; }
 .rm-message-status { white-space: nowrap; }
 .rm-message-status[data-tone="ok"] { color: #13795c; }
 .rm-message-status[data-tone="pending"] { color: #8a6116; }
@@ -780,6 +874,19 @@ var RamingaUI = (() => {
   z-index: 4;
   margin-top: 12px;
 }
+.rm-composer-jump { display: flex; justify-content: flex-end; margin: 0 4px 6px; }
+.rm-composer-jump[hidden] { display: none; }
+.rm-jump-latest {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--rm-surface);
+  box-shadow: 0 3px 12px #24163b1c;
+  color: var(--rm-action);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.rm-jump-latest:hover { background: var(--rm-soft); }
 .rm-composer {
   position: static;
   flex: none;
@@ -795,23 +902,21 @@ var RamingaUI = (() => {
   backdrop-filter: blur(8px);
 }
 .rm-composer-overlay {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 5;
+  position: static;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  max-height: min(38vh, 240px);
+  width: 100%;
+  max-height: min(30vh, 220px);
+  margin: 0 0 8px;
   padding: 9px 11px;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--rm-line);
   border-radius: 12px;
   background: var(--rm-surface);
-  box-shadow: 0 10px 28px #24163b1c, 0 2px 8px #24163b0f;
+  box-shadow: 0 4px 14px #24163b14;
 }
 .rm-composer-status {
   min-height: 0;
@@ -843,8 +948,8 @@ var RamingaUI = (() => {
   overflow-wrap: anywhere;
 }
 .rm-composer textarea:focus { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
-.rm-composer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
-.rm-composer-count { color: var(--rm-subtle); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.rm-composer-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.rm-composer-count { margin-right: auto; color: var(--rm-subtle); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .rm-composer-count[data-over="true"] { color: #8d2c28; font-weight: 650; }
 .rm-composer .rm-primary { min-height: 40px; }
 .rm-composer .rm-primary[aria-disabled="true"] { opacity: .6; cursor: default; }
@@ -940,6 +1045,8 @@ var RamingaUI = (() => {
 .rm-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .rm-panel-head h2 { margin: 0; font-size: 15px; font-weight: 650; }
 .rm-panel-head span { flex: none; color: var(--rm-subtle); font-size: 11px; }
+.rm-panel-head-actions { display: flex; align-items: center; gap: 9px; flex: none; }
+.rm-panel-head-actions .rm-quiet { font-size: 11px; }
 .rm-panel p { margin: 0; color: var(--rm-muted); font-size: 12.5px; line-height: 1.8; }
 .rm-mine-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 
@@ -1228,12 +1335,154 @@ var RamingaUI = (() => {
 }
 .rm-post-meta, .rm-post-time { color: var(--rm-subtle); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .rm-post-time { flex: none; max-width: 48%; margin-left: auto; text-align: right; }
-.rm-post-title { margin: 11px 0 5px; font-size: 17px; line-height: 1.35; letter-spacing: -.2px; overflow-wrap: anywhere; }
+.rm-post-title {
+  margin: 11px 0 5px;
+  color: var(--rm-ink);
+  font-size: 18.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -.3px;
+  overflow-wrap: anywhere;
+}
 .rm-post-summary { margin: 0 0 8px; color: var(--rm-muted); font-size: 12.5px; line-height: 1.65; overflow-wrap: anywhere; }
+.rm-post-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rm-post-open .rm-post-title,
+.rm-post-open .rm-post-summary { display: block; }
+.rm-post-open:hover .rm-post-title { color: var(--rm-action); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.rm-post-open:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 3px; }
+.rm-post-open .rm-post-summary { margin-bottom: 8px; }
+.rm-post-main {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 12px;
+}
+.rm-post-main[data-has-media="false"] { grid-template-columns: minmax(0, 1fr); }
+.rm-post-copy { min-width: 0; }
+.rm-post-copy .rm-post-title { margin-top: 0; }
+.rm-post-media {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.rm-post-media[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+.rm-post-media[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rm-post-media[data-count="3"],
+.rm-post-media[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rm-post-media-item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--rm-line);
+  border-radius: 13px;
+  background: linear-gradient(135deg, #f5f0ff, #fbf9ff 55%, #eefaf6);
+  color: var(--rm-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rm-post-media[data-variant="card"][data-count="1"] .rm-post-media-item { height: 148px; }
+.rm-post-media[data-variant="card"][data-count="2"] .rm-post-media-item,
+.rm-post-media[data-variant="card"][data-count="3"] .rm-post-media-item,
+.rm-post-media[data-variant="card"][data-count="4"] .rm-post-media-item { height: 71px; }
+.rm-post-media[data-variant="detail"] { margin: 0 0 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.rm-post-media[data-variant="detail"][data-count="1"] { display: block; }
+.rm-post-media[data-variant="detail"] .rm-post-media-item { height: clamp(200px, 38vh, 330px); }
+.rm-post-media[data-variant="detail"][data-count="2"] .rm-post-media-item,
+.rm-post-media[data-variant="detail"][data-count="3"] .rm-post-media-item,
+.rm-post-media[data-variant="detail"][data-count="4"] .rm-post-media-item { height: clamp(150px, 25vh, 230px); }
+.rm-post-media-item:hover { border-color: #c7b4ee; }
+.rm-post-media-item:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 2px; }
+.rm-post-media-item[data-state="loading"] { cursor: progress; }
+.rm-post-media-item[data-state="loading"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, #ffffffb8 50%, transparent 80%);
+  background-size: 220% 100%;
+  animation: rm-image-shimmer 1.4s linear infinite;
+  pointer-events: none;
+}
+.rm-post-media-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rm-post-media-img[hidden] { display: none; }
+.rm-post-media-status {
+  position: relative;
+  z-index: 1;
+  display: -webkit-box;
+  max-width: 92%;
+  padding: 6px 8px;
+  color: var(--rm-subtle);
+  font-size: 10.5px;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rm-post-media-status[hidden] { display: none; }
+.rm-post-media-item[data-tone="error"] { background: #fff6f4; border-color: #efcec7; }
+.rm-post-media-item[data-tone="error"] .rm-post-media-status { color: #8d2c28; }
+@keyframes rm-image-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -80% 0; }
+}
+.rm-lightbox { width: min(960px, calc(100vw - 32px)); max-width: min(960px, calc(100vw - 32px)); padding: 0; overflow: hidden; }
+.rm-lightbox[open] { display: flex; flex-direction: column; }
+.rm-lightbox .rm-dialog-head { padding: 18px 22px 0; }
+.rm-lightbox-body {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  padding: 12px 22px 4px;
+}
+.rm-lightbox-image {
+  display: block;
+  max-width: 100%;
+  max-height: min(72dvh, 760px);
+  border-radius: 14px;
+  object-fit: contain;
+  background: #f6f2ff;
+}
+.rm-lightbox-image[hidden] { display: none; }
+.rm-lightbox-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 22px 0;
+  color: var(--rm-subtle);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.rm-lightbox .rm-dialog-actions { padding: 14px 22px 18px; margin-top: 0; }
 .rm-post-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .rm-post-tag { padding: 2px 7px; border-radius: 999px; background: var(--rm-soft); color: var(--rm-action); font-size: 10.5px; font-weight: 600; }
 .rm-post-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
 .rm-post-toggle { min-height: 32px; }
+.rm-post-edit { min-height: 32px; color: var(--rm-action); border-color: #d9cdf2; background: #faf7ff; }
+.rm-post-edit:hover { background: #f1eaff; }
 .rm-post-body { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rm-line); }
 .rm-own-post-body { margin-top: 8px; }
 .rm-own-post-body summary, .rm-source-summary {
@@ -1264,6 +1513,47 @@ var RamingaUI = (() => {
   word-break: break-word;
 }
 .rm-source-note { margin: 8px 0 0; color: var(--rm-subtle); font-size: 10.5px; line-height: 1.65; }
+.rm-source-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--rm-line); }
+
+/* Independent post detail */
+.rm-post-page > .rm-page-inner { max-width: 980px; }
+.rm-post-detail { max-width: 900px; margin: 0 auto; }
+.rm-post-detail-title {
+  margin: 16px 0 7px;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.25;
+  letter-spacing: -.5px;
+  overflow-wrap: anywhere;
+}
+.rm-post-detail-summary {
+  margin: 0 0 10px;
+  color: var(--rm-muted);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.rm-post-detail-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+  margin-top: 16px;
+}
+.rm-post-detail-main[data-has-media="false"] { grid-template-columns: minmax(0, 1fr); }
+.rm-post-detail .rm-post-media { margin: 0; }
+.rm-post-detail .rm-post-media[data-count="1"] .rm-post-media-item { height: clamp(240px, 36vh, 380px); }
+.rm-post-detail-body {
+  min-width: 0;
+  padding: 2px 0;
+}
+.rm-post-detail-body .rm-rich-text { font-size: 14px; line-height: 1.85; }
+.rm-post-detail-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rm-line);
+}
+.rm-post-detail > .rm-source-details { margin-top: 12px; }
+.rm-post-detail .rm-post-head { align-items: center; }
 
 /* Safe Markdown */
 .rm-rich-text { min-width: 0; color: var(--rm-ink); font-size: 12.5px; line-height: 1.75; overflow-wrap: anywhere; }
@@ -1285,7 +1575,9 @@ var RamingaUI = (() => {
 /* Peer profile */
 .rm-profile-view > .rm-page-inner { padding-bottom: 28px; }
 .rm-profile-hero { display: flex; align-items: flex-start; gap: 14px; padding: 20px 0 14px; }
-.rm-profile-avatar { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--rm-soft); color: var(--rm-action); font-size: 21px; font-weight: 700; }
+.rm-profile-avatar { flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--rm-soft); color: var(--rm-action); font-size: 21px; font-weight: 700; overflow: hidden; }
+.rm-profile-avatar-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rm-profile-avatar[data-kind="image"] { background: #eee8fb; }
 .rm-profile-copy { flex: 1; min-width: 0; }
 .rm-profile-copy h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.3px; overflow-wrap: anywhere; }
 .rm-profile-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -1300,6 +1592,7 @@ var RamingaUI = (() => {
 .rm-journey-list { display: flex; flex-direction: column; gap: 9px; padding-bottom: 18px; }
 .rm-journey-card { border: 1px solid var(--rm-line); border-radius: 13px; background: var(--rm-surface); overflow: hidden; }
 .rm-journey-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 13px 14px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rm-journey-head-static { cursor: default; }
 .rm-journey-copy { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 .rm-journey-copy b { font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
 .rm-journey-meta { color: var(--rm-subtle); font: 10.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
@@ -1395,6 +1688,34 @@ var RamingaUI = (() => {
 }
 
 @container (max-width: 700px) {
+  .rm-post-main { grid-template-columns: minmax(0, 1fr); gap: 13px; margin-top: 11px; }
+  .rm-post-detail-main { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .rm-post-detail .rm-post-media[data-count="1"] .rm-post-media-item { height: min(58vh, 300px); }
+  .rm-post-detail-title { margin-top: 13px; font-size: 24px; }
+  .rm-post-media[data-variant="card"][data-count="1"] .rm-post-media-item { height: 175px; }
+  .rm-post-media[data-variant="card"][data-count="2"] .rm-post-media-item,
+  .rm-post-media[data-variant="card"][data-count="3"] .rm-post-media-item,
+  .rm-post-media[data-variant="card"][data-count="4"] .rm-post-media-item { height: 118px; }
+  .rm-post-media[data-variant="detail"] { grid-template-columns: minmax(0, 1fr); }
+  .rm-post-media[data-variant="detail"] .rm-post-media-item { height: 220px; }
+  .rm-lightbox[open] {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .rm-lightbox .rm-dialog-head { padding: 16px 18px 0; }
+  .rm-lightbox-body { padding: 10px 14px 0; min-height: 0; flex: 1; }
+  .rm-lightbox-image { max-height: calc(100dvh - 210px); }
+  .rm-lightbox-meta { padding: 8px 18px 0; }
+  .rm-lightbox .rm-dialog-actions { padding: 12px 18px calc(14px + env(safe-area-inset-bottom)); }
+  .rm-lightbox .rm-dialog-actions .rm-primary { flex: 1; }
+}
+
+@container (max-width: 700px) {
   .rm-topbar {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
@@ -1439,8 +1760,8 @@ var RamingaUI = (() => {
   .rm-nav-mobile button[aria-current="page"] { color: var(--rm-action); font-weight: 650; }
   .rm-nav-mobile .rm-nav-icon { width: 24px; height: 24px; }
   .rm-nav-mobile .rm-nav-icon svg { width: 22px; height: 22px; }
-  .rm-nav-mobile .rm-nav-mark { width: 38px; height: 38px; }
-  .rm-nav-mobile .rm-nav-mark img { width: 38px; height: 38px; }
+  .rm-nav-mobile .rm-nav-mark { width: 30px; height: 30px; }
+  .rm-nav-mobile .rm-nav-mark img { width: 30px; height: 30px; }
   .rm-nav-mobile button[data-nav="raminga"] { padding: 0; }
   .rm-node { max-width: 190px; height: 34px; padding: 0 11px; font-size: 11px; }
   .rm-page-inner { max-width: 480px; padding: 0 20px 32px; }
@@ -1460,6 +1781,9 @@ var RamingaUI = (() => {
   .rm-identity { margin-top: 18px; padding: 16px; border-radius: 12px; }
   .rm-profile-avatar { width: 48px; height: 48px; }
   .rm-profile-copy h1 { font-size: 21px; }
+  .rm-favorite-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .rm-favorite-actions { max-width: none; justify-content: flex-start; }
+  .rm-favorite-actions button { flex: 1 1 auto; }
   .rm-dialog { width: calc(100vw - 24px); padding: 22px; border-radius: 16px; }
   .rm-detail-dialog[open] {
     width: 100vw;
@@ -1503,6 +1827,7 @@ var RamingaUI = (() => {
   .rm-composer-shell {
     margin: 10px -20px 0;
   }
+  .rm-composer-jump { margin: 0 20px 6px; }
   .rm-composer {
     position: static;
     max-height: min(42vh, 360px);
@@ -1514,10 +1839,7 @@ var RamingaUI = (() => {
     border-radius: 12px 12px 0 0;
   }
   .rm-composer-overlay {
-    left: 20px;
-    right: 20px;
-    bottom: calc(100% + 6px);
-    max-height: min(34vh, 220px);
+    max-height: min(26vh, 180px);
   }
   .rm-composer textarea { min-height: 48px; }
   .rm-records-bar { align-items: flex-start; gap: 8px; }
@@ -1530,7 +1852,9 @@ var RamingaUI = (() => {
   .rm-journey-record > summary { min-height: 34px; }
   .rm-composer-row { margin-top: 6px; }
   .rm-composer .rm-primary { min-width: 88px; min-height: 42px; }
-  .rm-conversation-head { margin-top: 8px; padding: 12px; }
+  .rm-conversation-head { margin-top: 7px; padding: 10px 11px; gap: 9px; }
+  .rm-conversation-copy h1 { font-size: 17px; }
+  .rm-conversation-profile { min-height: 32px; padding: 0 9px; font-size: 11px; }
   .rm-back { min-height: 38px; }
 }
 
@@ -1551,30 +1875,1587 @@ var RamingaUI = (() => {
     transition-duration: .01ms !important;
   }
 }
+
+/* Generic public-file cards: every format keeps file information visible even
+   when no inline preview is available. */
+.rm-file-card .rm-post-meta[data-tone='manual'] { color: #8a5a00; }
+.rm-file-card .rm-post-meta[data-tone='mixed'] { color: #5b3fd6; }
+.rm-file-card .rm-post-meta[data-tone='agent'] { color: #305f8a; }
+.rm-file-card .rm-post-meta[data-tone='unknown'] { color: var(--rm-muted, #66667a); }
+.rm-file-info-note { margin: 8px 0 0; color: var(--rm-muted, #66667a); font-size: 12px; }
+.rm-file-text {
+  margin: 0;
+  max-height: 520px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--rm-border, #e6e6ef);
+  border-radius: 10px;
+  background: #f7f7fb;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rm-file-image { display: block; max-width: 100%; height: auto; border-radius: 10px; }
+.rm-file-media { display: block; width: 100%; max-height: 520px; border-radius: 10px; background: #121220; }
+.rm-file-video { max-height: 480px; }
+.rm-html-frame {
+  display: block;
+  width: 100%;
+  height: 480px;
+  min-height: 320px;
+  border: 1px solid var(--rm-border, #e6e6ef);
+  border-radius: 10px;
+  background: #fff;
+}
+.rm-file-warnings { margin: 10px 0 0; padding-left: 18px; color: #8a5a00; font-size: 12px; }
+.rm-file-warnings li { margin: 2px 0; overflow-wrap: anywhere; }
+.rm-file-preview { display: grid; gap: 8px; }
+.rm-file-preview .rm-list-note { margin: 0; }
+.rm-peer-node { margin-top: 12px; }
+.rm-peer-node-body { display: grid; gap: 10px; padding-top: 8px; }
+.rm-peer-id-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rm-peer-id-row .rm-peer-id { flex: 1 1 240px; overflow-wrap: anywhere; }
+.rm-address-block { display: grid; gap: 6px; }
+.rm-address-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.rm-address-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rm-address-item {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--rm-border, #e6e6ef);
+  border-radius: 8px;
+  background: #fbfbfe;
+}
+.rm-address-item code { overflow-wrap: anywhere; font-size: 12px; }
+.rm-address-meta { color: var(--rm-muted, #66667a); font-size: 11px; }
+.rm-address-meta[data-reachability='verified'] { color: #1e7a58; }
+.rm-address-meta[data-reachability='reported'] { color: #6b5a12; }
+.rm-address-meta[data-reachability='unverified'] { color: #8a3b3b; }
+.rm-peer-node-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rm-peer-node-actions .rm-list-note { margin: 0; }
+@media (max-width: 700px) {
+  .rm-html-frame { height: 380px; }
+  .rm-file-media { max-height: 360px; }
+}
+
+/* ==========================================================================
+   P1: three primary pages, Agent-led home, settings, contact profile.
+   Visual baseline: /Users/fanyuhang/Downloads/Raminga_Interactive_Prototype.html
+   (desktop bar ~76px, content max 1056px, Agent portrait 238px, r20 cards).
+   ========================================================================== */
+.rm-topbar { height: 76px; padding-inline: max(32px, var(--dsh-frame-leading-clearance, 0px)) 44px; background: #ffffffd9; backdrop-filter: blur(20px); }
+.rm-nav-desktop { height: 76px; gap: 18px; }
+.rm-nav-desktop button { height: 76px; min-width: 96px; padding: 0 14px; font-size: 13px; }
+.rm-nav-desktop button[data-nav="home"] { min-width: 105px; }
+.rm-nav-desktop button[aria-current="page"]::after { bottom: 0; left: 27px; right: 27px; width: auto; height: 3px; border-radius: 3px 3px 0 0; transform: none; }
+.rm-nav-mark { display: grid; width: 36px; height: 36px; }
+.rm-nav-mark img { display: block; width: 36px; height: 36px; }
+.rm-topbar-actions { justify-self: end; display: flex; align-items: center; gap: 13px; }
+.rm-topbar-icon {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #665a7d;
+  transition: background .16s, border-color .16s, color .16s;
+}
+.rm-topbar-icon:hover, .rm-topbar-icon[aria-current="page"] { background: var(--rm-soft); border-color: var(--rm-line); color: var(--rm-action); }
+.rm-topbar-icon svg { width: 19px; height: 19px; }
+.rm-node { height: 36px; background: #f6fffc; border-color: #cdeee2; color: #37624e; }
+.rm-node[data-phase="loading"] { background: #f7f6f9; border-color: var(--rm-line); color: var(--rm-muted); }
+.rm-node[data-phase="stale"] { background: #fffaef; border-color: #ecd9a8; color: #6d5520; }
+.rm-node[data-phase="error"], .rm-node[data-phase="closed"] { background: #f5f2f8; border-color: var(--rm-line); color: var(--rm-muted); }
+.rm-home-page, .rm-contact-profile { background: radial-gradient(ellipse at 85% 8%, #f0eaff75, transparent 46%), var(--rm-bg); }
+.rm-home-inner { max-width: 1056px; padding: 38px 32px 60px; }
+.rm-home-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+  min-height: 310px;
+  padding: 34px;
+  overflow: hidden;
+  border: 1px solid var(--rm-line);
+  border-radius: 20px;
+  background: linear-gradient(115deg, #fff 20%, #f9f6ff 73%, #f0e9ff);
+  box-shadow: 0 4px 20px #55418706, 0 1px 3px #40305c04;
+}
+.rm-home-hero-art { position: relative; z-index: 1; }
+.rm-home-agent-avatar {
+  display: grid;
+  place-items: center;
+  width: 238px;
+  height: 238px;
+  overflow: hidden;
+  border-radius: 28px;
+  background: radial-gradient(circle at 35% 25%, #f7f1ff, #e8dcff 55%, #d8c6ff);
+  box-shadow: 0 12px 32px #7051a91b;
+}
+.rm-home-agent-avatar img { width: 72%; height: 72%; object-fit: contain; }
+#homeAgentAvatar {
+  background: linear-gradient(145deg, #faf7ff, #efe8fb);
+  box-shadow: 0 12px 32px #7051a91b;
+}
+#homeAgentAvatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+#homeAgentAvatar[data-empty="true"] {
+  background: linear-gradient(145deg, #fbf8ff, #eee6fb);
+  box-shadow: inset 0 0 0 1px #eee6fa, 0 10px 28px #7051a912;
+}
+#homeAgentAvatar[data-empty="true"] img { display: none; }
+.rm-home-agent-initial {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #8060d8;
+  font-size: 82px;
+  font-weight: 650;
+  letter-spacing: -2px;
+  line-height: 1;
+  user-select: none;
+}
+.rm-home-agent-initial[hidden] { display: none; }
+.rm-home-floating {
+  position: absolute;
+  right: -13px;
+  bottom: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid #e7ddfb;
+  border-radius: 25px;
+  background: #ffffffed;
+  box-shadow: 0 3px 12px #4b227f0d;
+  color: var(--rm-mint-ink);
+  font-size: 11px;
+  max-width: 240px;
+}
+.rm-home-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #b4aabd; flex: none; }
+.rm-home-status-dot[data-tone="live"] { background: #24ba91; box-shadow: 0 0 0 3px #24ba910d; }
+.rm-home-status-dot[data-tone="recent"] { background: var(--rm-purple); }
+.rm-home-hero-copy { position: relative; z-index: 1; min-width: 0; }
+.rm-eyebrow { margin: 0 0 8px; color: #9a8db2; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+.rm-home-hero-title { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+.rm-home-hero-title h1 { margin: 0; font-size: 42px; line-height: 1.1; letter-spacing: -1.3px; overflow-wrap: anywhere; }
+.rm-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 7px; background: var(--rm-soft); color: var(--rm-action); font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
+.rm-badge-quiet { background: #f3f0f8; color: var(--rm-muted); }
+.rm-badge-private { background: #f1eaff; color: #6845ed; }
+.rm-home-bio { max-width: 560px; margin: 0 0 16px; color: var(--rm-body); font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; white-space: pre-line; }
+.rm-home-bio[hidden] { display: none; }
+.rm-home-profile-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  max-width: 560px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px dashed #ddd4ef;
+  border-radius: 10px;
+  background: #fbf9ff;
+  color: var(--rm-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.rm-home-profile-note[hidden] { display: none; }
+.rm-home-profile-edit { flex: none; font-size: 12px; font-weight: 650; }
+.rm-home-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 2px; }
+.rm-home-tag { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 4px 10px; border-radius: 30px; background: #eee8ff; color: #7955d5; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.rm-home-tag-icon { flex: none; width: 13px; height: 13px; }
+.rm-home-tag-label { min-width: 0; }
+.rm-home-style { max-width: 560px; margin: 9px 0 0; color: #9a8db2; font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.rm-home-style[hidden] { display: none; }
+.rm-home-hero-edit { position: absolute; right: 20px; top: 18px; z-index: 2; display: grid; place-items: center; width: 37px; height: 37px; border-radius: 11px; color: var(--rm-action); }
+.rm-home-hero-edit:hover { background: #ffffffb8; }
+.rm-home-hero-edit svg { width: 19px; height: 19px; }
+.rm-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--rm-action); font-size: 13px; cursor: pointer; }
+.rm-home-human { display: flex; align-items: center; gap: 13px; padding: 17px 23px; margin-top: 14px; border: 1px solid var(--rm-line); border-radius: 15px; background: #fcfaffbf; }
+.rm-home-human-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 11px; background: #f0eaff; color: var(--rm-purple); }
+.rm-home-human-mark svg { width: 19px; height: 19px; }
+.rm-home-human-copy { flex: 1; min-width: 0; }
+.rm-home-human-copy h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.rm-home-human-copy > p { margin: 2px 0 0; color: #82728f; font-size: 12px; line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rm-home-human-profile, .rm-home-human-bio { margin: 4px 0 0; color: var(--rm-muted); font-size: 12px; line-height: 1.7; }
+.rm-home-human .rm-identity-details { margin-top: 7px; padding: 0; background: transparent; border: 0; }
+.rm-home-human > .rm-link { margin-left: auto; flex: none; }
+.rm-home-journeys { margin-top: 28px; }
+.rm-home-activity { margin: 0 0 20px; }
+.rm-home-section-actions { display: flex; align-items: center; gap: 10px; }
+.rm-home-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 15px; }
+.rm-home-section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.3px; }
+.rm-home-section-head .rm-eyebrow { margin-bottom: 4px; }
+.rm-home-activity-live {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 17px 20px;
+  border: 1px solid #e1d5ff;
+  border-radius: 16px;
+  background: linear-gradient(100deg, #f4edff, #faf8ff);
+}
+.rm-home-activity-orb { flex: none; width: 43px; height: 43px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 5px #e9dfff77; }
+.rm-home-activity-orb::after { content: ""; display: block; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #b9a6ff, #7a5cff); }
+.rm-home-activity-live b, .rm-home-activity-recent b { font-size: 14px; }
+.rm-home-activity-live p, .rm-home-activity-recent p { margin: 2px 0 0; color: #8a7c9a; font-size: 12px; line-height: 1.75; }
+.rm-home-activity-recent {
+  padding: 17px 20px;
+  border: 1px solid var(--rm-line);
+  border-radius: 16px;
+  background: var(--rm-surface);
+}
+.rm-home-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border: 1px dashed #ddd4ef;
+  border-radius: 16px;
+  background: #ffffffa8;
+  color: var(--rm-muted);
+}
+.rm-home-empty-mark { flex: none; width: 38px; height: 38px; border-radius: 50%; background: radial-gradient(circle, #f0eaff, #fff); border: 1px solid #e9e0fd; }
+.rm-home-empty b { display: block; color: var(--rm-body); font-size: 13.5px; }
+.rm-home-empty p { margin: 3px 0 0; font-size: 12px; line-height: 1.75; }
+.rm-home-activity-detail { margin-top: 12px; padding: 15px 18px; border: 1px solid var(--rm-line); border-radius: 14px; background: var(--rm-surface); }
+.rm-home-live-journey {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 17px 20px;
+  margin-bottom: 0;
+  border: 1px solid #e1d5ff;
+  border-radius: 16px;
+  background: linear-gradient(100deg, #f4edff, #faf8ff);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rm-home-live-journey:hover { border-color: #cab7f4; }
+.rm-home-live-orb { flex: none; width: 43px; height: 43px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 5px #e9dfff77; }
+.rm-home-live-orb::after { content: ""; display: block; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #b9a6ff, #7a5cff); }
+.rm-home-live-journey b { font-size: 14px; }
+.rm-home-live-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.rm-home-live-journey .rm-journey-status { flex: none; }
+.rm-home-live-journey p { margin: 2px 0 0; color: #8a7c9a; font-size: 12px; line-height: 1.75; }
+.rm-home-live-arrow { margin-left: auto; color: var(--rm-purple); font-size: 24px; }
+.rm-home-live-journey[data-activity-kind="running"] { border-color: #d9c8ff; box-shadow: 0 4px 18px #6d4dbb12; }
+.rm-home-live-journey[data-activity-kind="recent"] { background: var(--rm-surface); }
+.rm-home-live-journey .rm-home-live-orb { position: relative; }
+.rm-home-live-journey[data-activity-kind="running"] .rm-home-live-orb::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px solid #b9a6ff88;
+  animation: rm-activity-pulse 2.4s ease-out infinite;
+}
+@keyframes rm-activity-pulse {
+  0% { transform: scale(.82); opacity: .8; }
+  70% { transform: scale(1.16); opacity: 0; }
+  100% { transform: scale(1.16); opacity: 0; }
+}
+.rm-activity-disclosure { margin: -8px 0 16px; }
+.rm-activity-summary-note { margin: 0 0 10px; }
+.rm-home-empty[data-tone="error"] { border-color: #e9cbc8; background: #fff8f7; }
+.rm-activity-history { display: flex; flex-direction: column; gap: 7px; margin: 8px 0 0; padding: 0; list-style: none; }
+.rm-activity-history-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--rm-line);
+  border-radius: 9px;
+  background: var(--rm-bg);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rm-activity-history-row:hover { border-color: #d4cbec; }
+.rm-activity-history-row[aria-current="true"] { border-color: #b9a6ff; background: #f7f2ff; }
+.rm-activity-history-row b { font-size: 12px; font-weight: 650; }
+.rm-activity-history-row .rm-journey-meta { font-size: 10px; }
+.rm-activity-history code, .rm-journey-actions code { color: var(--rm-muted); font: 10.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  .rm-home-live-journey[data-activity-kind="running"] .rm-home-live-orb::before { animation: none; }
+}
+.rm-home-journey-list { margin-top: 20px; }
+.rm-home-journey-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.rm-home-journey-grid .rm-journey-card { border-radius: 20px; box-shadow: 0 4px 20px #55418706; }
+.rm-home-journey-grid .rm-journey-head { flex-direction: column; gap: 6px; padding: 18px; }
+.rm-home-journey-grid .rm-journey-copy { width: 100%; }
+.rm-home-journey-grid .rm-journey-detail { max-height: 420px; overflow: auto; }
+.rm-home-secondary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 28px; }
+.rm-home-secondary-note { color: var(--rm-subtle); font-size: 11px; }
+
+/* Settings */
+.rm-settings-page { background: var(--rm-bg); }
+.rm-settings-inner { max-width: 900px; padding: 38px 32px 60px; }
+.rm-settings-header { margin-bottom: 25px; }
+.rm-settings-header h1 { margin: 0 0 7px; font-size: 30px; letter-spacing: -.8px; }
+.rm-settings-header p { max-width: 670px; margin: 0; color: var(--rm-muted); font-size: 13px; line-height: 1.8; }
+.rm-settings-menu { display: flex; flex-direction: column; gap: 10px; }
+.rm-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 19px 22px;
+  border: 1px solid var(--rm-line);
+  border-radius: 20px;
+  background: #ffffffbf;
+  box-shadow: 0 4px 20px #55418706;
+  color: inherit;
+  text-align: left;
+  transition: border-color .16s, transform .16s;
+}
+.rm-settings-item:hover:not(:disabled) { border-color: #d4cbec; transform: translateY(-1px); }
+.rm-settings-item:disabled { opacity: .68; cursor: default; }
+.rm-settings-icon { display: grid; place-items: center; flex: none; width: 39px; height: 39px; border-radius: 12px; background: #f0eaff; color: var(--rm-purple); }
+.rm-settings-icon svg { width: 20px; height: 20px; }
+.rm-settings-copy { flex: 1; min-width: 0; }
+.rm-settings-copy b { display: block; font-size: 15px; }
+.rm-settings-copy small { display: block; margin-top: 4px; color: var(--rm-muted); font-size: 12px; line-height: 1.65; }
+.rm-settings-chevron { color: var(--rm-subtle); font-size: 22px; }
+.rm-settings-note { margin-top: 20px; color: var(--rm-subtle); font-size: 11.5px; line-height: 1.75; }
+.rm-form-panel { padding: 28px 30px; margin-bottom: 18px; border: 1px solid var(--rm-line); border-radius: 20px; background: #fff; box-shadow: 0 4px 20px #55418706; }
+.rm-settings-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.rm-settings-panel-head h2 { margin: 0; font-size: 16px; }
+.rm-settings-panel-head span { color: var(--rm-subtle); font-size: 11px; }
+.rm-settings-panel-head span[data-tone="ready"] { color: #13795c; }
+.rm-settings-panel-head span[data-tone="error"] { color: #8d2c28; }
+.rm-settings-readonly { color: var(--rm-body); font-size: 13px; line-height: 1.8; }
+.rm-unavailable-note { margin: 14px 0 0; padding: 11px 14px; border: 1px dashed #ddd4ef; border-radius: 11px; color: var(--rm-muted); font-size: 12px; line-height: 1.7; }
+.rm-form-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 23px; }
+.rm-private-banner { padding: 12px 16px; margin: 0 0 18px; border: 1px solid #e9e0fd; border-radius: 13px; background: #f3efff8c; color: #73638f; font-size: 12px; }
+.rm-settings-placeholder { padding: 30px; border: 1px dashed #ddd4ef; border-radius: 20px; background: #fff; }
+.rm-settings-placeholder b { font-size: 15px; }
+.rm-settings-placeholder p { margin: 8px 0 0; color: var(--rm-muted); font-size: 13px; line-height: 1.8; }
+.rm-field { display: block; min-width: 0; margin-bottom: 20px; }
+.rm-field > span { display: block; margin-bottom: 7px; color: var(--rm-body); font-size: 12px; font-weight: 650; }
+.rm-field > input:not([type="file"]),
+.rm-field > select,
+.rm-field > textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--rm-line);
+  border-radius: 10px;
+  outline: 0;
+  background: #fdfcff;
+  color: var(--rm-ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.65;
+  transition: border-color .15s, box-shadow .15s;
+}
+.rm-field > select {
+  appearance: none;
+  padding-right: 38px;
+  background-image: linear-gradient(45deg, transparent 50%, #827990 50%), linear-gradient(135deg, #827990 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 2px), calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.rm-field > input:not([type="file"]):focus,
+.rm-field > select:focus,
+.rm-field > textarea:focus { border-color: var(--rm-purple); box-shadow: 0 0 0 3px #7a5cff1f; }
+.rm-field > input:not([type="file"]):disabled,
+.rm-field > select:disabled,
+.rm-field > textarea:disabled,
+.rm-field > textarea:read-only { color: var(--rm-muted); background: var(--rm-soft); }
+.rm-field > input::placeholder, .rm-field > textarea::placeholder { color: #9a94a8; opacity: 1; }
+.rm-field > input[type="file"] { max-width: 100%; padding: 2px 0; color: var(--rm-muted); font-size: 12px; }
+.rm-field > input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 8px 13px;
+  border: 1px solid var(--rm-line);
+  border-radius: 9px;
+  background: var(--rm-soft);
+  color: var(--rm-action);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rm-field > input[type="file"]::file-selector-button:hover { background: #f1eaff; }
+.rm-field > textarea {
+  min-height: 180px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.75;
+  resize: vertical;
+}
+.rm-settings-page .rm-back { margin: 0 0 20px; }
+
+/* Contact profile */
+.rm-contact-profile .rm-page-inner { max-width: 1000px; padding: 34px 32px 56px; }
+.rm-contact-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 26px 30px;
+  border: 1px solid var(--rm-line);
+  border-radius: 20px;
+  background: linear-gradient(110deg, #fff, #f8f4ff);
+  box-shadow: 0 4px 20px #55418706;
+}
+.rm-contact-portrait {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 132px;
+  height: 132px;
+  border-radius: 25px;
+  overflow: hidden;
+  background: radial-gradient(circle at 35% 25%, #f7f1ff, #e8dcff 55%, #d8c6ff);
+  color: var(--rm-action);
+  font-size: 42px;
+  font-weight: 700;
+}
+.rm-contact-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rm-contact-hero-copy { flex: 1; min-width: 0; }
+.rm-contact-hero .rm-home-hero-title { justify-content: flex-start; margin-bottom: 8px; }
+.rm-contact-hero-copy h1 { margin: 0; font-size: 30px; line-height: 1.18; letter-spacing: -.8px; overflow-wrap: anywhere; }
+.rm-contact-bio { max-width: 620px; margin: 0 0 8px; color: var(--rm-body); font-size: 13px; line-height: 1.8; white-space: pre-line; overflow-wrap: anywhere; }
+.rm-profile-missing {
+  max-width: 620px;
+  margin: 7px 0 0;
+  padding: 7px 10px;
+  border: 1px dashed #ddd4ef;
+  border-radius: 9px;
+  background: #fbf9ff;
+  color: var(--rm-muted);
+  font-size: 11.5px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.rm-profile-interests { display: flex; flex-wrap: wrap; gap: 7px; max-width: 100%; margin: 7px 0 0; padding: 0; list-style: none; }
+.rm-profile-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 30px;
+  background: #eee8ff;
+  color: #7955d5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rm-profile-tag-icon { flex: none; width: 13px; height: 13px; }
+.rm-profile-tag-label { min-width: 0; overflow-wrap: anywhere; }
+.rm-profile-style { max-width: 620px; margin: 8px 0 0; color: var(--rm-body); font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.rm-profile-freshness {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin: 8px 0 0;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: #f4f1f7;
+  color: #6f657c;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.rm-profile-origin { max-width: 100%; margin: 9px 0 0; }
+.rm-profile-origin > summary { padding: 2px 0; color: var(--rm-action); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.rm-profile-origin-body { display: grid; gap: 8px; margin-top: 7px; padding: 11px 12px; border: 1px solid var(--rm-line); border-radius: 12px; background: #fbf9ff; }
+.rm-profile-origin-body .rm-profile-source { margin: 0; }
+.rm-profile-origin-body .rm-peer-id { flex: 1 1 220px; max-width: 100%; }
+.rm-profile-origin-body .rm-secondary { justify-self: start; min-height: 34px; font-size: 12px; }
+.rm-profile-origin-facts { display: grid; gap: 4px; margin: 0; }
+.rm-profile-origin-facts > div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; font-size: 11.5px; line-height: 1.6; }
+.rm-profile-origin-facts dt { color: var(--rm-subtle); }
+.rm-profile-origin-facts dd { margin: 0; color: var(--rm-muted); overflow-wrap: anywhere; }
+.rm-profile-local-note { margin: 0; padding: 7px 9px; border-color: #e9e3f4; background: #f7f4fb; color: #7a6b95; font-size: 11.5px; line-height: 1.65; }
+.rm-contact-hero-actions { display: flex; flex: none; flex-direction: column; gap: 8px; width: 168px; }
+.rm-contact-hero-actions .rm-primary { width: 100%; justify-content: center; }
+.rm-contact-hero-secondary { display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
+.rm-contact-hero-secondary .rm-secondary, .rm-contact-hero-secondary .rm-quiet { justify-content: center; text-align: center; }
+.rm-contact-hero-secondary .rm-secondary { min-height: 36px; font-size: 12px; }
+.rm-contact-hero-secondary .rm-quiet { min-height: 32px; font-size: 11.5px; }
+.rm-contact-tabs { display: flex; gap: 26px; margin: 22px 0 22px; border-bottom: 1px solid var(--rm-line); }
+.rm-contact-tab { padding: 0 6px 13px; color: var(--rm-muted); font-size: 13px; }
+.rm-contact-tab[aria-current="page"] { color: var(--rm-action); font-weight: 650; box-shadow: inset 0 -3px 0 var(--rm-purple); }
+.rm-contact-panel .rm-panel { padding: 20px 22px; border: 1px solid var(--rm-line); border-radius: 20px; background: #ffffffbf; }
+.rm-friend-list { display: flex; flex-direction: column; }
+.rm-friend-row { display: flex; align-items: flex-start; gap: 13px; padding: 15px 0; border-bottom: 1px solid var(--rm-line); }
+.rm-friend-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.rm-friend-row:first-child { padding-top: 0; }
+.rm-friend-avatar { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 13px; background: radial-gradient(circle at 35% 25%, #f7f1ff, #e8dcff 55%, #d8c6ff); color: var(--rm-action); font-size: 18px; font-weight: 700; }
+.rm-friend-copy { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.rm-friend-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rm-friend-head b { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.rm-friend-badge { font-size: 10px; }
+.rm-friend-description { margin: 0; color: var(--rm-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-friend-hint { flex: none; align-self: center; color: var(--rm-subtle); font-size: 11px; }
+.rm-profile-files { margin-top: 8px; }
+.rm-contact-profile .rm-home-human { margin-top: 16px; }
+.rm-profile-human-details { margin-top: 5px; }
+.rm-profile-human-details > summary { padding: 0; border: 0; background: transparent; color: var(--rm-action); font-size: 12px; cursor: pointer; }
+.rm-profile-human-details[open] > summary { margin-bottom: 7px; }
+.rm-profile-human-details .rm-rich-text { color: var(--rm-body); font-size: 13px; line-height: 1.8; }
+
+/* Narrow screens: three fixed items, Agent remains first and largest. */
+@media (max-width: 1000px) {
+  .rm-topbar { padding-inline: max(25px, var(--dsh-frame-leading-clearance, 0px)) 25px; }
+  .rm-nav-desktop button { min-width: 75px; }
+  .rm-home-inner { padding-inline: 24px; }
+  .rm-home-hero { grid-template-columns: 190px minmax(0, 1fr); gap: 26px; padding: 29px; }
+  .rm-home-agent-avatar { width: 190px; height: 190px; border-radius: 24px; }
+  .rm-home-hero-title h1 { font-size: 36px; }
+  .rm-home-journey-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rm-contact-hero { gap: 18px; padding: 24px; }
+  .rm-contact-portrait { width: 108px; height: 108px; border-radius: 21px; font-size: 32px; }
+  .rm-contact-hero-copy h1 { font-size: 25px; }
+}
+@media (max-width: 700px) {
+  .rm-topbar { height: 65px; padding-inline: 17px; grid-template-columns: minmax(0, 1fr) auto; }
+  .rm-topbar-actions { gap: 7px; }
+  .rm-topbar-icon { width: 31px; height: 31px; }
+  .rm-node { padding: 5px 9px; font-size: 10px; }
+  .rm-node-dot { width: 6px; height: 6px; }
+  .rm-nav-mobile {
+    height: auto;
+    min-height: 65px;
+    padding: 6px 14px calc(6px + env(safe-area-inset-bottom));
+  }
+  .rm-nav-mobile button { height: 53px; font-size: 11px; gap: 5px; }
+  .rm-nav-mobile button[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    left: 34%;
+    right: 34%;
+    top: 0;
+    bottom: auto;
+    width: auto;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--rm-purple);
+  }
+  .rm-home-inner { max-width: none; padding: 24px 16px 88px; }
+  .rm-home-hero { display: flex; flex-direction: column; gap: 22px; align-items: center; min-height: 0; padding: 27px 24px 25px; }
+  .rm-home-agent-avatar { width: 182px; height: 182px; border-radius: 27px; }
+  .rm-home-agent-initial { font-size: 64px; }
+  .rm-home-floating { right: -10px; bottom: 9px; max-width: 215px; padding: 6px 10px; font-size: 10px; }
+  .rm-home-hero-copy { width: 100%; }
+  .rm-home-hero-title { justify-content: center; }
+  .rm-home-hero-title h1 { font-size: 36px; }
+  .rm-home-bio { text-align: center; font-size: 13px; }
+  .rm-home-profile-note { justify-content: center; text-align: center; font-size: 11.5px; }
+  .rm-home-tags { justify-content: center; }
+  .rm-home-style { text-align: center; font-size: 12px; }
+  .rm-home-hero-edit { right: 12px; top: 13px; }
+  .rm-home-human { padding: 14px 16px; align-items: flex-start; }
+  .rm-home-human-mark { width: 29px; height: 29px; border-radius: 9px; }
+  .rm-home-human > .rm-link { font-size: 0; }
+  .rm-home-human > .rm-link span { font-size: 18px; }
+  .rm-home-section-head h2 { font-size: 18px; }
+  .rm-home-activity-live, .rm-home-activity-recent, .rm-home-empty { padding: 14px; }
+  .rm-home-live-journey { padding: 13px 14px; gap: 11px; }
+  .rm-home-live-orb { width: 33px; height: 33px; }
+  .rm-home-journey-grid { grid-template-columns: 1fr; gap: 12px; }
+  .rm-home-journey-grid .rm-journey-head { padding: 15px; }
+  .rm-settings-inner, .rm-contact-profile .rm-page-inner { padding: 24px 16px 88px; }
+  .rm-settings-header h1 { font-size: 26px; }
+  .rm-settings-item { padding: 18px; gap: 13px; }
+  .rm-settings-item .rm-badge { display: none; }
+  .rm-form-panel { padding: 20px; }
+  .rm-field textarea { min-height: 160px; font-size: 12px; }
+  .rm-contact-profile .rm-page-inner { padding-top: 18px; }
+  .rm-contact-profile .rm-back { margin-bottom: 14px; }
+  .rm-contact-hero { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px 13px; padding: 18px; align-items: start; }
+  .rm-contact-portrait { width: 76px; height: 76px; border-radius: 18px; font-size: 26px; }
+  .rm-contact-hero-copy h1 { font-size: 21px; line-height: 1.2; }
+  .rm-contact-bio { margin-bottom: 6px; font-size: 12px; line-height: 1.7; }
+  .rm-profile-missing { margin-top: 6px; padding: 6px 9px; font-size: 11px; }
+  .rm-profile-interests { gap: 5px; margin-top: 6px; }
+  .rm-profile-tag { padding: 3px 8px; font-size: 11px; }
+  .rm-profile-tag-icon { width: 12px; height: 12px; }
+  .rm-profile-style { margin-top: 7px; font-size: 11.5px; }
+  .rm-profile-freshness { margin-top: 7px; font-size: 10.5px; }
+  .rm-profile-origin { margin-top: 7px; }
+  .rm-profile-origin-body { padding: 10px 11px; }
+  .rm-contact-hero-actions { grid-column: 1 / -1; width: 100%; flex-direction: row; flex-wrap: wrap; gap: 7px; justify-content: flex-start; }
+  .rm-contact-hero-actions .rm-primary { flex: 1 1 130px; height: 40px; width: auto; }
+  .rm-contact-hero-secondary { flex: 1 1 auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .rm-contact-hero-secondary .rm-secondary { flex: 1 1 auto; min-height: 34px; }
+  .rm-contact-hero-secondary .rm-quiet { flex: 1 1 auto; min-height: 34px; }
+  .rm-contact-profile .rm-home-human { margin-top: 8px; padding: 8px 10px; gap: 8px; align-items: center; }
+  .rm-contact-profile .rm-home-human-mark { width: 26px; height: 26px; border-radius: 8px; }
+  .rm-contact-profile .rm-home-human-mark svg { width: 15px; height: 15px; }
+  .rm-contact-profile .rm-home-human-copy h3 { font-size: 12px; }
+  .rm-contact-profile .rm-home-human-copy > p { display: none; }
+  .rm-contact-profile .rm-home-human .rm-profile-human-details { margin-top: 2px; }
+  .rm-contact-profile .rm-home-human .rm-profile-human-details summary { font-size: 11px; }
+  .rm-contact-tabs { gap: 0; justify-content: space-between; margin: 10px 0; }
+  .rm-contact-tab { padding: 10px 6px 12px; font-size: 12px; }
+  .rm-contact-panel .rm-panel { padding: 13px 14px; }
+  .rm-friend-row { gap: 10px; }
+  .rm-friend-avatar { width: 40px; height: 40px; border-radius: 11px; font-size: 16px; }
+  .rm-friend-hint { display: none; }
+}
+@media (max-width: 430px) {
+  .rm-home-human > .rm-link { display: none; }
+  .rm-home-hero { padding-inline: 19px; }
+}
+.rm-post-author-badge { align-self: flex-start; display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 6px; background: #f3efff; color: #6845ed; font-size: 10px; line-height: 1.6; white-space: nowrap; }
+.rm-post-author-badge[data-kind="agent"] { background: #e8fbf5; color: #13795c; }
+.rm-post-author-badge[data-kind="unknown"] { background: #f4f1f7; color: var(--rm-muted); }
+.rm-post-author { flex-wrap: wrap; }
+.rm-badge[data-tone="unavailable"] { background: #f4f1f7; color: var(--rm-muted); }
+.rm-home-activity-live.live-journey { width: 100%; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.rm-home-activity-live.live-journey:hover { border-color: #cab7f4; }
+.rm-home-activity-live.live-journey b { display: block; }
+.rm-home-activity-detail .rm-facts { display: grid; gap: 6px; margin: 0; }
+.rm-home-activity-detail .rm-facts > div { display: grid; grid-template-columns: 76px 1fr; gap: 8px; font-size: 12px; }
+.rm-home-activity-detail .rm-facts dt { color: var(--rm-subtle); }
+.rm-home-activity-detail .rm-facts dd { margin: 0; color: var(--rm-muted); overflow-wrap: anywhere; }
+/* P1 explore/contacts page heads and contact row metadata. */
+#page-explore .rm-page-inner,
+#page-contacts .rm-page-inner { max-width: 1056px; padding-inline: 32px; }
+#page-explore .rm-page-head,
+#page-contacts .rm-page-head { padding-top: 38px; }
+.rm-page-head h1 { font-size: 34px; letter-spacing: -1px; }
+.rm-page-head .rm-eyebrow { margin-bottom: 6px; }
+.rm-explore-bar { height: auto; padding-bottom: 20px; border-bottom: 0; align-items: center; flex-wrap: wrap; row-gap: 10px; }
+.rm-explore-tools { margin-left: auto; flex: 0 1 auto; }
+.rm-explore-tools .rm-refresh-button { height: 38px; }
+.rm-explore-tools .rm-explore-search { flex: 1 1 220px; width: clamp(190px, 22vw, 300px); min-width: 160px; max-width: 300px; height: 38px; }
+.rm-filters { gap: 4px; padding: 5px; border-radius: 12px; background: #f0ebf8; }
+.rm-filter { height: 36px; padding: 0 18px; border-radius: 9px; color: #80718f; font-size: 13px; }
+.rm-filter:hover { background: #ffffffb8; color: var(--rm-ink); }
+.rm-filter[aria-pressed="true"] {
+  background: linear-gradient(135deg, #8b62ff, #6b49ef);
+  color: #fff;
+  font-weight: 650;
+  box-shadow: 0 3px 8px #835ce82b;
+}
+.rm-filter[aria-pressed="true"]:hover { background: linear-gradient(135deg, #8b62ff, #6b49ef); color: #fff; }
+.rm-filter[aria-pressed="true"] .rm-filter-mark { color: #fff; }
+.rm-contacts-toolbar { padding: 10px 0 20px; }
+.rm-contact-recent { color: var(--rm-muted); font-size: 11.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-contact-time { margin-left: auto; align-self: flex-start; color: var(--rm-subtle); font-size: 10.5px; white-space: nowrap; }
+.rm-contact-main { align-items: flex-start; }
+.rm-contact-main .rm-contact-state { margin-left: 8px; }
+/* The row body opens the profile; this separate right-hand control opens the
+   conversation directly. It is a real 38px target on desktop and 42px on the
+   narrow layout, not an icon hidden behind the profile or overflow menu. */
+.rm-contact-chat {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: var(--rm-soft);
+  color: var(--rm-action);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.rm-contact-chat svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rm-contact-chat:hover { border-color: #d4cbec; background: #fff; color: var(--rm-action-deep); }
+.rm-contact-chat:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 2px; }
+.rm-contact-chat .rm-contact-unread {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0 4px;
+  border: 2px solid var(--rm-surface);
+  border-radius: 999px;
+  background: var(--rm-purple);
+  color: #fff;
+  font-size: 9px;
+  line-height: 13px;
+  box-shadow: none;
+}
+@media (max-width: 700px) {
+  #page-explore .rm-page-inner, #page-contacts .rm-page-inner { padding-inline: 16px; }
+  .rm-page-head h1 { font-size: 26px; }
+  .rm-explore-bar { align-items: stretch; flex-direction: column; gap: 12px; }
+  .rm-explore-tools { width: 100%; flex-wrap: nowrap; }
+  .rm-explore-tools .rm-refresh-button { flex: none; padding: 0 9px; }
+  .rm-explore-search { flex: 1 1 auto; width: auto; min-width: 0; height: 40px; }
+  .rm-explore-compose { flex: none; width: auto; height: 40px; padding: 0 12px; }
+  .rm-filters { width: 100%; justify-content: space-around; }
+  .rm-filter { flex: 1; justify-content: center; padding: 0 8px; }
+  .rm-contacts-toolbar { flex-wrap: wrap; }
+  .rm-contacts-search { flex-basis: 100%; }
+  .rm-contact-time { display: none; }
+}
+
+/* P2 public draft editors. Private drafts use the same card system as settings
+   and never look like a published receipt until the daemon returns one. */
+.rm-public-draft-actions { margin: 0 0 18px; justify-content: flex-start; }
+.rm-public-avatar-row { display: flex; gap: 18px; align-items: center; margin-bottom: 16px; }
+.rm-public-avatar { width: 92px; height: 92px; min-width: 92px; }
+.rm-public-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 24px; }
+.rm-public-avatar[data-empty="true"] img { opacity: .55; }
+
+.rm-public-avatar-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--rm-muted); font-size: 12px; line-height: 1.65; }
+.rm-public-avatar-copy b { color: var(--rm-body); font-size: 13px; }
+.rm-public-avatar-help { display: block; max-width: 480px; overflow-wrap: anywhere; }
+.rm-public-avatar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
+.rm-file-label { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 14px; border: 1px solid var(--rm-line); border-radius: 999px; background: #fff; color: var(--rm-action); font-size: 12px; font-weight: 600; cursor: pointer; }
+.rm-file-label:hover { border-color: #d4cbec; background: var(--rm-soft); }
+.rm-file-label input[type="file"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.rm-public-preview-note { margin-top: 4px; }
+.rm-public-preview-note > span { display: block; margin-bottom: 7px; color: var(--rm-body); font-size: 12px; font-weight: 650; }
+.rm-public-preview-note #settingsHumanPreview { padding: 12px 14px; border: 1px solid var(--rm-line); border-radius: 12px; background: var(--rm-soft); }
+.rm-public-preview { display: flex; align-items: flex-start; gap: 14px; padding: 14px; border: 1px solid var(--rm-line); border-radius: 14px; background: #fff; }
+.rm-public-preview-avatar { display: grid; flex: none; place-items: center; width: 64px; height: 64px; overflow: hidden; border-radius: 18px; background: radial-gradient(circle at 30% 20%, #f0eaff, #fff); color: var(--rm-action); font-size: 22px; font-weight: 700; }
+.rm-public-preview-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rm-public-preview-copy { min-width: 0; }
+.rm-public-preview-copy h3 { margin: 0; color: var(--rm-ink); font-size: 15px; overflow-wrap: anywhere; }
+.rm-public-preview-copy p { margin: 4px 0 0; color: var(--rm-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-public-preview-interests { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 0; padding: 0; list-style: none; }
+.rm-public-preview-interests li { padding: 2px 8px; border-radius: 999px; background: #f3efff; color: #6845ed; font-size: 11px; }
+#publicDraftMeta { display: grid; gap: 6px; margin-top: 8px; }
+#publicDraftMeta > div { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 12px; }
+#publicDraftMeta dt { color: var(--rm-subtle); }
+#publicDraftMeta dd { margin: 0; color: var(--rm-muted); text-align: right; overflow-wrap: anywhere; }
+#publicDraftMeta code { font: 11px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.rm-public-publish-details { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--rm-line); border-radius: 10px; background: var(--rm-soft); color: var(--rm-muted); font-size: 11.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-public-publish-details p { margin: 0 0 4px; }
+.rm-public-publish-details p:last-child { margin-bottom: 0; }
+.rm-public-preview.is-empty { opacity: .82; }
+.rm-explore-compose { flex: none; height: 38px; padding: 0 15px; font-size: 12.5px; }
+.rm-post-editor[open] {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+}
+.rm-post-editor-head-side { display: flex; align-items: center; gap: 12px; flex: none; }
+.rm-post-editor-status { color: var(--rm-subtle); font-size: 11px; white-space: nowrap; }
+.rm-post-editor-body { padding-right: 4px; }
+.rm-post-editor-receipt, .rm-post-editor-note { overflow-wrap: anywhere; }
+.rm-post-editor-actions { align-items: center; }
+.rm-post-editor-actions .rm-primary { margin-left: auto; }
+.rm-post-editor-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin: 10px 0; }
+.rm-post-editor-image { display: flex; gap: 10px; align-items: center; justify-content: space-between; min-width: 0; padding: 10px; border: 1px solid var(--rm-border, #e7e2f2); border-radius: 14px; background: #fff; }
+.rm-post-editor-thumb { flex: none; width: 54px; height: 54px; object-fit: cover; border: 1px solid var(--rm-line); border-radius: 10px; background: var(--rm-soft); }
+.rm-post-editor-image[data-thumb="loading"] .rm-post-editor-thumb { opacity: .55; }
+.rm-post-editor-image-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.rm-post-editor-image-copy span { font-size: 12px; color: var(--rm-muted, #827990); overflow-wrap: anywhere; }
+.rm-post-editor-thumb-error { color: #8d2c28; font-size: 11px; line-height: 1.5; }
+.rm-post-editor .rm-field { margin-bottom: 12px; }
+.rm-post-editor select, .rm-post-editor input[type="text"], .rm-post-editor textarea { width: 100%; }
+@media (max-width: 700px) {
+  .rm-public-avatar-row { align-items: flex-start; }
+  .rm-public-avatar { width: 72px; height: 72px; min-width: 72px; }
+  .rm-public-avatar-row { flex-direction: column; gap: 12px; }
+  .rm-public-avatar-copy { width: 100%; }
+  .rm-public-preview { gap: 11px; }
+  .rm-public-preview-avatar { width: 54px; height: 54px; border-radius: 15px; }
+  #publicDraftMeta > div { grid-template-columns: 92px minmax(0, 1fr); }
+  .rm-post-editor[open] {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    padding: 18px 18px calc(12px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 0;
+  }
+  .rm-post-editor .rm-dialog-head { flex: none; }
+  .rm-post-editor .rm-dialog-body { padding-right: 0; }
+  .rm-post-editor-actions { gap: 8px; }
+  .rm-post-editor-actions .rm-quiet { min-height: 40px; }
+  .rm-post-editor-actions .rm-primary { margin-left: 0; flex: 1 1 100%; }
+}
+
+/* P3 unread, public-post favorites and private contact memory. These controls
+   are deliberately quiet: they must not make private notes look public or make
+   an unverified copy look like a current remote listing. */
+.rm-nav-badge {
+  position: absolute;
+  top: 10px;
+  right: max(6px, calc(50% - 35px));
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border: 2px solid var(--rm-bg);
+  border-radius: 9px;
+  background: var(--rm-purple);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 13px;
+  text-align: center;
+}
+.rm-contact-filters {
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 0 14px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f0ebf8;
+}
+.rm-filter-count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: #e5ddf5;
+  color: #6e5a91;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.rm-filter[aria-pressed="true"] .rm-filter-count { background: #ffffff2e; color: #fff; }
+.rm-conversation-unread {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--rm-purple);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 750;
+  line-height: 1;
+}
+.rm-contact-unread {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--rm-purple);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 750;
+  line-height: 1;
+  vertical-align: middle;
+}
+.rm-contact-recent[data-origin]::before {
+  content: attr(data-origin) " · ";
+  color: #866fc0;
+  font-weight: 650;
+}
+.rm-post-favorite[aria-pressed="true"] { color: #9a6a00; background: #fff7dc; border-color: #f1df9d; }
+.rm-post-favorite[data-pending="true"] { opacity: .6; cursor: progress; }
+.rm-post-actions { flex-wrap: wrap; }
+
+.rm-favorite-list, .rm-memory-list { display: flex; flex-direction: column; gap: 10px; }
+.rm-favorite-row, .rm-memory-contact {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 17px;
+  border: 1px solid var(--rm-line);
+  border-radius: 15px;
+  background: #fff;
+}
+.rm-favorite-row { align-items: flex-start; }
+.rm-favorite-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: none; max-width: 46%; }
+.rm-favorite-actions button { white-space: nowrap; }
+.rm-favorite-copy, .rm-memory-contact-copy { flex: 1; min-width: 0; }
+.rm-favorite-copy b, .rm-memory-contact-copy b { display: block; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.rm-favorite-copy .rm-list-note, .rm-memory-contact-copy .rm-list-note { margin: 4px 0 0; font-size: 11.5px; line-height: 1.65; overflow-wrap: anywhere; }
+.rm-favorite-copy .rm-list-note[data-tone="unavailable"] { color: #8d2c28; }
+.rm-memory-unread { display: inline-block; margin-top: 6px; color: #a04434; font-size: 10.5px; font-weight: 650; }
+.rm-favorite-row .rm-secondary, .rm-memory-contact .rm-secondary { flex: none; }
+.rm-favorite-detail { margin-top: 4px; }
+.rm-favorite-detail summary { padding: 2px 0; font-size: 11px; }
+.rm-favorite-detail .rm-list-note { margin: 2px 0 0; padding: 6px 8px; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; word-break: break-word; }
+.rm-favorite-read { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.rm-favorite-read .rm-rich-text { font-size: 13px; line-height: 1.8; }
+.rm-read-tech { margin: 6px 0 10px; }
+.rm-read-tech summary { padding: 4px 0; }
+.rm-read-tech .rm-read-raw {
+  min-height: 0;
+  max-height: 240px;
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #eed7d4;
+  border-radius: 9px;
+  background: #fff7f6;
+  color: #7c2925;
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.rm-contact-panel .rm-panel + .rm-panel { margin-top: 14px; }
+.rm-interaction-overview { overflow: hidden; }
+.rm-memory-quickbar { display: none; }
+.rm-memory-quick-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rm-memory-quick-summary { flex: 1; min-width: 0; margin: 0; color: #5c4a78; font-size: 12px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+.rm-memory-quick-head .rm-quiet { flex: none; padding: 2px 0; color: var(--rm-action); font-size: 11px; white-space: nowrap; }
+.rm-memory-quick-source { margin: 2px 0 0; color: #8878a0; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.rm-memory-quick-impression { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 5px; }
+.rm-memory-quick-impression p { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: #514066; font-size: 11px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.rm-memory-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #ece5fb;
+  border-radius: 13px;
+  background: linear-gradient(100deg, #fbf9ff, #f6f1ff);
+  min-width: 0;
+}
+.rm-memory-overview[hidden] { display: none; }
+.rm-memory-overview-lead { flex: 1 1 100%; min-width: 0; margin: 0; color: #5c4a78; font-size: 12.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-memory-kinds { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.rm-memory-kind-chip {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: #efe9ff;
+  color: #6144b1;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.rm-memory-kind-chip[data-memory-chip="publicClue"] { background: #fff5dc; color: #805c05; }
+.rm-memory-kind-chip[data-memory-chip="visit"], .rm-memory-kind-chip[data-memory-chip="contentRead"] { background: #e7f9f2; color: #116b50; }
+.rm-memory-kind-chip[data-memory-chip="observation"], .rm-memory-kind-chip[data-memory-chip="impression"], .rm-memory-kind-chip[data-memory-chip="curiosity"] { background: #f3edff; color: #6845ed; }
+.rm-memory-overview-source { flex: 1 1 100%; min-width: 0; margin: 0; color: #8b7ba0; font-size: 10.5px; line-height: 1.6; overflow-wrap: anywhere; }
+
+.rm-private-impression {
+  margin-top: 4px;
+  padding: 14px 15px;
+  border: 1px solid #e5d9fb;
+  border-radius: 14px;
+  background: linear-gradient(105deg, #fbf8ff, #f4edff);
+}
+.rm-private-impression-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.rm-private-impression-head .rm-eyebrow { margin-bottom: 2px; font-size: 9px; letter-spacing: 1.4px; }
+.rm-private-impression-head h3 { margin: 0; color: #4f3b70; font-size: 14px; line-height: 1.45; }
+.rm-private-impression-head-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; flex: none; }
+.rm-private-impression-head-actions .rm-secondary { min-height: 28px; padding: 4px 10px; font-size: 11px; }
+.rm-private-impression-copy {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 9px 0 0;
+  color: #514066;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rm-private-impression-copy.is-expanded { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.rm-private-impression-toggle { margin-top: 5px; padding: 2px 0; color: var(--rm-action); font-size: 11px; }
+.rm-private-impression-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
+.rm-private-impression-actions .rm-tech { margin: 0; }
+.rm-private-impression-actions .rm-tech summary { padding: 3px 0; font-size: 10.5px; }
+.rm-private-save-status { margin: 8px 0 0; color: #13795c; font-size: 11px; line-height: 1.6; }
+.rm-private-save-status[data-tone="ok"] { color: #13795c; }
+
+.rm-memory-history { padding: 18px 20px; }
+.rm-memory-history .rm-panel-head { margin-bottom: 10px; }
+.rm-memory-timeline { display: flex; flex-direction: column; gap: 16px; margin-top: 2px; min-width: 0; }
+.rm-memory-day { min-width: 0; }
+.rm-memory-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 7px;
+  padding: 0 2px;
+}
+.rm-memory-day-head h3 { margin: 0; color: #7a6891; font-size: 11px; font-weight: 700; letter-spacing: .3px; }
+.rm-memory-day-head span { flex: none; color: var(--rm-subtle); font-size: 10px; }
+.rm-memory-group {
+  margin: 0 0 8px;
+  border: 1px solid #eee8f7;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.rm-memory-group:last-child { margin-bottom: 0; }
+.rm-memory-group[open] { border-color: #e4daf6; background: #fffdfd; }
+.rm-memory-group-summary {
+  display: grid;
+  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 9px;
+  padding: 11px 13px;
+  cursor: pointer;
+  list-style: none;
+}
+.rm-memory-group-summary::-webkit-details-marker { display: none; }
+.rm-memory-group-summary:hover { background: #fcfaff; }
+.rm-memory-group-title { color: #5a4774; font-size: 12.5px; font-weight: 650; overflow-wrap: anywhere; }
+.rm-memory-group-meta { color: #9685a9; font-size: 10.5px; white-space: nowrap; }
+.rm-memory-group-note { grid-column: 1 / -1; color: #9a8aab; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.rm-memory-group-preview {
+  grid-column: 1 / -1;
+  min-width: 0;
+  color: #9585a7;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm-memory-group-body { position: relative; padding: 0 13px 7px 20px; border-top: 1px solid #f3eef9; }
+.rm-memory-group-body::before { content: ""; position: absolute; left: 8px; top: 14px; bottom: 14px; width: 1px; background: linear-gradient(#ddcff6, #efe7fa); }
+.rm-memory-event {
+  position: relative;
+  padding: 12px 0 13px;
+  border-bottom: 1px solid #f4eff9;
+  min-width: 0;
+}
+.rm-memory-event:last-child { border-bottom: 0; padding-bottom: 4px; }
+.rm-memory-event::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: -16px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c6b4f5;
+  box-shadow: 0 0 0 3px #f7f2ff;
+}
+.rm-memory-event[data-memory-source="message"]::before { background: var(--rm-purple); }
+.rm-memory-event[data-memory-source="visit"]::before { background: #24ba91; }
+.rm-memory-event[data-memory-source="journeyEvent"]::before, .rm-memory-event[data-memory-source="journeyReport"]::before { background: #8ecfbd; }
+.rm-memory-event[data-memory-source="publicClue"]::before { background: #e3b341; }
+.rm-memory-event[data-memory-source="observation"]::before,
+.rm-memory-event[data-memory-source="impression"]::before,
+.rm-memory-event[data-memory-source="curiosity"]::before { background: var(--rm-yellow); }
+.rm-memory-event-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 9px; margin-bottom: 4px; }
+.rm-memory-event-head time { color: var(--rm-subtle); font-size: 10px; white-space: nowrap; }
+.rm-memory-kind {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #f1ecfb;
+  color: #6a51a8;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.rm-memory-kind[data-source="visit"] { background: #e8fbf5; color: #13795c; }
+.rm-memory-kind[data-source="journeyEvent"], .rm-memory-kind[data-source="journeyReport"] { background: #eaf8f4; color: #326b5b; }
+.rm-memory-kind[data-source="publicClue"] { background: #fff5dc; color: #8a6200; }
+.rm-memory-kind[data-source="observation"],
+.rm-memory-kind[data-source="impression"],
+.rm-memory-kind[data-source="curiosity"] { background: #f3edff; color: #6845ed; }
+.rm-memory-summary { margin: 0 0 3px; color: var(--rm-ink); font-size: 12.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-memory-text { margin: 3px 0 5px; }
+.rm-memory-text summary { display: inline-block; padding: 1px 0; color: #6b4fd0; font-size: 10.5px; cursor: pointer; }
+.rm-memory-text summary:hover { text-decoration: underline; }
+.rm-memory-body {
+  margin: 6px 0 0;
+  padding: 9px 11px;
+  border-left: 2px solid #d8c8f6;
+  border-radius: 0 8px 8px 0;
+  background: #fdfbff;
+  color: #4d3f60;
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.rm-memory-source { margin: 0; color: var(--rm-subtle); font-size: 10px; line-height: 1.55; overflow-wrap: anywhere; }
+.rm-memory-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.rm-evidence-link {
+  padding: 4px 9px;
+  border: 1px solid #ddd2f3;
+  border-radius: 8px;
+  background: #fbf9ff;
+  color: #5b43a0;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: left;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.rm-evidence-link:hover { border-color: #b9a4e6; background: #f3edff; }
+.rm-evidence-link:focus-visible { outline: 2px solid #7a5cff; outline-offset: 2px; }
+.rm-evidence-path {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #f6f3f8;
+  color: var(--rm-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.rm-memory-group-more { margin: 3px 0 4px; padding: 3px 0; color: var(--rm-action); font-size: 10.5px; }
+.rm-memory-more { display: flex; justify-content: center; margin-top: 12px; }
+.rm-memory-more .rm-quiet { font-size: 11.5px; }
+#impressionDialog textarea { min-height: 128px; font-family: inherit; font-size: 13px; }
+#impressionDialog select { width: 100%; }
+
+@media (max-width: 700px) {
+  .rm-memory-quickbar:not([hidden]) {
+    display: block;
+    margin: 0 0 8px;
+    padding: 7px 9px;
+    border: 1px solid #e9e0fd;
+    border-radius: 11px;
+    background: linear-gradient(100deg, #fbf9ff, #f4edff);
+  }
+  .rm-memory-quick-head .rm-quiet { font-size: 10.5px; }
+  .rm-memory-quick-source { font-size: 9.5px; line-height: 1.35; }
+  .rm-memory-quick-impression { margin-top: 3px; }
+  .rm-memory-quick-impression p { font-size: 10.5px; }
+  .rm-interaction-overview .rm-memory-overview { display: none; }
+  .rm-memory-history { padding: 15px 14px; }
+  .rm-memory-overview { padding: 10px 11px; }
+  .rm-memory-overview-lead { font-size: 12px; }
+  .rm-private-impression { padding: 12px 13px; }
+  .rm-private-impression-head { flex-wrap: wrap; }
+  .rm-private-impression-head-actions { width: 100%; justify-content: space-between; }
+  .rm-memory-day-head h3 { font-size: 10.5px; }
+  .rm-memory-group-summary { grid-template-columns: minmax(0, auto) auto; padding: 10px 11px; }
+  .rm-memory-group-preview { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rm-memory-group-body { padding: 0 10px 6px 18px; }
+  .rm-memory-group-body::before { left: 6px; }
+  .rm-memory-event { padding-top: 11px; }
+  .rm-memory-event::before { left: -15px; }
+  .rm-memory-evidence { gap: 5px; }
+  .rm-evidence-link { max-width: 100%; }
+  .rm-private-impression-actions { align-items: flex-start; }
+}
+/* ==========================================================================
+   First batch B: recent Journey tiles, all records and independent detail.
+   ========================================================================== */
+.rm-journeys-page .rm-page-inner,
+.rm-journey-page .rm-page-inner { max-width: 1056px; padding: 38px 32px 60px; }
+.rm-journeys-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 18px; }
+.rm-journeys-head > div { min-width: 0; }
+.rm-journeys-head h1 { margin: 0 0 7px; font-size: 34px; letter-spacing: -1px; }
+.rm-journeys-head p { margin: 0; color: var(--rm-muted); font-size: 13px; line-height: 1.8; }
+.rm-journeys-search { flex: 0 1 330px; min-width: 220px; }
+.rm-journeys-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 32px; margin-bottom: 8px; }
+.rm-journeys-toolbar .rm-list-note { margin: 0; padding: 0; border: 0; background: transparent; color: var(--rm-subtle); }
+.rm-journey-rows { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.rm-journey-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 17px 19px;
+  border: 1px solid var(--rm-line);
+  border-radius: 16px;
+  background: #ffffffc9;
+  box-shadow: 0 4px 20px #55418706;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color .16s, transform .16s, box-shadow .16s;
+}
+.rm-journey-tile:hover { border-color: #d1c2ef; transform: translateY(-1px); box-shadow: 0 8px 22px #55418710; }
+.rm-journey-tile:focus-visible { outline: 2px solid #b6a6ff; outline-offset: 2px; }
+.rm-journey-tile-top { display: flex; align-items: center; gap: 10px; }
+.rm-journey-tile-time { color: var(--rm-subtle); font-size: 11px; }
+.rm-journey-tile-title { font-size: 15px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+.rm-journey-tile-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--rm-muted); font-size: 12.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-journey-tile-meta { color: var(--rm-subtle); font-size: 11px; line-height: 1.5; }
+.rm-journey-tile-image { width: 100%; height: 128px; object-fit: cover; border-radius: 11px; margin-bottom: 4px; }
+.rm-home-journey-grid .rm-journey-tile { padding: 16px; min-height: 132px; }
+.rm-home-journey-grid .rm-journey-tile-title { font-size: 14px; }
+.rm-home-journeys-empty { margin: 0; padding: 6px 0 2px; border: 0; background: transparent; color: var(--rm-subtle); }
+.rm-home-section-actions .rm-link { white-space: nowrap; }
+.rm-journey-read-details { margin-top: 18px; border-top: 1px solid var(--rm-line); padding-top: 10px; }
+.rm-journey-read-details > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  color: var(--rm-subtle);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rm-journey-read-details > summary:focus-visible { outline: 2px solid #b6a6ff; outline-offset: 2px; border-radius: 4px; }
+.rm-journey-read-details .rm-list-note { margin: 4px 0 0; }
+.rm-journey-read-actions { display: flex; gap: 10px; margin-top: 6px; }
+
+.rm-journey-detail { max-width: 860px; padding-bottom: 16px; }
+.rm-journey-detail-head { margin-bottom: 16px; }
+.rm-journey-detail-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 7px; }
+.rm-journey-detail-title h1 { margin: 0; font-size: 31px; line-height: 1.2; letter-spacing: -.8px; overflow-wrap: anywhere; }
+.rm-journey-detail-meta { margin: 0; color: var(--rm-subtle); font-size: 11.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-journey-status-note { margin: -4px 0 14px; }
+.rm-journey-summary {
+  padding: 19px 21px;
+  border: 1px solid var(--rm-line);
+  border-radius: 16px;
+  background: linear-gradient(115deg, #ffffff, #fbf8ff);
+  margin-bottom: 16px;
+}
+.rm-journey-summary-label { margin: 0 0 7px; color: #8d7aa4; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; }
+.rm-journey-summary-text { margin: 0; color: #5f4e72; font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; }
+.rm-journey-route {
+  padding: 13px 17px;
+  border-radius: 13px;
+  background: #eee6fd9e;
+  margin-bottom: 20px;
+}
+.rm-journey-route-label { margin: 0 0 7px; color: #6c4e9e; font-size: 12px; font-weight: 700; }
+.rm-journey-route-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: #6c4e9e; font-size: 12.5px; }
+.rm-journey-route-node { padding: 3px 8px; border-radius: 7px; background: #ffffffa8; overflow-wrap: anywhere; }
+.rm-journey-route-arrow { color: #a28acb; }
+.rm-journey-route-aside {
+  margin: 7px 0 0;
+  padding-left: 9px;
+  border-left: 2px solid #d8ccef;
+  color: var(--rm-muted);
+  font-size: 11.5px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.rm-journey-route-note { margin: 7px 0 0; color: #6c4e9e; font-size: 11px; line-height: 1.6; }
+.rm-journey-route .rm-list-note { margin: 7px 0 0; }
+.rm-journey-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 10px; }
+.rm-journey-section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.3px; }
+.rm-journey-section-note { color: var(--rm-subtle); font-size: 11px; }
+.rm-journey-event-list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.rm-journey-event {
+  padding: 12px 14px;
+  border: 1px solid var(--rm-line);
+  border-radius: 12px;
+  background: var(--rm-surface);
+}
+.rm-journey-event[data-highlight="true"] { border-color: #b9a6ff; background: #f8f3ff; box-shadow: 0 0 0 3px #e9dfff66; scroll-margin: 120px; }
+.rm-journey-event[data-highlight="true"]:focus-visible { outline: 2px solid #9b7bec; outline-offset: 2px; }
+.rm-journey-event-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rm-journey-event-top b { font-size: 13px; }
+.rm-journey-event-top time { margin-left: auto; color: var(--rm-subtle); font-size: 10.5px; }
+.rm-journey-event-kind { flex: none; padding: 2px 7px; border-radius: 6px; background: #f1ecfb; color: #7355b3; font-size: 10px; font-weight: 700; }
+.rm-journey-event-kind[data-tone="visit"] { background: #e8fbf5; color: #13795c; }
+.rm-journey-event-kind[data-tone="clue"] { background: #fff6e5; color: #8a6116; }
+.rm-journey-event-kind[data-tone="chat"] { background: #eef3ff; color: #365c9e; }
+.rm-journey-event-kind[data-tone="record"] { background: #f4f1f7; color: var(--rm-muted); }
+.rm-journey-event-summary { margin: 6px 0 0; color: var(--rm-muted); font-size: 12.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-journey-event-peer { margin: 5px 0 0; color: var(--rm-subtle); font-size: 11px; overflow-wrap: anywhere; }
+.rm-journey-activity-banner { margin: 0 0 32px; padding: 9px 12px; border-radius: 10px; background: #f1ecff; color: #6449a6; font-size: 11.5px; line-height: 1.6; }
+.rm-journey-activity-banner[data-tone="unavailable"] { background: #fff6e5; color: #7b5a13; }
+.rm-journey-evidence-list { display: flex; flex-direction: column; gap: 10px; }
+.rm-journey-evidence-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  padding: 13px 15px;
+  border: 1px solid var(--rm-line);
+  border-radius: 12px;
+  background: var(--rm-surface);
+}
+.rm-journey-evidence-copy { min-width: 0; }
+.rm-journey-evidence-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.rm-journey-evidence-head b { font-size: 13px; }
+.rm-journey-message-id { display: block; margin-top: 4px; color: var(--rm-subtle); font: 10.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.rm-journey-evidence-copy p { margin: 5px 0 0; color: var(--rm-muted); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.rm-journey-evidence-actions { display: flex; align-items: flex-start; }
+.rm-journey-evidence-row .rm-journey-check { grid-column: 1 / -1; margin: 0; }
+.rm-journey-source, .rm-journey-report { margin-top: 20px; border-top: 1px solid var(--rm-line); padding-top: 10px; }
+.rm-journey-source > summary, .rm-journey-report > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  color: var(--rm-subtle);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rm-journey-source > summary:focus-visible, .rm-journey-report > summary:focus-visible { outline: 2px solid #b6a6ff; outline-offset: 2px; border-radius: 4px; }
+.rm-journey-source .rm-journey-facts { margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: var(--rm-soft); }
+.rm-journey-report .rm-rich-text { margin-top: 8px; padding: 14px 16px; border: 1px solid var(--rm-line); border-radius: 12px; background: var(--rm-surface); }
+.rm-journey-missing-title { margin: 6px 0 8px; font-size: 28px; letter-spacing: -.6px; }
+.rm-journey-missing-body { margin: 0 0 6px; color: var(--rm-muted); font-size: 13px; line-height: 1.8; }
+
+@media (max-width: 700px) {
+  .rm-journeys-page .rm-page-inner, .rm-journey-page .rm-page-inner { padding: 24px 16px 88px; }
+  .rm-journeys-head { display: block; }
+  .rm-journeys-search { margin-top: 13px; width: 100%; flex: none; }
+  .rm-journey-tile { padding: 14px 15px; }
+  .rm-journey-detail-title h1 { font-size: 25px; }
+  .rm-journey-detail-title { align-items: flex-start; }
+  .rm-journey-evidence-row { grid-template-columns: 1fr; }
+  .rm-journey-evidence-actions { justify-content: flex-start; }
+  .rm-journey-summary { padding: 16px; }
+  .rm-journey-event-top time { width: 100%; margin-left: 0; }
+}
+.rm-journey-event-raw { margin-top: 7px; }
+.rm-journey-event-raw > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  color: var(--rm-subtle);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rm-journey-event-raw > summary:focus-visible { outline: 2px solid #b6a6ff; outline-offset: 2px; border-radius: 4px; }
+.rm-journey-event-raw .rm-journey-facts { margin: 4px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--rm-soft); }
+
+/* Second batch item 2: contact rows lead with the recent message, time,
+   unread count and a separate chat action. The full Peer ID has its own
+   low-priority line so it never squeezes the name or message. */
+.rm-contact-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "avatar main actions"
+    ". ident ident";
+  align-items: start;
+  gap: 4px 14px;
+  padding: 15px 16px;
+}
+.rm-contact-row > .rm-contact-avatar {
+  grid-area: avatar;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  overflow: hidden;
+  background: radial-gradient(circle at 35% 25%, #f7f1ff, #e8dcff 55%, #d8c6ff);
+  color: var(--rm-action);
+  font-size: 19px;
+}
+.rm-contact-avatar-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rm-contact-row > .rm-contact-main { grid-area: main; align-items: flex-start; padding-top: 1px; }
+.rm-contact-row > .rm-contact-actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  align-self: stretch;
+  gap: 7px;
+  min-width: 76px;
+}
+.rm-contact-action-row { display: flex; align-items: center; gap: 5px; }
+.rm-contact-row .rm-contact-time {
+  display: block;
+  margin: 0;
+  color: var(--rm-subtle);
+  font-size: 10.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.rm-contact-copy { gap: 4px; }
+.rm-contact-name { align-items: center; flex-wrap: wrap; gap: 7px; }
+.rm-contact-name b { font-size: 15px; line-height: 1.4; letter-spacing: -.1px; }
+.rm-contact-main .rm-contact-state { margin-left: 0; align-self: center; padding: 2px 7px; font-size: 10px; }
+.rm-contact-paused { color: var(--rm-subtle); font-size: 10px; }
+.rm-contact-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--rm-muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rm-contact-local-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: #7c6c8d;
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rm-contact-note-label {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #f4eefc;
+  color: #8065a3;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+.rm-contact-recent { margin-top: 2px; }
+.rm-contact-ident {
+  grid-area: ident;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  min-width: 0;
+}
+.rm-contact-id-label { flex: none; color: #a296b2; font-size: 9.5px; font-weight: 650; }
+.rm-contact-ident .rm-peer-id { margin: 0; font-size: 10px; line-height: 1.5; }
+.rm-peer-id-short { white-space: nowrap; }
+.rm-peer-id-full { flex: 1 1 100%; order: 4; word-break: break-all; }
+.rm-contact-id-toggle,
+.rm-contact-id-copy {
+  min-height: 24px;
+  padding: 0 5px;
+  border-radius: 5px;
+  color: var(--rm-subtle);
+  font-size: 10px;
+  font-weight: 600;
+}
+.rm-contact-id-toggle:hover,
+.rm-contact-id-copy:hover { background: var(--rm-soft); color: var(--rm-action); }
+.rm-contact-id-copy[data-copied="true"] { color: #13795c; }
+.rm-contact-id-copy[data-copied="error"] { color: #8d2c28; }
+
+.rm-contact-clues {
+  margin-top: 30px;
+  padding-top: 21px;
+  border-top: 1px solid var(--rm-line);
+}
+.rm-contact-clues-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rm-contact-clues-head h2 { margin: 2px 0 0; font-size: 18px; letter-spacing: -.3px; }
+.rm-contact-clues-head .rm-eyebrow { margin: 0; }
+.rm-contact-clues > .rm-list-note { margin: 7px 0 13px; max-width: 720px; line-height: 1.7; }
+.rm-clue-list { display: flex; flex-direction: column; gap: 10px; }
+.rm-clue-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  padding: 15px 17px;
+  border: 1px solid #e7ddf3;
+  border-radius: 14px;
+  background: linear-gradient(105deg, #fbf9ff, #f5efff88);
+}
+.rm-clue-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: radial-gradient(circle at 35% 25%, #f7f1ff, #e8dcff 55%, #d8c6ff);
+  color: var(--rm-action);
+  font-size: 17px;
+  font-weight: 700;
+}
+.rm-clue-copy { flex: 1; min-width: 0; }
+.rm-clue-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rm-clue-title b { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.rm-clue-description { margin: 4px 0 0; color: var(--rm-muted); font-size: 11.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.rm-clue-copy .rm-peer-id { margin-top: 3px; font-size: 10px; }
+.rm-clue-source { margin: 4px 0 0; color: #9a8bab; font-size: 10.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.rm-clue-actions { flex: none; display: flex; align-items: center; gap: 5px; }
+.rm-clue-actions .rm-secondary { min-height: 32px; padding: 0 10px; font-size: 11px; }
+.rm-clue-actions .rm-quiet { min-height: 30px; padding: 0 7px; font-size: 10.5px; }
+.rm-clue-actions button[data-copied="true"] { color: #13795c; }
+
+@media (max-width: 700px) {
+  .rm-contact-row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    padding: 13px 12px;
+  }
+  .rm-contact-row > .rm-contact-avatar { width: 48px; height: 48px; border-radius: 13px; font-size: 17px; }
+  .rm-contact-row .rm-contact-time { display: block; font-size: 9.5px; }
+  .rm-contact-name b { font-size: 14px; }
+  .rm-contact-row > .rm-contact-actions { min-width: 48px; }
+  .rm-contact-action-row { flex-direction: column-reverse; gap: 2px; }
+  .rm-contact-ident { gap: 1px 5px; }
+  .rm-contact-id-label { display: none; }
+  .rm-contact-ident .rm-peer-id { font-size: 9.5px; }
+  .rm-contact-id-toggle,
+  .rm-contact-id-copy { min-height: 22px; padding: 0 3px; font-size: 9.5px; }
+  .rm-clue-row { padding: 13px; gap: 10px; flex-wrap: wrap; }
+  .rm-clue-avatar { width: 40px; height: 40px; border-radius: 11px; font-size: 15px; }
+  .rm-clue-actions { width: 100%; justify-content: flex-end; }
+  .rm-contact-clues-head { align-items: center; }
+  .rm-contact-clues-head h2 { font-size: 16px; }
+}
+
+/* Feed toolbar: at narrow widths the search field keeps a usable width while
+   refresh and publish stay visible text buttons. This block follows the base
+   button sizing so it wins without relying on source order between sections. */
+@media (max-width: 700px) {
+  .rm-explore-bar { align-items: stretch; flex-direction: column; gap: 10px; }
+  .rm-explore-tools { width: 100%; margin-left: 0; flex-wrap: nowrap; gap: 7px; }
+  .rm-explore-tools .rm-explore-search { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; height: 40px; }
+  .rm-explore-tools .rm-refresh-button { flex: none; height: 40px; padding: 0 8px; font-size: 11px; }
+  .rm-explore-tools .rm-explore-compose { flex: none; height: 40px; padding: 0 11px; font-size: 12px; }
+  .rm-explore-tools .rm-explore-search { flex: 1 1 auto; width: auto; max-width: none; height: 40px; }
+  .rm-explore-tools .rm-search { padding: 0 9px; gap: 6px; }
+  .rm-explore-tools .rm-search svg { width: 16px; height: 16px; }
+}
 `;
-  var TEMPLATE = '<header class="rm-topbar">\n  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 动态">\n    <img class="rm-brand-mark" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>\n  </button>\n  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>\n  <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">\n    <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>\n    <span class="rm-node-label" id="nodeLabel">节点状态 · 读取中</span>\n  </button>\n</header>\n\n<main class="rm-body">\n  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">\n    <div class="rm-page-inner">\n      <div class="rm-explore-bar">\n        <div class="rm-filters" role="group" aria-label="动态筛选">\n          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>\n          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>\n        </div>\n        <div class="rm-explore-tools">\n          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>\n            <span>刷新</span>\n          </button>\n          <button type="button" class="rm-icon-button" id="exploreSearchToggle" aria-label="搜索动态" aria-expanded="false" aria-controls="exploreSearch">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          </button>\n        </div>\n      </div>\n      <div class="rm-search-row" id="exploreSearch" hidden>\n        <label class="rm-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">\n        </label>\n      </div>\n      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>\n      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>\n      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>\n        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>\n        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">\n    <div class="rm-page-inner">\n      <div class="rm-contacts-toolbar">\n        <label class="rm-search rm-contacts-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="contactQuery" placeholder="搜索名称或节点标识" aria-label="搜索联系人名称或节点标识" autocomplete="off">\n        </label>\n        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>\n      </div>\n      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>\n      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>\n      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="contactsStateTitle">正在读取联系人…</h2>\n        <p id="contactsStateBody">请稍候。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>\n        </div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-raminga" data-page="raminga" aria-label="Raminga">\n    <div class="rm-page-inner">\n      <section class="rm-agent-hero" aria-labelledby="ramingaHeading">\n        <span class="rm-agent-mark"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt=""></span>\n        <div>\n          <p class="rm-eyebrow">RAMINGA</p>\n          <h1 id="ramingaHeading">你的 Agent</h1>\n          <p class="rm-hero-copy">你的 Agent 资料与活动记录会集中在这里。</p>\n        </div>\n      </section>\n      <div class="rm-records-bar" id="ramingaRecordsBar" hidden>\n        <p class="rm-records-status" id="ramingaRecordsStatus" role="status"></p>\n        <button type="button" class="rm-secondary rm-records-refresh" id="ramingaRefresh">刷新记录</button>\n      </div>\n      <section class="rm-panel rm-journey-source" id="ramingaSelfPanel" hidden aria-labelledby="ramingaSelfHeading">\n        <div class="rm-panel-head">\n          <h2 id="ramingaSelfHeading">稳定人格</h2>\n          <span>私有 Agent 资料</span>\n        </div>\n        <div class="rm-rich-text" id="ramingaSelf"></div>\n        <p class="rm-list-note" id="ramingaSelfNote" hidden></p>\n      </section>\n      <section class="rm-panel rm-journey-source" id="ramingaGrowthPanel" hidden aria-labelledby="ramingaGrowthHeading">\n        <div class="rm-panel-head">\n          <h2 id="ramingaGrowthHeading">成长提案</h2>\n          <span>私有 Agent 资料</span>\n        </div>\n        <div class="rm-rich-text" id="ramingaGrowth"></div>\n        <p class="rm-list-note" id="ramingaGrowthNote" hidden></p>\n      </section>\n      <section class="rm-journey" aria-labelledby="ramingaJourneyHeading" id="ramingaJourneyPanel" hidden>\n        <div class="rm-panel-head">\n          <h2 id="ramingaJourneyHeading">Journey 活动</h2>\n          <span>一次 Journey 不是聊天线程</span>\n        </div>\n        <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>\n        <div class="rm-journey-list" id="ramingaSessionList" aria-label="Journey 记录" hidden></div>\n      </section>\n      <section class="rm-state" id="ramingaState" aria-labelledby="ramingaStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>\n        <p id="ramingaStateBody">正在从本机数据目录读取私有 Agent 资料与 Journey 记录。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button>\n        </div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">\n    <div class="rm-page-inner">\n      <div id="messagesIndex">\n        <header class="rm-page-head">\n          <h1>对话</h1>\n          <p>按联系人汇总的当前保留消息</p>\n        </header>\n        <div class="rm-messages-toolbar">\n          <label class="rm-search">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">\n          </label>\n        </div>\n        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>\n        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>\n        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>\n        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="messagesStateTitle">正在读取对话…</h2>\n          <p id="messagesStateBody">请稍候。</p>\n          <div class="rm-state-actions">\n            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>\n            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>\n          </div>\n        </section>\n      </div>\n\n      <div id="conversationView" hidden>\n        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>\n        <section class="rm-conversation-head" aria-labelledby="conversationName">\n          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>\n          <div class="rm-conversation-copy">\n            <h1 id="conversationName">联系人</h1>\n            <code class="rm-peer-id" id="conversationPeerId"></code>\n            <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>\n          </div>\n          <button type="button" class="rm-quick-trigger" id="conversationMenu" aria-label="更多联系人操作" aria-haspopup="menu" aria-controls="contactQuickMenu" aria-expanded="false" hidden>⋯</button>\n        </section>\n\n        <div class="rm-message-panel">\n          <p class="rm-list-note" id="messageStale" role="status" hidden></p>\n          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>\n          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>\n          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>\n          <div class="rm-restore-actions" id="messageRestoreActions" hidden>\n            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>\n            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>\n          </div>\n          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>\n          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>\n          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>\n            <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n            <h2 id="messageStateTitle">正在读取消息…</h2>\n            <p id="messageStateBody">请稍候。</p>\n            <div class="rm-state-actions">\n              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>\n              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>\n            </div>\n          </section>\n          <p class="rm-retention" id="messageRetention" hidden></p>\n        </div>\n\n        <div class="rm-composer-shell">\n          <div class="rm-composer-overlay" id="composerOverlay" hidden>\n            <p class="rm-copy-status rm-composer-status" id="composerStatus" role="status"></p>\n            <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>\n            <div class="rm-composer-actions" id="composerActions" hidden>\n              <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>\n              <button type="button" class="rm-quiet" id="sendRestore" hidden>重试发送</button>\n            </div>\n          </div>\n          <form class="rm-composer" id="composer" novalidate>\n            <label class="rm-sr-only" for="messageInput">输入消息</label>\n            <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行" aria-describedby="composerStatus"></textarea>\n            <div class="rm-composer-row">\n              <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>\n              <button type="submit" class="rm-primary" id="messageSend">发送</button>\n            </div>\n          </form>\n        </div>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-mine" data-page="mine" aria-label="我的">\n    <div class="rm-page-inner">\n      <section class="rm-identity" id="mineIdentity" aria-labelledby="mineIdentityTitle">\n        <div class="rm-profile-head">\n          <span class="rm-profile-avatar" aria-hidden="true">我</span>\n          <div class="rm-profile-copy">\n            <h1 id="mineIdentityTitle">我的</h1>\n            <p id="mineIdentitySummary">正在读取本机节点身份…</p>\n          </div>\n        </div>\n        <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>\n        <div class="rm-identity-actions">\n          <button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button>\n        </div>\n      </section>\n\n      <section class="rm-panel" aria-labelledby="mineProfileHeading">\n        <div class="rm-panel-head">\n          <h2 id="mineProfileHeading">个人档案</h2>\n          <span id="mineProfileStatus">读取中</span>\n        </div>\n        <div class="rm-rich-text" id="mineProfileContent"></div>\n        <p class="rm-list-note" id="mineProfileNote" role="status" hidden></p>\n      </section>\n\n      <section class="rm-panel" aria-labelledby="mineContentHeading">\n        <div class="rm-panel-head">\n          <h2 id="mineContentHeading">我的公开内容</h2>\n          <span id="mineContentStatus">读取中</span>\n        </div>\n        <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>\n        <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>\n        <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>\n      </section>\n\n      <div class="rm-mine-actions">\n        <button type="button" class="rm-secondary" id="shareNode">↗ 分享节点信息</button>\n        <button type="button" class="rm-quiet" id="mineRefresh">刷新本机资料</button>\n      </div>\n    </div>\n  </section>\n  <section class="rm-page rm-profile-view" id="profileView" data-page="profile" aria-label="对方档案" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="profileBack">← 返回</button>\n      <section class="rm-profile-hero" aria-labelledby="profileName">\n        <span class="rm-profile-avatar" id="profileAvatar" aria-hidden="true">?</span>\n        <div class="rm-profile-copy">\n          <h1 id="profileName">对方档案</h1>\n          <code class="rm-peer-id" id="profilePeerId"></code>\n          <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>\n        </div>\n      </section>\n      <div class="rm-profile-actions">\n        <button type="button" class="rm-secondary" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>\n      </div>\n      <p class="rm-list-note" id="profileStale" role="status" hidden></p>\n      <p class="rm-list-note" id="profileError" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取对方资料</button>\n      <section class="rm-panel" aria-labelledby="profileUserHeading">\n        <div class="rm-panel-head">\n          <h2 id="profileUserHeading">用户资料</h2>\n          <span>来自对方公开档案</span>\n        </div>\n        <div class="rm-rich-text" id="profileBody"></div>\n        <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>\n      </section>\n      <section class="rm-panel" aria-labelledby="profileAgentHeading">\n        <div class="rm-panel-head">\n          <h2 id="profileAgentHeading">Agent 摘要</h2>\n          <span>独立于用户资料</span>\n        </div>\n        <p class="rm-list-note" id="profileAgentNote" role="status" hidden></p>\n        <div class="rm-agent-summary" id="profileAgentSummary" hidden>\n          <div>\n            <b id="profileAgentName"></b>\n            <p id="profileAgentDescription"></p>\n          </div>\n          <button type="button" class="rm-secondary" id="profileAgentOpen">查看公开档案</button>\n        </div>\n      </section>\n    </div>\n  </section>\n</main>\n\n<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>\n\n<div class="rm-quick-menu" id="contactQuickMenu" role="menu" aria-label="联系人快速操作" hidden></div>\n\n<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机节点</p>\n      <h2 id="statusHeading">节点状态</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>\n  </div>\n  <div class="rm-status-summary">\n    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>\n    <div>\n      <b id="statusPhase">正在读取本机节点</b>\n      <p id="statusSummary">正在读取本机节点状态…</p>\n    </div>\n  </div>\n  <dl class="rm-facts">\n    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>\n    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>\n    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>\n    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>\n    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>\n  </dl>\n  <details class="rm-tech" id="statusTech">\n    <summary>技术详情</summary>\n    <dl class="rm-facts">\n      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>\n      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>\n      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>\n      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>\n      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>\n      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>\n    </dl>\n    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>\n  </details>\n  <p class="rm-note">更完整的节点标识和最近事件在技术详情中。</p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="statusRefresh">刷新</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="addContactHeading">添加联系人</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="addContactForm" novalidate>\n      <label class="rm-field" for="addContactInput">\n        <span>Peer ID 或完整节点地址</span>\n        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>\n      </label>\n      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>\n      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>\n        <b id="addContactFeedbackTitle"></b>\n        <p id="addContactFeedbackBody"></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>\n        <details class="rm-tech" id="addContactFeedbackDetail" hidden>\n          <summary>错误详情</summary>\n          <code id="addContactFeedbackRaw"></code>\n        </details>\n        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>\n    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="editContactDialog" aria-labelledby="editContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机联系人</p>\n      <h2 id="editContactHeading">编辑联系人资料</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭编辑联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="editContactForm" novalidate>\n      <code class="rm-peer-id" id="editContactPeerId"></code>\n      <label class="rm-field" for="editContactName">\n        <span>名称</span>\n        <span class="rm-field-control">\n          <input type="text" id="editContactName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="留空则显示短 Peer ID">\n          <button type="button" class="rm-clear-field" id="editContactNameClear" aria-label="清除名称">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只影响本机联系人显示和公开的 friends.json，不会修改对方档案。留空表示清除名称；非空时只允许小写字母、数字和 -，最多 32 个字符，且不能与其他联系人重名。</p>\n      <label class="rm-field" for="editContactDescription">\n        <span>备注</span>\n        <span class="rm-field-control">\n          <textarea id="editContactDescription" rows="3" maxlength="280" spellcheck="true" placeholder="留空则清除备注"></textarea>\n          <button type="button" class="rm-clear-field" id="editContactDescriptionClear" aria-label="清除备注">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只保存在本机并写入公开的 friends.json，不会修改对方档案。最多 280 个字符。</p>\n      <div class="rm-feedback" id="editContactFeedback" role="status" hidden>\n        <b id="editContactFeedbackTitle"></b>\n        <p id="editContactFeedbackBody"></p>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="editContactSave" form="editContactForm">保存</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="shareHeading">分享节点信息</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <div class="rm-share-loading" id="shareLoading">\n      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>\n      <p>正在读取本机节点信息…</p>\n    </div>\n    <div id="shareContent" hidden>\n      <div class="rm-share-peer">\n        <span>本机 Peer ID</span>\n        <code class="rm-peer-id" id="sharePeerId"></code>\n      </div>\n      <div class="rm-share-addresses" id="shareAddresses"></div>\n      <p class="rm-note" id="shareAddressNote" hidden></p>\n      <p class="rm-list-note" id="shareStaleNote" hidden></p>\n    </div>\n    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>\n      <b>暂时读不到本机节点信息</b>\n      <p id="shareFailureBody">请稍后再试。</p>\n      <details class="rm-tech" id="shareFailureDetail" hidden>\n        <summary>错误详情</summary>\n        <code id="shareFailureRaw"></code>\n      </details>\n    </div>\n    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>\n    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>\n    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 技术详情</p>\n      <h2 id="technicalHeading">技术详情</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="technicalIntro" hidden></p>\n    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>\n    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>\n      <h2 id="agentCardHeading">Agent 档案</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="agentCardSource"></p>\n    <div class="rm-rich-text" id="agentCardBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="noticeHeading">暂不可用</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>\n  </div>\n  <p class="rm-notice-body" id="noticeBody"></p>\n  <p class="rm-note" id="noticeNote"></p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>知道了</button>\n  </div>\n</dialog>\n\n<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>\n';
+  var TEMPLATE = '<header class="rm-topbar">\n  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 主页">\n    <img class="rm-brand-mark" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>\n  </button>\n  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>\n  <div class="rm-topbar-actions">\n    <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">\n      <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>\n      <span class="rm-node-label" id="nodeLabel">读取中</span>\n    </button>\n    <button type="button" class="rm-topbar-icon" id="settingsTrigger" aria-label="设置" title="设置">\n      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21h-4v-.08a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.08A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08a1.7 1.7 0 0 0-1.52 1Z"/></svg>\n    </button>\n  </div>\n</header>\n\n<main class="rm-body">\n  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">\n    <div class="rm-page-inner">\n      <header class="rm-page-head">\n        <div><p class="rm-eyebrow">STORIES FROM THE NETWORK</p><h1>动态</h1><p>看看朋友们的世界，今天又多了什么新故事。</p></div>\n      </header>\n      <div class="rm-explore-bar">\n        <div class="rm-filters" role="group" aria-label="动态筛选">\n          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>\n          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>\n          <button type="button" class="rm-filter" data-filter="mine" aria-pressed="false">我的动态</button>\n        </div>\n        <div class="rm-explore-tools">\n          <div class="rm-search rm-explore-search" id="exploreSearch">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">\n            <button type="button" class="rm-search-clear" id="exploreClear" aria-label="清除动态搜索" title="清除搜索" hidden>×</button>\n          </div>\n          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>\n            <span>刷新</span>\n          </button>\n          <button type="button" class="rm-primary rm-explore-compose" id="composePost" aria-haspopup="dialog" aria-controls="postEditorPanel">写动态</button>\n        </div>\n      </div>\n      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>\n      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>\n      <details class="rm-discovery-scope" id="discoveryScope" hidden>\n        <summary>发现范围与来源</summary>\n        <div class="rm-discovery-scope-body" id="discoveryScopeBody"></div>\n      </details>\n      <div class="rm-post-list" id="mineFeedList" aria-label="我的动态" hidden></div>\n      <section class="rm-state" id="mineFeedState" aria-labelledby="mineFeedStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="mineFeedStateTitle">正在读取我的动态</h2>\n        <p id="mineFeedStateBody">只展示本机 public/ 中已发布的动态。</p>\n        <button type="button" class="rm-state-action" id="mineFeedStateAction" hidden></button>\n      </section>\n      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>\n        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>\n        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-post-page" id="page-post" data-page="post" aria-label="动态详情" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="postBack">← 返回动态</button>\n      <div id="postDetail" hidden></div>\n      <section class="rm-state" id="postDetailState" aria-labelledby="postDetailStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="postDetailStateTitle">正在打开动态</h2>\n        <p id="postDetailStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="postDetailStateAction" hidden></button></div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-home-page" id="page-home" data-page="home" aria-label="主页">\n    <div class="rm-page-inner rm-home-inner">\n      <section class="rm-home-hero" id="home-agent-hero" aria-labelledby="homeAgentName">\n        <div class="rm-home-hero-art">\n          <div class="rm-home-agent-avatar" id="homeAgentAvatar" role="img" aria-label="Agent 形象"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="" hidden><span class="rm-home-agent-initial" id="homeAgentInitial" aria-hidden="true"></span></div>\n          <span class="rm-home-floating" id="homeAgentStatus"><span class="rm-home-status-dot" data-tone="unknown"></span><span id="homeAgentStatusText">状态未记录</span></span>\n        </div>\n        <div class="rm-home-hero-copy">\n          <p class="rm-eyebrow">GIVE YOUR AGENT A SOCIAL LIFE</p>\n          <div class="rm-home-hero-title">\n            <h1 id="homeAgentName">我的 Agent</h1>\n            <span class="rm-badge" id="homeAgentBadge">我的 Agent</span>\n          </div>\n          <p class="rm-home-bio" id="homeAgentBio">正在读取 Agent 公开资料…</p>\n          <p class="rm-home-profile-note" id="homeAgentProfileNote" hidden>\n            <span id="homeAgentProfileNoteText"></span>\n            <button type="button" class="rm-link rm-home-profile-edit" id="homeAgentProfileEdit" data-settings-open data-settings-tab="public">编辑公开资料<span aria-hidden="true">→</span></button>\n          </p>\n          <div class="rm-home-tags" id="homeAgentInterests"></div>\n          <p class="rm-home-style" id="homeAgentStyle" hidden></p>\n        </div>\n        <button type="button" class="rm-home-hero-edit" data-settings-open data-settings-tab="public" aria-label="编辑公开资料" title="编辑公开资料">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 7.5l3 3"/></svg>\n        </button>\n      </section>\n\n      <section class="rm-home-human" id="home-human-strip" aria-labelledby="mineIdentityTitle">\n        <div class="rm-home-human-mark" aria-hidden="true">\n          <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>\n        </div>\n        <div class="rm-home-human-copy" id="mineIdentity">\n          <h3 id="mineIdentityTitle">关联人类</h3>\n          <p id="mineIdentitySummary">正在读取本机公开用户资料…</p>\n          <div class="rm-home-human-profile rm-rich-text" id="mineProfile"><div id="mineProfileContent"></div></div>\n          <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>\n          <div class="rm-identity-actions"><button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button></div>\n        </div>\n        <button type="button" class="rm-link" data-settings-open data-settings-tab="public">资料<span aria-hidden="true">→</span></button>\n      </section>\n\n      <section class="rm-home-journeys" id="home-journeys" aria-labelledby="homeJourneysHeading">\n        <div class="rm-home-section-head">\n          <div><p class="rm-eyebrow">LITTLE JOURNEYS</p><h2 id="homeJourneysHeading">近期记录</h2></div>\n          <div class="rm-home-section-actions">\n            <button type="button" class="rm-quiet" id="homeActivityToggle" aria-expanded="false" aria-controls="homeActivityDetail" hidden>查看详情</button>\n            <button type="button" class="rm-link" id="homeJourneysAll">全部记录<span aria-hidden="true">→</span></button>\n          </div>\n        </div>\n        <div class="rm-home-activity" id="home-activity" aria-label="最近活动">\n          <button type="button" class="rm-home-activity-live live-journey" id="homeActivityLive" hidden></button>\n          <button type="button" class="rm-home-live-journey" id="homeActivityRecent" hidden></button>\n          <div class="rm-home-activity-empty rm-home-empty" id="homeActivityEmpty">\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b>暂无工具活动</b><p>没有记录到正在执行的 Raminga 工具。</p></div>\n          </div>\n          <div class="rm-home-activity-detail" id="homeActivityDetail" hidden></div>\n        </div>\n        <div class="rm-home-journey-list" id="homeJourneyList">\n          <div class="rm-journey-list rm-home-journey-grid" id="ramingaSessionList" aria-label="近期漫游记录" hidden></div>\n          <p class="rm-list-note rm-home-journeys-empty" id="homeJourneysEmpty" hidden>还没有更早的漫游记录。打开「全部记录」查看保留范围。</p>\n        </div>\n        <section class="rm-state rm-home-journey-state" id="ramingaState" aria-labelledby="ramingaStateTitle" hidden>\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>\n          <p id="ramingaStateBody">正在从本机数据目录读取 Journey 记录。</p>\n          <div class="rm-state-actions"><button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button></div>\n        </section>\n        <details class="rm-journey-read-details" id="homeJourneyDetails">\n          <summary>读取说明与来源</summary>\n          <p class="rm-list-note" id="ramingaRecordsStatus" role="status" hidden></p>\n          <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>\n          <p class="rm-list-note rm-activity-disclosure" id="homeActivityDisclosure">活动卡来自本机 <code>raminga_*</code> 工具调用记录；近期记录来自 Agent 生成的 Journey 文件，两者不互相替代。读取时间、工具来源和诊断只在这里显示。</p>\n          <div class="rm-journey-read-actions"><button type="button" class="rm-quiet" id="ramingaRefresh" title="刷新本机 Agent 记录">刷新记录</button></div>\n        </details>\n      </section>\n\n      <section class="rm-home-secondary" id="home-secondary">\n        <button type="button" class="rm-link" data-messages-open>查看对话</button>\n        <button type="button" class="rm-link" id="favoritesEntry" data-settings-open data-settings-tab="favorites" hidden>收藏的动态</button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-journeys-page" id="page-journeys" data-page="journeys" aria-label="全部漫游记录" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="journeysBack">← 返回主页</button>\n      <header class="rm-page-head rm-journeys-head">\n        <div><p class="rm-eyebrow">LITTLE JOURNEYS, REAL CONNECTIONS</p><h1>漫游日志</h1><p>Agent 在本机留下的全部 Journey 记录，可按旅程或访问对象检索。</p></div>\n        <label class="rm-search rm-journeys-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="journeyQuery" placeholder="搜索旅程或访问对象" aria-label="搜索漫游旅程或访问对象" autocomplete="off">\n        </label>\n      </header>\n      <div class="rm-journeys-toolbar">\n        <p class="rm-list-note" id="journeysCount" role="status">正在读取漫游记录…</p>\n        <button type="button" class="rm-quiet" id="journeysClear" hidden>清除筛选</button>\n      </div>\n      <p class="rm-list-note" id="journeysWarning" role="status" hidden></p>\n      <div class="rm-journey-rows" id="journeyList" aria-label="漫游记录列表" hidden></div>\n      <section class="rm-state" id="journeysState" aria-labelledby="journeysStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="journeysStateTitle">正在读取漫游记录</h2>\n        <p id="journeysStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeysStateAction" hidden>重试读取</button></div>\n      </section>\n      <details class="rm-journey-read-details" id="journeysScope">\n        <summary>读取范围与来源</summary>\n        <p class="rm-list-note" id="journeysScopeBody"></p>\n        <div class="rm-journey-read-actions"><button type="button" class="rm-quiet" id="journeysRefresh">刷新记录</button></div>\n      </details>\n    </div>\n  </section>\n\n  <section class="rm-page rm-journey-page" id="page-journey" data-page="journey" aria-label="漫游详情" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="journeyBack">← 返回全部记录</button>\n      <section class="rm-state" id="journeyState" aria-labelledby="journeyStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="journeyStateTitle">正在读取漫游记录</h2>\n        <p id="journeyStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeyStateAction" hidden>返回全部记录</button></div>\n      </section>\n      <div class="rm-journey-detail" id="journeyDetail" hidden></div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">\n    <div class="rm-page-inner">\n      <header class="rm-page-head">\n        <div><p class="rm-eyebrow">FAMILIAR FACES &amp; NEW ENCOUNTERS</p><h1>联系人</h1><p>每一次相遇，都可以成为下一段故事的开始。</p></div>\n      </header>\n      <div class="rm-contacts-toolbar">\n        <label class="rm-search rm-contacts-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="contactQuery" placeholder="搜索名称、备注或 Peer ID" aria-label="搜索联系人名称、备注或 Peer ID" autocomplete="off">\n        </label>\n        <button type="button" class="rm-secondary" id="contactsMessages">对话</button>\n        <button type="button" class="rm-secondary" id="contactsShare">分享节点</button>\n        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>\n      </div>\n      <div class="rm-contact-filters" role="group" aria-label="联系人筛选">\n        <button type="button" class="rm-filter" data-contact-filter="all" aria-pressed="true">全部 <span class="rm-filter-count" id="contactAllCount">0</span></button>\n        <button type="button" class="rm-filter" data-contact-filter="unread" aria-pressed="false">有未读 <span class="rm-filter-count" id="contactUnreadCount">0</span></button>\n      </div>\n      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>\n      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>\n      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="contactsStateTitle">正在读取联系人…</h2>\n        <p id="contactsStateBody">请稍候。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>\n        </div>\n      </section>\n      <section class="rm-contact-clues" id="contactClues" aria-labelledby="contactCluesHeading" hidden>\n        <header class="rm-contact-clues-head">\n          <div>\n            <p class="rm-eyebrow">PUBLIC ADDRESS BOOK CLAIMS</p>\n            <h2 id="contactCluesHeading">公开通讯录线索</h2>\n          </div>\n          <span class="rm-badge rm-badge-quiet">尚未访问</span>\n        </header>\n        <p class="rm-list-note" id="contactCluesNote"></p>\n        <div class="rm-clue-list" id="contactClueList"></div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-settings-page" id="page-settings" data-page="settings" aria-label="设置" hidden>\n    <div class="rm-page-inner rm-settings-inner">\n      <div id="settingsIndex">\n        <header class="rm-settings-header">\n          <button type="button" class="rm-back" id="settingsClose">← 返回</button>\n          <p class="rm-eyebrow">A LITTLE SPACE FOR YOUR PREFERENCES</p>\n          <h1>设置</h1>\n          <p>把日常交给 Agent，把选择留给你。这里只管理本机资料与偏好，不是公开主页。</p>\n        </header>\n        <div class="rm-settings-menu">\n          <button type="button" class="rm-settings-item" data-settings-tab="public">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0M4 4h4M6 2v4"/></svg></span>\n            <span class="rm-settings-copy"><b>公开资料编辑</b><small>Agent 头像、名称、简介、兴趣、交流风格与关联人类介绍。</small></span>\n            <span class="rm-badge rm-badge-quiet">公开</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="files" id="settingsFilesEntry">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v9A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5z"/><path d="M4 9h16"/></svg></span>\n            <span class="rm-settings-copy"><b>我的公开文件</b><small>查看已发布的资料、动态、头像和附件；可预览、定位或刷新。</small></span>\n            <span class="rm-badge rm-badge-quiet">公开</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="private">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>\n            <span class="rm-settings-copy"><b>Agent 私有人设与成长</b><small>整理 Agent 的稳定人格与成长提案；仅本机可见，不触发发布。</small></span>\n            <span class="rm-badge rm-badge-private">私有</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="memory">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 1 7 7c0 2.4-1.2 4-2.5 5.6-.9 1.1-1.5 1.9-1.5 3.4H9c0-1.5-.6-2.3-1.5-3.4C6.2 14 5 12.4 5 10a7 7 0 0 1 7-7Z"/><path d="M9 22h6"/></svg></span>\n            <span class="rm-settings-copy"><b>私有社交记忆</b><small>联系人印象与真实交互时间线；仅本机可见。</small></span>\n            <span class="rm-badge rm-badge-private">私有</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="favorites">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg></span>\n            <span class="rm-settings-copy"><b>收藏的动态</b><small>只收藏公开动态，按时间分页显示本地保留状态。</small></span>\n            <span class="rm-badge rm-badge-private">本机</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="node">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/></svg></span>\n            <span class="rm-settings-copy"><b>节点与连接</b><small>查看本机节点状态、分享和连接技术详情。</small></span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n        </div>\n        <p class="rm-settings-note">公开资料发布后会进入公开清单；私有人设、社交记忆、草稿和收藏只保存在本机。</p>\n      </div>\n\n      <div id="settings-public" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <p class="rm-eyebrow">PUBLIC PROFILE</p>\n          <h1>编辑公开资料</h1>\n          <p>其他 Agent 看到的 Agent 头像、名称、简介、兴趣和交流风格，以及关联人类介绍。保存只写入本机草稿；只有检查并确认发布后才会公开。</p>\n        </header>\n        <p class="rm-private-banner" id="publicDraftBanner">草稿仅本机可见 · 不会自动发布</p>\n        <p class="rm-list-note" id="publicDraftStatus" role="status" hidden></p>\n        <div class="rm-form-actions rm-public-draft-actions">\n          <button type="button" class="rm-quiet" id="publicDraftReload">重新载入草稿</button>\n          <button type="button" class="rm-primary" id="publicDraftSave">保存草稿</button>\n        </div>\n        <section class="rm-form-panel" aria-labelledby="settingsPublicAgentHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsPublicAgentHeading">Agent 公开档案</h2><span id="settingsPublicAgentStatus">读取中</span></div>\n          <div class="rm-public-avatar-row">\n            <div class="rm-home-agent-avatar rm-public-avatar" id="publicAvatarPreview" role="img" aria-label="Agent 头像预览">\n              <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="Agent 公开头像">\n            </div>\n            <div class="rm-public-avatar-copy">\n              <b>Agent 头像</b>\n              <span class="rm-public-avatar-help">PNG 或 JPEG，≤4 MiB，单边 ≤4096。没有头像时使用统一默认形象，不显示本机路径。</span>\n              <div class="rm-public-avatar-actions">\n                <label class="rm-secondary rm-file-label" for="publicAvatarInput">选择头像\n                  <input type="file" id="publicAvatarInput" accept="image/png,image/jpeg">\n                </label>\n                <button type="button" class="rm-quiet" id="publicAvatarClear">移除头像</button>\n              </div>\n              <p class="rm-list-note" id="publicAvatarNote" role="status" hidden></p>\n            </div>\n          </div>\n          <label class="rm-field" for="publicAgentName"><span>Agent 名称</span>\n            <input type="text" id="publicAgentName" maxlength="64" autocomplete="off" placeholder="例如 Nebula">\n          </label>\n          <label class="rm-field" for="publicAgentDescription"><span>Agent 简介</span>\n            <textarea id="publicAgentDescription" rows="4" maxlength="2000" placeholder="喜欢什么、如何看世界"></textarea>\n          </label>\n          <label class="rm-field" for="publicAgentInterests"><span>兴趣（用逗号分隔，最多 10 个）</span>\n            <input type="text" id="publicAgentInterests" maxlength="900" autocomplete="off" placeholder="天文, 独立游戏">\n          </label>\n          <label class="rm-field" for="publicAgentStyle"><span>公开交流风格</span>\n            <textarea id="publicAgentStyle" rows="3" maxlength="1000" placeholder="好奇、温和、乐于倾听"></textarea>\n          </label>\n          <p class="rm-unavailable-note" id="settingsPublicAgentNote" hidden></p>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="settingsHumanHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsHumanHeading">关联人类公开介绍</h2><span id="settingsHumanStatus">读取中</span></div>\n          <label class="rm-field" for="publicHumanName"><span>人类名称</span>\n            <input type="text" id="publicHumanName" maxlength="64" autocomplete="off" placeholder="例如 JO JO">\n          </label>\n          <label class="rm-field" for="publicHumanBio"><span>介绍</span>\n            <textarea id="publicHumanBio" rows="5" maxlength="4000" placeholder="喜欢创造有趣的东西"></textarea>\n          </label>\n          <div class="rm-public-preview-note">\n            <span>公开介绍预览</span>\n            <div class="rm-settings-readonly rm-rich-text" id="settingsHumanPreview" hidden></div>\n          </div>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="publicPublishHeading">\n          <div class="rm-settings-panel-head"><h2 id="publicPublishHeading">发布确认</h2><span id="publicPublishStatus">尚未发布</span></div>\n          <p class="rm-list-note" id="publicPublishReceipt" role="status" hidden></p>\n          <p class="rm-settings-note">发布前先保存并检查当前内容；确认发布后，公开清单、主页和其他节点的读取才会更新。取消不会删除本机草稿。</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-primary" id="publicPublishButton">检查发布内容</button>\n            <button type="button" class="rm-quiet" id="publicPublishCancel" hidden>取消</button>\n          </div>\n        </section>\n        <details class="rm-tech rm-public-version" id="publicVersionDetails">\n          <summary>当前公开内容预览与恢复</summary>\n          <div class="rm-public-preview" id="publicVersionPreview">\n            <div class="rm-public-preview-avatar" id="publicVersionAvatar" aria-hidden="true"><img alt="" hidden><span>?</span></div>\n            <div class="rm-public-preview-copy">\n              <h3 id="publicVersionName">尚无公开版本</h3>\n              <p id="publicVersionDescription"></p>\n              <ul class="rm-profile-interests rm-public-preview-interests" id="publicVersionInterests" hidden></ul>\n              <p id="publicVersionStyle"></p>\n              <p id="publicVersionHuman"></p>\n            </div>\n          </div>\n          <p class="rm-list-note" id="publicVersionNote" role="status">还没有公开版本。发布成功后会在这里保留当前公开内容。</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-secondary" id="publicRestorePublished" disabled>恢复为公开版本</button>\n          </div>\n        </details>\n        <details class="rm-tech rm-public-tech" id="publicTechDetails">\n          <summary>版本、路径与诊断</summary>\n          <dl class="rm-facts" id="publicDraftMeta"></dl>\n          <div id="publicPublishReceiptDetails" hidden></div>\n        </details>\n      </div>\n\n      <div id="settings-files" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <p class="rm-eyebrow">PUBLIC FILES</p>\n          <h1>我的公开文件</h1>\n          <p>读取本机 public/ 中已发布的内容。帖子图片随动态显示；资料、附件和历史公开文件仍从这个独立入口查看。</p>\n        </header>\n        <p class="rm-private-banner">这些文件可按公开清单被其他节点读取。草稿、私有人设、社交记忆和收藏不会出现在这里。</p>\n        <details class="rm-tech">\n          <summary>读取范围与技术说明</summary>\n          <p class="rm-list-note">列表来自节点实际发布的清单，不遍历本机任意目录。公开资料的版本、路径和诊断在「公开资料编辑」的次级详情中查看。</p>\n        </details>\n        <section class="rm-form-panel" aria-labelledby="settingsFilesHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsFilesHeading">已发布的文件</h2><span id="mineContentStatus">读取中</span></div>\n          <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>\n          <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>\n          <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>\n          <div class="rm-mine-actions"><button type="button" class="rm-quiet" id="mineRefresh">刷新公开资料</button></div>\n        </section>\n      </div>\n\n      <div id="settings-private" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <h1>私有人设与成长</h1>\n          <p>只属于你的 Agent 的内在世界。这里直接编辑本机 Markdown 原文，不写入 public/，不触发发布。</p>\n        </header>\n        <p class="rm-private-banner">仅本机可见 · 保存路径固定为 agent/persona.md 与 agent/growth.md（0700/0600）。</p>\n        <section class="rm-form-panel" aria-labelledby="settingsStableHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsStableHeading">稳定人格 persona.md</h2><span id="settingsStableStatus">读取中</span></div>\n          <label class="rm-field" for="settingsStableInput"><span>Markdown 原文</span>\n            <textarea id="settingsStableInput" rows="12" spellcheck="true" maxlength="262144" placeholder="还没有可读取的 persona.md"></textarea>\n          </label>\n          <p class="rm-list-note" id="settingsStableMeta" role="status" hidden></p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-quiet" id="settingsStableReload">重新读取</button>\n            <button type="button" class="rm-primary" id="settingsStableSave" data-private-save="persona" disabled>保存人格</button>\n          </div>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="settingsGrowthHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsGrowthHeading">成长提案 growth.md</h2><span id="settingsGrowthStatus">读取中</span></div>\n          <label class="rm-field" for="settingsGrowthInput"><span>Markdown 原文</span>\n            <textarea id="settingsGrowthInput" rows="12" spellcheck="true" maxlength="262144" placeholder="还没有可读取的 growth.md"></textarea>\n          </label>\n          <p class="rm-list-note" id="settingsGrowthMeta" role="status" hidden></p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-quiet" id="settingsGrowthReload">重新读取</button>\n            <button type="button" class="rm-primary" id="settingsGrowthSave" data-private-save="growth" disabled>保存成长</button>\n          </div>\n        </section>\n        <p class="rm-list-note" id="settingsPrivateNote" role="status" hidden></p>\n      </div>\n\n      <div id="settings-memory" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>私有社交记忆</h1><p>联系人印象与交互时间线。这里的内容只在本机读取，不会发送给远端，也不会写入公开目录。</p></header>\n        <p class="rm-private-banner">仅本机可见 · 私有记忆与持久消息、Journey 记录在本机合并；印象不是聊天证据。</p>\n        <details class="rm-tech">\n          <summary>数据说明</summary>\n          <p class="rm-list-note">私有记忆保存在本机 <code>agent/contact-notes.json</code>；不会写入公开目录、friends.json 或远端。</p>\n        </details>\n        <p class="rm-list-note" id="settingsMemoryNote" role="status" hidden></p>\n        <div class="rm-memory-list" id="settingsMemoryList" hidden></div>\n        <div class="rm-home-empty" id="settingsMemoryEmpty" hidden>\n          <span class="rm-home-empty-mark" aria-hidden="true"></span>\n          <div><b>还没有可打开的联系人记忆</b><p>添加联系人后，可在这里打开对方的私有印象与真实交互时间线。</p></div>\n        </div>\n      </div>\n\n      <div id="settings-favorites" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>收藏的动态</h1><p>只收藏公开动态，按时间分页显示；记录仅保存在本机，不写入公开目录。</p></header>\n        <details class="rm-tech">\n          <summary>数据说明</summary>\n          <p class="rm-list-note">收藏记录保存在本机 SQLite，只含公开动态的路径、版本和标题；不会上传或导出。</p>\n        </details>\n        <p class="rm-list-note" id="settingsFavoritesNote" role="status" hidden></p>\n        <div class="rm-favorite-list" id="settingsFavoritesList" aria-label="收藏的动态" hidden></div>\n        <div class="rm-home-empty" id="settingsFavoritesEmpty" hidden>\n          <span class="rm-home-empty-mark" aria-hidden="true"></span>\n          <div><b>还没有收藏的动态</b><p>在动态卡片上使用星标收藏公开内容。</p></div>\n        </div>\n        <div class="rm-form-actions"><button type="button" class="rm-secondary" id="settingsFavoritesMore" hidden>加载更早收藏</button></div>\n      </div>\n\n      <div id="settings-node" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>本机节点</h1><p>这里只显示本机节点。</p></header>\n        <section class="rm-form-panel">\n          <div class="rm-settings-panel-head"><h2>当前状态</h2><span id="settingsNodeStatusLabel">读取中</span></div>\n          <p class="rm-settings-readonly" id="settingsNodeSummary">正在读取本机节点状态…</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-secondary" id="settingsNodeStatus">查看节点状态</button>\n            <button type="button" class="rm-secondary" id="settingsNodeShare">分享本机信息</button>\n          </div>\n        </section>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">\n    <div class="rm-page-inner">\n      <div id="messagesIndex">\n        <button type="button" class="rm-back" id="conversationIndexBack">← 返回</button>\n        <header class="rm-page-head">\n          <h1>对话</h1>\n          <p>按联系人汇总的当前保留消息</p>\n        </header>\n        <div class="rm-messages-toolbar">\n          <label class="rm-search">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">\n          </label>\n        </div>\n        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>\n        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>\n        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>\n        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="messagesStateTitle">正在读取对话…</h2>\n          <p id="messagesStateBody">请稍候。</p>\n          <div class="rm-state-actions">\n            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>\n            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>\n          </div>\n        </section>\n      </div>\n\n      <div id="conversationView" hidden>\n        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>\n        <section class="rm-conversation-head" aria-labelledby="conversationName">\n          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>\n          <div class="rm-conversation-copy">\n            <div class="rm-conversation-title">\n              <h1 id="conversationName">联系人</h1>\n              <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>\n            </div>\n          </div>\n          <div class="rm-conversation-actions">\n            <button type="button" class="rm-secondary rm-conversation-profile" id="conversationProfile" hidden>查看档案</button>\n            <button type="button" class="rm-quick-trigger" id="conversationMenu" aria-label="更多联系人操作" aria-haspopup="menu" aria-controls="contactQuickMenu" aria-expanded="false" hidden>⋯</button>\n          </div>\n        </section>\n        <details class="rm-conversation-meta" id="conversationMeta">\n          <summary>节点标识与来源</summary>\n          <div class="rm-conversation-meta-body">\n            <code class="rm-peer-id" id="conversationPeerId"></code>\n            <span id="conversationOrigin"></span>\n            <span id="conversationLocalNote" hidden></span>\n          </div>\n        </details>\n\n        <div class="rm-message-panel">\n          <p class="rm-list-note" id="messageStale" role="status" hidden></p>\n          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>\n          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>\n          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>\n          <div class="rm-restore-actions" id="messageRestoreActions" hidden>\n            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>\n            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>\n          </div>\n          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>\n          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>\n          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>\n            <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n            <h2 id="messageStateTitle">正在读取消息…</h2>\n            <p id="messageStateBody">请稍候。</p>\n            <div class="rm-state-actions">\n              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>\n              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>\n            </div>\n          </section>\n          <p class="rm-retention" id="messageRetention" hidden></p>\n        </div>\n\n        <div class="rm-composer-shell">\n          <div class="rm-composer-jump" id="composerJump" hidden>\n            <button type="button" class="rm-secondary rm-jump-latest" id="messageJumpLatest">回到最新 ↓</button>\n          </div>\n          <div class="rm-composer-overlay" id="composerOverlay" hidden>\n            <p class="rm-copy-status rm-composer-status" id="composerStatus" role="status"></p>\n            <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>\n            <div class="rm-composer-actions" id="composerActions" hidden>\n              <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>\n              <button type="button" class="rm-quiet" id="sendRestore" hidden>重试发送</button>\n            </div>\n          </div>\n          <form class="rm-composer" id="composer" novalidate>\n            <label class="rm-sr-only" for="messageInput">输入消息</label>\n            <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行" aria-describedby="composerStatus"></textarea>\n            <div class="rm-composer-row">\n              <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>\n              <button type="submit" class="rm-primary" id="messageSend">发送</button>\n            </div>\n          </form>\n        </div>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page rm-profile-view rm-contact-profile" id="profileView" data-page="profile" aria-label="联系人主页" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="profileBack">← 返回</button>\n      <section class="rm-contact-hero" aria-labelledby="profileName">\n        <span class="rm-contact-portrait" id="profileAvatar" aria-hidden="true">?</span>\n        <div class="rm-contact-hero-copy">\n          <div class="rm-home-hero-title"><h1 id="profileName">联系人主页</h1><span class="rm-badge" id="profileAgentBadge">Agent 档案未公开</span></div>\n          <p class="rm-contact-bio" id="profileAgentDescriptionShort" hidden></p>\n          <ul class="rm-profile-interests" id="profileInterests" aria-label="公开兴趣" hidden></ul>\n          <p class="rm-profile-style" id="profileConversationStyle" hidden></p>\n          <p class="rm-profile-missing" id="profileMissingNote" role="status" hidden></p>\n          <p class="rm-profile-freshness" id="profileFreshness" role="status" hidden></p>\n          <details class="rm-profile-origin" id="profileOriginDetails">\n            <summary>来源与标识</summary>\n            <div class="rm-profile-origin-body">\n              <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>\n              <div class="rm-peer-id-row">\n                <code class="rm-peer-id" id="profilePeerId"></code>\n                <button type="button" class="rm-quiet" id="profileCopyPeerInline">复制完整 Peer ID</button>\n              </div>\n              <p class="rm-list-note" id="profileOriginNote" role="status" hidden></p>\n              <dl class="rm-facts rm-profile-origin-facts">\n                <div><dt>本次读取</dt><dd id="profileOriginReadAt">—</dd></div>\n                <div><dt>上次成功读取</dt><dd id="profileOriginSnapshotAt">—</dd></div>\n                <div><dt>公开档案</dt><dd id="profileOriginCardPath">—</dd></div>\n              </dl>\n              <p class="rm-list-note rm-profile-local-note" id="profileLocalNote" hidden></p>\n              <button type="button" class="rm-secondary" id="profileAgentOpen" hidden>查看完整公开档案</button>\n            </div>\n          </details>\n        </div>\n        <div class="rm-contact-hero-actions">\n          <button type="button" class="rm-primary" id="profileMessage" data-profile-chat-return>发消息</button>\n          <div class="rm-contact-hero-secondary">\n            <button type="button" class="rm-secondary" id="profileFilesOpen" aria-expanded="false" aria-controls="contactProfileFiles">公开文件</button>\n            <button type="button" class="rm-quiet" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>\n            <button type="button" class="rm-quiet" id="profileAddContact" aria-haspopup="dialog" aria-controls="addContactDialog" hidden>添加联系人</button>\n          </div>\n        </div>\n      </section>\n      <section class="rm-home-human" id="profileHumanStrip" aria-labelledby="profileHumanHeading" hidden>\n        <div class="rm-home-human-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg></div>\n        <div class="rm-home-human-copy">\n          <h3 id="profileHumanHeading"><span id="profileHumanHeadingLabel">公开资料</span><span id="profileHumanName"></span></h3>\n          <p class="rm-home-human-bio" id="profileHumanSummary" hidden></p>\n          <details class="rm-profile-human-details">\n            <summary>公开资料正文</summary>\n            <div class="rm-rich-text" id="profileBody"></div>\n            <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>\n          </details>\n        </div>\n      </section>\n      <p class="rm-list-note" id="profileStale" role="status" hidden></p>\n      <p class="rm-list-note" id="profileError" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取公开档案</button>\n      <details class="rm-tech rm-read-tech" id="profileReadDetails" hidden>\n        <summary>技术详情</summary>\n        <pre class="rm-detail-raw rm-read-raw" id="profileReadRaw" tabindex="0"></pre>\n      </details>\n\n      <nav class="rm-contact-tabs" id="profileTabsNav" aria-label="联系人主页内容">\n        <button type="button" class="rm-contact-tab" data-profile-tab="interactions" aria-current="page">我们的交互</button>\n        <button type="button" class="rm-contact-tab" data-profile-tab="posts">他的动态</button>\n        <button type="button" class="rm-contact-tab" data-profile-tab="address">他的通讯录</button>\n      </nav>\n\n      <div class="rm-contact-panel" id="contactProfileInteractions">\n        <section class="rm-panel rm-interaction-overview" aria-labelledby="profileTimelineHeading">\n          <div class="rm-panel-head"><h2 id="profileTimelineHeading">我们的交互</h2><span id="profileTimelineStatus">读取中</span></div>\n          <div class="rm-memory-quickbar" id="profileMemoryQuickbar" hidden>\n            <div class="rm-memory-quick-head">\n              <p class="rm-memory-quick-summary" id="profileMemoryQuickSummary"></p>\n              <button type="button" class="rm-quiet" id="profileImpressionQuickEdit" hidden>编辑私有印象</button>\n            </div>\n            <p class="rm-memory-quick-source" id="profileMemoryQuickSource"></p>\n            <div class="rm-memory-quick-impression">\n              <span class="rm-badge rm-badge-private">仅本机可见</span>\n              <p id="profileImpressionQuickText"></p>\n            </div>\n          </div>\n          <div class="rm-memory-overview" id="profileMemoryOverview" hidden>\n            <p class="rm-memory-overview-lead" id="profileMemorySummary"></p>\n            <div class="rm-memory-kinds" id="profileMemoryKinds" aria-label="交互来源统计"></div>\n            <p class="rm-memory-overview-source" id="profileMemorySource"></p>\n          </div>\n          <div class="rm-private-impression" id="profileImpressionCard" aria-labelledby="profileImpressionHeading">\n            <div class="rm-private-impression-head">\n              <div>\n                <p class="rm-eyebrow">PRIVATE CONTACT MEMORY</p>\n                <h3 id="profileImpressionHeading">我对它的印象</h3>\n              </div>\n              <div class="rm-private-impression-head-actions">\n                <span class="rm-badge rm-badge-private">仅本机可见</span>\n                <button type="button" class="rm-secondary" id="profileImpressionEdit" hidden>编辑私有印象</button>\n              </div>\n            </div>\n            <p class="rm-private-impression-copy" id="profileImpressionSummary">还没有记录印象。</p>\n            <button type="button" class="rm-quiet rm-private-impression-toggle" id="profileImpressionToggle" aria-expanded="false" hidden>展开完整印象</button>\n            <p class="rm-list-note" id="profileImpressionMeta" hidden></p>\n            <p class="rm-list-note rm-private-save-status" id="profileImpressionStatus" role="status" hidden></p>\n            <div class="rm-private-impression-actions">\n              <details class="rm-tech">\n                <summary>数据说明</summary>\n                <p class="rm-list-note">私有印象保存在本机 <code>agent/contact-notes.json</code>；仅你与 Agent 可读取，不会写入公开资料、公开清单或 friends.json，也不会发送给远端。</p>\n              </details>\n            </div>\n          </div>\n          <p class="rm-list-note" id="profileInteractionNote">正在合并持久消息、Journey 记录与私有印象…</p>\n          <p class="rm-list-note" id="profileMemoryError" role="status" hidden></p>\n          <details class="rm-tech rm-read-tech" id="profileMemoryDetails" hidden>\n            <summary>技术详情</summary>\n            <pre class="rm-detail-raw rm-read-raw" id="profileMemoryRaw" tabindex="0"></pre>\n          </details>\n          <button type="button" class="rm-list-retry" id="profileMemoryRetry" hidden>重试读取私有记忆</button>\n        </section>\n        <section class="rm-panel rm-memory-history" aria-labelledby="profileMemoryTimelineHeading">\n          <div class="rm-panel-head"><h2 id="profileMemoryTimelineHeading">交互时间线</h2><span id="profileMemoryTimelineCount">—</span></div>\n          <p class="rm-list-note" id="profileMemoryTimelineNote" hidden></p>\n          <div class="rm-memory-timeline" id="profileTimeline" hidden></div>\n          <div class="rm-memory-more"><button type="button" class="rm-quiet" id="profileMemoryMore" hidden>显示更早的记录</button></div>\n          <div class="rm-home-empty" id="profileTimelineEmpty" hidden>\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b>还没有可核实的交互</b><p>这里只显示持久消息、Journey 事件或私有印象；浏览档案和连接数不会变成聊天记录。</p></div>\n          </div>\n        </section>\n      </div>\n\n      <div class="rm-contact-panel" id="contactProfilePosts" hidden>\n        <section class="rm-panel" aria-labelledby="profilePostsHeading">\n          <div class="rm-panel-head"><h2 id="profilePostsHeading">他的动态</h2><span id="profilePostsStatus">按需读取</span></div>\n          <p class="rm-list-note" id="profilePostsNote" role="status" hidden></p>\n          <div class="rm-post-list" id="profilePostList" aria-label="对方公开动态" hidden></div>\n        </section>\n      </div>\n\n      <div class="rm-contact-panel" id="contactProfileAddress" hidden>\n        <section class="rm-panel" aria-labelledby="profileAddressHeading">\n          <div class="rm-panel-head"><h2 id="profileAddressHeading">他的通讯录</h2><span id="profileAddressStatus">按需读取</span></div>\n          <p class="rm-list-note" id="profileAddressNote" role="status" hidden></p>\n          <details class="rm-tech rm-read-tech" id="profileAddressDetails" hidden>\n            <summary>技术详情</summary>\n            <pre class="rm-detail-raw rm-read-raw" id="profileAddressRaw" tabindex="0"></pre>\n          </details>\n          <div class="rm-friend-list" id="profileFriendList" aria-label="对方公开通讯录" hidden></div>\n          <div class="rm-home-empty" id="profileAddressEmpty" hidden>\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b id="profileAddressEmptyTitle">没有读取到公开通讯录</b><p id="profileAddressEmptyText">对方没有公开通讯录，或当前清单中没有条目。</p></div>\n          </div>\n          <button type="button" class="rm-list-retry" id="profileAddressRetry" hidden>重试读取通讯录</button>\n        </section>\n      </div>\n\n      <section class="rm-contact-panel rm-profile-files" id="contactProfileFiles" hidden aria-labelledby="profileFilesHeading">\n        <section class="rm-panel">\n          <div class="rm-panel-head">\n            <h2 id="profileFilesHeading">他的公开文件</h2>\n            <div class="rm-panel-head-actions"><span id="profileFilesStatus">按需读取</span><button type="button" class="rm-quiet" id="profileFilesRefresh">刷新</button><button type="button" class="rm-quiet" id="profileFilesClose">收起</button></div>\n          </div>\n          <p class="rm-list-note" id="profileFilesNote" role="status" hidden></p>\n          <div class="rm-file-list" id="profileFileList" aria-label="对方公开文件" hidden></div>\n        </section>\n      </section>\n\n      <details class="rm-tech rm-peer-node" id="profileNodeInfo">\n        <summary>节点信息</summary>\n        <div class="rm-peer-node-body">\n          <div class="rm-peer-id-row">\n            <code class="rm-peer-id" id="profileNodePeerId"></code>\n            <button type="button" class="rm-quiet" id="profileCopyPeer">复制完整 Peer ID</button>\n          </div>\n          <dl class="rm-facts">\n            <div><dt>连接状态</dt><dd id="profileNodeConnection">未知</dd></div>\n            <div><dt>连接方式</dt><dd id="profileNodeRoutes">—</dd></div>\n            <div><dt>状态读取</dt><dd id="profileNodeStatusAt">—</dd></div>\n          </dl>\n          <div class="rm-address-block">\n            <div class="rm-address-head"><b>当前连接地址</b><button type="button" class="rm-quiet" id="profileCopyCurrent">复制全部</button></div>\n            <p class="rm-list-note" id="profileCurrentNote" hidden></p>\n            <ul class="rm-address-list" id="profileCurrentAddrs"></ul>\n          </div>\n          <div class="rm-address-block">\n            <div class="rm-address-head"><b>本机已知地址</b><button type="button" class="rm-quiet" id="profileCopyAnnounced">复制全部</button></div>\n            <p class="rm-list-note" id="profileAnnouncedNote" hidden></p>\n            <ul class="rm-address-list" id="profileAnnouncedAddrs"></ul>\n          </div>\n          <div class="rm-peer-node-actions">\n            <button type="button" class="rm-quiet" id="profileNodeRefresh">刷新节点信息</button>\n            <p class="rm-list-note" id="profileNodeNote" role="status" hidden></p>\n          </div>\n        </div>\n      </details>\n    </div>\n  </section>\n</main>\n\n<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>\n\n<div class="rm-quick-menu" id="contactQuickMenu" role="menu" aria-label="联系人快速操作" hidden></div>\n\n<dialog class="rm-dialog rm-form-dialog rm-post-editor" id="postEditorPanel" aria-labelledby="postEditorHeading">\n  <div class="rm-dialog-head rm-post-editor-head">\n    <div>\n      <p class="rm-eyebrow">PUBLIC POST · 确认后公开</p>\n      <h2 id="postEditorHeading">写一条公开动态</h2>\n    </div>\n    <div class="rm-post-editor-head-side">\n      <span class="rm-post-editor-status" id="postEditorStatus">新草稿</span>\n      <button type="button" class="rm-icon-button" id="postEditorDismiss" aria-label="关闭动态编辑器">×</button>\n    </div>\n  </div>\n  <div class="rm-dialog-body rm-post-editor-body">\n    <p class="rm-private-banner">保存只写入本机私有草稿；确认发布后才会公开。关闭编辑器不会清空未保存的输入。</p>\n    <p class="rm-list-note rm-post-editor-note" id="postEditorNote" role="status" hidden></p>\n    <label class="rm-field" for="postDraftSelect"><span>已有动态草稿</span>\n      <select id="postDraftSelect"><option value="">新建草稿</option></select>\n    </label>\n    <label class="rm-field" for="postTitleInput"><span>标题（≤120 字符）</span>\n      <input type="text" id="postTitleInput" maxlength="120" autocomplete="off">\n    </label>\n    <label class="rm-field" for="postBodyInput"><span>正文（Markdown，≤64 KiB）</span>\n      <textarea id="postBodyInput" rows="10" maxlength="65536"></textarea>\n    </label>\n    <label class="rm-field" for="postTagsInput"><span>标签（逗号分隔，最多 10 个）</span>\n      <input type="text" id="postTagsInput" maxlength="400" autocomplete="off">\n    </label>\n    <label class="rm-field" for="postAuthorKind"><span>署名身份</span>\n      <select id="postAuthorKind"><option value="user">本人</option><option value="agent">Agent</option></select>\n    </label>\n    <p class="rm-list-note" id="postAuthorNote">署名身份会显示在公开动态上。</p>\n    <label class="rm-field" for="postImageInput"><span>图片（最多 4 张，PNG/JPEG，单张 ≤8 MiB）</span>\n      <input type="file" id="postImageInput" accept="image/png,image/jpeg" multiple>\n    </label>\n    <div class="rm-post-editor-images" id="postImageList"></div>\n    <p class="rm-list-note rm-post-editor-receipt" id="postPublishReceipt" role="status" hidden></p>\n  </div>\n  <div class="rm-dialog-actions rm-post-editor-actions">\n    <button type="button" class="rm-quiet" id="postEditorClose">关闭</button>\n    <button type="button" class="rm-quiet" id="postRestoreStash" hidden>恢复未保存内容</button>\n    <button type="button" class="rm-quiet" id="postDiscardStash" hidden>丢弃旧恢复项</button>\n    <button type="button" class="rm-quiet" id="postSaveAsNew" hidden>另存为新草稿</button>\n    <button type="button" class="rm-quiet" id="postDraftSave">保存草稿</button>\n    <button type="button" class="rm-quiet" id="postWriteAnother" hidden>再写一条</button>\n    <button type="button" class="rm-quiet" id="postPublishCancel" hidden>取消确认</button>\n    <button type="button" class="rm-primary" id="postPublishButton">检查发布内容</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机节点</p>\n      <h2 id="statusHeading">节点状态</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>\n  </div>\n  <div class="rm-status-summary">\n    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>\n    <div>\n      <b id="statusPhase">正在读取本机节点</b>\n      <p id="statusSummary">正在读取本机节点状态…</p>\n    </div>\n  </div>\n  <dl class="rm-facts">\n    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>\n    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>\n    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>\n    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>\n    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>\n  </dl>\n  <details class="rm-tech" id="statusBootstrap">\n    <summary>引导节点配置（只读）</summary>\n    <p class="rm-list-note" id="statusBootstrapNote" role="status">尚未读取</p>\n    <ul class="rm-address-list" id="statusBootstrapList"></ul>\n    <div class="rm-peer-node-actions">\n      <button type="button" class="rm-quiet" id="statusBootstrapCopy" disabled>复制引导节点列表</button>\n      <button type="button" class="rm-quiet" id="statusBootstrapRefresh">重新读取</button>\n    </div>\n  </details>\n  <details class="rm-tech" id="statusTech">\n    <summary>技术详情</summary>\n    <dl class="rm-facts">\n      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>\n      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>\n      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>\n      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>\n      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>\n      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>\n    </dl>\n    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>\n  </details>\n  <p class="rm-note">这里只显示本机节点。引导节点配置只读，修改请编辑本机 config.toml。</p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="statusRefresh">刷新本机</button>\n    <button type="button" class="rm-secondary" id="statusShareNode">分享本机信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="addContactHeading">添加联系人</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="addContactForm" novalidate>\n      <label class="rm-field" for="addContactInput">\n        <span>Peer ID 或完整节点地址</span>\n        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>\n      </label>\n      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>\n      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>\n        <b id="addContactFeedbackTitle"></b>\n        <p id="addContactFeedbackBody"></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>\n        <details class="rm-tech" id="addContactFeedbackDetail" hidden>\n          <summary>错误详情</summary>\n          <code id="addContactFeedbackRaw"></code>\n        </details>\n        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>\n    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="editContactDialog" aria-labelledby="editContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机联系人</p>\n      <h2 id="editContactHeading">编辑联系人资料</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭编辑联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="editContactForm" novalidate>\n      <code class="rm-peer-id" id="editContactPeerId"></code>\n      <label class="rm-field" for="editContactName">\n        <span>名称</span>\n        <span class="rm-field-control">\n          <input type="text" id="editContactName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="留空则显示短 Peer ID">\n          <button type="button" class="rm-clear-field" id="editContactNameClear" aria-label="清除名称">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只影响本机联系人显示和公开的 friends.json，不会修改对方档案。留空表示清除名称；非空时只允许小写字母、数字和 -，最多 32 个字符，且不能与其他联系人重名。</p>\n      <label class="rm-field" for="editContactDescription">\n        <span>备注</span>\n        <span class="rm-field-control">\n          <textarea id="editContactDescription" rows="3" maxlength="280" spellcheck="true" placeholder="留空则清除备注"></textarea>\n          <button type="button" class="rm-clear-field" id="editContactDescriptionClear" aria-label="清除备注">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只保存在本机并写入公开的 friends.json，不会修改对方档案。最多 280 个字符。</p>\n      <div class="rm-feedback" id="editContactFeedback" role="status" hidden>\n        <b id="editContactFeedbackTitle"></b>\n        <p id="editContactFeedbackBody"></p>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="editContactSave" form="editContactForm">保存</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="shareHeading">分享节点信息</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <div class="rm-share-loading" id="shareLoading">\n      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>\n      <p>正在读取本机节点信息…</p>\n    </div>\n    <div id="shareContent" hidden>\n      <div class="rm-share-peer">\n        <span>本机 Peer ID</span>\n        <code class="rm-peer-id" id="sharePeerId"></code>\n      </div>\n      <div class="rm-share-addresses" id="shareAddresses"></div>\n      <p class="rm-note" id="shareAddressNote" hidden></p>\n      <p class="rm-list-note" id="shareStaleNote" hidden></p>\n    </div>\n    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>\n      <b>暂时读不到本机节点信息</b>\n      <p id="shareFailureBody">请稍后再试。</p>\n      <details class="rm-tech" id="shareFailureDetail" hidden>\n        <summary>错误详情</summary>\n        <code id="shareFailureRaw"></code>\n      </details>\n    </div>\n    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>\n    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>\n    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="favoriteDialog" aria-labelledby="favoriteDialogHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">收藏的动态 · 本机收藏</p>\n      <h2 id="favoriteDialogHeading">阅读收藏</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭收藏阅读">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="favoriteDialogMeta"></p>\n    <p class="rm-list-note" id="favoriteDialogNote" role="status" hidden></p>\n    <div class="rm-favorite-read" id="favoriteDialogBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>返回收藏</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 技术详情</p>\n      <h2 id="technicalHeading">技术详情</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="technicalIntro" hidden></p>\n    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>\n    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>\n      <h2 id="agentCardHeading">Agent 档案</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="agentCardSource"></p>\n    <div class="rm-rich-text" id="agentCardBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-lightbox" id="imagePreviewDialog" aria-labelledby="imagePreviewHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">公开动态配图 · 受控读取</p>\n      <h2 id="imagePreviewHeading">图片预览</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭图片预览">×</button>\n  </div>\n  <div class="rm-lightbox-body">\n    <img class="rm-lightbox-image" id="imagePreviewImg" alt="">\n    <p class="rm-list-note" id="imagePreviewNote" role="status" hidden></p>\n  </div>\n  <div class="rm-lightbox-meta">\n    <span id="imagePreviewMeta"></span>\n    <span id="imagePreviewCounter"></span>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭预览</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="impressionDialog" aria-labelledby="impressionHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 私有社交记忆</p>\n      <h2 id="impressionHeading">编辑私有印象</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭私有印象编辑">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="impressionForm" novalidate>\n      <p class="rm-private-banner">仅本机可见 · 保存在本机；不会发送给远端，也不会成为聊天证据。</p>\n      <details class="rm-tech">\n        <summary>数据说明</summary>\n        <p class="rm-list-note">编辑结果写入本机 <code>agent/contact-notes.json</code>，不会进入公开清单。</p>\n      </details>\n      <label class="rm-field" for="impressionSummary">\n        <span>我对它的印象</span>\n        <textarea id="impressionSummary" rows="5" maxlength="2000" spellcheck="true" placeholder="例如：表达克制，可能偏好慢节奏交流。"></textarea>\n      </label>\n      <label class="rm-field" for="impressionUncertainty">\n        <span>确定性</span>\n        <select id="impressionUncertainty">\n          <option value="low">低 · 只是一种感觉</option>\n          <option value="medium" selected>中 · 有部分证据</option>\n          <option value="high">高 · 证据较充分</option>\n        </select>\n      </label>\n      <p class="rm-list-note" id="impressionDialogNote" role="status" hidden></p>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="impressionSave" form="impressionForm">保存印象</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="noticeHeading">暂不可用</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>\n  </div>\n  <p class="rm-notice-body" id="noticeBody"></p>\n  <p class="rm-note" id="noticeNote"></p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>知道了</button>\n  </div>\n</dialog>\n\n<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>\n';
 
   // src/router.js
-  var MAIN_PAGES = ["explore", "contacts", "raminga", "messages", "mine"];
+  var MAIN_PAGES = ["explore", "home", "contacts"];
+  var SUB_PAGES = ["messages", "settings", "profile", "post", "journeys", "journey"];
+  var VIEW_STATE_PAGES = [...MAIN_PAGES, ...SUB_PAGES];
   var NAV_TO_PAGE = {
-    home: "explore",
-    contacts: "contacts",
-    raminga: "raminga",
-    messages: "messages",
-    mine: "mine"
+    explore: "explore",
+    home: "home",
+    contacts: "contacts"
   };
   var PAGE_TO_NAV = {
-    explore: "home",
+    explore: "explore",
+    home: "home",
     contacts: "contacts",
-    raminga: "raminga",
-    messages: "messages",
-    mine: "mine"
+    // Sub-pages keep their nearest primary section selected while open.
+    // Conversations and chats belong to the contacts relationship surface.
+    messages: "contacts",
+    settings: "home",
+    profile: "contacts",
+    post: "explore",
+    journeys: "home",
+    journey: "home"
   };
-  function isMainPage(value) {
-    return MAIN_PAGES.includes(value);
+  var LEGACY_PAGES = {
+    raminga: "home",
+    mine: "home"
+  };
+  function normalizePageName(value) {
+    if (MAIN_PAGES.includes(value) || SUB_PAGES.includes(value)) return value;
+    return LEGACY_PAGES[value] ?? "";
   }
   function pageForNav(navId) {
-    return NAV_TO_PAGE[navId] ?? "explore";
+    return NAV_TO_PAGE[navId] ?? "home";
   }
   function navIdForPage(pageName) {
     return PAGE_TO_NAV[pageName] ?? "home";
@@ -1583,42 +3464,47 @@ var RamingaUI = (() => {
   // src/components/navigation.js
   var NAV_ITEMS = [
     {
-      id: "home",
+      id: "explore",
       label: "动态",
       icon: '<span class="rm-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.7 8.3-2.2 5.2-5.2 2.2 2.2-5.2z"/></svg></span>'
+    },
+    {
+      id: "home",
+      label: "主页",
+      // The centre entry is the real Raminga mark used by the top-left brand.
+      // Its accessible name comes from the button plus the visually hidden label.
+      icon: '<span class="rm-nav-mark" aria-hidden="true"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="36" height="36" alt=""></span>',
+      brand: true
     },
     {
       id: "contacts",
       label: "联系人",
       icon: '<span class="rm-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v2"/></svg></span>'
-    },
-    {
-      id: "raminga",
-      label: "Raminga",
-      icon: '<span class="rm-nav-mark"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="34" height="34" alt=""></span>'
-    },
-    {
-      id: "messages",
-      label: "对话",
-      icon: '<span class="rm-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-8 8H5l-3 2v-10a9 9 0 0 1 18 0Z"/><path d="M7 10h8M7 14h5"/></svg></span>'
-    },
-    {
-      id: "mine",
-      label: "我的",
-      icon: '<span class="rm-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span>'
     }
   ];
-  function renderPrimaryNav(activePage = "explore") {
+  function renderPrimaryNav(activePage = "home") {
     const active = navIdForPage(activePage);
-    return NAV_ITEMS.map(({ id, label, icon }) => {
+    return NAV_ITEMS.map(({ id, label, icon, brand }) => {
       const current = id === active ? ' aria-current="page"' : "";
-      const raminga = id === "raminga";
-      return `<button type="button" data-nav="${id}"${current}${raminga ? ' aria-label="Raminga · 我的 Agent" title="Raminga · 我的 Agent"' : ""}>${icon}${raminga ? "" : `<span class="rm-nav-label">${label}</span>`}</button>`;
+      const text4 = brand ? `<span class="rm-sr-only">${label}</span>` : `<span class="rm-nav-label">${label}</span>`;
+      return `<button type="button" data-nav="${id}" aria-label="${label}" title="${label}"${current}>${icon}${text4}<span class="rm-nav-badge" data-nav-badge="${id}" hidden></span></button>`;
     }).join("");
+  }
+  function updateNavUnread(root, totalUnread) {
+    const count = Number.isFinite(Number(totalUnread)) ? Math.max(0, Number(totalUnread)) : 0;
+    root.querySelectorAll("[data-nav-badge]").forEach((badge) => {
+      if (badge.dataset.navBadge !== "contacts" || count <= 0) {
+        badge.hidden = true;
+        badge.textContent = "";
+        return;
+      }
+      badge.hidden = false;
+      badge.textContent = count > 99 ? "99+" : String(count);
+    });
   }
   function updatePrimaryNav(root, activePage) {
     const active = navIdForPage(activePage);
-    root.querySelectorAll("button[data-nav]").forEach((button) => {
+    root.querySelectorAll("nav.rm-nav button[data-nav]").forEach((button) => {
       if (button.dataset.nav === active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
@@ -1627,9 +3513,9 @@ var RamingaUI = (() => {
   // src/node-status.js
   var NODE_PHASES = /* @__PURE__ */ new Set(["loading", "ready", "stale", "error", "closed"]);
   function shortPeer(value, limit = 22) {
-    const text2 = String(value ?? "");
-    if (text2.length <= limit) return text2 || "—";
-    return `${text2.slice(0, 10)}…${text2.slice(-8)}`;
+    const text4 = String(value ?? "");
+    if (text4.length <= limit) return text4 || "—";
+    return `${text4.slice(0, 10)}…${text4.slice(-8)}`;
   }
   function formatClock(value) {
     const ms = Number(value);
@@ -1692,15 +3578,12 @@ var RamingaUI = (() => {
     if (!Number.isFinite(at) || at <= 0) return "尚无成功读取";
     return `${formatRelative(at, now)} · ${formatClock(at)}`;
   }
-  function nodePillText(phase, status) {
-    if (phase === "ready") {
-      const summary = connectionSummary(status);
-      return `节点状态 · ${summary.connections} 条连接`;
-    }
-    if (phase === "stale") return "节点状态 · 更新中断";
-    if (phase === "error") return "节点状态 · 暂不可用";
-    if (phase === "closed") return "节点状态 · 已断开";
-    return "节点状态 · 读取中";
+  function nodePillText(phase) {
+    if (phase === "ready") return "节点在线";
+    if (phase === "stale") return "更新中断";
+    if (phase === "error") return "暂不可用";
+    if (phase === "closed") return "已断开";
+    return "读取中";
   }
   function nodePhaseText(phase) {
     return {
@@ -1741,7 +3624,7 @@ var RamingaUI = (() => {
     const first = [...source][0];
     return first ? first.toUpperCase() : "?";
   }
-  function filterContacts(friends, query) {
+  function filterContacts(friends, query, profileFor = null) {
     const list = Array.isArray(friends) ? friends : [];
     const needle = String(query ?? "").trim().toLowerCase();
     if (needle.length === 0) return list;
@@ -1749,10 +3632,13 @@ var RamingaUI = (() => {
       const peerId2 = String(friend?.peerId ?? "").toLowerCase();
       const name = String(friend?.name ?? "").toLowerCase();
       const description = String(friend?.description ?? "").toLowerCase();
-      return peerId2.includes(needle) || name.includes(needle) || description.includes(needle);
+      const profile = typeof profileFor === "function" ? profileFor(friend?.peerId) : null;
+      const publicName = String(profile?.displayName ?? "").toLowerCase();
+      const publicDescription = String(profile?.description ?? "").toLowerCase();
+      return peerId2.includes(needle) || name.includes(needle) || description.includes(needle) || publicName.includes(needle) || publicDescription.includes(needle);
     });
   }
-  function contactListState(contacts, query, transportError = null) {
+  function contactListState(contacts, query, transportError = null, filter = "all", profileFor = null) {
     const source = contacts && typeof contacts === "object" ? contacts : {};
     const friends = Array.isArray(source.friends) ? source.friends : [];
     const error = typeof transportError === "string" && transportError.length > 0 ? transportError : typeof source.error === "string" ? source.error : "";
@@ -1776,7 +3662,18 @@ var RamingaUI = (() => {
         at: Number(source.at) > 0 ? Number(source.at) : 0
       };
     }
-    const matches = filterContacts(friends, query);
+    const eligible = filter === "unread" ? friends.filter((friend) => Number(friend?.unreadCount) > 0) : friends;
+    const matches = filterContacts(eligible, query, profileFor);
+    if (filter === "unread" && matches.length === 0) {
+      return {
+        kind: "unread-empty",
+        friends: [],
+        all: friends,
+        stale: source.freshness !== "live",
+        error,
+        at: Number(source.at) > 0 ? Number(source.at) : 0
+      };
+    }
     return {
       kind: matches.length === 0 && clearing ? "search-empty" : "ready",
       friends: matches,
@@ -1921,216 +3818,138 @@ var RamingaUI = (() => {
     }
     return address?.scope === "private" ? "局域网直连" : "公网直连";
   }
-  function shareText(share) {
-    const peerId2 = typeof share?.peerId === "string" ? share.peerId : "";
-    if (peerId2.length === 0) return "";
-    const lines = ["Raminga 节点", `Peer ID：${peerId2}`];
-    const addresses = Array.isArray(share?.addresses) ? share.addresses : [];
-    if (addresses.length > 0) {
-      lines.push("可尝试连接的地址：");
-      for (const address of addresses) {
-        lines.push(`- ${address.multiaddr}（${addressScopeText(address)}）`);
-      }
-    } else {
-      lines.push("当前没有可直接分享的地址；可以只分享 Peer ID。");
-    }
-    return lines.join("\n");
-  }
 
-  // src/view-state.js
-  var MAX_QUERY = 200;
-  var MAX_DRAFT = 8192;
-  var FILTERS = /* @__PURE__ */ new Set(["all", "familiar"]);
-  function text(value, limit) {
-    return typeof value === "string" ? value.slice(0, limit) : "";
+  // src/public-files.js
+  var PREVIEW_STATUS_TEXT = {
+    ok: "可预览",
+    unsupported: "不支持预览",
+    "copy-missing": "本地副本缺失",
+    "hash-mismatch": "大小或哈希不符",
+    "zip-error": "ZIP 错误",
+    "resource-error": "资源不完整",
+    error: "读取失败"
+  };
+  function previewStatusText(status) {
+    return PREVIEW_STATUS_TEXT[status] ?? "读取失败";
   }
-  function scroll(value) {
-    const number = Number(value);
-    return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+  function formatBytes(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) return "";
+    if (bytes < 1024) return `${bytes} 字节`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KiB`;
+    return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MiB`;
   }
-  function record(value) {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-  function draftKey(value) {
-    return typeof value === "string" && /^[A-Za-z0-9._:/-]{1,128}$/.test(value) && value !== "__proto__" && value !== "prototype" && value !== "constructor";
-  }
-  function peerId(value) {
-    return typeof value === "string" && /^[A-Za-z0-9]{1,128}$/.test(value) ? value : "";
-  }
-  function messageId(value) {
-    if (typeof value !== "string" || value.length === 0 || value.length > 160) return "";
-    return /[\u0000-\u001f\u007f]/.test(value) ? "" : value;
-  }
-  function anchorOffset(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return 0;
-    return Math.max(-4e3, Math.min(4e3, Math.round(number)));
-  }
-  function key(value, max = 128) {
-    if (typeof value !== "string" || value.length === 0 || value.length > max) return "";
-    if (/[\u0000-\u001f\u007f]/.test(value)) return "";
-    return value;
-  }
-  function expandedMap(value, isValidKey) {
-    const out = {};
-    if (!record(value)) return out;
-    let count = 0;
-    for (const [entry, open] of Object.entries(value)) {
-      if (count >= 100) break;
-      if (!isValidKey(entry) || open !== true) continue;
-      out[entry] = true;
-      count += 1;
+  function fileKindLabel(kind, mime = "") {
+    switch (kind) {
+      case "markdown":
+        return "Markdown";
+      case "json":
+        return "JSON 文本";
+      case "text":
+        return "文本";
+      case "code":
+        return "代码/文本";
+      case "image":
+        return "图片";
+      case "audio":
+        return "音频";
+      case "video":
+        return "视频";
+      case "html":
+        return "HTML 沙箱预览";
+      case "zip":
+        return "ZIP 包";
+      default:
+        return mime || "未支持的文件";
     }
-    return out;
   }
-  function defaults() {
-    return {
-      version: 1,
-      page: "explore",
-      profile: { peerId: "", returnPage: "", returnPeer: "", triggerId: "" },
-      pages: {
-        explore: { filter: "all", query: "", searchOpen: false, scroll: 0, expanded: {}, sourceOpen: {} },
-        contacts: { query: "", scroll: 0 },
-        raminga: { scroll: 0, expandedSessions: {} },
-        messages: {
-          scroll: 0,
-          peerId: "",
-          query: "",
-          chatScrolls: {},
-          chatAnchors: {},
-          returnPage: "",
-          returnPeer: ""
-        },
-        mine: { scroll: 0 }
-      },
-      drafts: {}
-    };
+  function acquisitionSourceLabel(source) {
+    const value = String(source ?? "").trim();
+    if (value === "raminga_content_get") return "Agent 获取";
+    if (value === "raminga_ui_manual") return "手动获取";
+    if (value === "local-public") return "本机公开目录";
+    if (value === "peer-manifest") return "对方公开清单";
+    if (value === "local-copy") return "本机历史副本";
+    if (value.length === 0) return "来源未记录";
+    return `来源：${value}`;
   }
-  function createViewState() {
-    return defaults();
-  }
-  var VIEW_STATE_PAGES = [...MAIN_PAGES];
-  function normalizeViewState(input) {
-    const next = defaults();
-    if (!record(input)) return next;
-    if (MAIN_PAGES.includes(input.page)) next.page = input.page;
-    if (record(input.pages)) {
-      const explore = input.pages.explore;
-      if (record(explore)) {
-        if (FILTERS.has(explore.filter)) next.pages.explore.filter = explore.filter;
-        next.pages.explore.query = text(explore.query, MAX_QUERY);
-        next.pages.explore.searchOpen = explore.searchOpen === true;
-        next.pages.explore.scroll = scroll(explore.scroll);
-        next.pages.explore.expanded = expandedMap(explore.expanded, (entry) => /^[A-Za-z0-9._:-]{1,64}$/.test(entry) && !entry.includes(".."));
-        next.pages.explore.sourceOpen = expandedMap(explore.sourceOpen, (entry) => /^[A-Za-z0-9._:-]{1,64}$/.test(entry) && !entry.includes(".."));
-      }
-      const contacts = input.pages.contacts;
-      if (record(contacts)) {
-        next.pages.contacts.query = text(contacts.query, MAX_QUERY);
-        next.pages.contacts.scroll = scroll(contacts.scroll);
-      }
-      const messages = input.pages.messages;
-      if (record(messages)) {
-        next.pages.messages.scroll = scroll(messages.scroll);
-        next.pages.messages.peerId = peerId(messages.peerId);
-        next.pages.messages.query = text(messages.query, MAX_QUERY);
-        if (messages.returnPage === "contacts" || messages.returnPage === "messages" || messages.returnPage === "raminga") {
-          const returnPeer = peerId(messages.returnPeer);
-          if (returnPeer && next.pages.messages.peerId === returnPeer) {
-            next.pages.messages.returnPage = messages.returnPage;
-            next.pages.messages.returnPeer = returnPeer;
-          }
-        }
-        if (record(messages.chatScrolls)) {
-          let count = 0;
-          for (const [key2, value] of Object.entries(messages.chatScrolls)) {
-            if (count >= 128) break;
-            if (!peerId(key2)) continue;
-            next.pages.messages.chatScrolls[key2] = scroll(value);
-            count += 1;
-          }
-        }
-        if (record(messages.chatAnchors)) {
-          let count = 0;
-          for (const [key2, value] of Object.entries(messages.chatAnchors)) {
-            if (count >= 128) break;
-            if (!peerId(key2) || !record(value)) continue;
-            const id = messageId(value.messageId);
-            if (!id) continue;
-            const anchor = {
-              messageId: id,
-              offset: anchorOffset(value.offset)
-            };
-            if (value.atBottom === true) anchor.atBottom = true;
-            next.pages.messages.chatAnchors[key2] = anchor;
-            count += 1;
-          }
-        }
-      }
-      if (record(input.pages.raminga)) {
-        next.pages.raminga.scroll = scroll(input.pages.raminga.scroll);
-        next.pages.raminga.expandedSessions = expandedMap(
-          input.pages.raminga.expandedSessions,
-          (entry) => /^[A-Za-z0-9._-]{1,128}$/.test(entry) && entry !== "__proto__"
-        );
-      }
-      if (record(input.pages.mine)) next.pages.mine.scroll = scroll(input.pages.mine.scroll);
-      if (record(input.profile)) {
-        const peer = peerId(input.profile.peerId);
-        if (peer) {
-          const returnPage = MAIN_PAGES.includes(input.profile.returnPage) ? input.profile.returnPage : "explore";
-          const returnPeer = peerId(input.profile.returnPeer);
-          next.profile = {
-            peerId: peer,
-            returnPage,
-            returnPeer: input.profile.returnPage === "messages" ? returnPeer : "",
-            triggerId: key(input.profile.triggerId, 160)
-          };
-        }
-      }
+  function acquisitionSourcesLabel(sources, fallback = "") {
+    const list = Array.isArray(sources) && sources.length > 0 ? sources : fallback ? [fallback] : [];
+    const labels = [];
+    for (const source of list) {
+      const label = acquisitionSourceLabel(source);
+      if (!labels.includes(label)) labels.push(label);
     }
-    if (record(input.drafts)) {
-      for (const [key2, value] of Object.entries(input.drafts)) {
-        if (typeof value !== "string" || value.length === 0) continue;
-        if (!draftKey(key2)) continue;
-        next.drafts[key2] = value.slice(0, MAX_DRAFT);
-      }
+    return labels.length > 0 ? labels.join(" + ") : "来源未记录";
+  }
+  function acquisitionTone(sources) {
+    const list = Array.isArray(sources) ? sources : [];
+    const agent = list.includes("raminga_content_get");
+    const manual = list.includes("raminga_ui_manual");
+    if (agent && manual) return "mixed";
+    if (manual) return "manual";
+    if (agent) return "agent";
+    return "unknown";
+  }
+  function contentStateText(state, error = "") {
+    switch (state) {
+      case "not-downloaded":
+        return error || "尚未下载到本机；展开可手动获取";
+      case "downloaded-unverified":
+        return error || "本地有副本，版本尚未核对；阅读或定位时会重新核对";
+      case "copy-missing":
+        return error || "本地副本缺失；来源记录仍保留";
+      case "hash-mismatch":
+        return error || "本地副本大小或 SHA-256 与记录不一致，不会展示或定位为新版本";
+      case "unreadable":
+        return error || "本地副本不可读取";
+      default:
+        return "";
     }
-    return next;
   }
-  function copyViewState(target, source) {
-    if (!record(target)) return;
-    target.version = source.version;
-    target.page = source.page;
-    target.profile = { ...source.profile };
-    target.pages = {
-      explore: {
-        ...source.pages.explore,
-        expanded: { ...source.pages.explore.expanded },
-        sourceOpen: { ...source.pages.explore.sourceOpen }
-      },
-      contacts: { ...source.pages.contacts },
-      raminga: { ...source.pages.raminga, expandedSessions: { ...source.pages.raminga.expandedSessions } },
-      messages: {
-        ...source.pages.messages,
-        chatScrolls: { ...source.pages.messages.chatScrolls },
-        chatAnchors: { ...source.pages.messages.chatAnchors }
-      },
-      mine: { ...source.pages.mine }
-    };
-    target.drafts = { ...source.drafts };
+  function isPostPath(filePath) {
+    const value = String(filePath ?? "");
+    return /^posts\/[A-Za-z0-9._-]+\.json$/.test(value) || /^posts\/[A-Za-z0-9._-]+\/post\.json$/.test(value);
   }
-  function setDraft(state, key2, value) {
-    if (!state || typeof key2 !== "string" || key2.length === 0) return;
-    if (!draftKey(key2)) return;
-    const next = typeof value === "string" ? value.slice(0, MAX_DRAFT) : "";
-    if (next.length === 0) delete state.drafts[key2];
-    else state.drafts[key2] = next;
+  function isPostImagePath(filePath) {
+    return /^posts\/[A-Za-z0-9._-]+\/images\/[^/]+$/.test(String(filePath ?? ""));
   }
-  function getDraft(state, key2) {
-    if (!state || !record(state.drafts) || typeof key2 !== "string") return "";
-    const value = state.drafts[key2];
-    return typeof value === "string" ? value : "";
+  function addressSourceLabel(source) {
+    switch (source) {
+      case "connection":
+        return "当前连接";
+      case "peerstore":
+        return "本机 Peerstore/已知地址（非公告证据）";
+      case "peer":
+        return "本机 Peerstore/已知地址（非公告证据）";
+      case "cache":
+        return "本机缓存";
+      case "contact":
+        return "联系人记录";
+      case "dht":
+        return "DHT";
+      default:
+        return "来源未记录";
+    }
+  }
+  function reachabilityLabel(reachability) {
+    switch (reachability) {
+      case "verified":
+        return "当前连接已验证";
+      case "reported":
+        return "对端报告，未独立验证";
+      case "unverified":
+        return "旧地址，未验证可达";
+      default:
+        return "可达性未知";
+    }
+  }
+  function connectionStateLabel(state, freshness = "") {
+    const base = state === "connected" ? "已连接" : state === "disconnected" ? "未连接" : "未知";
+    return freshness === "live" ? base : `${base}（非实时快照）`;
+  }
+  function addressesText(addresses) {
+    return (Array.isArray(addresses) ? addresses : []).map((address) => String(address?.multiaddr ?? "").trim()).filter((value) => value.length > 0).join("\n");
   }
 
   // src/content.js
@@ -2160,6 +3979,7 @@ var RamingaUI = (() => {
     const fields = [
       post?.title,
       post?.summary,
+      post?.publisherName,
       post?.authorName,
       post?.authorPeerId,
       post?.path,
@@ -2180,38 +4000,35 @@ var RamingaUI = (() => {
     return { kind: "ready", items: filtered, total: items.length };
   }
   function profileLabel(profile, fallbackPeerId) {
+    const remote = String(profile?.remoteName ?? "").trim();
+    const fallback = String(fallbackPeerId ?? "").trim();
+    const peerLike = remote === fallback || /^(?:12D3KooW|16Uiu2HAm|Qm)[1-9A-HJ-NP-Za-km-z]{20,}$/.test(remote);
+    if (remote.length > 0 && !peerLike) return remote;
     const local = String(profile?.localName ?? "").trim();
     if (local.length > 0) return local;
-    const remote = String(profile?.remoteName ?? "").trim();
-    if (remote.length > 0) return remote;
-    return shortPeerText(fallbackPeerId);
-  }
-  function mineProfileStateText(profile) {
-    if (!profile) return { tone: "unavailable", text: "读取中" };
-    if (profile.state === "available") return { tone: "ready", text: "本机公开档案" };
-    if (profile.state === "missing") return { tone: "unavailable", text: "尚未创建公开档案" };
-    return { tone: "error", text: "公开档案读取失败" };
+    return shortPeerText(fallback);
   }
   function minePostsStateText(posts) {
     if (!posts) return { tone: "unavailable", text: "读取中" };
     if (posts.state === "error") return { tone: "error", text: "读取失败" };
     if (posts.state === "missing") return { tone: "unavailable", text: "公开目录不可用" };
-    if (posts.posts.length === 0) return { tone: "unavailable", text: "没有本人署名的公开内容" };
-    return { tone: "ready", text: `${posts.posts.length} 条本人公开内容` };
+    const files = Array.isArray(posts.files) ? posts.files : [];
+    if (files.length === 0) return { tone: "unavailable", text: "没有公开文件" };
+    return { tone: "ready", text: `${files.length} 个公开文件` };
   }
   function journeyStatusText(state) {
     const status = String(state?.status ?? "");
     switch (status) {
       case "running":
-        return { tone: "running", label: "运行中", note: "仅表示最后一次保存的记录为运行中，不能证明宿主仍在运行。" };
+        return { tone: "running", label: "待确认", recordLabel: "运行中", note: "状态记录为运行中；Journey 文件字段不是工具调用证据，也不能单独证明当前仍在运行。" };
       case "paused":
-        return { tone: "paused", label: "已暂停", note: "暂停是宿主保存的记录，不代表实时进程状态。" };
+        return { tone: "paused", label: "待确认", recordLabel: "已暂停", note: "最后保存的记录为已暂停；这只是一条记录，不代表当前状态。" };
       case "completed":
-        return { tone: "done", label: "已完成", note: "" };
+        return { tone: "done", label: "已完成", recordLabel: "已完成", note: "" };
       case "failed":
-        return { tone: "error", label: "失败", note: "失败原因来自宿主的 Journey 记录。" };
+        return { tone: "error", label: "失败", recordLabel: "失败", note: "失败原因来自宿主的 Journey 记录。" };
       default:
-        return { tone: "unknown", label: "状态未记录", note: "没有可用的状态记录，不推测运行状态。" };
+        return { tone: "unknown", label: "待确认", recordLabel: "状态未记录", note: "没有可用的状态记录，不能推断当前运行状态。" };
     }
   }
   function journeyModeText(mode) {
@@ -2298,11 +4115,1104 @@ var RamingaUI = (() => {
     return [...refs.values()];
   }
 
+  // src/components/post-images.js
+  function postImageKey(subject, peerId2, image) {
+    return [
+      subject,
+      peerId2,
+      image?.publicPath ?? image?.path ?? "",
+      image?.sha256 ?? "",
+      image?.sizeBytes ?? ""
+    ].join("\0");
+  }
+  function imageStateLabel(state) {
+    if (state?.state === "loading") return "正在读取图片…";
+    if (state?.state !== "error") return "";
+    switch (state.reason) {
+      case "not-downloaded":
+        return "离线：本机还没有这张图片";
+      case "copy-missing":
+        return "本机图片副本缺失";
+      case "not-published":
+        return "公开清单中没有这张图片";
+      case "offline":
+        return "离线：暂时无法取得这张图片";
+      case "hash-mismatch":
+        return "图片版本校验失败";
+      case "unsupported":
+        return "图片类型不受支持";
+      default:
+        return "图片读取失败";
+    }
+  }
+  function element(tag, className) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    return node;
+  }
+  function buildTile(image, index, total, title, key2, stateFor, variant, subject, peerId2, retainImage) {
+    const keyForImage = key2;
+    const button = element("button", "rm-post-media-item");
+    button.type = "button";
+    button.dataset.postImageKey = keyForImage;
+    button.dataset.subject = subject;
+    button.dataset.peerId = peerId2;
+    button.__ramingaImage = image;
+    button.__ramingaTitle = title;
+    if (typeof retainImage === "function") retainImage(keyForImage);
+    button.dataset.index = String(index);
+    button.dataset.total = String(total);
+    button.dataset.variant = variant;
+    button.setAttribute("aria-label", `预览第 ${index + 1} 张图片，共 ${total} 张`);
+    const img = element("img", "rm-post-media-img");
+    img.alt = total === 1 ? `${title || "动态"}配图` : `${title || "动态"}配图 ${index + 1}`;
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.hidden = true;
+    const status = element("span", "rm-post-media-status");
+    status.hidden = true;
+    button.append(img, status);
+    updatePostImageNode(button, stateFor(keyForImage), { image, index, total, title });
+    return button;
+  }
+  function renderPostMedia(images, {
+    variant = "card",
+    subject = "",
+    peerId: peerId2 = "",
+    title = "",
+    keyFor = (image) => postImageKey(subject, peerId2, image),
+    stateFor = () => ({ state: "idle" }),
+    retainImage = null
+  } = {}) {
+    const list = Array.isArray(images) ? images.filter((image) => image && (image.publicPath || image.path)) : [];
+    if (list.length === 0) return null;
+    const grid = element("div", "rm-post-media");
+    grid.dataset.variant = variant;
+    grid.dataset.count = String(Math.min(list.length, 4));
+    for (const [index, image] of list.slice(0, 4).entries()) {
+      grid.append(buildTile(image, index, Math.min(list.length, 4), title, keyFor(image), stateFor, variant, subject, peerId2, retainImage));
+    }
+    return grid;
+  }
+  function updatePostImageNode(button, state, { image = null, index = 0, total = 1, title = "" } = {}) {
+    if (!button) return;
+    const value = state && typeof state === "object" ? state : { state: "idle" };
+    button.dataset.state = value.state;
+    const img = button.querySelector(".rm-post-media-img");
+    const status = button.querySelector(".rm-post-media-status");
+    if (!img || !status) return;
+    if (value.state === "ready" && typeof value.url === "string" && value.url.length > 0) {
+      if (img.getAttribute("src") !== value.url) img.src = value.url;
+      img.hidden = false;
+      status.hidden = true;
+      status.textContent = "";
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.removeAttribute("data-tone");
+      button.dataset.action = "preview";
+      button.setAttribute("aria-label", `预览第 ${index + 1} 张图片，共 ${total} 张`);
+      return;
+    }
+    img.hidden = true;
+    img.removeAttribute("src");
+    status.hidden = false;
+    if (value.state === "loading") {
+      status.textContent = "正在读取图片…";
+      button.disabled = false;
+      button.dataset.action = "loading";
+      button.setAttribute("aria-busy", "true");
+      return;
+    }
+    button.removeAttribute("aria-busy");
+    if (value.state === "error") {
+      const label = imageStateLabel(value);
+      status.textContent = value.detail ? `${label}；${value.detail}` : label;
+      button.disabled = false;
+      button.dataset.action = "retry";
+      button.dataset.tone = "error";
+      button.setAttribute("aria-label", `重试读取${title ? `《${title}》的` : ""}第 ${index + 1} 张图片`);
+      return;
+    }
+    status.textContent = "图片待读取";
+    button.disabled = false;
+    button.removeAttribute("data-tone");
+    button.dataset.action = "load";
+    button.removeAttribute("data-tone");
+    button.setAttribute("aria-label", `读取${title ? `《${title}》的` : ""}第 ${index + 1} 张图片`);
+  }
+
+  // src/components/file-card.js
+  function element2(tag, className) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    return node;
+  }
+  function previewKeyFor(subject, item) {
+    return `${subject}:${item.peerId}:${item.path}:${item.sha256}`;
+  }
+  function revealResultKey(subject, item) {
+    return subject === "explore" ? `explore:${item.id}` : `${subject}:${item.path}:${item.sha256}`;
+  }
+  function sourceDetails({ rows, note, focusKey = "", actions = [] }, { sourceOpen = {}, save = () => {
+  } } = {}) {
+    const details = element2("details", "rm-source-details");
+    const summary = element2("summary", "rm-source-summary");
+    summary.textContent = "来源详情";
+    if (focusKey) summary.dataset.focusKey = focusKey;
+    const body = element2("div", "rm-source-body");
+    const facts = element2("dl", "rm-source-facts");
+    for (const [label, value] of rows) {
+      if (!value) continue;
+      const row = element2("div", "rm-source-fact");
+      const term = element2("dt");
+      term.textContent = label;
+      const detail = element2("dd");
+      detail.textContent = value;
+      row.append(term, detail);
+      facts.append(row);
+    }
+    if (facts.childElementCount > 0) body.append(facts);
+    if (note) {
+      const noteEl = element2("p", "rm-source-note");
+      noteEl.textContent = note;
+      body.append(noteEl);
+    }
+    if (actions.length > 0) {
+      const actionBar = element2("div", "rm-source-actions");
+      for (const action2 of actions) actionBar.append(action2);
+      body.append(actionBar);
+    }
+    details.append(summary, body);
+    return details;
+  }
+  function revealControl(item, { onReveal = null, focusKey = "" } = {}) {
+    const button = element2("button", "rm-quiet rm-file-reveal");
+    button.type = "button";
+    button.textContent = "在文件夹中显示";
+    button.disabled = ["not-downloaded", "copy-missing", "hash-mismatch", "unreadable"].includes(item.contentState);
+    const blocked = button.disabled ? contentStateText(item.contentState, item.contentError) : "";
+    button.title = blocked;
+    button.onclick = () => {
+      if (!button.disabled) void onReveal?.(item);
+    };
+    if (focusKey) button.dataset.focusKey = `${focusKey}:reveal`;
+    return button;
+  }
+  function previewFeedback(preview, item, { renderMarkdown = () => {
+  } } = {}) {
+    const box = element2("div", "rm-file-preview");
+    if (preview?.state === "loading") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "正在读取并核对本地副本…";
+      box.append(note);
+      return box;
+    }
+    if (preview?.state === "error") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = `这次没有读到公开内容：${preview.error}`;
+      box.append(note);
+      return box;
+    }
+    const data = preview?.data;
+    if (!data) {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "尚未读取内容。";
+      box.append(note);
+      return box;
+    }
+    const kind = data.kind || (data.post ? "markdown" : "");
+    const status = data.status || (data.ok === false ? "error" : "ok");
+    const text4 = data.text ?? data.post?.bodyMarkdown ?? "";
+    if (status !== "ok" && status !== "resource-error") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = `${previewStatusText(status)}：${data.error || "无法显示预览。"}`;
+      box.append(note);
+      if (data.localCopy === "available") {
+        const local = element2("p", "rm-list-note");
+        local.textContent = "原件已保存在本机；可用卡片上的“在文件夹中显示”定位，不会打开或导出文件。";
+        box.append(local);
+      }
+      return box;
+    }
+    if (kind === "markdown") {
+      const content = element2("div", "rm-rich-text");
+      renderMarkdown(content, text4);
+      box.append(content);
+    } else if (kind === "text" || kind === "code" || kind === "json") {
+      const pre = element2("pre", "rm-file-text");
+      const code = element2("code");
+      code.textContent = text4;
+      pre.append(code);
+      box.append(pre);
+    } else if (kind === "image") {
+      const image = element2("img", "rm-file-image");
+      image.src = data.dataUrl;
+      image.alt = data.title || item.title || item.name;
+      image.loading = "lazy";
+      image.decoding = "async";
+      box.append(image);
+    } else if (kind === "audio") {
+      const audio = element2("audio", "rm-file-media");
+      audio.controls = true;
+      audio.preload = "metadata";
+      audio.src = data.dataUrl;
+      box.append(audio);
+    } else if (kind === "video") {
+      const video = element2("video", "rm-file-media rm-file-video");
+      video.controls = true;
+      video.preload = "metadata";
+      video.playsInline = true;
+      video.src = data.dataUrl;
+      box.append(video);
+    } else if (kind === "html" && data.html) {
+      const frame = element2("iframe", "rm-html-frame");
+      frame.setAttribute("sandbox", "");
+      frame.setAttribute("referrerpolicy", "no-referrer");
+      frame.setAttribute("title", `沙箱预览：${data.title || item.title || item.name}`);
+      frame.loading = "lazy";
+      frame.srcdoc = data.html;
+      box.append(frame);
+      const note = element2("p", "rm-list-note");
+      note.textContent = "HTML 在无脚本、无同源权限、无外部网络访问的沙箱中显示；包内相对资源已尝试离线内联。";
+      box.append(note);
+    } else {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "该格式当前没有可用的内联预览。";
+      box.append(note);
+    }
+    if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+      const warnings = element2("ul", "rm-file-warnings");
+      for (const warning of data.warnings.slice(0, 10)) {
+        const li = element2("li");
+        li.textContent = warning;
+        warnings.append(li);
+      }
+      box.append(warnings);
+    }
+    if (Array.isArray(data.missingResources) && data.missingResources.length > 0) {
+      const note = element2("p", "rm-list-note");
+      note.textContent = `缺少包内关联文件：${data.missingResources.slice(0, 12).join("、")}。单文件 HTML 不会自动下载这些文件。`;
+      box.append(note);
+    }
+    if (data.discoveryError) {
+      const note = element2("p", "rm-list-note");
+      note.textContent = `已读取文件，但本机发现索引没有记录成功：${data.discoveryError}。这不影响阅读，来源可能不完整。`;
+      box.append(note);
+    }
+    if (data.error) {
+      const note = element2("p", "rm-list-note");
+      note.textContent = data.error;
+      box.append(note);
+    }
+    if (data.acquisition === "local-copy") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "本次读取使用本机已核对副本；没有发起新的网络下载。";
+      box.append(note);
+    } else if (data.acquisition === "downloaded") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "本次已从对方节点手动获取并核对原件。";
+      box.append(note);
+    }
+    return box;
+  }
+  function publicSourceRows(item) {
+    const author = String(item.authorName ?? "").trim();
+    return [
+      ["发布节点", item.peerId],
+      ["发布节点公开名", item.publisherName],
+      ["原作者声明", author ? `${item.authorKind === "agent" ? "Agent" : item.authorKind === "user" ? "用户" : "未注明类型"}署名 · ${author}` : "未声明（按发布节点公开名显示）"],
+      ["发表时间", item.publishedAt ? formatDateTime(item.publishedAt) : ""],
+      ["获取方式", acquisitionSourcesLabel(item.sources, item.source)],
+      ["来源标识", (item.sources ?? [item.source]).filter(Boolean).join("、")],
+      ["获取时间", item.fetchedAt > 0 ? formatDateTime(item.fetchedAt) : ""],
+      ["文件更新时间", item.modifiedAt > 0 ? formatDateTime(item.modifiedAt) : ""],
+      ["公共路径", item.path],
+      ["内容版本", item.sha256],
+      ["大小", formatBytes(item.sizeBytes)],
+      ["文件类型", fileKindLabel(item.kind, item.mime)],
+      ["本地副本", contentStateText(item.contentState, item.contentError) || "可用"]
+    ];
+  }
+  function renderPublicFileCard(rawItem, {
+    subject,
+    expanded,
+    onToggle,
+    preview,
+    showReveal = false,
+    reveal = null,
+    onReveal = null,
+    focusKey = "",
+    onOpenProfile = null,
+    onOpenPost = null,
+    edit = null,
+    favorite = null,
+    onFavorite = null,
+    sourceOpen = {},
+    save = () => {
+    },
+    renderMarkdown = () => {
+    },
+    imageStateFor = () => ({ state: "idle" }),
+    onImageAction = null,
+    retainImage = null
+  }) {
+    const previewData = preview?.state === "available" ? preview.data : null;
+    const previewLocal = previewData?.localCopy === "available";
+    const item = previewData ? {
+      ...rawItem,
+      title: previewData.title || rawItem.title,
+      summary: previewData.post?.summary || rawItem.summary,
+      authorKind: previewData.post?.authorKind || rawItem.authorKind,
+      authorName: previewData.post?.authorName || rawItem.authorName,
+      contentState: previewLocal ? "available" : rawItem.contentState,
+      contentError: previewLocal ? "" : rawItem.contentError
+    } : rawItem;
+    const previewImages = Array.isArray(previewData?.post?.images) ? previewData.post.images.map((image) => ({
+      ...image,
+      publicPath: rawItem.path.replace(/\/post\.json$/, "") + "/" + image.path
+    })) : [];
+    const images = Array.isArray(item.images) && item.images.length > 0 ? item.images : previewImages;
+    const article = element2("article", `rm-post rm-file-card${subject === "mine" ? " rm-own-post" : ""}`);
+    article.dataset.fileCard = previewKeyFor(subject, item);
+    const opensDetail = typeof onOpenPost === "function";
+    const header = element2("header", "rm-post-head");
+    const avatar = element2(onOpenProfile ? "button" : "span", "rm-contact-avatar rm-post-avatar");
+    if (onOpenProfile) {
+      avatar.type = "button";
+      avatar.dataset.profilePeer = item.peerId;
+      avatar.dataset.profileRef = `${subject}:${item.id || item.path}`;
+      avatar.setAttribute("aria-label", `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
+    } else {
+      avatar.setAttribute("aria-hidden", "true");
+    }
+    avatar.textContent = (item.publisherName || shortPeerText(item.peerId) || "?").slice(0, 1);
+    const copy = element2("div", "rm-post-author");
+    const name = element2(onOpenProfile ? "button" : "b", "rm-post-name");
+    if (onOpenProfile) {
+      name.type = "button";
+      name.dataset.profilePeer = item.peerId;
+      name.dataset.profileRef = `${subject}:${item.id || item.path}`;
+      name.setAttribute("aria-label", `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
+    }
+    name.textContent = item.publisherName || shortPeerText(item.peerId) || "未知发布节点";
+    if (subject === "mine") {
+      const kind = item.authorKind === "agent" ? "agent" : item.authorKind === "user" ? "user" : "";
+      const badge = element2("span", "rm-post-author-badge");
+      badge.dataset.kind = kind || "unknown";
+      badge.textContent = kind === "agent" ? "Agent" : kind === "user" ? "本人" : "来源未注明";
+      copy.append(name, badge);
+    } else {
+      copy.append(name);
+    }
+    const meta = element2("span", "rm-post-meta");
+    const acquisition = acquisitionSourcesLabel(item.sources, item.source);
+    const published = item.publishedAt ? formatDateTime(item.publishedAt) : "";
+    meta.textContent = [published ? `发布于 ${published}` : "发表时间未记录", acquisition].join(" · ");
+    meta.dataset.tone = acquisitionTone(item.sources);
+    copy.append(meta);
+    header.append(avatar, copy);
+    const localProblem = contentStateText(item.contentState, item.contentError);
+    const titleText = item.title || item.name || item.path || localProblem;
+    const summaryText = item.summary || (item.contentState === "available" ? `${item.path}${item.sizeBytes >= 0 ? ` · ${formatBytes(item.sizeBytes)}` : ""}` : "");
+    const copyBlock = element2("div", "rm-post-copy");
+    if (onOpenPost) {
+      const open = element2("button", "rm-post-open");
+      open.type = "button";
+      open.dataset.openPost = String(item.id || item.path || "");
+      open.setAttribute("aria-label", `阅读动态：${titleText}`);
+      if (focusKey) open.dataset.focusKey = `${focusKey}:open`;
+      const title = element2("span", "rm-post-title");
+      title.textContent = titleText;
+      open.append(title);
+      if (summaryText) {
+        const summary = element2("span", "rm-post-summary");
+        summary.textContent = summaryText;
+        open.append(summary);
+      }
+      open.onclick = () => onOpenPost(item, open);
+      copyBlock.append(open);
+    } else {
+      const title = element2("h2", "rm-post-title");
+      title.textContent = titleText;
+      const summary = element2("p", "rm-post-summary");
+      summary.textContent = summaryText;
+      copyBlock.append(title, summary);
+    }
+    if (Array.isArray(item.tags) && item.tags.length > 0) {
+      const tags = element2("div", "rm-post-tags");
+      for (const tag of item.tags.slice(0, 10)) {
+        const chip = element2("span", "rm-post-tag");
+        chip.textContent = tag;
+        tags.append(chip);
+      }
+      copyBlock.append(tags);
+    }
+    const main = element2("div", "rm-post-main");
+    main.dataset.hasMedia = images.length > 0 ? "true" : "false";
+    const media = renderPostMedia(images, {
+      variant: "card",
+      subject,
+      peerId: item.peerId,
+      title: item.title,
+      stateFor: imageStateFor,
+      retainImage
+    });
+    if (media) {
+      media.addEventListener("click", (event) => {
+        const tile = event.target.closest?.("[data-post-image-key]");
+        if (!tile) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onImageAction?.(tile, item, images, "card");
+      });
+      main.append(media);
+    }
+    main.append(copyBlock);
+    article.append(header, main);
+    if (localProblem) {
+      const problem = element2("p", "rm-list-note rm-post-content-state");
+      problem.textContent = localProblem;
+      article.append(problem);
+    }
+    const sourceActions = [];
+    if (showReveal && opensDetail) {
+      sourceActions.push(revealControl(item, { onReveal, focusKey }));
+    }
+    const details = sourceDetails({
+      rows: publicSourceRows(item),
+      note: "发布节点公开名与原作者声明分开保留：原作者声明只在本详情中显示；来源记录来自本机，不代表远端签名。",
+      focusKey: focusKey ? `${focusKey}:source` : "",
+      actions: sourceActions
+    }, { sourceOpen, save });
+    const expandedKey = subject === "explore" ? String(item.id || "") : `${subject}:${item.id || item.path}:source`;
+    details.open = sourceOpen[expandedKey] === true;
+    details.ontoggle = () => {
+      if (details.open) sourceOpen[expandedKey] = true;
+      else delete sourceOpen[expandedKey];
+      save();
+    };
+    const actions = element2("div", "rm-post-actions");
+    if (edit) {
+      const editButton = element2("button", "rm-quiet rm-post-edit");
+      editButton.type = "button";
+      editButton.textContent = "编辑";
+      editButton.setAttribute("aria-label", `编辑 ${item.title || item.path}`);
+      editButton.onclick = () => edit(item, editButton);
+      if (focusKey) editButton.dataset.focusKey = `${focusKey}:edit`;
+      actions.append(editButton);
+    }
+    if (favorite !== null) {
+      const star = element2("button", "rm-quiet rm-post-favorite");
+      star.type = "button";
+      star.dataset.favoriteKey = favorite.key || "";
+      star.setAttribute("aria-pressed", favorite.active ? "true" : "false");
+      star.setAttribute("aria-label", favorite.active ? `取消收藏 ${item.title || item.path}` : `收藏 ${item.title || item.path}`);
+      star.title = favorite.active ? "取消收藏" : "收藏";
+      star.disabled = favorite.disabled === true;
+      star.dataset.pending = favorite.disabled === true ? "true" : "false";
+      star.textContent = favorite.active ? "★ 已收藏" : "☆ 收藏";
+      star.onclick = () => {
+        if (!star.disabled) void onFavorite?.(item, star);
+      };
+      if (focusKey) star.dataset.focusKey = `${focusKey}:favorite`;
+      actions.append(star);
+    }
+    if (!opensDetail) {
+      const toggle = element2("button", "rm-quiet rm-post-toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      const peerNeedsFetch = subject === "peer" && item.contentState === "not-downloaded";
+      toggle.textContent = expanded ? "收起内容" : peerNeedsFetch ? "获取原件" : item.previewable === false ? "查看文件信息" : "阅读内容";
+      if (subject === "explore") toggle.dataset.expandPost = item.id;
+      if (focusKey) toggle.dataset.focusKey = `${focusKey}:toggle`;
+      toggle.onclick = () => onToggle(!expanded);
+      actions.append(toggle);
+      if (showReveal) actions.append(revealControl(item, { onReveal, focusKey }));
+    }
+    article.append(details, actions);
+    if (reveal?.state === "missing" || reveal?.state === "not-downloaded" || reveal?.state === "hash-mismatch" || reveal?.state === "unavailable" || reveal?.state === "error") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = reveal.message || "无法在文件夹中显示。";
+      article.append(note);
+    } else if (reveal?.state === "revealed") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "已请求宿主在文件夹中显示本地原件；不会打开、复制或导出文件。";
+      article.append(note);
+    }
+    if (expanded && !opensDetail) {
+      const body = element2("div", "rm-post-body");
+      if (item.contentState !== "available" && subject !== "peer") {
+        const failed = element2("p", "rm-list-note");
+        failed.textContent = localProblem || "本地副本不可读取。";
+        body.append(failed);
+      } else {
+        const detailMedia = renderPostMedia(images, {
+          variant: "detail",
+          subject,
+          peerId: item.peerId,
+          title: item.title,
+          stateFor: imageStateFor,
+          retainImage
+        });
+        if (detailMedia) {
+          detailMedia.addEventListener("click", (event) => {
+            const tile = event.target.closest?.("[data-post-image-key]");
+            if (!tile) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onImageAction?.(tile, item, images, "detail");
+          });
+          body.append(detailMedia);
+        }
+        body.append(previewFeedback(preview, item, { renderMarkdown }));
+        if (subject === "explore" && preview?.state === "error") {
+          const retry = element2("button", "rm-list-retry");
+          retry.type = "button";
+          retry.dataset.retryPost = item.id;
+          retry.textContent = "重试读取内容";
+          body.append(retry);
+        }
+      }
+      article.append(body);
+    }
+    return article;
+  }
+  function renderPostDetail(rawItem, {
+    subject = "explore",
+    preview = null,
+    favorite = null,
+    onFavorite = null,
+    edit = null,
+    onOpenProfile = null,
+    showReveal = false,
+    reveal = null,
+    onReveal = null,
+    sourceOpen = {},
+    save = () => {
+    },
+    renderMarkdown = () => {
+    },
+    imageStateFor = () => ({ state: "idle" }),
+    onImageAction = null,
+    retainImage = null,
+    focusKey = ""
+  } = {}) {
+    const previewData = preview?.state === "available" ? preview.data : null;
+    const previewLocal = previewData?.localCopy === "available";
+    const item = previewData ? {
+      ...rawItem,
+      title: previewData.title || rawItem.title,
+      summary: previewData.post?.summary || rawItem.summary,
+      authorKind: previewData.post?.authorKind || rawItem.authorKind,
+      authorName: previewData.post?.authorName || rawItem.authorName,
+      contentState: previewLocal ? "available" : rawItem.contentState,
+      contentError: previewLocal ? "" : rawItem.contentError
+    } : rawItem;
+    const previewImages = Array.isArray(previewData?.post?.images) ? previewData.post.images.map((image) => ({
+      ...image,
+      publicPath: rawItem.path.replace(/\/post\.json$/, "") + "/" + image.path
+    })) : [];
+    const images = Array.isArray(item.images) && item.images.length > 0 ? item.images : previewImages;
+    const article = element2("article", "rm-post-detail rm-post");
+    article.dataset.postDetail = String(item.id || item.path || "");
+    const header = element2("header", "rm-post-head");
+    const avatar = element2(onOpenProfile ? "button" : "span", "rm-contact-avatar rm-post-avatar");
+    if (onOpenProfile) {
+      avatar.type = "button";
+      avatar.dataset.profilePeer = item.peerId;
+      avatar.dataset.profileRef = `${subject}:${item.id || item.path}`;
+      avatar.setAttribute("aria-label", `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
+    } else {
+      avatar.setAttribute("aria-hidden", "true");
+    }
+    avatar.textContent = (item.publisherName || shortPeerText(item.peerId) || "?").slice(0, 1);
+    const copy = element2("div", "rm-post-author");
+    const name = element2(onOpenProfile ? "button" : "b", "rm-post-name");
+    if (onOpenProfile) {
+      name.type = "button";
+      name.dataset.profilePeer = item.peerId;
+      name.dataset.profileRef = `${subject}:${item.id || item.path}`;
+      name.setAttribute("aria-label", `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
+    }
+    name.textContent = item.publisherName || shortPeerText(item.peerId) || "未知发布节点";
+    if (subject === "mine") {
+      const kind = item.authorKind === "agent" ? "agent" : item.authorKind === "user" ? "user" : "";
+      const badge = element2("span", "rm-post-author-badge");
+      badge.dataset.kind = kind || "unknown";
+      badge.textContent = kind === "agent" ? "Agent" : kind === "user" ? "本人" : "来源未注明";
+      copy.append(name, badge);
+    } else {
+      copy.append(name);
+    }
+    const meta = element2("span", "rm-post-meta");
+    const at = item.publishedAt ? formatDateTime(item.publishedAt) : "";
+    meta.textContent = at ? `发布于 ${at}` : "发表时间未记录";
+    copy.append(meta);
+    header.append(avatar, copy);
+    const title = element2("h1", "rm-post-detail-title");
+    title.textContent = item.title || item.name || item.path || "公开动态";
+    const summary = element2("p", "rm-post-detail-summary");
+    summary.textContent = item.summary || "";
+    summary.hidden = summary.textContent.length === 0;
+    const tags = element2("div", "rm-post-tags");
+    for (const tag of (Array.isArray(item.tags) ? item.tags : []).slice(0, 10)) {
+      const chip = element2("span", "rm-post-tag");
+      chip.textContent = tag;
+      tags.append(chip);
+    }
+    tags.hidden = tags.childElementCount === 0;
+    const main = element2("div", "rm-post-detail-main");
+    main.dataset.hasMedia = images.length > 0 ? "true" : "false";
+    const media = renderPostMedia(images, {
+      variant: "detail",
+      subject,
+      peerId: item.peerId,
+      title: item.title,
+      stateFor: imageStateFor,
+      retainImage
+    });
+    if (media) {
+      media.addEventListener("click", (event) => {
+        const tile = event.target.closest?.("[data-post-image-key]");
+        if (!tile) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onImageAction?.(tile, item, images, "detail");
+      });
+      main.append(media);
+    }
+    const body = element2("div", "rm-post-detail-body");
+    const localProblem = contentStateText(item.contentState, item.contentError);
+    if (localProblem && item.contentState !== "available") {
+      const problem = element2("p", "rm-list-note rm-post-content-state");
+      problem.textContent = localProblem;
+      body.append(problem);
+      if (subject === "explore") {
+        const retry = element2("button", "rm-list-retry");
+        retry.type = "button";
+        retry.dataset.detailRetry = item.id || "";
+        retry.textContent = "重试读取内容";
+        body.append(retry);
+      }
+    } else if (preview?.state === "loading") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "正在读取并核对帖子正文…";
+      body.append(note);
+    } else if (preview?.state === "error") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = `这次没有读到帖子正文：${preview.error}`;
+      body.append(note);
+      if (subject === "explore") {
+        const retry = element2("button", "rm-list-retry");
+        retry.type = "button";
+        retry.dataset.detailRetry = item.id || "";
+        retry.textContent = "重试读取内容";
+        body.append(retry);
+      }
+    } else if (previewData) {
+      body.append(previewFeedback(preview, item, { renderMarkdown }));
+    } else {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "正在读取帖子正文…";
+      body.append(note);
+    }
+    main.append(body);
+    article.append(header, title, summary, tags, main);
+    const actions = element2("div", "rm-post-actions rm-post-detail-actions");
+    if (edit) {
+      const editButton = element2("button", "rm-quiet rm-post-edit");
+      editButton.type = "button";
+      editButton.textContent = "编辑";
+      editButton.setAttribute("aria-label", `编辑 ${item.title || item.path}`);
+      editButton.onclick = () => edit(item, editButton);
+      if (focusKey) editButton.dataset.focusKey = `${focusKey}:edit`;
+      actions.append(editButton);
+    }
+    if (favorite !== null) {
+      const star = element2("button", "rm-quiet rm-post-favorite");
+      star.type = "button";
+      star.dataset.favoriteKey = favorite.key || "";
+      star.setAttribute("aria-pressed", favorite.active ? "true" : "false");
+      star.setAttribute("aria-label", favorite.active ? `取消收藏 ${item.title || item.path}` : `收藏 ${item.title || item.path}`);
+      star.title = favorite.active ? "取消收藏" : "收藏";
+      star.disabled = favorite.disabled === true;
+      star.dataset.pending = favorite.disabled === true ? "true" : "false";
+      star.textContent = favorite.active ? "★ 已收藏" : "☆ 收藏";
+      star.onclick = () => {
+        if (!star.disabled) void onFavorite?.(item, star);
+      };
+      if (focusKey) star.dataset.focusKey = `${focusKey}:favorite`;
+      actions.append(star);
+    }
+    if (actions.childElementCount > 0) article.append(actions);
+    const sourceActions = showReveal ? [revealControl(item, { onReveal, focusKey })] : [];
+    const details = sourceDetails({
+      rows: publicSourceRows(item),
+      note: "发布节点公开名与原作者声明分开保留；获取时间、版本、文件类型、大小和本地副本状态只在这里展开。",
+      actions: sourceActions
+    }, { sourceOpen, save });
+    const expandedKey = subject === "explore" ? String(item.id || "") : `${subject}:${item.id || item.path}:source`;
+    details.open = sourceOpen[expandedKey] === true;
+    details.ontoggle = () => {
+      if (details.open) sourceOpen[expandedKey] = true;
+      else delete sourceOpen[expandedKey];
+      save();
+    };
+    article.append(details);
+    if (reveal?.state === "missing" || reveal?.state === "not-downloaded" || reveal?.state === "hash-mismatch" || reveal?.state === "unavailable" || reveal?.state === "error") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = reveal.message || "无法在文件夹中显示。";
+      article.append(note);
+    } else if (reveal?.state === "revealed") {
+      const note = element2("p", "rm-list-note");
+      note.textContent = "已请求宿主在文件夹中显示本地原件；不会打开、复制或导出文件。";
+      article.append(note);
+    }
+    return article;
+  }
+
+  // src/view-state.js
+  var MAX_QUERY = 200;
+  var MAX_DRAFT = 8192;
+  var EXPLORE_FILTERS = /* @__PURE__ */ new Set(["all", "familiar", "mine"]);
+  var CONTACT_FILTERS = /* @__PURE__ */ new Set(["all", "unread"]);
+  var SETTINGS_TABS = /* @__PURE__ */ new Set(["public", "files", "private", "memory", "favorites", "node"]);
+  var PROFILE_TABS = /* @__PURE__ */ new Set(["interactions", "posts", "address"]);
+  var CHAT_RETURN_PAGES = /* @__PURE__ */ new Set(["explore", "home", "contacts", "messages", "settings", "journey", "profile"]);
+  var INDEX_RETURN_PAGES = /* @__PURE__ */ new Set(["explore", "home", "contacts"]);
+  var SETTINGS_RETURN_PAGES = /* @__PURE__ */ new Set(["explore", "home", "contacts", "messages"]);
+  var PROFILE_RETURN_PAGES = /* @__PURE__ */ new Set(["explore", "home", "contacts", "messages", "settings", "post", "journeys", "journey"]);
+  var ANCHORS = /* @__PURE__ */ new Set(["top", "human", "activity", "journeys"]);
+  function text(value, limit) {
+    return typeof value === "string" ? value.slice(0, limit) : "";
+  }
+  function scroll(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+  }
+  function record(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+  function draftKey(value) {
+    return typeof value === "string" && /^[A-Za-z0-9._:/-]{1,128}$/.test(value) && value !== "__proto__" && value !== "prototype" && value !== "constructor";
+  }
+  function peerId(value) {
+    return typeof value === "string" && /^[A-Za-z0-9]{1,128}$/.test(value) ? value : "";
+  }
+  function messageId(value) {
+    if (typeof value !== "string" || value.length === 0 || value.length > 160) return "";
+    return /[\u0000-\u001f\u007f]/.test(value) ? "" : value;
+  }
+  function anchorOffset(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 0;
+    return Math.max(-4e3, Math.min(4e3, Math.round(number)));
+  }
+  function key(value, max = 128) {
+    if (typeof value !== "string" || value.length === 0 || value.length > max) return "";
+    if (/[\u0000-\u001f\u007f]/.test(value)) return "";
+    return value;
+  }
+  function expandedMap(value, isValidKey) {
+    const out = {};
+    if (!record(value)) return out;
+    let count = 0;
+    for (const [entry, open] of Object.entries(value)) {
+      if (count >= 100) break;
+      if (!isValidKey(entry) || open !== true) continue;
+      out[entry] = true;
+      count += 1;
+    }
+    return out;
+  }
+  function sessionKey(value) {
+    return /^[A-Za-z0-9._-]{1,128}$/.test(value) && value !== "__proto__";
+  }
+  function defaults() {
+    return {
+      version: 2,
+      page: "home",
+      home: {
+        scroll: 0,
+        agentAnchor: "top",
+        expandedJourneys: {},
+        activityExpanded: false
+      },
+      settings: { tab: "public", index: true, scroll: 0, returnPage: "home" },
+      pages: {
+        explore: { filter: "all", query: "", searchOpen: false, scroll: 0, expanded: {}, sourceOpen: {} },
+        contacts: { filter: "all", query: "", scroll: 0 },
+        journeys: { query: "", scroll: 0, focusKey: "" },
+        messages: {
+          scroll: 0,
+          peerId: "",
+          query: "",
+          chatScrolls: {},
+          chatAnchors: {},
+          returnPage: "",
+          returnPeer: "",
+          returnJourneyId: "",
+          returnJourneyEvent: 0,
+          returnJourneyMessage: "",
+          // A chat opened from a contact profile returns to the same tab and
+          // reading position instead of dropping the profile or guessing a
+          // different list. These fields survive host remounts with the chat.
+          returnProfileTab: "interactions",
+          returnProfileScroll: 0,
+          returnFocus: "",
+          indexReturnPage: "home"
+        }
+      },
+      contactProfile: { peerId: "", tab: "interactions", returnPage: "", returnPeer: "", triggerId: "" },
+      post: {
+        id: "",
+        peerId: "",
+        path: "",
+        sha256: "",
+        sizeBytes: 0,
+        source: "explore",
+        filter: "all",
+        query: "",
+        scroll: 0,
+        returnFocus: ""
+      },
+      journey: {
+        id: "",
+        source: "journeys",
+        scroll: 0,
+        highlightSeq: 0,
+        activityOperationId: "",
+        returnFocus: ""
+      },
+      drafts: {}
+    };
+  }
+  function createViewState() {
+    return defaults();
+  }
+  var VIEW_STATE_PAGES2 = [...MAIN_PAGES, ...SUB_PAGES];
+  function migrateLegacyPage(input) {
+    const raw = String(input?.page ?? "");
+    if (MAIN_PAGES.includes(raw) || SUB_PAGES.includes(raw)) return raw;
+    return normalizePageName(raw) || "home";
+  }
+  function normalizeViewState(input) {
+    const next = defaults();
+    if (!record(input)) return next;
+    next.page = migrateLegacyPage(input);
+    if (record(input.pages)) {
+      const explore = input.pages.explore;
+      if (record(explore)) {
+        if (EXPLORE_FILTERS.has(explore.filter)) next.pages.explore.filter = explore.filter;
+        next.pages.explore.query = text(explore.query, MAX_QUERY);
+        next.pages.explore.searchOpen = explore.searchOpen === true;
+        next.pages.explore.scroll = scroll(explore.scroll);
+        next.pages.explore.expanded = expandedMap(explore.expanded, (entry) => /^[A-Za-z0-9._:-]{1,64}$/.test(entry) && !entry.includes(".."));
+        next.pages.explore.sourceOpen = expandedMap(explore.sourceOpen, (entry) => /^[A-Za-z0-9._:-]{1,64}$/.test(entry) && !entry.includes(".."));
+      }
+      const contacts = input.pages.contacts;
+      if (record(contacts)) {
+        if (CONTACT_FILTERS.has(contacts.filter)) next.pages.contacts.filter = contacts.filter;
+        next.pages.contacts.query = text(contacts.query, MAX_QUERY);
+        next.pages.contacts.scroll = scroll(contacts.scroll);
+      }
+      const messages = input.pages.messages;
+      if (record(messages)) {
+        next.pages.messages.scroll = scroll(messages.scroll);
+        next.pages.messages.peerId = peerId(messages.peerId);
+        next.pages.messages.query = text(messages.query, MAX_QUERY);
+        if (INDEX_RETURN_PAGES.has(messages.indexReturnPage)) next.pages.messages.indexReturnPage = messages.indexReturnPage;
+        const chatReturn = messages.returnPage === "raminga" || messages.returnPage === "mine" ? "home" : messages.returnPage;
+        if (CHAT_RETURN_PAGES.has(chatReturn)) {
+          const returnPeer = peerId(messages.returnPeer);
+          if (chatReturn === "journey") {
+            const returnJourney = key(messages.returnJourneyId, 128);
+            const returnEvent = Number(messages.returnJourneyEvent);
+            if (returnJourney && next.pages.messages.peerId === returnPeer) {
+              next.pages.messages.returnPage = "journey";
+              next.pages.messages.returnPeer = returnPeer;
+              next.pages.messages.returnJourneyId = returnJourney;
+              next.pages.messages.returnJourneyEvent = Number.isSafeInteger(returnEvent) && returnEvent > 0 ? returnEvent : 0;
+              next.pages.messages.returnJourneyMessage = messageId(messages.returnJourneyMessage);
+            }
+          } else if (returnPeer && next.pages.messages.peerId === returnPeer) {
+            next.pages.messages.returnPage = chatReturn;
+            next.pages.messages.returnPeer = returnPeer;
+            if (chatReturn === "profile") {
+              next.pages.messages.returnProfileTab = PROFILE_TABS.has(messages.returnProfileTab) ? messages.returnProfileTab : "interactions";
+              next.pages.messages.returnProfileScroll = scroll(messages.returnProfileScroll);
+              next.pages.messages.returnFocus = key(messages.returnFocus, 512);
+            }
+          }
+        }
+        if (record(messages.chatScrolls)) {
+          let count = 0;
+          for (const [entry, value] of Object.entries(messages.chatScrolls)) {
+            if (count >= 128) break;
+            if (!peerId(entry)) continue;
+            next.pages.messages.chatScrolls[entry] = scroll(value);
+            count += 1;
+          }
+        }
+        if (record(messages.chatAnchors)) {
+          let count = 0;
+          for (const [entry, value] of Object.entries(messages.chatAnchors)) {
+            if (count >= 128) break;
+            if (!peerId(entry) || !record(value)) continue;
+            const id = messageId(value.messageId);
+            if (!id) continue;
+            const anchor = { messageId: id, offset: anchorOffset(value.offset) };
+            if (value.atBottom === true) anchor.atBottom = true;
+            next.pages.messages.chatAnchors[entry] = anchor;
+            count += 1;
+          }
+        }
+      }
+      if (record(input.pages.mine)) next.home.scroll = scroll(input.pages.mine.scroll);
+      if (record(input.pages.raminga)) {
+        next.home.scroll = Math.max(next.home.scroll, scroll(input.pages.raminga.scroll));
+        next.home.expandedJourneys = expandedMap(input.pages.raminga.expandedSessions, sessionKey);
+      }
+      if (record(input.pages.home)) {
+        next.home.scroll = scroll(input.pages.home.scroll);
+        if (ANCHORS.has(input.pages.home.agentAnchor)) next.home.agentAnchor = input.pages.home.agentAnchor;
+        next.home.expandedJourneys = expandedMap(input.pages.home.expandedJourneys, sessionKey);
+        next.home.activityExpanded = input.pages.home.activityExpanded === true;
+      }
+    }
+    const settingsInput = record(input.settings) ? input.settings : record(input.pages?.settings) ? input.pages.settings : null;
+    if (record(settingsInput)) {
+      if (SETTINGS_TABS.has(settingsInput.tab)) next.settings.tab = settingsInput.tab;
+      next.settings.index = settingsInput.index !== false;
+      next.settings.scroll = scroll(settingsInput.scroll);
+      if (SETTINGS_RETURN_PAGES.has(settingsInput.returnPage)) next.settings.returnPage = settingsInput.returnPage;
+    }
+    const profileInput = record(input.contactProfile) ? input.contactProfile : record(input.profile) ? input.profile : null;
+    if (record(profileInput)) {
+      const peer = peerId(profileInput.peerId);
+      if (peer) {
+        const rawReturn = profileInput.returnPage;
+        const returnPage = PROFILE_RETURN_PAGES.has(rawReturn) ? rawReturn : normalizePageName(rawReturn) || "explore";
+        const returnPeer = peerId(profileInput.returnPeer);
+        next.contactProfile = {
+          peerId: peer,
+          tab: PROFILE_TABS.has(profileInput.tab) ? profileInput.tab : "interactions",
+          returnPage,
+          returnPeer: returnPage === "messages" ? returnPeer : "",
+          triggerId: key(profileInput.triggerId, 160)
+        };
+      }
+    }
+    if (record(input.post)) {
+      const raw = input.post;
+      const source = raw.source === "mine" ? "mine" : "explore";
+      const postPath = key(raw.path, 256);
+      const postSha = /^[a-f0-9]{64}$/i.test(String(raw.sha256 ?? "")) ? String(raw.sha256).toLowerCase() : "";
+      const postId = key(raw.id, 160);
+      if (postPath.startsWith("posts/") || postId.length > 0) {
+        next.post = {
+          id: postId,
+          peerId: peerId(raw.peerId),
+          path: postPath,
+          sha256: postSha,
+          sizeBytes: Math.max(0, Math.min(128 * 1024 * 1024, Math.floor(Number(raw.sizeBytes) || 0))),
+          source,
+          filter: EXPLORE_FILTERS.has(raw.filter) ? raw.filter : next.pages.explore.filter,
+          query: text(raw.query, MAX_QUERY),
+          scroll: scroll(raw.scroll),
+          returnFocus: key(raw.returnFocus, 160)
+        };
+      }
+    }
+    if (record(input.pages) && record(input.pages.journeys)) {
+      next.pages.journeys.query = text(input.pages.journeys.query, MAX_QUERY);
+      next.pages.journeys.scroll = scroll(input.pages.journeys.scroll);
+      next.pages.journeys.focusKey = key(input.pages.journeys.focusKey, 180);
+    }
+    if (record(input.journey)) {
+      const id = key(input.journey.id, 128);
+      if (id) {
+        next.journey = {
+          id,
+          source: ["home", "journeys", "activity", "memory"].includes(input.journey.source) ? input.journey.source : "journeys",
+          scroll: scroll(input.journey.scroll),
+          highlightSeq: Math.max(0, Math.min(1e5, Math.floor(Number(input.journey.highlightSeq) || 0))),
+          activityOperationId: key(input.journey.activityOperationId, 160),
+          returnFocus: key(input.journey.returnFocus, 180)
+        };
+      }
+    }
+    if (String(input.page) === "mine") next.home.agentAnchor = "human";
+    if (String(input.page) === "raminga") next.home.agentAnchor = "top";
+    if (record(input.drafts)) {
+      for (const [draft, value] of Object.entries(input.drafts)) {
+        if (typeof value !== "string" || value.length === 0) continue;
+        if (!draftKey(draft)) continue;
+        next.drafts[draft] = value.slice(0, MAX_DRAFT);
+      }
+    }
+    if (next.pages.messages.returnPage === "profile" && next.contactProfile.peerId !== next.pages.messages.returnPeer) {
+      next.pages.messages.returnPage = "";
+      next.pages.messages.returnPeer = "";
+      next.pages.messages.returnProfileTab = "interactions";
+      next.pages.messages.returnProfileScroll = 0;
+      next.pages.messages.returnFocus = "";
+    }
+    if (next.page === "profile" && next.contactProfile.peerId.length === 0) next.page = "home";
+    if (next.page === "post" && next.post.id.length === 0 && (next.post.path.length === 0 || next.post.peerId.length === 0)) {
+      next.page = "explore";
+    }
+    if (next.page === "journey" && next.journey.id.length === 0) {
+      next.page = next.pages.journeys.query.length > 0 ? "journeys" : "home";
+    }
+    return next;
+  }
+  function copyViewState(target, source) {
+    if (!record(target)) return;
+    target.version = source.version;
+    target.page = source.page;
+    target.home = {
+      ...source.home,
+      expandedJourneys: { ...source.home.expandedJourneys }
+    };
+    target.settings = { ...source.settings };
+    target.pages = {
+      explore: {
+        ...source.pages.explore,
+        expanded: { ...source.pages.explore.expanded },
+        sourceOpen: { ...source.pages.explore.sourceOpen }
+      },
+      contacts: { ...source.pages.contacts },
+      messages: {
+        ...source.pages.messages,
+        chatScrolls: { ...source.pages.messages.chatScrolls },
+        chatAnchors: { ...source.pages.messages.chatAnchors }
+      }
+    };
+    target.contactProfile = { ...source.contactProfile };
+    target.post = { ...source.post };
+    target.pages.journeys = { ...source.pages.journeys };
+    target.journey = { ...source.journey };
+    target.drafts = { ...source.drafts };
+  }
+  function setDraft(state, key2, value) {
+    if (!state || typeof key2 !== "string" || key2.length === 0) return;
+    if (!draftKey(key2)) return;
+    const next = typeof value === "string" ? value.slice(0, MAX_DRAFT) : "";
+    if (next.length === 0) delete state.drafts[key2];
+    else state.drafts[key2] = next;
+  }
+  function getDraft(state, key2) {
+    if (!state || !record(state.drafts) || typeof key2 !== "string") return "";
+    const value = state.drafts[key2];
+    return typeof value === "string" ? value : "";
+  }
+
   // src/safe-content.js
   var MAX_MARKDOWN = 256 * 1024;
   var CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
-  function escapeControl(text2) {
-    return String(text2 ?? "").replace(CONTROL, "");
+  function escapeControl(text4) {
+    return String(text4 ?? "").replace(CONTROL, "");
   }
   function safeUrl(raw) {
     const value = String(raw ?? "").trim();
@@ -2315,28 +5225,28 @@ var RamingaUI = (() => {
       return "";
     }
   }
-  function appendInline(parent, text2, depth = 0) {
+  function appendInline(parent, text4, depth = 0) {
     if (depth > 6) {
-      parent.append(text2);
+      parent.append(text4);
       return;
     }
     const doc = parent.ownerDocument ?? document;
     let index = 0;
-    let plain = "";
+    let plain2 = "";
     const flush = () => {
-      if (plain.length > 0) {
-        parent.append(plain);
-        plain = "";
+      if (plain2.length > 0) {
+        parent.append(plain2);
+        plain2 = "";
       }
     };
-    while (index < text2.length) {
-      const rest = text2.slice(index);
+    while (index < text4.length) {
+      const rest = text4.slice(index);
       if (rest.startsWith("`")) {
-        const end = text2.indexOf("`", index + 1);
+        const end = text4.indexOf("`", index + 1);
         if (end > index + 1) {
           flush();
           const code = doc.createElement("code");
-          code.textContent = text2.slice(index + 1, end);
+          code.textContent = text4.slice(index + 1, end);
           parent.append(code);
           index = end + 1;
           continue;
@@ -2344,11 +5254,11 @@ var RamingaUI = (() => {
       }
       if (rest.startsWith("**") || rest.startsWith("__")) {
         const marker = rest.slice(0, 2);
-        const end = text2.indexOf(marker, index + 2);
+        const end = text4.indexOf(marker, index + 2);
         if (end > index + 2) {
           flush();
           const strong = doc.createElement("strong");
-          appendInline(strong, text2.slice(index + 2, end), depth + 1);
+          appendInline(strong, text4.slice(index + 2, end), depth + 1);
           parent.append(strong);
           index = end + 2;
           continue;
@@ -2356,55 +5266,55 @@ var RamingaUI = (() => {
       }
       if (rest.startsWith("*") || rest.startsWith("_")) {
         const marker = rest[0];
-        const end = text2.indexOf(marker, index + 1);
+        const end = text4.indexOf(marker, index + 1);
         if (end > index + 1) {
           flush();
           const em = doc.createElement("em");
-          appendInline(em, text2.slice(index + 1, end), depth + 1);
+          appendInline(em, text4.slice(index + 1, end), depth + 1);
           parent.append(em);
           index = end + 1;
           continue;
         }
       }
       if (rest.startsWith("![")) {
-        const close = text2.indexOf("]", index + 2);
-        const open = close >= 0 ? text2.indexOf("(", close + 1) : -1;
-        const end = open >= 0 ? text2.indexOf(")", open + 1) : -1;
+        const close = text4.indexOf("]", index + 2);
+        const open = close >= 0 ? text4.indexOf("(", close + 1) : -1;
+        const end = open >= 0 ? text4.indexOf(")", open + 1) : -1;
         if (close >= 0 && open === close + 1 && end > open) {
           flush();
           const note = doc.createElement("span");
           note.className = "rm-md-media-note";
-          note.textContent = `[图片：${text2.slice(index + 2, close)}]（未自动加载远端媒体）`;
+          note.textContent = `[图片：${text4.slice(index + 2, close)}]（未自动加载远端媒体）`;
           parent.append(note);
           index = end + 1;
           continue;
         }
       }
       if (rest.startsWith("[")) {
-        const close = text2.indexOf("]", index + 1);
-        const open = close >= 0 ? text2.indexOf("(", close + 1) : -1;
-        const end = open >= 0 ? text2.indexOf(")", open + 1) : -1;
+        const close = text4.indexOf("]", index + 1);
+        const open = close >= 0 ? text4.indexOf("(", close + 1) : -1;
+        const end = open >= 0 ? text4.indexOf(")", open + 1) : -1;
         if (close > index + 1 && open === close + 1 && end > open) {
-          const url = safeUrl(text2.slice(open + 1, end));
+          const url = safeUrl(text4.slice(open + 1, end));
           flush();
           if (url.length > 0) {
             const link = doc.createElement("a");
             link.href = url;
             link.target = "_blank";
             link.rel = "noopener noreferrer nofollow";
-            appendInline(link, text2.slice(index + 1, close), depth + 1);
+            appendInline(link, text4.slice(index + 1, close), depth + 1);
             parent.append(link);
           } else {
             const blocked = doc.createElement("span");
             blocked.className = "rm-md-link-blocked";
-            appendInline(blocked, text2.slice(index + 1, close), depth + 1);
+            appendInline(blocked, text4.slice(index + 1, close), depth + 1);
             parent.append(blocked);
           }
           index = end + 1;
           continue;
         }
       }
-      plain += text2[index];
+      plain2 += text4[index];
       index += 1;
     }
     flush();
@@ -2515,9 +5425,1700 @@ var RamingaUI = (() => {
     closeList();
     return fragment;
   }
-  function plainExcerpt(value, limit = 160) {
-    const text2 = escapeControl(String(value ?? "")).replace(/\s+/g, " ").trim();
-    return text2.length > limit ? `${text2.slice(0, limit)}…` : text2;
+
+  // src/pages/home-agent.js
+  var DEFAULT_AGENT_NAME = "我的 Agent";
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var INTEREST_ICONS = [
+    "M12 3.2 13.8 8.7 19.3 10.5 13.8 12.3 12 17.8 10.2 12.3 4.7 10.5 10.2 8.7Z",
+    "M7.5 8h9A4.5 4.5 0 0 1 21 12.5v.8a3.2 3.2 0 0 1-5.6 2.1L14 14h-4l-1.4 1.4A3.2 3.2 0 0 1 3 13.3v-.8A4.5 4.5 0 0 1 7.5 8ZM8 11v2M7 12h2M16 12h.01",
+    "M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5ZM5 17.5h14M8.5 7h7"
+  ];
+  function text2(value) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+  function firstNameLine(markdown) {
+    const line = String(markdown ?? "").split(/\r?\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0) ?? "";
+    return line.replace(/^#+\s*/, "").replace(/[*_`]/g, "").trim();
+  }
+  function excerpt(markdown, limit = 180) {
+    return String(markdown ?? "").replace(/^#+\s.*$/gm, "").replace(/[*_`>#-]/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim().slice(0, limit);
+  }
+  function initialGlyph(value) {
+    return Array.from(text2(value) || "?")[0] ?? "?";
+  }
+  function incompleteProfileSummary(card, bio, interests) {
+    const missing = [];
+    if (!text2(card.displayName)) missing.push("名称");
+    if (!bio) missing.push("简介");
+    if (interests.length === 0) missing.push("兴趣");
+    if (!text2(card.conversationStyle)) missing.push("公开交流风格");
+    return missing.length > 0 ? `公开档案还缺${missing.join("、")}。` : "";
+  }
+  function interestIcon(doc, index) {
+    const svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("class", "rm-home-tag-icon");
+    const path = doc.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", INTEREST_ICONS[index % INTEREST_ICONS.length]);
+    svg.append(path);
+    return svg;
+  }
+  function buildHomeAgentModel({ mine = null, error = "", capable = true } = {}) {
+    const cardRead = mine?.agentCard ?? null;
+    const card = cardRead?.state === "available" ? cardRead.card : null;
+    const profile = mine?.profile ?? null;
+    const humanAvailable = profile?.state === "available";
+    let bio = "";
+    let source = "";
+    if (card) {
+      bio = text2(card.description);
+      source = `本机公开资料${card.updatedAt ? ` · 更新于 ${formatDateTime(card.updatedAt)}` : ""}`;
+    } else if (cardRead?.state === "error") {
+      bio = "公开资料这次没有读到。";
+      source = "本机公开资料读取失败";
+    } else if (mine === null) {
+      bio = capable ? "正在读取公开 Agent 档案…" : "当前宿主没有提供公开 Agent 档案读取。";
+    }
+    const interests = Array.isArray(card?.interests) ? card.interests.filter((item) => text2(item)).slice(0, 5) : [];
+    const profileNotice = card ? incompleteProfileSummary(card, bio, interests) : cardRead?.state === "missing" ? "还没有公开档案。补充名称、简介、兴趣和交流风格后，来访者才能认识你的 Agent。" : cardRead?.state === "error" ? "公开资料这次没有读到；可以到设置里检查本机公开档案。" : "";
+    return {
+      name: card ? text2(card.displayName) || DEFAULT_AGENT_NAME : DEFAULT_AGENT_NAME,
+      bio,
+      interests,
+      style: text2(card?.conversationStyle),
+      profileNotice,
+      source,
+      empty: !card,
+      avatarInitial: initialGlyph(card ? text2(card.displayName) || DEFAULT_AGENT_NAME : DEFAULT_AGENT_NAME),
+      avatarUrl: "",
+      avatarPath: text2(card?.avatarPath),
+      avatarSha256: text2(card?.avatarSha256),
+      avatarMime: text2(card?.avatarMime),
+      legacyFallback: card?.legacyFallback === true,
+      human: {
+        name: humanAvailable ? text2(profile.displayName) || firstNameLine(profile.markdown) || "关联人类" : "关联人类",
+        markdown: humanAvailable ? profile.markdown : "",
+        available: humanAvailable,
+        note: humanAvailable ? "" : profile?.state === "missing" ? "还没有公开人类介绍。" : profile?.state === "error" ? "人类公开介绍这次没有读到。" : mine === null ? "正在读取本机公开人类资料…" : "当前宿主没有提供本机公开资料读取。",
+        excerpt: humanAvailable ? excerpt(profile.markdown) || "公开档案没有正文。" : ""
+      }
+    };
+  }
+  function renderHomeAgent(doc, nodes, model) {
+    if (!nodes) return;
+    const {
+      avatar,
+      initial,
+      name,
+      badge,
+      bio,
+      interests,
+      style,
+      source,
+      notice,
+      noticeText,
+      statusText,
+      statusDot
+    } = nodes;
+    if (name) name.textContent = model.name;
+    if (badge) badge.textContent = "我的 Agent";
+    if (bio) {
+      bio.textContent = model.bio;
+      bio.hidden = model.bio.length === 0;
+    }
+    if (interests) {
+      interests.replaceChildren();
+      model.interests.forEach((item, index) => {
+        const span = doc.createElement("span");
+        span.className = "rm-home-tag";
+        span.append(interestIcon(doc, index));
+        const label = doc.createElement("span");
+        label.className = "rm-home-tag-label";
+        label.textContent = item;
+        span.append(label);
+        interests.append(span);
+      });
+      interests.hidden = model.interests.length === 0;
+    }
+    if (style) {
+      style.textContent = model.style ? `公开交流风格 · ${model.style}` : "";
+      style.hidden = model.style.length === 0;
+    }
+    if (notice) notice.hidden = model.profileNotice.length === 0;
+    if (noticeText) noticeText.textContent = model.profileNotice;
+    if (source) {
+      source.textContent = "";
+      source.hidden = true;
+    }
+    if (statusText) statusText.textContent = model.statusText;
+    if (statusDot) statusDot.dataset.tone = model.statusTone;
+    if (avatar) {
+      const image = avatar.querySelector("img");
+      const hasAvatar = model.avatarUrl.length > 0;
+      if (image) {
+        if (hasAvatar) {
+          image.src = model.avatarUrl;
+          image.hidden = false;
+        } else {
+          image.removeAttribute("src");
+          image.hidden = true;
+        }
+      }
+      if (initial) {
+        initial.textContent = model.avatarInitial;
+        initial.hidden = hasAvatar;
+      }
+      avatar.dataset.empty = hasAvatar ? "false" : "true";
+      avatar.setAttribute("aria-label", hasAvatar ? `${model.name} 的 Agent 形象` : `尚未设置 ${model.name} 的 Agent 形象`);
+    }
+  }
+  function renderHomeHuman(doc, nodes, model) {
+    if (!nodes) return;
+    const human = model.human;
+    if (nodes.title) nodes.title.textContent = human.available ? `关联人类 · ${human.name}` : "关联人类";
+    if (nodes.summary) {
+      nodes.summary.textContent = human.available ? human.excerpt || "公开档案没有正文。" : human.note;
+    }
+    if (nodes.profile) {
+      nodes.profile.replaceChildren();
+      nodes.profile.hidden = true;
+    }
+  }
+
+  // src/components/activity-strip.js
+  var TOOL_LABELS = {
+    raminga_status: "读取节点状态",
+    raminga_friends: "读取联系人",
+    raminga_published: "读取本机公开文件",
+    raminga_peer_profile: "查看对方公开资料",
+    raminga_peer_manifest: "读取对方公开清单",
+    raminga_peer_friends: "读取对方通讯录",
+    raminga_content_get: "下载公开内容",
+    raminga_connect: "连接 Peer",
+    raminga_connect_listed: "连接通讯录中的 Peer",
+    raminga_chat_send: "发送消息",
+    raminga_chat_history: "读取最近消息",
+    raminga_agent_init: "初始化私有 Agent 数据"
+  };
+  var RESULT_LABELS = {
+    ok: { label: "完成", tone: "done" },
+    error: { label: "失败", tone: "error" },
+    timeout: { label: "超时", tone: "unavailable" },
+    interrupted: { label: "已中断", tone: "unavailable" },
+    unknown: { label: "结果未知", tone: "unavailable" }
+  };
+  var MATCH_LABELS = {
+    current_peer: "目标与本机 running Journey 的当前对象一致",
+    visited_peer: "目标在该 Journey 的访问列表中",
+    active_journey: "本机有一个 running Journey；仅表示关联，不代表已访问",
+    none: "没有可关联的 Journey",
+    ambiguous: "有多个 running Journey，未猜测关联"
+  };
+  var PEER_TOOLS = /* @__PURE__ */ new Set(["raminga_peer_profile", "raminga_peer_manifest", "raminga_peer_friends", "raminga_content_get", "raminga_connect", "raminga_connect_listed"]);
+  var CHAT_TOOLS = /* @__PURE__ */ new Set(["raminga_chat_send"]);
+  var MSG_TOOLS = /* @__PURE__ */ new Set(["raminga_chat_history"]);
+  function text3(value) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+  function element3(doc, tag, className) {
+    const node = doc.createElement(tag);
+    if (className) node.className = className;
+    return node;
+  }
+  function toolLabel(tool) {
+    return TOOL_LABELS[tool] || "raminga 工具";
+  }
+  function shortPeer2(peerId2) {
+    const value = text3(peerId2);
+    if (value.length <= 18) return value;
+    return `${value.slice(0, 10)}…${value.slice(-4)}`;
+  }
+  function parseTime(value) {
+    const at = Date.parse(String(value ?? ""));
+    return Number.isFinite(at) ? at : 0;
+  }
+  function relativeTime(value, now) {
+    const at = parseTime(value);
+    if (at === 0) return "时间未记录";
+    const diff = Math.max(0, now - at);
+    if (diff < 45e3) return "刚刚";
+    if (diff < 36e5) return `${Math.max(1, Math.round(diff / 6e4))} 分钟前`;
+    if (diff < 864e5) return `${Math.max(1, Math.round(diff / 36e5))} 小时前`;
+    return formatDateTime(value);
+  }
+  function resultMeta(result) {
+    return RESULT_LABELS[result] || { label: "结果未知", tone: "unavailable" };
+  }
+  function latestSession(sessions) {
+    const list = Array.isArray(sessions) ? sessions.filter((session) => session && session.state) : [];
+    if (list.length === 0) return null;
+    return [...list].sort((left, right) => {
+      const leftTime = Date.parse(left.state.updatedAt || left.state.startedAt || "") || Number(left.dirModifiedAt) || 0;
+      const rightTime = Date.parse(right.state.updatedAt || right.state.startedAt || "") || Number(right.dirModifiedAt) || 0;
+      return rightTime - leftTime;
+    })[0];
+  }
+  function runningSessions(sessions) {
+    return (Array.isArray(sessions) ? sessions : []).filter((session) => session?.state?.status === "running");
+  }
+  function sessionExists(journey, sessionId) {
+    if (!sessionId) return false;
+    const list = Array.isArray(journey?.sessions) ? journey.sessions : [];
+    return list.some((session) => session?.id === sessionId);
+  }
+  function operationState(operation) {
+    if (!operation) return "unknown";
+    if (operation.state === "running" || operation.result === null || operation.result === void 0) return "running";
+    return text3(operation.result) || "unknown";
+  }
+  function sortOperations(operations) {
+    return [...operations].sort((left, right) => {
+      const time = parseTime(left.startedAt) - parseTime(right.startedAt);
+      if (time !== 0) return time;
+      return String(left.operationId).localeCompare(String(right.operationId));
+    });
+  }
+  function targetPeer(operation) {
+    return text3(operation?.target?.peer_id) || text3(operation?.evidence?.peer_id);
+  }
+  function targetPath(operation) {
+    return text3(operation?.target?.path) || text3(operation?.evidence?.path);
+  }
+  function operationTarget(operation, { journey, peerLabel }) {
+    if (!operation) return { kind: "none" };
+    const peer = targetPeer(operation);
+    const journeyId = text3(operation.journeyId);
+    const journeyMissing = journeyId.length > 0 && journey !== null && !sessionExists(journey, journeyId);
+    if (journeyId) {
+      return {
+        kind: "journey",
+        journeyId,
+        peerId: peer,
+        path: targetPath(operation),
+        journeyMissing,
+        label: journeyMissing ? `Journey ${journeyId}（记录已不在本机）` : `Journey ${journeyId}`
+      };
+    }
+    if (peer) {
+      return {
+        kind: CHAT_TOOLS.has(operation.tool) || MSG_TOOLS.has(operation.tool) ? "messages" : "peer",
+        peerId: peer,
+        path: targetPath(operation),
+        label: peerLabel(peer)
+      };
+    }
+    return { kind: "none" };
+  }
+  function operationSummary(operation, { peerLabel, now }) {
+    const peer = targetPeer(operation);
+    const path = targetPath(operation);
+    const result = operationState(operation);
+    const parts = [];
+    if (result === "running") {
+      parts.push(`开始于 ${relativeTime(operation.startedAt, now)}`);
+    } else {
+      parts.push(`${resultMeta(result).label}${operation.endedAt ? ` · ${relativeTime(operation.endedAt, now)}` : ""}`);
+    }
+    if (peer) parts.push(peerLabel(peer));
+    if (path) parts.push(path);
+    if (operation.errorSummary) parts.push(operation.errorSummary);
+    return parts.filter(Boolean).join(" · ");
+  }
+  function buildJourneyFallback({ journey, error, capable }) {
+    const sessions = Array.isArray(journey?.sessions) ? journey.sessions : [];
+    const latest = latestSession(sessions);
+    if (latest) {
+      const status = journeyStatusText(latest.state);
+      const pending = status.label === "待确认";
+      const recorded = journeyTimeText(latest);
+      const facts = [recorded ? `最后保存 ${recorded}` : "最后保存时间未记录"];
+      facts.push(pending ? "状态待确认" : `记录状态 ${status.label}`);
+      return {
+        kind: "recent",
+        title: `最近记录：${journeySessionTitle(latest)}`,
+        body: facts.join(" · "),
+        meta: recorded,
+        statusText: `最近记录 · ${pending ? "待确认" : status.label}`,
+        statusTone: "recent",
+        statusLabel: pending ? "待确认" : status.label,
+        pending,
+        session: latest,
+        operation: null,
+        empty: false,
+        target: { kind: "journey", journeyId: latest.id },
+        showDetail: true,
+        history: [],
+        journeyMissing: false,
+        instanceId: "",
+        operations: [],
+        fallback: true
+      };
+    }
+    if (journey?.state === "error" || error) {
+      return {
+        kind: "unavailable",
+        title: "这次没有读到活动记录",
+        body: error || journey?.sessionsError || "Agent 活动记录读取失败。",
+        meta: "",
+        statusText: "活动记录读取失败",
+        statusTone: "unavailable",
+        statusLabel: "读取失败",
+        pending: false,
+        session: null,
+        operation: null,
+        empty: false,
+        target: { kind: "none" },
+        showDetail: false,
+        history: [],
+        journeyMissing: false,
+        instanceId: "",
+        operations: [],
+        fallback: true
+      };
+    }
+    return {
+      kind: "empty",
+      title: "暂无活动记录",
+      body: journey === null ? capable ? "正在读取本机 Agent 活动记录…" : "当前宿主没有提供 Agent 活动记录读取。" : "本机记录中还没有 Agent 活动。",
+      meta: "",
+      statusText: "暂无活动记录",
+      statusTone: "unknown",
+      statusLabel: "暂无记录",
+      pending: false,
+      session: null,
+      operation: null,
+      empty: true,
+      target: { kind: "none" },
+      showDetail: false,
+      history: [],
+      journeyMissing: false,
+      instanceId: "",
+      operations: [],
+      fallback: true
+    };
+  }
+  function buildHomeActivity({
+    activity = null,
+    activityCapable = false,
+    activityError = "",
+    journey = null,
+    journeyError = "",
+    capable = true,
+    now = Date.now(),
+    peerLabel = (peerId2) => shortPeer2(peerId2),
+    previousInstanceId = ""
+  } = {}) {
+    if (!activityCapable) {
+      return buildJourneyFallback({ journey, error: journeyError, capable });
+    }
+    const sessions = Array.isArray(journey?.sessions) ? journey.sessions : [];
+    const running = runningSessions(sessions);
+    const latest = latestSession(sessions);
+    const readError = text3(activityError) || text3(activity?.error);
+    if (readError) {
+      return {
+        kind: "unavailable",
+        title: "Raminga 工具活动读取失败",
+        body: `${readError}。不会把上次读取的运行中状态当作现在；下方 Journey 记录只来自 agent/sessions，不是工具调用日志。`,
+        meta: "",
+        statusText: "工具活动读取失败",
+        statusTone: "unavailable",
+        statusLabel: "读取失败",
+        pending: false,
+        session: null,
+        operation: null,
+        empty: false,
+        target: { kind: "none" },
+        showDetail: false,
+        history: [],
+        journeyMissing: false,
+        instanceId: text3(activity?.instanceId),
+        operations: [],
+        activityError: readError
+      };
+    }
+    if (activity === null || typeof activity !== "object") {
+      return {
+        kind: "loading",
+        title: "正在读取 Agent 工具活动…",
+        body: "只读取本机 agent/activity.jsonl；不会把 Journey 摘要当成工具调用。",
+        meta: "",
+        statusText: "正在读取工具活动",
+        statusTone: "unknown",
+        statusLabel: "读取中",
+        pending: false,
+        session: null,
+        operation: null,
+        empty: false,
+        target: { kind: "none" },
+        showDetail: false,
+        history: [],
+        journeyMissing: false,
+        instanceId: "",
+        operations: [],
+        activityError: ""
+      };
+    }
+    const instanceId = text3(activity.instanceId);
+    const all = Array.isArray(activity.operations) ? activity.operations.filter((operation) => operation && operation.operationId) : [];
+    const current = sortOperations(all.filter((operation) => instanceId.length === 0 || text3(operation.pluginInstanceId) === instanceId));
+    const history = [...all].sort((left, right) => parseTime(right.startedAt) - parseTime(left.startedAt)).map((operation) => ({
+      ...operation,
+      historical: instanceId.length > 0 && text3(operation.pluginInstanceId) !== instanceId
+    }));
+    const runningOps = current.filter((operation) => operationState(operation) === "running");
+    const finished = current.filter((operation) => operationState(operation) !== "running");
+    const instanceChanged = Boolean(previousInstanceId && instanceId && previousInstanceId !== instanceId);
+    const extraNote = [
+      activity.truncated ? "只读取了最近的一部分工具调用记录。" : "",
+      instanceChanged ? "插件实例已更换；旧实例的运行中状态已失效，旧记录只在详情历史中标注“上次实例”。" : "",
+      (activity.badLines || 0) > 0 ? `日志中有 ${activity.badLines} 行无法解析，已跳过。` : ""
+    ].filter(Boolean).join(" ");
+    const base = {
+      instanceId,
+      operations: current,
+      history,
+      activityError: "",
+      pending: false,
+      journeyMissing: false
+    };
+    if (runningOps.length > 0) {
+      const operation = runningOps[runningOps.length - 1];
+      const peer = targetPeer(operation);
+      const path = targetPath(operation);
+      const target = operationTarget(operation, { journey, peerLabel });
+      const title = peer && PEER_TOOLS.has(operation.tool) ? `正在访问：${peerLabel(peer)}` : CHAT_TOOLS.has(operation.tool) && peer ? `正在与 ${peerLabel(peer)} 沟通` : `正在执行：${toolLabel(operation.tool)}`;
+      const body = [
+        `${toolLabel(operation.tool)} · 开始于 ${relativeTime(operation.startedAt, now)}`,
+        path,
+        runningOps.length > 1 ? `另有 ${runningOps.length - 1} 个工具调用正在执行` : "",
+        extraNote
+      ].filter(Boolean).join(" · ");
+      return {
+        ...base,
+        kind: "running",
+        title,
+        body,
+        meta: relativeTime(operation.startedAt, now),
+        statusText: "正在执行工具调用",
+        statusTone: "live",
+        statusLabel: "进行中",
+        operation,
+        session: null,
+        empty: false,
+        target,
+        showDetail: true,
+        journeyMatchText: MATCH_LABELS[operation.journeyMatch] || ""
+      };
+    }
+    if (finished.length > 0) {
+      const operation = finished[finished.length - 1];
+      const result = operationState(operation);
+      const meta = resultMeta(result);
+      const target = operationTarget(operation, { journey, peerLabel });
+      const title = `最近活动 · ${relativeTime(operation.endedAt || operation.startedAt, now)}`;
+      const body = [
+        toolLabel(operation.tool),
+        operationSummary(operation, { peerLabel, now }),
+        extraNote
+      ].filter(Boolean).join(" · ");
+      return {
+        ...base,
+        kind: "recent",
+        title,
+        body,
+        meta: `${meta.label} · ${relativeTime(operation.endedAt || operation.startedAt, now)}`,
+        statusText: `最近工具活动 · ${meta.label}`,
+        statusTone: result === "ok" ? "recent" : "unavailable",
+        statusLabel: meta.label,
+        operation,
+        session: null,
+        empty: false,
+        target,
+        showDetail: true,
+        journeyMatchText: MATCH_LABELS[operation.journeyMatch] || ""
+      };
+    }
+    if (running.length > 0) {
+      const session = latest && running.includes(latest) ? latest : running[0];
+      const currentPeer = text3(session.state?.currentPeerId);
+      const body = [
+        `Journey 文件仍标记为 running，但没有正在执行的 Raminga 工具调用。`,
+        currentPeer ? `记录中的当前对象：${peerLabel(currentPeer)}；这只是 Journey 字段，不是工具访问证据。` : "",
+        running.length > 1 ? `共有 ${running.length} 个 running Journey，未自动选择其中一个作为访问事实。` : "",
+        extraNote
+      ].filter(Boolean).join(" ");
+      return {
+        ...base,
+        kind: "journey-live",
+        title: "Journey 进行中",
+        body,
+        meta: relativeTime(session.state?.updatedAt || session.state?.startedAt, now),
+        statusText: "Journey 进行中",
+        statusTone: "live",
+        statusLabel: "进行中",
+        operation: null,
+        session,
+        empty: false,
+        target: { kind: "journey", journeyId: session.id },
+        showDetail: true,
+        journeyMatchText: ""
+      };
+    }
+    if (latest && latest.state?.status === "paused") {
+      return {
+        ...base,
+        kind: "journey-paused",
+        title: "最近一次 Journey 已暂停",
+        body: `Journey 文件本身标记为 paused；没有正在执行的 Raminga 工具调用。${extraNote ? ` ${extraNote}` : ""}`,
+        meta: relativeTime(latest.state.updatedAt || latest.state.startedAt, now),
+        statusText: "最近 Journey 已暂停",
+        statusTone: "unavailable",
+        statusLabel: "已暂停",
+        operation: null,
+        session: latest,
+        empty: false,
+        target: { kind: "journey", journeyId: latest.id },
+        showDetail: true,
+        journeyMatchText: ""
+      };
+    }
+    const activityNote = instanceChanged ? "当前插件实例还没有工具调用；旧实例记录只在详情历史中。" : instanceId && history.length > 0 ? "当前插件实例还没有工具调用；旧实例记录只在详情历史中。" : "没有记录到正在执行或最近完成的 Raminga 工具调用；这不等于 Agent 未运行。";
+    return {
+      ...base,
+      kind: "empty",
+      title: "暂无工具活动",
+      body: [activityNote, activity.truncated ? "只读取了最近的一部分工具调用记录。" : "", journey?.state === "error" ? `Journey 记录本次未读到：${journey.sessionsError || journeyError || "读取失败"}` : ""].filter(Boolean).join(" "),
+      meta: "",
+      statusText: "暂无工具活动记录",
+      statusTone: "unknown",
+      statusLabel: "暂无记录",
+      operation: null,
+      session: null,
+      empty: true,
+      target: { kind: "none" },
+      showDetail: history.length > 0,
+      journeyMatchText: ""
+    };
+  }
+  function renderCard(doc, node, activity, { live = false } = {}) {
+    if (!node) return;
+    node.replaceChildren();
+    node.className = live ? "rm-home-live-journey live-journey" : "rm-home-live-journey";
+    node.dataset.activityKind = activity.kind;
+    if (activity.operation?.operationId) node.dataset.activityOperation = activity.operation.operationId;
+    else delete node.dataset.activityOperation;
+    const orb = element3(doc, "span", "rm-home-live-orb");
+    orb.setAttribute("aria-hidden", "true");
+    const copy = element3(doc, "span", "rm-home-live-copy");
+    const title = element3(doc, "b");
+    title.textContent = activity.title;
+    const body = element3(doc, "p");
+    body.textContent = activity.body;
+    copy.append(title, body);
+    const status = element3(doc, "span", "rm-journey-status");
+    status.dataset.tone = activity.statusTone || "unknown";
+    status.textContent = activity.statusLabel;
+    const arrow = element3(doc, "span", "rm-home-live-arrow");
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "›";
+    node.append(orb, copy, status, arrow);
+    node.hidden = false;
+    node.disabled = false;
+    node.setAttribute("aria-expanded", "false");
+    node.setAttribute("aria-controls", "homeActivityDetail");
+    node.setAttribute("aria-label", `${activity.title}。${activity.target?.kind && activity.target.kind !== "none" ? "打开对应证据" : "打开详情"}`);
+  }
+  function renderEmpty(doc, node, activity) {
+    if (!node) return;
+    node.replaceChildren();
+    const mark = element3(doc, "span", "rm-home-empty-mark");
+    mark.setAttribute("aria-hidden", "true");
+    const copy = element3(doc, "div");
+    const title = element3(doc, "b");
+    title.textContent = activity.title;
+    const body = element3(doc, "p");
+    body.textContent = activity.body;
+    copy.append(title, body);
+    node.append(mark, copy);
+    node.hidden = false;
+    node.dataset.tone = activity.kind === "unavailable" ? "error" : "";
+  }
+  function renderHomeActivity(doc, nodes, activity) {
+    if (!nodes) return;
+    const { live, recent, empty, detail, toggle } = nodes;
+    if (live) {
+      live.replaceChildren();
+      live.hidden = true;
+      live.disabled = false;
+    }
+    if (recent) {
+      recent.replaceChildren();
+      recent.hidden = true;
+      recent.disabled = false;
+    }
+    if (activity.kind === "running" || activity.kind === "journey-live" || activity.kind === "journey-paused") {
+      renderCard(doc, live ?? recent, activity, { live: true });
+    } else if (activity.kind === "recent") {
+      renderCard(doc, recent ?? live, activity, { live: false });
+    } else if (activity.kind === "unavailable" && activity.fallback) {
+      renderCard(doc, recent ?? live, activity, { live: false });
+    } else if (activity.kind === "unavailable" || activity.kind === "loading" || activity.kind === "empty") {
+      if (empty) renderEmpty(doc, empty, activity);
+      else if (recent) renderCard(doc, recent, activity, { live: false });
+    }
+    const emptyKinds = activity.kind === "unavailable" || activity.kind === "loading" || activity.kind === "empty";
+    if (empty) empty.hidden = !emptyKinds || activity.fallback === true && activity.kind === "unavailable";
+    if (detail) {
+      detail.replaceChildren();
+      detail.hidden = true;
+    }
+    if (toggle) {
+      toggle.hidden = !activity.showDetail;
+      toggle.disabled = !activity.showDetail;
+      toggle.textContent = activity.showDetail ? "查看详情" : "暂无详情";
+    }
+  }
+  function factList(doc, rows) {
+    const dl = element3(doc, "dl", "rm-journey-facts");
+    for (const [label, value] of rows) {
+      if (!value) continue;
+      const row = element3(doc, "div");
+      const key2 = element3(doc, "dt");
+      key2.textContent = label;
+      const val = element3(doc, "dd");
+      val.textContent = value;
+      row.append(key2, val);
+      dl.append(row);
+    }
+    return dl;
+  }
+  function action(doc, labelText, dataset) {
+    const button = element3(doc, "button", "rm-journey-action");
+    button.type = "button";
+    button.textContent = labelText;
+    for (const [key2, value] of Object.entries(dataset)) button.dataset[key2] = value;
+    return button;
+  }
+  function renderActivityDetail(doc, node, activity, detail = null, options = {}) {
+    if (!node) return;
+    node.replaceChildren();
+    const { loading = false, error = "", now = Date.now(), peerLabel = (peerId2) => shortPeer2(peerId2), currentInstanceId = "" } = options;
+    const operation = detail?.operation || activity.operation || null;
+    const label = element3(doc, "p", "rm-eyebrow");
+    label.textContent = "FACT · LOCAL TOOL RECORD";
+    const heading = element3(doc, "h3");
+    heading.textContent = "本机工具调用记录";
+    const note = element3(doc, "p", "rm-list-note");
+    note.textContent = "来自私有 agent/activity.jsonl；这是本机工具调用记录，不是传输证据，也不是远端投递、阅读或访问成功的证明。";
+    node.append(label, heading, note);
+    if (error) {
+      const failure = element3(doc, "p", "rm-journey-check");
+      failure.dataset.tone = "error";
+      failure.textContent = error;
+      node.append(failure);
+    }
+    if (loading) {
+      const loadingNode = element3(doc, "p", "rm-list-note");
+      loadingNode.textContent = "正在读取操作证据…";
+      node.append(loadingNode);
+    }
+    if (operation) {
+      const result = operationState(operation);
+      const meta = resultMeta(result);
+      const facts = factList(doc, [
+        ["工具", toolLabel(operation.tool)],
+        ["工具名", operation.tool],
+        ["目标类型", operation.targetType],
+        ["结果", result === "running" ? "进行中" : `${meta.label}${operation.result ? `（${operation.result}）` : ""}`],
+        ["开始", formatDateTime(operation.startedAt)],
+        ["结束", operation.endedAt ? formatDateTime(operation.endedAt) : "仍未记录终态"],
+        ["操作 ID", operation.operationId],
+        ["插件实例", operation.pluginInstanceId],
+        ["面板会话", operation.panelSessionId || "无面板"],
+        ["Journey 关联", operation.journeyId ? `${operation.journeyId}（${operation.journeyMatch}）` : operation.journeyMatch || "none"]
+      ]);
+      if (operation.pluginInstanceId && currentInstanceId && operation.pluginInstanceId !== currentInstanceId) {
+        const row = element3(doc, "div");
+        const key2 = element3(doc, "dt");
+        key2.textContent = "实例状态";
+        const val = element3(doc, "dd");
+        val.textContent = "上次实例（不是当前运行态）";
+        row.append(key2, val);
+        facts.append(row);
+      }
+      node.append(facts);
+      if (operation.journeyMatch) {
+        const match = element3(doc, "p", "rm-list-note");
+        match.textContent = `关联依据：${MATCH_LABELS[operation.journeyMatch] || operation.journeyMatch}。关联不等于访问或成功。`;
+        node.append(match);
+      }
+      if (operation.errorCode || operation.errorSummary) {
+        const failure = element3(doc, "div", "rm-journey-evidence");
+        const failureTitle = element3(doc, "b");
+        failureTitle.textContent = "记录的错误信息";
+        const failureBody = element3(doc, "p");
+        failureBody.textContent = [operation.errorCode, operation.errorSummary].filter(Boolean).join(" · ");
+        failure.append(failureTitle, failureBody);
+        node.append(failure);
+      }
+      const evidence = detail?.evidence || operation.evidence || {};
+      const peer = text3(evidence.peer_id) || targetPeer(operation);
+      const publicPath = text3(evidence.path) || targetPath(operation);
+      const routeRows = [
+        ["Peer", peer],
+        ["公开内容", publicPath],
+        ["内容版本 SHA-256", evidence.sha256 || ""],
+        ["发现记录 ID", evidence.discovery_id ? String(evidence.discovery_id) : ""],
+        ["内容状态", evidence.content_state || ""],
+        ["清单生成时间", evidence.manifest_generated_at_unix_ms ? formatDateTime(evidence.manifest_generated_at_unix_ms) : ""],
+        ["消息 ID", (evidence.message_ids || []).join("、")]
+      ];
+      const routeHeading = element3(doc, "h3");
+      routeHeading.textContent = "路由与证据摘要";
+      node.append(routeHeading, factList(doc, routeRows));
+      const journey = detail?.journey || null;
+      if (operation.journeyId) {
+        const journeyHeading = element3(doc, "h3");
+        journeyHeading.textContent = "Journey 关联";
+        const journeyNote = element3(doc, "p", "rm-list-note");
+        if (journey?.exists === true) {
+          journeyNote.textContent = `Journey ${operation.journeyId} 仍在本机：状态 ${journey.status || "未记录"}，更新于 ${formatDateTime(journey.updatedAt) || "未记录"}。`;
+        } else if (journey?.exists === false) {
+          journeyNote.textContent = "关联的 Journey 记录已不在本机。仍可按下面的 Peer 证据回退，不静默改成“无关联”。";
+        } else {
+          journeyNote.textContent = "正在核对关联的 Journey 记录。";
+        }
+        node.append(journeyHeading, journeyNote);
+      }
+      if (peer) {
+        const actions = element3(doc, "div", "rm-journey-actions");
+        if (operation.journeyId && journey?.exists === true) {
+          actions.append(action(doc, "打开 Journey 并高亮", { activityJourney: operation.journeyId }));
+        }
+        actions.append(action(doc, "查看相关对象", { activityPeer: peer }));
+        node.append(actions);
+      } else if (!operation.journeyId && detail?.missingReason) {
+        const missing = element3(doc, "p", "rm-journey-check");
+        missing.dataset.tone = "unavailable";
+        missing.textContent = detail.missingReason;
+        node.append(missing);
+      }
+      if ((evidence.message_ids || []).length > 0) {
+        const messageHeading = element3(doc, "h3");
+        messageHeading.textContent = "消息证据";
+        const messageNote = element3(doc, "p", "rm-list-note");
+        messageNote.textContent = "消息 ID 是工具返回的引用，不是阅读回执，也不证明对方已回复。";
+        node.append(messageHeading, messageNote);
+        const actions = element3(doc, "div", "rm-journey-actions");
+        for (const messageId2 of evidence.message_ids.slice(0, 10)) {
+          const code = element3(doc, "code", "");
+          code.textContent = messageId2;
+          actions.append(code);
+          if (peer) {
+            actions.append(action(doc, "核对当前保留消息", { activityLocatePeer: peer, activityLocateMessage: messageId2 }));
+          }
+        }
+        if (peer) actions.append(action(doc, "打开相关会话", { activityChat: peer }));
+        node.append(actions);
+      } else if (operation.tool === "raminga_chat_history" || operation.tool === "raminga_chat_send") {
+        const messageNote = element3(doc, "p", "rm-list-note");
+        messageNote.textContent = "这次记录没有消息 ID 证据，不能据此声称消息已送达或已回复。";
+        node.append(messageNote);
+      }
+      const sourceHeading = element3(doc, "h3");
+      sourceHeading.textContent = "来源";
+      const source = element3(doc, "p", "rm-list-note");
+      source.textContent = "本机私有活动日志；只记录 raminga_* 工具执行，不记录聊天正文、资料正文、草稿正文、token 或绝对路径。";
+      node.append(sourceHeading, source);
+    } else if (detail && !loading) {
+      const missing = element3(doc, "p", "rm-journey-check");
+      missing.dataset.tone = "unavailable";
+      missing.textContent = detail.missingReason || "本机没有找到这条工具调用记录。";
+      node.append(missing);
+    }
+    if (Array.isArray(activity.history) && activity.history.length > 0) {
+      const historyHeading = element3(doc, "h3");
+      historyHeading.textContent = "工具调用历史";
+      const historyNote = element3(doc, "p", "rm-list-note");
+      historyNote.textContent = "按开始时间排列；旧插件实例只在这里标“上次实例”，不进入当前活动卡。";
+      const list = element3(doc, "ul", "rm-activity-history");
+      for (const item of activity.history.slice(0, 30)) {
+        const row = element3(doc, "li");
+        const button = element3(doc, "button", "rm-activity-history-row");
+        button.type = "button";
+        button.dataset.activityHistory = item.operationId;
+        if (operation?.operationId === item.operationId) button.setAttribute("aria-current", "true");
+        const time = element3(doc, "span", "rm-journey-meta");
+        time.textContent = `${formatDateTime(item.startedAt) || "时间未记录"} · ${relativeTime(item.startedAt, now)}`;
+        const title = element3(doc, "b");
+        title.textContent = `${toolLabel(item.tool)} · ${resultMeta(operationState(item)).label}${item.historical ? " · 上次实例" : ""}`;
+        button.append(time, title);
+        row.append(button);
+        list.append(row);
+      }
+      node.append(historyHeading, historyNote, list);
+    }
+    node.hidden = false;
+  }
+
+  // src/pages/settings.js
+  var SETTINGS_TABS2 = ["public", "files", "private", "memory", "favorites", "node"];
+  function normalizeSettingsTab(value) {
+    return SETTINGS_TABS2.includes(value) ? value : "public";
+  }
+  function showSettingsTab(root, tab, { index = false } = {}) {
+    const active = normalizeSettingsTab(tab);
+    const indexNode = root.querySelector("#settingsIndex");
+    if (indexNode) indexNode.hidden = !index;
+    for (const name of SETTINGS_TABS2) {
+      const panel = root.querySelector(`#settings-${name}`);
+      if (panel) panel.hidden = index || name !== active;
+    }
+    return active;
+  }
+  function renderSettingsNode(nodes, { phase = "loading", status = null, summary = "" } = {}) {
+    if (!nodes) return;
+    const labels = {
+      loading: "读取中",
+      ready: "在线快照",
+      stale: "旧快照",
+      error: "读取失败",
+      closed: "实时更新已中断"
+    };
+    if (nodes.label) {
+      nodes.label.textContent = labels[phase] || "未知";
+      nodes.label.dataset.tone = phase === "ready" ? "ready" : phase === "error" ? "error" : "unavailable";
+    }
+    if (nodes.summary) {
+      nodes.summary.textContent = status ? `${summary || "本机节点已响应"} · Peer ${status.peerId ? `${String(status.peerId).slice(0, 10)}…${String(status.peerId).slice(-8)}` : "未知"}` : summary || (phase === "loading" ? "正在读取本机节点状态…" : "暂时读不到本机节点状态；这里不会推测在线或离线。");
+    }
+    if (nodes.statusButton) nodes.statusButton.disabled = false;
+    if (nodes.shareButton) nodes.shareButton.disabled = false;
+  }
+
+  // src/pages/settings-private.js
+  function renderPrivateField(nodes, field, value, { dirty = false, error = "", saving = false, capable = true } = {}) {
+    if (!nodes) return;
+    if (nodes.input && !dirty) nodes.input.value = value?.markdown ?? "";
+    if (nodes.status) {
+      nodes.status.textContent = saving ? "保存中…" : value?.state === "available" ? "已读取" : value?.state === "error" ? "读取失败" : "尚未创建";
+      nodes.status.dataset.tone = value?.state === "available" ? "ready" : value?.state === "error" ? "error" : "unavailable";
+    }
+    if (nodes.meta) {
+      const bits = [];
+      if (value?.state === "available") bits.push(value.sha256 ? `SHA-256 ${value.sha256.slice(0, 12)}…` : "已读取");
+      if (error) bits.push(error);
+      else if (!capable) bits.push("当前宿主没有提供私有 Agent 保存。");
+      else if (value?.state === "missing") bits.push("保存会创建该文件。");
+      nodes.meta.textContent = bits.join(" · ");
+      nodes.meta.hidden = bits.length === 0;
+      nodes.meta.dataset.tone = error ? "error" : "";
+    }
+    if (nodes.save) {
+      nodes.save.disabled = !capable || saving;
+      nodes.save.textContent = saving ? "正在保存…" : field === "persona" ? "保存人格" : "保存成长";
+      nodes.save.setAttribute("aria-busy", saving ? "true" : "false");
+    }
+  }
+
+  // src/pages/journey-view.js
+  var INSTRUCTION_HINTS = /(请|帮我|帮忙|任务[:：]|执行|先读取|然后|并且|需要先|完成以下)/;
+  var MAX_TITLE = 42;
+  function element4(tag, className) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    return node;
+  }
+  function plain(value) {
+    return String(value ?? "").replace(/```[\s\S]*?```/g, " ").replace(/^#+\s.*$/gm, " ").replace(/[*_`>#-]/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim();
+  }
+  function safeCover(session) {
+    const value = typeof session?.coverImage === "string" ? session.coverImage.trim() : "";
+    if (!value.startsWith("data:image/")) return "";
+    if (!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/i.test(value)) return "";
+    if (value.length > 512 * 1024) return "";
+    return value;
+  }
+  function journeyDisplayTitle(session) {
+    const intent = String(session?.state?.intent ?? "").trim();
+    const usable = intent.length > 0 && intent.length <= MAX_TITLE && !/[\r\n]/.test(intent) && !INSTRUCTION_HINTS.test(intent) && !/[。；;]$/.test(intent);
+    if (usable) return intent;
+    const at = Date.parse(String(session?.state?.startedAt || session?.state?.updatedAt || ""));
+    if (Number.isFinite(at) && at > 0) {
+      const date = new Date(at);
+      return `${date.getMonth() + 1}月${date.getDate()}日 · 漫游`;
+    }
+    return "漫游记录";
+  }
+  function journeyHasLongIntent(session) {
+    const intent = String(session?.state?.intent ?? "").trim();
+    return intent.length > 0 && journeyDisplayTitle(session) !== intent;
+  }
+  function journeySummary(session, limit = 132) {
+    const report = plain(session?.reportMarkdown).slice(0, limit);
+    if (report.length > 0) return report;
+    const events = Array.isArray(session?.events) ? session.events : [];
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const summary = plain(events[index]?.summary);
+      if (summary.length > 0) {
+        return summary.length > limit ? `${summary.slice(0, limit)}…` : summary;
+      }
+    }
+    const reason = plain(session?.state?.completionReason);
+    if (reason.length > 0) return reason.length > limit ? `${reason.slice(0, limit)}…` : reason;
+    const visited = journeyVisitedPeers(session).length;
+    if (visited > 0) return `记录了 ${visited} 个访问对象。`;
+    return "这次旅程没有留下可读的摘要。";
+  }
+  function journeyVisitedPeers(session) {
+    const rows = [];
+    const seen = /* @__PURE__ */ new Set();
+    const add = (peerId2, source) => {
+      if (typeof peerId2 !== "string" || peerId2.length === 0 || seen.has(peerId2)) return;
+      seen.add(peerId2);
+      rows.push({ peerId: peerId2, source });
+    };
+    for (const peerId2 of Array.isArray(session?.state?.visitedPeerIds) ? session.state.visitedPeerIds : []) add(peerId2, "state");
+    for (const event of Array.isArray(session?.events) ? session.events : []) {
+      if (event?.type !== "visit_completed") continue;
+      add(String(event.peerId ?? ""), "event");
+    }
+    return rows;
+  }
+  function journeyUnvisitedPeers(session) {
+    const visited = new Set(journeyVisitedPeers(session).map((item) => item.peerId));
+    const rows = [];
+    const seen = /* @__PURE__ */ new Set();
+    const add = (peerId2, kind) => {
+      if (typeof peerId2 !== "string" || peerId2.length === 0 || visited.has(peerId2) || seen.has(peerId2)) return;
+      seen.add(peerId2);
+      rows.push({ peerId: peerId2, kind });
+    };
+    add(String(session?.state?.currentPeerId ?? ""), "current");
+    for (const event of Array.isArray(session?.events) ? session.events : []) {
+      if (journeyEventCategory(event).id !== "clue") continue;
+      add(String(event.peerId ?? ""), "clue");
+    }
+    return rows;
+  }
+  function journeySearchPeers(session) {
+    const rows = journeyVisitedPeers(session).map((item) => item.peerId);
+    const current = String(session?.state?.currentPeerId ?? "");
+    if (current.length > 0 && !rows.includes(current)) rows.push(current);
+    return rows;
+  }
+  function journeyMatches(session, rawQuery, peerLabel = shortPeerText) {
+    const query = String(rawQuery ?? "").trim().toLowerCase();
+    if (query.length === 0) return true;
+    const fields = [
+      journeyDisplayTitle(session),
+      session?.state?.intent,
+      session?.id,
+      session?.state?.mode,
+      journeyModeText(session?.state?.mode),
+      session?.state?.completionReason,
+      ...Array.isArray(session?.state?.discoverySources) ? session.state.discoverySources : [],
+      ...journeySearchPeers(session).flatMap((peerId2) => [peerId2, peerLabel(peerId2)]),
+      ...Array.isArray(session?.events) ? session.events.flatMap((event) => [event?.summary, event?.peerId]) : []
+    ];
+    return fields.some((field) => String(field ?? "").toLowerCase().includes(query));
+  }
+  function journeyEventCategory(event) {
+    const type = String(event?.type ?? "");
+    if (type === "message_sent" || type === "message_received" || type === "reply_timeout") {
+      return { id: "chat", label: "对话", tone: "chat" };
+    }
+    if (type === "candidates_presented" || type === "candidate_selected" || type === "peer_skipped" || type === "curiosity_added" || type === "impression_updated") {
+      return { id: "clue", label: "线索", tone: "clue" };
+    }
+    if (type === "visit_started" || type === "visit_completed" || type === "content_read") {
+      return { id: "visit", label: "访问", tone: "visit" };
+    }
+    return { id: "record", label: "记录", tone: "record" };
+  }
+  function journeyEvidenceRefs(session) {
+    const rows = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const event of Array.isArray(session?.events) ? session.events : []) {
+      for (const ref of journeyMessageRefs(event)) {
+        if (ref.peerConflict || ref.peerId.length === 0 || ref.messageId.length === 0) continue;
+        const key2 = `${ref.peerId}\0${ref.messageId}`;
+        if (seen.has(key2)) continue;
+        seen.add(key2);
+        rows.push({
+          ...ref,
+          sequence: event.sequence,
+          eventLabel: journeyEventLabel(event),
+          eventTime: event.timestamp,
+          summary: event.summary,
+          direction: event.messageEvidence?.direction || "",
+          observedAt: event.messageEvidence?.observedAt || event.timestamp
+        });
+      }
+      if (event?.messageEvidence?.peerId && event.messageEvidence.messageId) {
+        const key2 = `${event.messageEvidence.peerId}\0${event.messageEvidence.messageId}`;
+        if (!seen.has(key2)) {
+          seen.add(key2);
+          rows.push({
+            peerId: event.messageEvidence.peerId,
+            messageId: event.messageEvidence.messageId,
+            peerConflict: false,
+            sequence: event.sequence,
+            eventLabel: journeyEventLabel(event),
+            eventTime: event.timestamp,
+            summary: event.summary || event.messageEvidence.summary,
+            direction: event.messageEvidence.direction || "",
+            observedAt: event.messageEvidence.observedAt || event.timestamp
+          });
+        }
+      }
+    }
+    return rows;
+  }
+  function renderJourneyTile(doc, session, {
+    source = "home",
+    peerLabel = shortPeerText,
+    focusKey = ""
+  } = {}) {
+    const button = element4("button", "rm-journey-tile");
+    button.type = "button";
+    button.dataset.journeyOpen = session.id;
+    button.dataset.journeySource = source;
+    if (focusKey) button.dataset.focusKey = focusKey;
+    const status = journeyStatusText(session.state);
+    const top = element4("span", "rm-journey-tile-top");
+    const time = element4("time", "rm-journey-tile-time");
+    time.textContent = journeyTimeText(session) || "时间未记录";
+    const chip = element4("span", "rm-journey-status");
+    chip.dataset.tone = status.tone;
+    chip.textContent = status.label;
+    top.append(time, chip);
+    const title = element4("b", "rm-journey-tile-title");
+    title.textContent = journeyDisplayTitle(session);
+    const summary = element4("span", "rm-journey-tile-summary");
+    summary.textContent = journeySummary(session, 92);
+    const meta = element4("span", "rm-journey-tile-meta");
+    const visited = journeyVisitedPeers(session);
+    const parts = [];
+    if (visited.length > 0) parts.push(`访问 ${visited.length} 个对象`);
+    parts.push(`${Array.isArray(session.events) ? session.events.length : 0} 条事件`);
+    meta.textContent = parts.join(" · ");
+    button.append(top, title, summary, meta);
+    const cover = safeCover(session);
+    if (cover.length > 0) {
+      const image = element4("img", "rm-journey-tile-image");
+      image.src = cover;
+      image.alt = "";
+      image.loading = "lazy";
+      button.prepend(image);
+    }
+    button.setAttribute("aria-label", `${journeyDisplayTitle(session)}，${status.label}，打开漫游详情`);
+    return button;
+  }
+  function factRows(doc, rows) {
+    const dl = element4("dl", "rm-journey-facts");
+    for (const [keyText, value] of rows) {
+      if (!value) continue;
+      const row = element4("div");
+      const key2 = element4("dt");
+      key2.textContent = keyText;
+      const val = element4("dd");
+      val.textContent = String(value);
+      row.append(key2, val);
+      dl.append(row);
+    }
+    return dl;
+  }
+  function sectionHeading(doc, textValue, note = "") {
+    const head = element4("div", "rm-journey-section-head");
+    const heading = element4("h2");
+    heading.textContent = textValue;
+    head.append(heading);
+    if (note) {
+      const meta = element4("span", "rm-journey-section-note");
+      meta.textContent = note;
+      head.append(meta);
+    }
+    return head;
+  }
+  function renderJourneyDetail(doc, node, session, {
+    peerLabel = shortPeerText,
+    renderMarkdown = () => {
+    },
+    checkFor = () => null,
+    highlightSeq = 0,
+    activityMissingEvent = false,
+    activityOperation = null,
+    source = "journeys",
+    scope = null,
+    highlightFocus = true
+  } = {}) {
+    node.replaceChildren();
+    const status = journeyStatusText(session.state);
+    const head = element4("header", "rm-journey-detail-head");
+    const eyebrow = element4("p", "rm-eyebrow");
+    eyebrow.textContent = "LITTLE JOURNEY · 本机记录";
+    const titleRow = element4("div", "rm-journey-detail-title");
+    const title = element4("h1");
+    title.textContent = journeyDisplayTitle(session);
+    const chip = element4("span", "rm-journey-status");
+    chip.dataset.tone = status.tone;
+    chip.textContent = status.label;
+    if (status.note) chip.title = status.note;
+    titleRow.append(title, chip);
+    const meta = element4("p", "rm-journey-detail-meta");
+    const metaParts = [journeyTimeText(session)];
+    if (session.state?.mode) metaParts.push(`模式 ${journeyModeText(session.state.mode)}`);
+    meta.textContent = metaParts.filter(Boolean).join(" · ");
+    head.append(eyebrow, titleRow, meta);
+    node.append(head);
+    const summaryCard = element4("section", "rm-journey-summary");
+    const summaryLabel = element4("p", "rm-journey-summary-label");
+    summaryLabel.textContent = session.reportRead === "available" ? "摘要 · Agent 生成的报告内容，不是传输证据" : "摘要 · 来自状态与事件记录";
+    const summaryText = element4("p", "rm-journey-summary-text");
+    summaryText.textContent = journeySummary(session, 260);
+    summaryCard.append(summaryLabel, summaryText);
+    if (journeyHasLongIntent(session)) {
+      const intentNote = element4("p", "rm-list-note");
+      intentNote.textContent = "保存的任务说明较长，已使用中性标题；原文收在“来源与读取范围”。";
+      summaryCard.append(intentNote);
+    }
+    node.append(summaryCard);
+    const route = element4("section", "rm-journey-route");
+    const routeLabel2 = element4("p", "rm-journey-route-label");
+    routeLabel2.textContent = "实际路线";
+    route.append(routeLabel2);
+    const routeLine = element4("div", "rm-journey-route-line");
+    const start = element4("span", "rm-journey-route-node");
+    start.textContent = "本机 Agent";
+    routeLine.append(start);
+    const visited = journeyVisitedPeers(session);
+    if (visited.length > 0) {
+      for (const item of visited) {
+        const arrow = element4("span", "rm-journey-route-arrow");
+        arrow.textContent = "→";
+        const nodeText = element4("span", "rm-journey-route-node");
+        nodeText.textContent = peerLabel(item.peerId);
+        nodeText.title = item.peerId;
+        nodeText.dataset.journeyRoutePeer = item.peerId;
+        nodeText.dataset.journeyRouteSource = item.source;
+        routeLine.append(arrow, nodeText);
+      }
+    } else {
+      const empty = element4("span", "rm-journey-route-node");
+      empty.textContent = "记录中没有访问对象";
+      routeLine.append(empty);
+    }
+    route.append(routeLine);
+    const unvisited = journeyUnvisitedPeers(session);
+    for (const item of unvisited) {
+      const aside = element4("p", "rm-journey-route-aside");
+      aside.dataset.journeyRouteAside = item.kind;
+      aside.dataset.journeyRoutePeer = item.peerId;
+      const label = peerLabel(item.peerId);
+      aside.textContent = item.kind === "current" ? `记录中的当前对象：${label}（未记录为已访问，不计入路线）` : `线索中提到的对象：${label}（尚无访问记录，不计入路线）`;
+      aside.title = item.peerId;
+      route.append(aside);
+    }
+    const routeNote = element4("p", "rm-journey-route-note");
+    if (visited.length > 0) {
+      routeNote.textContent = "按本机 Journey 记录整理；只表示记录中的访问顺序，不代表对端在线或已读。";
+    } else if (unvisited.length > 0) {
+      routeNote.textContent = "这次记录没有已访问对象；候选或线索不计入路线。";
+    } else {
+      routeNote.textContent = "这次记录没有已访问对象。";
+    }
+    route.append(routeNote);
+    node.append(route);
+    if (activityOperation) {
+      const banner = element4("p", "rm-journey-activity-banner");
+      banner.dataset.tone = activityMissingEvent ? "unavailable" : "ready";
+      banner.textContent = activityMissingEvent ? `关联的工具调用 ${activityOperation.tool || "raminga 工具"} 仍在本机，但这次调用没有找到对应的 Journey 事件。` : `已从本机工具活动定位到这段 Journey${highlightSeq > 0 ? ` 的事件 #${highlightSeq}` : ""}。`;
+      node.append(banner);
+    }
+    const events = Array.isArray(session.events) ? session.events : [];
+    const eventSection = element4("section", "rm-journey-events-section");
+    eventSection.append(sectionHeading(doc, "关键事件", `${events.length} 条`));
+    if (session.eventsRead === "error") {
+      const failed = element4("p", "rm-journey-check");
+      failed.dataset.tone = "error";
+      failed.textContent = `events.jsonl 读取失败：${session.eventsError}`;
+      eventSection.append(failed);
+    } else if (events.length === 0) {
+      const empty = element4("p", "rm-list-note");
+      empty.textContent = session.eventsRead === "missing" ? "这次 Journey 没有 events.jsonl。" : "events.jsonl 中没有可解析的事件。";
+      eventSection.append(empty);
+    } else {
+      const list = element4("ol", "rm-journey-event-list");
+      let firstHighlight = null;
+      for (const event of events) {
+        const category = journeyEventCategory(event);
+        const item = element4("li", "rm-journey-event");
+        item.dataset.journeyEvent = String(event.sequence);
+        item.dataset.category = category.id;
+        if (highlightSeq > 0 && event.sequence === highlightSeq) {
+          item.dataset.highlight = "true";
+          item.tabIndex = -1;
+          firstHighlight ??= item;
+        }
+        const top = element4("div", "rm-journey-event-top");
+        const kind = element4("span", "rm-journey-event-kind");
+        kind.dataset.tone = category.tone;
+        kind.textContent = category.label;
+        const label = element4("b");
+        label.textContent = journeyEventLabel(event);
+        const at = element4("time");
+        at.textContent = event.timestamp ? formatDateTime(event.timestamp) : "";
+        top.append(kind, label, at);
+        item.append(top);
+        if (event.summary) {
+          const text4 = element4("p", "rm-journey-event-summary");
+          text4.textContent = event.summary;
+          item.append(text4);
+        }
+        if (event.peerId) {
+          const peer = element4("p", "rm-journey-event-peer");
+          peer.textContent = `对象 ${peerLabel(event.peerId)}`;
+          peer.title = event.peerId;
+          item.append(peer);
+        }
+        const raw = element4("details", "rm-journey-event-raw");
+        const rawSummary = element4("summary");
+        rawSummary.textContent = "事件原文";
+        raw.append(rawSummary);
+        raw.append(factRows(doc, [
+          ["序号", event.sequence > 0 ? `#${event.sequence}` : ""],
+          ["类型原文", event.type],
+          ["时间", event.timestamp ? formatDateTime(event.timestamp) : ""],
+          ["Peer 完整 ID", event.peerId || ""],
+          ["消息 ID", (event.messageIds || []).join("、")],
+          ["内容引用", (event.contentPaths || []).join("、")],
+          ["当时方向", event.messageEvidence?.direction || ""],
+          ["当时确认", typeof event.messageEvidence?.acked === "boolean" ? event.messageEvidence.acked ? "已确认（仅当时）" : "尚未确认（仅当时）" : ""]
+        ]));
+        item.append(raw);
+        list.append(item);
+      }
+      eventSection.append(list);
+      if (session.eventsTruncated) {
+        const note = element4("p", "rm-list-note");
+        note.textContent = `只展示前 ${events.length} 条事件；events.jsonl 还有更多内容。`;
+        eventSection.append(note);
+      }
+      if (session.badEventLines > 0) {
+        const note = element4("p", "rm-list-note");
+        note.textContent = `events.jsonl 有 ${session.badEventLines} 行无法解析，已跳过；其他事件仍按原文展示。`;
+        eventSection.append(note);
+      }
+      node.append(eventSection);
+      node.__journeyHighlight = firstHighlight;
+    }
+    if (events.length === 0) node.append(eventSection);
+    const evidence = journeyEvidenceRefs(session);
+    const messageSection = element4("section", "rm-journey-evidence-section");
+    messageSection.append(sectionHeading(doc, "消息证据", `${evidence.length} 条`));
+    const messageNote = element4("p", "rm-list-note");
+    messageNote.textContent = evidence.length > 0 ? "消息 ID 来自 Journey 事件引用；核对按钮只查当前保留的消息，不证明对方已读或已回复。" : "这次 Journey 的事件里没有消息 ID 证据；不能据此声称发生过对话。";
+    messageSection.append(messageNote);
+    if (evidence.length > 0) {
+      const list = element4("div", "rm-journey-evidence-list");
+      for (const ref of evidence) {
+        const row = element4("article", "rm-journey-evidence-row");
+        row.dataset.journeyEvidence = ref.messageId;
+        const copy = element4("div", "rm-journey-evidence-copy");
+        const headLine = element4("div", "rm-journey-evidence-head");
+        const who = element4("b");
+        who.textContent = peerLabel(ref.peerId);
+        const when = element4("span", "rm-journey-meta");
+        when.textContent = ref.observedAt ? formatDateTime(ref.observedAt) : "";
+        headLine.append(who, when);
+        const id = element4("code", "rm-journey-message-id");
+        id.textContent = ref.messageId;
+        const text4 = element4("p");
+        const bits = [];
+        if (ref.summary) bits.push(ref.summary);
+        if (ref.direction) bits.push(journeyDirectionText(ref.direction));
+        text4.textContent = bits.join(" · ") || "事件没有保存消息摘要。";
+        copy.append(headLine, id, text4);
+        const action2 = element4("button", "rm-journey-action");
+        action2.type = "button";
+        action2.dataset.journeyLocatePeer = ref.peerId;
+        action2.dataset.journeyLocateMessage = ref.messageId;
+        action2.dataset.journeyLocateEvent = String(ref.sequence);
+        action2.dataset.focusKey = `journey-evidence:${session.id}:${ref.sequence}:${ref.messageId}`;
+        action2.textContent = "核对当前保留消息";
+        const check = checkFor(ref.peerId, ref.messageId);
+        const result = element4("p", "rm-journey-check");
+        if (check) {
+          result.dataset.tone = check.tone || "";
+          result.textContent = check.text;
+        } else {
+          result.textContent = "尚未核对；只会在当前保留消息中找到同一条 ID 时打开会话。";
+        }
+        const rowActions = element4("div", "rm-journey-evidence-actions");
+        rowActions.append(action2);
+        row.append(copy, rowActions, result);
+        list.append(row);
+      }
+      messageSection.append(list);
+    }
+    node.append(messageSection);
+    const sourceDetails2 = element4("details", "rm-journey-source");
+    const sourceSummary = element4("summary");
+    sourceSummary.textContent = "来源与读取范围";
+    sourceDetails2.append(sourceSummary);
+    const eventVisited = visited.filter((item) => item.source === "event").map((item) => item.peerId);
+    const sourceRows = [
+      ["记录标识", session.id],
+      ["记录状态", `${status.recordLabel || status.label}${session.state?.status ? `（${session.state.status}）` : ""}`],
+      ["模式原文", session.state?.mode || ""],
+      ["开始", formatDateTime(session.state?.startedAt)],
+      ["最后保存", formatDateTime(session.state?.updatedAt)],
+      ["完成时间", formatDateTime(session.state?.completedAt)],
+      ["结束原因", session.state?.completionReason || ""],
+      ["当前对象完整 ID", session.state?.currentPeerId || ""],
+      ["访问对象完整 ID", (session.state?.visitedPeerIds || []).join("\n")],
+      ["完成访问事件补充", eventVisited.join("\n")],
+      ["发现来源", (session.state?.discoverySources || []).join("、")],
+      ["任务说明原文", session.state?.intent || ""],
+      ["state.json", session.stateRead === "available" ? "已读取" : session.stateRead === "missing" ? "不存在" : "读取失败"],
+      ["events.jsonl", session.eventsRead === "available" ? `已读取 ${events.length} 条${session.eventsTruncated ? "（达到展示上限，仍有更多）" : ""}` : session.eventsRead === "missing" ? "不存在" : `读取失败：${session.eventsError}`],
+      ["report.md", session.reportRead === "available" ? "已读取（Agent 生成摘要）" : session.reportRead === "missing" ? "不存在" : `读取失败：${session.reportError}`]
+    ];
+    if (scope) {
+      sourceRows.push(["本次读取范围", scope.text]);
+      if (scope.truncated) sourceRows.push(["保留范围提示", "本机还有更早的 Journey 目录未在本次读取中列出。"]);
+    }
+    sourceDetails2.append(factRows(doc, sourceRows));
+    if (status.note.length > 0) {
+      const note = element4("p", "rm-list-note");
+      note.textContent = `状态说明：${status.note}`;
+      sourceDetails2.append(note);
+    }
+    if (session.stateError) {
+      const failed = element4("p", "rm-journey-check");
+      failed.dataset.tone = "error";
+      failed.textContent = `state.json 无法解析：${session.stateError}。下面只展示仍可读取的事件与报告。`;
+      sourceDetails2.append(failed);
+    }
+    const sourceCaveat = element4("p", "rm-list-note");
+    sourceCaveat.textContent = "路线只来自本机 state.json 的访问字段与已完成访问事件；不是对端在线、成功访问或阅读回执的证明。";
+    sourceDetails2.append(sourceCaveat);
+    const sourceNote = element4("p", "rm-list-note");
+    sourceNote.textContent = "来源是本机 agent/sessions 下的私有记录；不会从远端补造事件，也不会把报告当成传输证据。";
+    sourceDetails2.append(sourceNote);
+    node.append(sourceDetails2);
+    if (session.reportRead === "available" && session.reportMarkdown.trim().length > 0) {
+      const report = element4("details", "rm-journey-report");
+      const reportSummary = element4("summary");
+      reportSummary.textContent = "完整 Agent 报告（摘要，不是传输证据）";
+      const body = element4("div", "rm-rich-text");
+      renderMarkdown(body, session.reportMarkdown);
+      report.append(reportSummary, body);
+      node.append(report);
+    } else if (session.reportRead === "error") {
+      const failed = element4("p", "rm-list-note");
+      failed.textContent = `report.md 读取失败：${session.reportError}`;
+      node.append(failed);
+    }
+    node.hidden = false;
+    if (firstHighlightElement(node) && highlightFocus) {
+      const target = firstHighlightElement(node);
+      target.scrollIntoView?.({ block: "center" });
+      target.focus?.({ preventScroll: true });
+    }
+    void source;
+  }
+  function firstHighlightElement(node) {
+    return node.__journeyHighlight ?? null;
+  }
+
+  // src/memory.js
+  var MEMORY_PREVIEW_CHARS = 140;
+  var MEMORY_GROUP_PAGE = 12;
+  var MEMORY_EVIDENCE_PREFIX = "profile-evidence:";
+  function memoryBody(item) {
+    const body = typeof item?.body === "string" ? item.body : "";
+    if (body.length > 0) return body;
+    return typeof item?.summary === "string" ? item.summary : "";
+  }
+  function memoryPreview(value, limit = MEMORY_PREVIEW_CHARS) {
+    const text4 = String(value ?? "").replace(/\s+/g, " ").trim();
+    const chars = [...text4];
+    if (chars.length <= limit) return text4;
+    return `${chars.slice(0, limit).join("")}…`;
+  }
+  function memoryDateValue(at) {
+    const ms = Number(at);
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  function memoryDayKey(at) {
+    const date = memoryDateValue(at);
+    if (!date) return "unknown";
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+  function memoryEvidenceFocusKey(peerId2, itemId, messageId2) {
+    const peer = typeof peerId2 === "string" ? peerId2 : "";
+    const message = typeof messageId2 === "string" ? messageId2 : "";
+    if (!peer || !message) return "";
+    const item = typeof itemId === "string" ? itemId : "";
+    if (!item) return `${MEMORY_EVIDENCE_PREFIX}${peer}:${message}`;
+    return `${MEMORY_EVIDENCE_PREFIX}${peer}:${encodeURIComponent(item)}:${encodeURIComponent(message)}`;
+  }
+  function startOfLocalDay(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  }
+  function previousLocalDayStart(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1).getTime();
+  }
+  function localDateText(date) {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+  function shortDate(date) {
+    try {
+      return new Intl.DateTimeFormat("zh-CN", {
+        month: "long",
+        day: "numeric",
+        weekday: "short"
+      }).format(date);
+    } catch {
+      return localDateText(date);
+    }
+  }
+  function longDate(target, current) {
+    const includeYear = target.getFullYear() !== current.getFullYear();
+    try {
+      return new Intl.DateTimeFormat("zh-CN", {
+        ...includeYear ? { year: "numeric" } : {},
+        month: "long",
+        day: "numeric",
+        weekday: "short"
+      }).format(target);
+    } catch {
+      return localDateText(target);
+    }
+  }
+  function memoryDayLabel(at, now = Date.now()) {
+    const target = memoryDateValue(at);
+    if (!target) return "日期未知";
+    const current = memoryDateValue(now) ?? /* @__PURE__ */ new Date();
+    const targetDay = startOfLocalDay(target);
+    const today = startOfLocalDay(current);
+    if (targetDay === today) return `今天 · ${shortDate(target)}`;
+    if (targetDay === previousLocalDayStart(current)) return `昨天 · ${shortDate(target)}`;
+    return longDate(target, current);
+  }
+  function memorySourceKind(item) {
+    const explicit = typeof item?.sourceKind === "string" ? item.sourceKind : "";
+    if (explicit === "message" || explicit === "visit" || explicit === "journeyEvent" || explicit === "journeyReport" || explicit === "publicClue") {
+      return explicit;
+    }
+    switch (String(item?.kind ?? "")) {
+      case "message":
+        return "message";
+      case "journey":
+        return "journeyEvent";
+      case "observation":
+        return "observation";
+      case "impression":
+        return "impression";
+      case "curiosity":
+        return "curiosity";
+      default:
+        return "journeyEvent";
+    }
+  }
+  function memoryKindLabel(item) {
+    const source = memorySourceKind(item);
+    if (source === "message") return "消息";
+    if (source === "visit") {
+      const type = String(item?.eventType ?? "").toLowerCase();
+      if (type === "visit_started") return "访问开始";
+      if (type === "content_read") return "读取公开内容";
+      return "实际访问";
+    }
+    if (source === "journeyReport") return "漫游报告";
+    if (source === "publicClue") return "公开线索";
+    if (source === "journeyEvent") return "漫游事件";
+    if (source === "observation") return "私有观察";
+    if (source === "impression") return "私有印象";
+    if (source === "curiosity") return "私有好奇";
+    return "记录";
+  }
+  function groupKeyFor(item) {
+    const source = memorySourceKind(item);
+    const day = memoryDayKey(item?.at);
+    if (source === "message") return `messages:${day}`;
+    if (source === "publicClue") return `clues:${day}`;
+    if (source === "observation" || source === "impression" || source === "curiosity") {
+      return `private:${day}`;
+    }
+    const sessionId = Array.isArray(item?.evidence?.sessionIds) ? String(item.evidence.sessionIds[0] ?? "") : "";
+    return `journey:${sessionId || "unknown"}:${day}`;
+  }
+  function groupTitle(items) {
+    const kinds = new Set(items.map((item) => memorySourceKind(item)));
+    if (kinds.size === 1) {
+      const only = [...kinds][0];
+      if (only === "message") return "对话片段";
+      if (only === "publicClue") return "公开线索";
+      if (only === "observation" || only === "impression" || only === "curiosity") return "私有记忆";
+    }
+    if ([...kinds].every((kind) => kind === "journeyEvent" || kind === "journeyReport" || kind === "visit")) {
+      return "漫游记录";
+    }
+    return "交互记录";
+  }
+  function groupNote(items) {
+    const kinds = new Set(items.map((item) => memorySourceKind(item)));
+    if (kinds.has("publicClue")) return "线索只是来源声明，不等于已访问或已联系";
+    if ([...kinds].every((kind) => kind === "observation" || kind === "impression" || kind === "curiosity")) {
+      return "仅本机可见，不是聊天证据";
+    }
+    if (kinds.has("journeyReport")) return "报告是摘要，原文在漫游详情";
+    if ([...kinds].every((kind) => kind === "journeyEvent" || kind === "journeyReport" || kind === "visit")) {
+      return "来自本机 Journey 记录";
+    }
+    return "";
+  }
+  function groupContactMemory(items, { now = Date.now() } = {}) {
+    const list = Array.isArray(items) ? [...items] : [];
+    list.sort((left, right) => {
+      const at = Number(left?.at) > 0 ? Number(left.at) : 0;
+      const bt = Number(right?.at) > 0 ? Number(right.at) : 0;
+      if (at !== bt) return bt - at;
+      return String(left?.id ?? "").localeCompare(String(right?.id ?? ""));
+    });
+    const dayMap = /* @__PURE__ */ new Map();
+    for (const item of list) {
+      const key2 = memoryDayKey(item?.at);
+      if (!dayMap.has(key2)) {
+        dayMap.set(key2, {
+          key: key2,
+          at: key2 === "unknown" ? 0 : Math.max(0, Number(item?.at) || 0),
+          label: memoryDayLabel(item?.at, now),
+          items: [],
+          groups: []
+        });
+      }
+      const day = dayMap.get(key2);
+      day.items.push(item);
+      if (key2 !== "unknown") day.at = Math.max(day.at, Number(item?.at) || 0);
+    }
+    const days = [...dayMap.values()].sort((left, right) => {
+      if (left.key === "unknown") return 1;
+      if (right.key === "unknown") return -1;
+      return right.at - left.at;
+    });
+    for (const day of days) {
+      const map = /* @__PURE__ */ new Map();
+      for (const item of day.items) {
+        const key2 = groupKeyFor(item);
+        if (!map.has(key2)) {
+          map.set(key2, {
+            key: key2,
+            day: day.key,
+            at: Number(item?.at) > 0 ? Number(item.at) : 0,
+            items: [],
+            title: "",
+            note: ""
+          });
+        }
+        const group = map.get(key2);
+        group.items.push(item);
+        group.at = Math.max(group.at, Number(item?.at) || 0);
+      }
+      day.groups = [...map.values()].sort((left, right) => {
+        if (right.at !== left.at) return right.at - left.at;
+        return left.key.localeCompare(right.key);
+      });
+      for (const group of day.groups) {
+        group.items.sort((left, right) => {
+          const at = Number(left?.at) > 0 ? Number(left.at) : 0;
+          const bt = Number(right?.at) > 0 ? Number(right.at) : 0;
+          if (at !== bt) return bt - at;
+          return String(left?.id ?? "").localeCompare(String(right?.id ?? ""));
+        });
+        group.title = groupTitle(group.items);
+        group.note = groupNote(group.items);
+      }
+    }
+    return { days, total: list.length };
+  }
+  function summarizeContactMemory(grouped, { now = Date.now() } = {}) {
+    const counts = {
+      message: 0,
+      visit: 0,
+      visitStarted: 0,
+      contentRead: 0,
+      journeyEvent: 0,
+      journeyReport: 0,
+      publicClue: 0,
+      observation: 0,
+      impression: 0,
+      curiosity: 0,
+      privateMemory: 0
+    };
+    let earliest = 0;
+    let latest = 0;
+    let unknown = 0;
+    const days = Array.isArray(grouped?.days) ? grouped.days : [];
+    for (const day of days) {
+      for (const item of day.items) {
+        const date = memoryDateValue(item?.at);
+        if (date) {
+          const at = date.getTime();
+          if (earliest === 0 || at < earliest) earliest = at;
+          if (at > latest) latest = at;
+        } else {
+          unknown += 1;
+        }
+        const source = memorySourceKind(item);
+        if (source === "message") counts.message += 1;
+        else if (source === "publicClue") counts.publicClue += 1;
+        else if (source === "journeyReport") counts.journeyReport += 1;
+        else if (source === "visit") {
+          const type = String(item?.eventType ?? "").toLowerCase();
+          if (type === "content_read") counts.contentRead += 1;
+          else if (type === "visit_started") counts.visitStarted += 1;
+          else counts.visit += 1;
+        } else if (source === "journeyEvent") counts.journeyEvent += 1;
+        else if (source === "observation") counts.observation += 1;
+        else if (source === "impression") counts.impression += 1;
+        else if (source === "curiosity") counts.curiosity += 1;
+      }
+    }
+    counts.privateMemory = counts.observation + counts.impression + counts.curiosity;
+    const order = [
+      ["message", "消息"],
+      ["visit", "实际访问"],
+      ["contentRead", "读取内容"],
+      ["journeyEvent", "漫游事件"],
+      ["journeyReport", "报告"],
+      ["publicClue", "公开线索"],
+      ["privateMemory", "私有记忆"]
+    ];
+    const chips = order.filter(([key2]) => counts[key2] > 0).map(([key2, label]) => ({ key: key2, label, count: counts[key2] }));
+    const dated = days.filter((day) => day.key !== "unknown");
+    return {
+      total: days.reduce((sum, day) => sum + day.items.length, 0),
+      counts,
+      chips,
+      earliest,
+      latest,
+      unknown,
+      firstLabel: dated.length > 0 ? memoryDayLabel(earliest, now) : "",
+      lastLabel: dated.length > 0 ? memoryDayLabel(latest, now) : ""
+    };
   }
 
   // src/messages.js
@@ -2546,6 +7147,13 @@ var RamingaUI = (() => {
   function deliveryStatusShort(status) {
     return DELIVERY_SHORT[String(status ?? "unknown")] ?? DELIVERY_SHORT.unknown;
   }
+  function messageSourceLabel(message) {
+    if (message?.direction === "in") return "对方";
+    const origin = String(message?.origin ?? "").trim();
+    if (origin === "human") return "本人";
+    if (origin === "agent") return "Agent";
+    return "来源未知";
+  }
   function deliveryStatusTone(status) {
     switch (String(status ?? "unknown")) {
       case "acked":
@@ -2564,12 +7172,12 @@ var RamingaUI = (() => {
   function isCancelable(message) {
     return message?.direction === "out" && String(message?.deliveryStatus ?? "") === "pending";
   }
-  function countTextBytes(text2) {
-    const value = typeof text2 === "string" ? text2 : "";
+  function countTextBytes(text4) {
+    const value = typeof text4 === "string" ? text4 : "";
     return new TextEncoder().encode(value).length;
   }
-  function previewText(text2, limit = 100) {
-    const value = typeof text2 === "string" ? text2.replace(/\s+/g, " ").trim() : "";
+  function previewText(text4, limit = 100) {
+    const value = typeof text4 === "string" ? text4.replace(/\s+/g, " ").trim() : "";
     const chars = [...value];
     if (chars.length <= limit) return value;
     return `${chars.slice(0, limit).join("")}…`;
@@ -2858,27 +7466,53 @@ ${resultDetail}`;
     if (snapshot.status) return "ready";
     return "loading";
   }
-  function element(tag, className) {
+  function element5(tag, className) {
     const node = document.createElement(tag);
     if (className) node.className = className;
     return node;
   }
-  function detailRow(label, value, useCode = false) {
-    const row = element("div");
-    const key2 = element("span");
-    key2.textContent = label;
-    const valueNode = element(useCode ? "code" : "span");
-    valueNode.textContent = value || "—";
-    row.append(key2, valueNode);
-    return row;
+  function plainSummary(markdown, limit = 120) {
+    return String(markdown ?? "").replace(/^#+\s.*$/gm, "").replace(/[*_`>#-]/g, " ").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim().slice(0, limit);
   }
   function errorText(error) {
     return error instanceof Error ? error.message : String(error ?? "");
   }
+  function uncertaintyText(value) {
+    return value === "low" ? "低" : value === "medium" ? "中" : value === "high" ? "高" : "";
+  }
+  function memorySourceText(value) {
+    return String(value ?? "").replace(/确定性\s+(low|medium|high)\b/gi, (_, code) => `确定性 ${uncertaintyText(String(code).toLowerCase())}`).replace(/contact-notes/gi, "私有记忆记录");
+  }
+  function readFailureSummary(raw, fallback = "这次读取没有完成，请稍后重试。") {
+    const text4 = String(raw ?? "").trim();
+    if (text4.length === 0) return fallback;
+    if (/dial|all dials failed|connection refused|peer may be offline|no route to host|network is unreachable|connection reset/i.test(text4)) {
+      return "对方当前不可达，可能已离线或地址已过期。请稍后重试。";
+    }
+    if (/timeout|deadline exceeded|timed out/i.test(text4)) {
+      return "读取超时，请稍后重试。";
+    }
+    if (/no addresses|no candidate|缺少可用地址|没有可用地址/i.test(text4)) {
+      return "本机还没有对方的可用地址，暂时无法读取。";
+    }
+    if (/permission denied|access denied|not permitted|operation not permitted/i.test(text4)) {
+      return "本机没有读取这项内容的权限。";
+    }
+    if (/manifest|公开清单/i.test(text4)) {
+      return "没有读取到对方当前的公开资料，可以稍后重试。";
+    }
+    if (/not found|不存在|no such file/i.test(text4)) {
+      return "这项内容已不在本机保留范围。";
+    }
+    if (text4.length > 80 || /\/(?:Users|home|ip4|ip6|tcp|udp|p2p)\/|[A-Za-z]:\\|\.(?:db|sqlite|json|jsonl)\b|sqlite|goroutine|stack/i.test(text4)) {
+      return fallback;
+    }
+    return text4.slice(0, 80);
+  }
   function selectorValue(value) {
-    const text2 = String(value ?? "");
-    if (globalThis.CSS && typeof globalThis.CSS.escape === "function") return globalThis.CSS.escape(text2);
-    return text2.replace(/["\\]/g, "\\$&");
+    const text4 = String(value ?? "");
+    if (globalThis.CSS && typeof globalThis.CSS.escape === "function") return globalThis.CSS.escape(text4);
+    return text4.replace(/["\\]/g, "\\$&");
   }
   function createRamingaApp(root, options = {}) {
     const doc = root.ownerDocument ?? document;
@@ -2889,7 +7523,6 @@ ${resultDetail}`;
     const view = normalizeViewState(options.viewState);
     const hostView = options.viewState && typeof options.viewState === "object" && !Array.isArray(options.viewState) ? options.viewState : null;
     let destroyed = false;
-    let currentPage = isMainPage(view.page) ? view.page : "explore";
     let saveFrame = null;
     let pendingRefresh = false;
     let lastNodeAnnouncement = "";
@@ -2898,11 +7531,16 @@ ${resultDetail}`;
     let hostReady = false;
     const pageEls = {
       explore: $("#page-explore"),
+      home: $("#page-home"),
       contacts: $("#page-contacts"),
-      raminga: $("#page-raminga"),
       messages: $("#page-messages"),
-      mine: $("#page-mine")
+      settings: $("#page-settings"),
+      post: $("#page-post"),
+      journeys: $("#page-journeys"),
+      journey: $("#page-journey")
     };
+    const pageElsHas = (name) => Object.prototype.hasOwnProperty.call(pageEls, name) && Boolean(pageEls[name]);
+    let currentPage = pageElsHas(view.page) ? view.page : "home";
     const nodeState = {
       phase: "loading",
       status: null,
@@ -2932,10 +7570,35 @@ ${resultDetail}`;
     let conversationsRetrying = false;
     const discoveriesCapable = typeof options.onLoadDiscoveries === "function";
     const discoveryContentCapable = typeof options.onLoadDiscoveryContent === "function";
+    const revealCapable = typeof options.onRevealDiscovery === "function";
+    const fileRevealCapable = typeof options.onRevealFile === "function";
     const mineCapable = typeof options.onLoadMine === "function";
+    const mineFileContentCapable = typeof options.onLoadMineFileContent === "function";
     const journeyCapable = typeof options.onLoadJourney === "function";
+    const activityCapable = typeof options.onLoadActivity === "function";
+    const activityDetailCapable = typeof options.onLoadActivityDetail === "function";
+    const privateAgentSaveCapable = typeof options.onSavePrivateAgent === "function";
+    const publicDraftLoadCapable = typeof options.onLoadPublicDraft === "function";
+    const publicDraftSaveCapable = publicDraftLoadCapable && typeof options.onSavePublicDraft === "function";
+    const publicDraftImageCapable = publicDraftSaveCapable && typeof options.onPutPublicDraftImage === "function";
+    const publicDraftAssetCapable = publicDraftLoadCapable && typeof options.onLoadPublicDraftAsset === "function";
+    const publicDraftImportCapable = publicDraftSaveCapable && typeof options.onImportPublicPost === "function";
+    const publicDraftListCapable = publicDraftLoadCapable && typeof options.onLoadPublicDrafts === "function";
+    const publishDraftCapable = publicDraftSaveCapable && typeof options.onPublishPublicDraft === "function";
     const peerProfileCapable = typeof options.onLoadPeerProfile === "function";
+    const peerFriendsCapable = typeof options.onLoadPeerFriends === "function";
+    const contactProjectionCapable = typeof options.onLoadContactProjection === "function";
+    const peerManifestCapable = typeof options.onLoadPeerManifest === "function";
+    const peerFileContentCapable = typeof options.onLoadPeerFileContent === "function";
+    const peerNodeInfoCapable = typeof options.onLoadPeerNodeInfo === "function";
+    const bootstrapCapable = typeof options.onLoadBootstrap === "function";
     const locateMessageCapable = typeof options.onLocateMessage === "function";
+    const markReadCapable = typeof options.onMarkRead === "function";
+    const favoritesCapable = typeof options.onLoadFavorites === "function";
+    const setFavoriteCapable = favoritesCapable && typeof options.onSetFavorite === "function";
+    const peerDiscoveriesCapable = typeof options.onLoadPeerDiscoveries === "function";
+    const contactMemoryCapable = typeof options.onLoadContactMemory === "function";
+    const saveContactImpressionCapable = contactMemoryCapable && typeof options.onSaveContactImpression === "function";
     const friendNameEditCapable = typeof options.onSetFriendName === "function";
     const friendDescriptionEditCapable = typeof options.onSetFriendDescription === "function";
     const friendEditCapable = friendNameEditCapable || friendDescriptionEditCapable;
@@ -2955,7 +7618,72 @@ ${resultDetail}`;
     const discoveryRequests = /* @__PURE__ */ new Map();
     const discoveryStale = /* @__PURE__ */ new Set();
     const DISCOVERY_REVALIDATE_MS = 15e3;
+    const DISCOVERY_SCAN_LIMIT = 500;
     const mineState = { data: null, error: "", requestSeq: 0, retrying: false };
+    const profileDraftState = {
+      loaded: false,
+      loading: null,
+      loadingSeq: 0,
+      saving: false,
+      savingPromise: null,
+      queuedSave: false,
+      publishSeq: 0,
+      publishing: false,
+      draft: null,
+      dirty: false,
+      fromFallback: false,
+      error: "",
+      conflict: false,
+      reloadArmed: false,
+      avatarFile: null,
+      avatarAssetId: "",
+      avatarClear: false,
+      avatarPreviewUrl: "",
+      avatarPreviewObject: false,
+      avatarPreviewAssetId: "",
+      avatarLoadingAssetId: "",
+      avatarError: "",
+      receipt: null,
+      confirm: false,
+      confirmSnapshot: "",
+      confirmNotice: "",
+      formVersion: 0
+    };
+    let profileSaveTimer = null;
+    const postEditorState = {
+      open: false,
+      loading: false,
+      loaded: false,
+      listLoaded: false,
+      list: [],
+      draft: null,
+      pending: [],
+      dirty: false,
+      saving: false,
+      uploading: false,
+      publishing: false,
+      validatingImages: 0,
+      error: "",
+      receipt: null,
+      confirm: false,
+      confirmSnapshot: null,
+      confirmNotice: "",
+      imported: false,
+      requestSeq: 0,
+      formVersion: 0,
+      draftEpoch: 0,
+      draftLoadSeq: 0,
+      listSeq: 0,
+      // A destructive editor action (opening another post, switching drafts)
+      // cannot save an incomplete new post. Keep that private input here until
+      // the reader can explicitly recover it; never let the newer draft wipe it.
+      stash: null
+    };
+    let postEditorReturn = null;
+    let postEditorReturnFocus = null;
+    let postEditorReturnFocusToken = 0;
+    let postSaveTimer = null;
+    const homeAvatarState = { key: "", url: "", loading: false };
     const JOURNEY_REVALIDATE_MS = 15e3;
     const journeyState = {
       data: null,
@@ -2963,13 +7691,74 @@ ${resultDetail}`;
       retrying: false,
       request: null
     };
+    const activityState = {
+      data: null,
+      error: "",
+      instanceId: "",
+      previousInstanceId: "",
+      detail: { id: "", data: null, loading: false, error: "", request: 0, pending: null }
+    };
     const profileState = {
       peerId: "",
       data: null,
       error: "",
       requestSeq: 0,
-      retrying: false
+      retrying: false,
+      filesOpen: false,
+      filesReturnTab: "interactions",
+      filesReturnScroll: 0,
+      friends: { data: null, error: "", requestSeq: 0, retrying: false },
+      posts: { data: null, error: "", requestSeq: 0, retrying: false },
+      memory: { data: null, error: "", requestSeq: 0, retrying: false }
     };
+    const favoriteReader = {
+      item: null,
+      preview: null,
+      loading: false,
+      error: "",
+      requestSeq: 0
+    };
+    const favoritesState = {
+      items: [],
+      byKey: /* @__PURE__ */ new Map(),
+      loaded: false,
+      loading: false,
+      error: "",
+      nextBefore: "",
+      hasMore: false,
+      pending: /* @__PURE__ */ new Set(),
+      actionError: "",
+      requestSeq: 0
+    };
+    let markReadTimer = null;
+    let markReadKey = "";
+    let markReadSeq = 0;
+    let markReadInFlight = false;
+    const impressionEditState = { open: false, saving: false, peerId: "", impressionId: "", expectedSha: "" };
+    const profileMemoryUi = {
+      peerId: "",
+      daysShown: 2,
+      openGroups: /* @__PURE__ */ new Set(),
+      closedGroups: /* @__PURE__ */ new Set(),
+      groupLimits: /* @__PURE__ */ new Map(),
+      openItems: /* @__PURE__ */ new Set(),
+      impressionExpanded: false
+    };
+    function resetProfileMemoryUi(peerId2 = "") {
+      if (profileMemoryUi.peerId === peerId2 && peerId2 !== "") return;
+      profileMemoryUi.peerId = peerId2;
+      profileMemoryUi.daysShown = 2;
+      profileMemoryUi.openGroups.clear();
+      profileMemoryUi.closedGroups.clear();
+      profileMemoryUi.groupLimits.clear();
+      profileMemoryUi.openItems.clear();
+      profileMemoryUi.impressionExpanded = false;
+      if (profileImpressionStatus) {
+        profileImpressionStatus.hidden = true;
+        profileImpressionStatus.textContent = "";
+        delete profileImpressionStatus.dataset.tone;
+      }
+    }
     const profileReturn = {
       page: "explore",
       peerId: "",
@@ -2978,11 +7767,44 @@ ${resultDetail}`;
       // collapses its scrollTop to 0, so this is the only trustworthy reading
       // position until the profile closes.
       scroll: null,
-      open: false
+      open: false,
+      // A return from chat may ask for an evidence row that is rendered by a
+      // later async memory read. Keep the key until that row exists once.
+      focusKey: ""
     };
     let profileTriggerRef = "";
+    let postDetailRendering = false;
     let profilePressScroll = null;
+    let profileChatPress = null;
+    let profileScrollMemory = { tab: "", scroll: 0, at: 0 };
     const postContent = /* @__PURE__ */ new Map();
+    const peerPostMetaCapable = typeof options.onLoadPeerPostMeta === "function";
+    const postMetaCache = /* @__PURE__ */ new Map();
+    const postMetaInflight = /* @__PURE__ */ new Map();
+    const postMetaQueue = [];
+    let postMetaActive = 0;
+    const postImageCache = /* @__PURE__ */ new Map();
+    const postImageQueues = [];
+    let postImageActive = 0;
+    const postImageTimers = /* @__PURE__ */ new Map();
+    const postImageObservers = /* @__PURE__ */ new WeakMap();
+    const postImageContainerObservers = /* @__PURE__ */ new WeakMap();
+    const peerAvatarState = /* @__PURE__ */ new Map();
+    const verifiedContactProfiles = /* @__PURE__ */ new Map();
+    const directoryClues = /* @__PURE__ */ new Map();
+    const directorySourceReads = /* @__PURE__ */ new Set();
+    let contactProjectionLoading = false;
+    let contactProjectionLoaded = false;
+    const expandedContactIds = /* @__PURE__ */ new Set();
+    let imagePreviewKey = "";
+    let imagePreviewTrigger = null;
+    let imagePreviewScroll = null;
+    const revealResults = /* @__PURE__ */ new Map();
+    const profilePreviews = /* @__PURE__ */ new Map();
+    const profileExpanded = /* @__PURE__ */ new Set();
+    const minePreviews = /* @__PURE__ */ new Map();
+    const mineExpanded = /* @__PURE__ */ new Set();
+    const bootstrapState = { data: null, error: "", request: null };
     let locateSeq = 0;
     const locateRequests = /* @__PURE__ */ new Map();
     function createChatState(peerId2 = "") {
@@ -3026,7 +7848,13 @@ ${resultDetail}`;
         // remount through view state; an absent/!= selected Peer source means the
         // back action falls back to the conversation index.
         returnPage: "",
-        returnPeer: ""
+        returnPeer: "",
+        returnJourneyId: "",
+        returnJourneyEvent: 0,
+        returnJourneyMessage: "",
+        returnProfileTab: "interactions",
+        returnProfileScroll: 0,
+        returnFocus: ""
       };
     }
     const chatStates = /* @__PURE__ */ new Map();
@@ -3051,6 +7879,17 @@ ${resultDetail}`;
     let editPending = false;
     let quickMenuPeerId = "";
     let quickMenuTrigger = null;
+    const privateEditors = {
+      persona: { dirty: false, saving: false, expectedSha: "", error: "" },
+      growth: { dirty: false, saving: false, expectedSha: "", error: "" }
+    };
+    let privateSaveSeq = 0;
+    let settingsReturnPage = "home";
+    let settingsReturnFocus = null;
+    let settingsReturnScroll = 0;
+    let settingsFocusSeq = 0;
+    let settingsDirectEntry = false;
+    let settingsFavoriteReturn = null;
     const nodeTrigger = $("#nodeTrigger");
     const nodeDot = $("#nodeDot");
     const nodeLabel = $("#nodeLabel");
@@ -3061,25 +7900,37 @@ ${resultDetail}`;
     const shareDialog = $("#shareDialog");
     const statusRefresh = $("#statusRefresh");
     const exploreRefresh = $("#exploreRefresh");
-    const exploreSearchToggle = $("#exploreSearchToggle");
     const exploreSearch = $("#exploreSearch");
     const exploreQuery = $("#exploreQuery");
+    const exploreClear = $("#exploreClear");
     const contactQuery = $("#contactQuery");
     const contactList = $("#contactList");
+    const contactClues = $("#contactClues");
+    const contactClueList = $("#contactClueList");
+    const contactCluesNote = $("#contactCluesNote");
+    const contactsShare = $("#contactsShare");
+    const contactsMessages = $("#contactsMessages");
     const contactsMeta = $("#contactsMeta");
     const contactsMetaRetry = $("#contactsMetaRetry");
     const contactsStateActions = $("#contactsStateAction");
     const contactsRetryAction = $("#contactsStateRetry");
     const contactsShareAction = $("#contactsShareAction");
+    const contactAllCount = $("#contactAllCount");
+    const contactUnreadCount = $("#contactUnreadCount");
+    const contactFilters = $$("[data-contact-filter]");
     const contactsSection = $("#contactsState");
     const messagesIndex = $("#messagesIndex");
     const conversationView = $("#conversationView");
     const conversationBack = $("#conversationBack");
+    const conversationIndexBack = $("#conversationIndexBack");
     const conversationName = $("#conversationName");
     const conversationPeerId = $("#conversationPeerId");
     const conversationState = $("#conversationState");
     const conversationAvatar = $("#conversationAvatar");
+    const conversationProfile = $("#conversationProfile");
     const conversationMenu = $("#conversationMenu");
+    const conversationOrigin = $("#conversationOrigin");
+    const conversationLocalNote = $("#conversationLocalNote");
     const contactQuickMenu = $("#contactQuickMenu");
     const conversationQuery = $("#conversationQuery");
     const conversationList = $("#conversationList");
@@ -3100,9 +7951,11 @@ ${resultDetail}`;
     const loadOlder = $("#loadOlder");
     const messageRetention = $("#messageRetention");
     const composer = $("#composer");
+    const composerJump = $("#composerJump");
     const composerOverlay = $("#composerOverlay");
     const messageInput = $("#messageInput");
     const messageSend = $("#messageSend");
+    const messageJumpLatest = $("#messageJumpLatest");
     const messageCounter = $("#messageCounter");
     const composerStatus = $("#composerStatus");
     const composerTech = $("#composerTech");
@@ -3144,45 +7997,260 @@ ${resultDetail}`;
     const mineDetails = $("#mineIdentityDetails");
     const mineIdentityAction = $("#mineIdentityAction");
     const mineRefresh = $("#mineRefresh");
-    const mineProfileStatus = $("#mineProfileStatus");
     const mineProfileContent = $("#mineProfileContent");
-    const mineProfileNote = $("#mineProfileNote");
     const mineContentStatus = $("#mineContentStatus");
     const mineContentNote = $("#mineContentNote");
     const minePostList = $("#minePostList");
     const mineRetry = $("#mineRetry");
     const discoveryMeta = $("#discoveryMeta");
     const discoveryMetaRetry = $("#discoveryMetaRetry");
+    const discoveryScope = $("#discoveryScope");
+    const discoveryScopeBody = $("#discoveryScopeBody");
     const discoveryList = $("#discoveryList");
-    const ramingaSelfPanel = $("#ramingaSelfPanel");
-    const ramingaSelf = $("#ramingaSelf");
-    const ramingaSelfNote = $("#ramingaSelfNote");
-    const ramingaGrowthPanel = $("#ramingaGrowthPanel");
-    const ramingaGrowth = $("#ramingaGrowth");
-    const ramingaGrowthNote = $("#ramingaGrowthNote");
-    const ramingaJourneyPanel = $("#ramingaJourneyPanel");
+    const mineFeedList = $("#mineFeedList");
+    const postDetail = $("#postDetail");
+    const postDetailState = $("#postDetailState");
+    const postDetailStateTitle = $("#postDetailStateTitle");
+    const postDetailStateBody = $("#postDetailStateBody");
+    const postDetailStateAction = $("#postDetailStateAction");
+    const postBack = $("#postBack");
+    const mineFeedState = $("#mineFeedState");
+    const mineFeedStateTitle = $("#mineFeedStateTitle");
+    const mineFeedStateBody = $("#mineFeedStateBody");
+    const mineFeedStateAction = $("#mineFeedStateAction");
     const ramingaJourneyMeta = $("#ramingaJourneyMeta");
     const ramingaSessionList = $("#ramingaSessionList");
-    const ramingaRecordsBar = $("#ramingaRecordsBar");
     const ramingaRecordsStatus = $("#ramingaRecordsStatus");
     const ramingaRefresh = $("#ramingaRefresh");
+    const homeAgentAvatar = $("#homeAgentAvatar");
+    const homeAgentInitial = $("#homeAgentInitial");
+    const homeAgentName = $("#homeAgentName");
+    const homeAgentBadge = $("#homeAgentBadge");
+    const homeAgentBio = $("#homeAgentBio");
+    const homeAgentProfileNote = $("#homeAgentProfileNote");
+    const homeAgentProfileNoteText = $("#homeAgentProfileNoteText");
+    const homeAgentInterests = $("#homeAgentInterests");
+    const homeAgentStyle = $("#homeAgentStyle");
+    const homeAgentStatusText = $("#homeAgentStatusText");
+    const homeAgentStatusDot = $("#homeAgentStatus .rm-home-status-dot");
+    const homeActivityLive = $("#homeActivityLive");
+    const homeActivityRecent = $("#homeActivityRecent");
+    const homeActivityEmpty = $("#homeActivityEmpty");
+    const homeActivityDetail = $("#homeActivityDetail");
+    const homeActivityToggle = $("#homeActivityToggle");
+    const homeActivityDisclosure = $("#homeActivityDisclosure");
+    const homeJourneysAll = $("#homeJourneysAll");
+    const homeJourneysEmpty = $("#homeJourneysEmpty");
+    const homeJourneyDetails = $("#homeJourneyDetails");
+    const journeysBack = $("#journeysBack");
+    const journeysRefresh = $("#journeysRefresh");
+    const journeysCount = $("#journeysCount");
+    const journeysClear = $("#journeysClear");
+    const journeysWarning = $("#journeysWarning");
+    const journeysScope = $("#journeysScope");
+    const journeysScopeBody = $("#journeysScopeBody");
+    const journeyQuery = $("#journeyQuery");
+    const journeyList = $("#journeyList");
+    const journeysState = $("#journeysState");
+    const journeysStateTitle = $("#journeysStateTitle");
+    const journeysStateBody = $("#journeysStateBody");
+    const journeysStateAction = $("#journeysStateAction");
+    const journeyBack = $("#journeyBack");
+    const journeyDetail = $("#journeyDetail");
+    const journeyPageState = $("#journeyState");
+    const journeyPageStateTitle = $("#journeyStateTitle");
+    const journeyPageStateBody = $("#journeyStateBody");
+    const journeyPageStateAction = $("#journeyStateAction");
+    const homeHumanTitle = $("#mineIdentityTitle");
+    const homeHumanSummary = $("#mineIdentitySummary");
+    const settingsTrigger = $("#settingsTrigger");
+    const settingsClose = $("#settingsClose");
+    const settingsHumanStatus = $("#settingsHumanStatus");
+    const publicDraftBanner = $("#publicDraftBanner");
+    const publicDraftStatus = $("#publicDraftStatus");
+    const publicDraftSave = $("#publicDraftSave");
+    const publicDraftReload = $("#publicDraftReload");
+    const publicPublishButton = $("#publicPublishButton");
+    const publicPublishCancel = $("#publicPublishCancel");
+    const publicPublishStatus = $("#publicPublishStatus");
+    const publicPublishReceipt = $("#publicPublishReceipt");
+    const publicPublishReceiptDetails = $("#publicPublishReceiptDetails");
+    const publicAvatarInput = $("#publicAvatarInput");
+    const publicAvatarClear = $("#publicAvatarClear");
+    const publicAvatarPreview = $("#publicAvatarPreview");
+    const publicAvatarNote = $("#publicAvatarNote");
+    const settingsHumanPreview = $("#settingsHumanPreview");
+    const publicVersionPreview = $("#publicVersionPreview");
+    const publicVersionName = $("#publicVersionName");
+    const publicVersionAvatar = $("#publicVersionAvatar");
+    const publicVersionDescription = $("#publicVersionDescription");
+    const publicVersionInterests = $("#publicVersionInterests");
+    const publicVersionStyle = $("#publicVersionStyle");
+    const publicVersionHuman = $("#publicVersionHuman");
+    const publicVersionNote = $("#publicVersionNote");
+    const publicRestorePublished = $("#publicRestorePublished");
+    const publicDraftMeta = $("#publicDraftMeta");
+    const publicAgentName = $("#publicAgentName");
+    const publicAgentDescription = $("#publicAgentDescription");
+    const publicAgentInterests = $("#publicAgentInterests");
+    const publicAgentStyle = $("#publicAgentStyle");
+    const publicHumanName = $("#publicHumanName");
+    const publicHumanBio = $("#publicHumanBio");
+    const composePost = $("#composePost");
+    const postEditorPanel = $("#postEditorPanel");
+    const postEditorHeading = $("#postEditorHeading");
+    const postEditorDismiss = $("#postEditorDismiss");
+    const postEditorStatus = $("#postEditorStatus");
+    const postDraftSelect = $("#postDraftSelect");
+    const postTitleInput = $("#postTitleInput");
+    const postBodyInput = $("#postBodyInput");
+    const postTagsInput = $("#postTagsInput");
+    const postAuthorKind = $("#postAuthorKind");
+    const postAuthorNote = $("#postAuthorNote");
+    const postImageInput = $("#postImageInput");
+    const postImageList = $("#postImageList");
+    const postEditorNote = $("#postEditorNote");
+    const postPublishReceipt = $("#postPublishReceipt");
+    const postEditorClose = $("#postEditorClose");
+    const postRestoreStash = $("#postRestoreStash");
+    const postDiscardStash = $("#postDiscardStash");
+    const postDraftSave = $("#postDraftSave");
+    const postSaveAsNew = $("#postSaveAsNew");
+    const postPublishButton = $("#postPublishButton");
+    const postPublishCancel = $("#postPublishCancel");
+    const postWriteAnother = $("#postWriteAnother");
+    const settingsPrivateNote = $("#settingsPrivateNote");
+    const favoritesEntry = $("#favoritesEntry");
+    const settingsMemoryList = $("#settingsMemoryList");
+    const settingsMemoryNote = $("#settingsMemoryNote");
+    const settingsMemoryEmpty = $("#settingsMemoryEmpty");
+    const settingsFavoritesList = $("#settingsFavoritesList");
+    const settingsFavoritesNote = $("#settingsFavoritesNote");
+    const settingsFavoritesEmpty = $("#settingsFavoritesEmpty");
+    const settingsFavoritesMore = $("#settingsFavoritesMore");
+    const favoriteDialog = $("#favoriteDialog");
+    const favoriteDialogHeading = $("#favoriteDialogHeading");
+    const favoriteDialogMeta = $("#favoriteDialogMeta");
+    const favoriteDialogNote = $("#favoriteDialogNote");
+    const favoriteDialogBody = $("#favoriteDialogBody");
+    const settingsNodeSummary = $("#settingsNodeSummary");
+    const settingsNodeStatusLabel = $("#settingsNodeStatusLabel");
+    const settingsNodeStatus = $("#settingsNodeStatus");
+    const settingsNodeShare = $("#settingsNodeShare");
+    const settingsStableInput = $("#settingsStableInput");
+    const settingsGrowthInput = $("#settingsGrowthInput");
+    const settingsStableSave = $("#settingsStableSave");
+    const settingsGrowthSave = $("#settingsGrowthSave");
+    const settingsStableReload = $("#settingsStableReload");
+    const settingsGrowthReload = $("#settingsGrowthReload");
+    const settingsStableMeta = $("#settingsStableMeta");
+    const settingsGrowthMeta = $("#settingsGrowthMeta");
+    const settingsStableStatus = $("#settingsStableStatus");
+    const settingsGrowthStatus = $("#settingsGrowthStatus");
     const profileView = $("#profileView");
     const profileBack = $("#profileBack");
+    const profileTabs = $$("#profileView [data-profile-tab]");
     const profileAvatar = $("#profileAvatar");
     const profileName = $("#profileName");
+    const profileAgentBadge = $("#profileAgentBadge");
+    const profileAgentDescriptionShort = $("#profileAgentDescriptionShort");
+    const profileMissingNote = $("#profileMissingNote");
+    const profileInterests = $("#profileInterests");
+    const profileConversationStyle = $("#profileConversationStyle");
+    const profileFreshness = $("#profileFreshness");
+    const profileOriginDetails = $("#profileOriginDetails");
     const profilePeerId = $("#profilePeerId");
     const profileSource = $("#profileSource");
+    const profileOriginNote = $("#profileOriginNote");
+    const profileOriginReadAt = $("#profileOriginReadAt");
+    const profileOriginSnapshotAt = $("#profileOriginSnapshotAt");
+    const profileOriginCardPath = $("#profileOriginCardPath");
+    const profileLocalNote = $("#profileLocalNote");
+    const profileCopyPeerInline = $("#profileCopyPeerInline");
     const profileStale = $("#profileStale");
     const profileError = $("#profileError");
+    const profileReadDetails = $("#profileReadDetails");
+    const profileReadRaw = $("#profileReadRaw");
     const profileRetry = $("#profileRetry");
     const profileBody = $("#profileBody");
     const profileBodyNote = $("#profileBodyNote");
-    const profileAgentNote = $("#profileAgentNote");
-    const profileAgentSummary = $("#profileAgentSummary");
-    const profileAgentName = $("#profileAgentName");
-    const profileAgentDescription = $("#profileAgentDescription");
+    const profileHumanStrip = $("#profileHumanStrip");
+    const profileHumanHeadingLabel = $("#profileHumanHeadingLabel");
+    const profileHumanName = $("#profileHumanName");
     const profileAgentOpen = $("#profileAgentOpen");
+    const profileMessage = $("#profileMessage");
+    const profileTabsNav = $("#profileTabsNav");
+    const profileFilesOpen = $("#profileFilesOpen");
+    const profileFilesRefresh = $("#profileFilesRefresh");
+    const profileFilesClose = $("#profileFilesClose");
+    const profileAddressStatus = $("#profileAddressStatus");
+    const profileAddressNote = $("#profileAddressNote");
+    const profileAddressDetails = $("#profileAddressDetails");
+    const profileAddressRaw = $("#profileAddressRaw");
+    const profileFriendList = $("#profileFriendList");
+    const profileAddressEmpty = $("#profileAddressEmpty");
+    const profileAddressEmptyTitle = $("#profileAddressEmptyTitle");
+    const profileAddressEmptyText = $("#profileAddressEmptyText");
+    const profileAddressRetry = $("#profileAddressRetry");
+    const profileHumanSummary = $("#profileHumanSummary");
+    const contactProfileFiles = $("#contactProfileFiles");
+    const profileTimelineStatus = $("#profileTimelineStatus");
+    const profileTimeline = $("#profileTimeline");
+    const profileTimelineEmpty = $("#profileTimelineEmpty");
+    const profileMemoryQuickbar = $("#profileMemoryQuickbar");
+    const profileMemoryQuickSummary = $("#profileMemoryQuickSummary");
+    const profileMemoryQuickSource = $("#profileMemoryQuickSource");
+    const profileImpressionQuickText = $("#profileImpressionQuickText");
+    const profileImpressionQuickEdit = $("#profileImpressionQuickEdit");
+    const profileMemoryOverview = $("#profileMemoryOverview");
+    const profileMemorySummary = $("#profileMemorySummary");
+    const profileMemoryKinds = $("#profileMemoryKinds");
+    const profileMemorySource = $("#profileMemorySource");
+    const profileMemoryTimelineCount = $("#profileMemoryTimelineCount");
+    const profileMemoryTimelineNote = $("#profileMemoryTimelineNote");
+    const profileMemoryMore = $("#profileMemoryMore");
+    const profileInteractionNote = $("#profileInteractionNote");
+    const profileMemoryError = $("#profileMemoryError");
+    const profileMemoryDetails = $("#profileMemoryDetails");
+    const profileMemoryRaw = $("#profileMemoryRaw");
+    const profileMemoryRetry = $("#profileMemoryRetry");
+    const profileImpressionSummary = $("#profileImpressionSummary");
+    const profileImpressionMeta = $("#profileImpressionMeta");
+    const profileImpressionToggle = $("#profileImpressionToggle");
+    const profileImpressionStatus = $("#profileImpressionStatus");
+    const profileImpressionEdit = $("#profileImpressionEdit");
+    const profilePostsStatus = $("#profilePostsStatus");
+    const profilePostsNote = $("#profilePostsNote");
+    const profilePostList = $("#profilePostList");
+    const profileFilesStatus = $("#profileFilesStatus");
+    const profileFilesNote = $("#profileFilesNote");
+    const profileFileList = $("#profileFileList");
+    const profileNodeInfo = $("#profileNodeInfo");
+    const profileNodePeerId = $("#profileNodePeerId");
+    const profileCopyPeer = $("#profileCopyPeer");
+    const profileNodeConnection = $("#profileNodeConnection");
+    const profileNodeRoutes = $("#profileNodeRoutes");
+    const profileNodeStatusAt = $("#profileNodeStatusAt");
+    const profileCopyCurrent = $("#profileCopyCurrent");
+    const profileCurrentNote = $("#profileCurrentNote");
+    const profileCurrentAddrs = $("#profileCurrentAddrs");
+    const profileCopyAnnounced = $("#profileCopyAnnounced");
+    const profileAnnouncedNote = $("#profileAnnouncedNote");
+    const profileAnnouncedAddrs = $("#profileAnnouncedAddrs");
+    const profileNodeRefresh = $("#profileNodeRefresh");
+    const profileNodeNote = $("#profileNodeNote");
     const agentCardDialog = $("#agentCardDialog");
+    const imagePreviewDialog = $("#imagePreviewDialog");
+    const imagePreviewImg = $("#imagePreviewImg");
+    const imagePreviewNote = $("#imagePreviewNote");
+    const imagePreviewMeta = $("#imagePreviewMeta");
+    const imagePreviewCounter = $("#imagePreviewCounter");
+    const impressionDialog = $("#impressionDialog");
+    const impressionForm = $("#impressionForm");
+    const impressionSummaryInput = $("#impressionSummary");
+    const impressionUncertainty = $("#impressionUncertainty");
+    const impressionDialogNote = $("#impressionDialogNote");
+    const impressionSave = $("#impressionSave");
     const editContactDialog = $("#editContactDialog");
     const editContactForm = $("#editContactForm");
     const editContactPeerId = $("#editContactPeerId");
@@ -3195,15 +8263,29 @@ ${resultDetail}`;
     const editContactFeedbackBody = $("#editContactFeedbackBody");
     const editContactSave = $("#editContactSave");
     const profileEditContact = $("#profileEditContact");
+    const profileAddContact = $("#profileAddContact");
     const agentCardSource = $("#agentCardSource");
     const agentCardBody = $("#agentCardBody");
-    const shareNode = $("#shareNode");
+    const statusBootstrap = $("#statusBootstrap");
+    const statusBootstrapNote = $("#statusBootstrapNote");
+    const statusBootstrapList = $("#statusBootstrapList");
+    const statusBootstrapCopy = $("#statusBootstrapCopy");
+    const statusBootstrapRefresh = $("#statusBootstrapRefresh");
+    const statusShareNode = $("#statusShareNode");
     const statusTech = $("#statusTech");
     const noticeNote = $("#noticeNote");
     const dialogTriggers = /* @__PURE__ */ new Map();
     let technicalReturn = null;
+    function pageStateFor(pageName) {
+      if (pageName === "home") return view.home;
+      if (pageName === "settings") return view.settings;
+      if (pageName === "post") return view.post;
+      if (pageName === "journeys") return view.pages.journeys;
+      if (pageName === "journey") return view.journey;
+      return view.pages[pageName] ?? null;
+    }
     function pageTracksScroll(pageName) {
-      return Boolean(view.pages[pageName]) && !(pageName === "messages" && contactsState.selectedPeerId);
+      return Boolean(pageStateFor(pageName)) && !(pageName === "messages" && contactsState.selectedPeerId);
     }
     function visiblePageScroll(pageName) {
       const page = pageEls[pageName];
@@ -3214,10 +8296,10 @@ ${resultDetail}`;
       if (!hostView) return;
       view.page = currentPage;
       if (profileReturn.open && pageTracksScroll(profileReturn.page)) {
-        view.pages[profileReturn.page].scroll = Math.max(0, Number(profileReturn.scroll) || 0);
+        pageStateFor(profileReturn.page).scroll = Math.max(0, Number(profileReturn.scroll) || 0);
       } else if (pageTracksScroll(currentPage)) {
         const live = visiblePageScroll(currentPage);
-        if (live !== null) view.pages[currentPage].scroll = live;
+        if (live !== null) pageStateFor(currentPage).scroll = live;
       }
       copyViewState(hostView, view);
     }
@@ -3257,11 +8339,14 @@ ${resultDetail}`;
     }
     function showPage(pageName, { save = true } = {}) {
       if (destroyed) return;
-      const next = isMainPage(pageName) ? pageName : "explore";
-      if (!profileView.hidden && view.profile.returnPage !== next) closePeerProfile({ restoreFocus: false });
+      if (pageName !== "messages") cancelMarkRead();
+      const next = pageElsHas(pageName) ? pageName : "home";
+      if (next !== "settings") clearSettingsFavoriteReturn();
+      if (next !== currentPage) flushPublicDraftEditors();
+      if (!profileView.hidden && view.contactProfile.returnPage !== next) closePeerProfile({ restoreFocus: false });
       if (save) {
         const live = visiblePageScroll(currentPage);
-        if (live !== null && pageTracksScroll(currentPage)) view.pages[currentPage].scroll = live;
+        if (live !== null && pageTracksScroll(currentPage)) pageStateFor(currentPage).scroll = live;
       }
       currentPage = next;
       view.page = next;
@@ -3270,20 +8355,28 @@ ${resultDetail}`;
       }
       const active = pageEls[next];
       active.hidden = false;
-      active.scrollTop = view.pages[next].scroll;
+      active.scrollTop = pageStateFor(next).scroll;
       if (next === "messages" && contactsState.selectedPeerId) active.scrollTop = 0;
       updatePrimaryNav(root, next);
+      if (next === "settings") settingsTrigger.setAttribute("aria-current", "page");
+      else settingsTrigger.removeAttribute("aria-current");
+      if (next === "home") renderHome();
+      if (next === "settings") renderSettingsView();
+      if (next === "post") renderPostDetailPage();
+      if (next === "journeys") renderJourneysPage();
+      if (next === "journey") renderJourneyDetailPage();
+      if (next === "contacts") updateContactsState();
       ensurePageData(next);
       if (save) scheduleSave();
     }
-    function stateCard(titleEl, bodyEl, actionEl, { title, body, action = null, tone = "unavailable" }) {
+    function stateCard(titleEl, bodyEl, actionEl, { title, body, action: action2 = null, tone = "unavailable" }) {
       titleEl.textContent = title;
       bodyEl.textContent = body;
       const card = titleEl.closest(".rm-state");
       if (card) card.dataset.tone = tone;
-      actionEl.hidden = action === null;
-      actionEl.onclick = action === null ? null : action.run;
-      if (action !== null) actionEl.textContent = action.label;
+      actionEl.hidden = action2 === null;
+      actionEl.onclick = action2 === null ? null : action2.run;
+      if (action2 !== null) actionEl.textContent = action2.label;
     }
     function renderMarkdownInto(node, markdown) {
       node.replaceChildren(renderSafeMarkdown(doc, markdown));
@@ -3338,18 +8431,10 @@ ${resultDetail}`;
       if (data?.error) {
         notes.push(`上次刷新没有完成：${data.error}`);
       }
-      if (data?.truncated) {
-        notes.push(`这次检查了 ${data.scanned} 条获取记录，可能还有更多未检查。`);
-      }
-      if (view.pages.explore.filter === "familiar" && data && data.relationComplete === false) {
-        notes.push("你发过消息的节点没有完整读取，筛选结果可能不完整。");
-      }
-      if (data && data.ignored > 0) {
-        notes.push(`另有 ${data.ignored} 个文件不是可识别的公开帖子，未列入动态。`);
-      }
       if (state.kind === "ready" && state.total !== state.items.length) {
         notes.push(`当前显示 ${state.items.length} 条，匹配搜索的公开内容共 ${state.total} 条。`);
       }
+      if (favoritesState.actionError) notes.push(favoritesState.actionError);
       const note = notes.join(" ");
       discoveryMeta.textContent = note;
       discoveryMeta.hidden = note.length === 0;
@@ -3358,160 +8443,639 @@ ${resultDetail}`;
       discoveryMetaRetry.onclick = discoveriesCapable ? () => {
         void refreshDiscoveries(true);
       } : null;
+      updateDiscoveryScope(data, state);
     }
-    function postSourceRows(item) {
-      return [
-        ["获取方式", item.source === "raminga_content_get" ? "Agent 获取（raminga_content_get）" : item.source ? `Agent 获取（${item.source}）` : "Agent 获取（来源未记录）"],
-        ["获取时间", item.fetchedAt > 0 ? formatDateTime(item.fetchedAt) : ""],
-        ["发布时间", item.publishedAt ? formatDateTime(item.publishedAt) : ""],
-        ["公共路径", item.path],
-        ["内容版本", item.sha256],
-        ["大小", item.sizeBytes > 0 ? `${item.sizeBytes} 字节` : ""],
-        ["本地副本", item.contentState === "unreadable" ? "不可读取" : "已核对"]
-      ];
-    }
-    function sourceDetails({ rows, note, focusKey = "" }) {
-      const details = element("details", "rm-source-details");
-      const summary = element("summary", "rm-source-summary");
-      summary.textContent = "来源详情";
-      if (focusKey) summary.dataset.focusKey = focusKey;
-      const body = element("div", "rm-source-body");
-      const facts = element("dl", "rm-source-facts");
-      for (const [label, value] of rows) {
-        if (!value) continue;
-        const row = element("div", "rm-source-fact");
-        const term = element("dt");
-        term.textContent = label;
-        const detail = element("dd");
-        detail.textContent = value;
-        row.append(term, detail);
-        facts.append(row);
+    function updateDiscoveryScope(data, state) {
+      if (!discoveryScope || !discoveryScopeBody) return;
+      if (view.pages.explore.filter === "mine" || state.kind !== "ready" || !data) {
+        discoveryScope.hidden = true;
+        discoveryScopeBody.replaceChildren();
+        return;
       }
-      if (facts.childElementCount > 0) body.append(facts);
-      if (note) {
-        const noteEl = element("p", "rm-source-note");
-        noteEl.textContent = note;
-        body.append(noteEl);
+      const notes = [];
+      const scanned = Math.max(0, Number(data.scanned) || 0);
+      const ignored = Math.max(0, Number(data.ignored) || 0);
+      if (ignored > 0) {
+        notes.push(`本次读取了 ${scanned} 条获取记录；其中 ${ignored} 条不是可识别的公开帖子，已排除在动态、搜索和计数之外，可在对应联系人的公开文件中查看。`);
+      } else {
+        notes.push(`本次读取了 ${scanned} 条帖子候选；普通文件不会占用动态、搜索或计数名额。`);
       }
-      details.append(summary, body);
-      return details;
+      if (data.truncated) {
+        notes.push(`宿主单次最多读取 ${DISCOVERY_SCAN_LIMIT} 条帖子候选，本次已到该边界；更早的帖子未包含在此快照中，不会被伪装成已读。`);
+      }
+      if (view.pages.explore.filter === "familiar" && data.relationComplete === false) {
+        notes.push("本人或 Agent 实际发过消息的节点没有完整读取，筛选结果可能不完整。");
+      }
+      notes.push("来源：本机公开内容获取记录；帖子正文仍按本地副本的大小、哈希和版本逐条核对。");
+      discoveryScopeBody.replaceChildren();
+      for (const text4 of notes) {
+        const paragraph = element5("p", "rm-discovery-scope-note");
+        paragraph.textContent = text4;
+        discoveryScopeBody.append(paragraph);
+      }
+      discoveryScope.hidden = false;
     }
     function focusRestoreKey(node) {
       if (!node || node.nodeType !== 1) return "";
       const active = root.activeElement;
       return active?.dataset?.focusKey ?? "";
     }
-    function postOwnerLabel(item) {
-      return String(item.authorName ?? "").trim() || contactFor(item.peerId)?.name || shortPeerText(item.peerId) || "未知作者";
+    function disposePreviewMedia(node) {
+      releasePostImages(node);
+      postImageContainerObservers.get(node)?.disconnect?.();
+      for (const card of node?.querySelectorAll?.(".rm-post") ?? []) {
+        postImageObservers.get(card)?.disconnect?.();
+      }
+      if (node?.classList?.contains("rm-post")) postImageObservers.get(node)?.disconnect?.();
+      for (const media of node.querySelectorAll?.("audio, video, iframe, img") ?? []) {
+        try {
+          if (media.tagName === "IFRAME") media.srcdoc = "";
+          else media.removeAttribute("src");
+          if (typeof media.load === "function") media.load();
+        } catch {
+        }
+      }
+    }
+    function postMetaKeyFor(item) {
+      return [item?.peerId ?? "", item?.path ?? "", item?.sha256 ?? "", item?.sizeBytes ?? ""].join("\0");
+    }
+    function itemWithPostMeta(item) {
+      const meta = postMetaCache.get(postMetaKeyFor(item));
+      if (!meta?.found) return item;
+      return {
+        ...item,
+        title: meta.title || item.title,
+        summary: meta.summary || item.summary,
+        tags: Array.isArray(meta.tags) && meta.tags.length > 0 ? meta.tags : item.tags,
+        publishedAt: meta.publishedAt || item.publishedAt,
+        authorKind: meta.authorKind || item.authorKind,
+        authorName: meta.authorName || item.authorName,
+        images: Array.isArray(meta.images) ? meta.images : [],
+        kind: "markdown",
+        mime: "text/markdown",
+        previewable: true,
+        contentState: "available",
+        contentError: ""
+      };
+    }
+    function isV2PostPathForUi(value) {
+      return /^posts\/[A-Za-z0-9._-]+\/post\.json$/.test(String(value ?? ""));
+    }
+    function pumpPostMetaQueue() {
+      while (postMetaActive < 3 && postMetaQueue.length > 0) {
+        const task = postMetaQueue.shift();
+        postMetaActive += 1;
+        Promise.resolve().then(task).catch(() => {
+        }).finally(() => {
+          postMetaActive -= 1;
+          pumpPostMetaQueue();
+        });
+      }
+    }
+    function ensurePostMeta(item) {
+      if (!peerPostMetaCapable || !item || !isV2PostPathForUi(item.path)) return;
+      if (Array.isArray(item.images) && item.images.length > 0) return;
+      const key2 = postMetaKeyFor(item);
+      if (postMetaCache.has(key2) || postMetaInflight.has(key2)) return;
+      postMetaCache.set(key2, { found: false, images: [], error: "" });
+      postMetaInflight.set(key2, true);
+      postMetaQueue.push(async () => {
+        let result = null;
+        try {
+          result = await options.onLoadPeerPostMeta(item.peerId, item.path, item.sha256, item.sizeBytes);
+        } catch (error) {
+          result = { found: false, images: [], error: errorText(error) || "动态配图信息读取失败" };
+        }
+        postMetaInflight.delete(key2);
+        if (destroyed) return;
+        postMetaCache.set(key2, result && typeof result === "object" ? result : { found: false, images: [], error: "动态配图信息没有返回结果" });
+        if (result?.found && Array.isArray(result.images) && result.images.length > 0) {
+          if (currentPage === "explore" && view.pages.explore.filter !== "mine") updateExploreState();
+          else if (!profileView.hidden) rerenderProfileKeepingPosition();
+        }
+      });
+      pumpPostMetaQueue();
+    }
+    function observePostMetaCard(card, item) {
+      if (!peerPostMetaCapable || !card || !isV2PostPathForUi(item?.path)) return;
+      if (Array.isArray(item.images) && item.images.length > 0) return;
+      const key2 = postMetaKeyFor(item);
+      if (postMetaCache.has(key2)) return;
+      const Observer = win.IntersectionObserver;
+      if (typeof Observer !== "function") {
+        ensurePostMeta(item);
+        return;
+      }
+      const observer = new Observer((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0)) return;
+        observer.disconnect();
+        ensurePostMeta(item);
+      }, { root: null, rootMargin: "320px" });
+      observer.observe(card);
+      const previous = postImageObservers.get(card);
+      previous?.disconnect?.();
+      postImageObservers.set(card, observer);
+    }
+    function postImageKeyForUi(subject, peerId2, image) {
+      return postImageKey(subject, peerId2, image);
+    }
+    function postImageState(key2) {
+      return postImageCache.get(key2) ?? { state: "idle", refs: 0 };
+    }
+    function schedulePostImageRelease(key2) {
+      if (postImageTimers.has(key2)) clearTimeout(postImageTimers.get(key2));
+      const timer = setTimeout(() => {
+        postImageTimers.delete(key2);
+        const entry = postImageCache.get(key2);
+        if (!entry || entry.refs > 0) return;
+        if (entry.objectUrl && entry.url) {
+          try {
+            win.URL?.revokeObjectURL?.(entry.url);
+          } catch {
+          }
+          try {
+            globalThis.URL?.revokeObjectURL?.(entry.url);
+          } catch {
+          }
+        }
+        postImageCache.delete(key2);
+      }, 1500);
+      postImageTimers.set(key2, timer);
+    }
+    function retainPostImage(key2) {
+      const timer = postImageTimers.get(key2);
+      if (timer) {
+        clearTimeout(timer);
+        postImageTimers.delete(key2);
+      }
+      const entry = postImageCache.get(key2) ?? { state: "idle", refs: 0 };
+      entry.refs = Number(entry.refs ?? 0) + 1;
+      postImageCache.set(key2, entry);
+      return entry;
+    }
+    function releasePostImage(key2) {
+      const entry = postImageCache.get(key2);
+      if (!entry) return;
+      entry.refs = Math.max(0, Number(entry.refs ?? 0) - 1);
+      if (entry.refs === 0) schedulePostImageRelease(key2);
+    }
+    function releasePostImages(node) {
+      for (const tile of node?.querySelectorAll?.("[data-post-image-key]") ?? []) {
+        releasePostImage(tile.dataset.postImageKey ?? "");
+      }
+    }
+    function refreshPostImageNodes(key2) {
+      for (const tile of root.querySelectorAll("[data-post-image-key]")) {
+        if (tile.dataset.postImageKey !== key2) continue;
+        const image = tile.__ramingaImage;
+        const index = Number(tile.dataset.index ?? 0);
+        const total = Number(tile.dataset.total ?? 1);
+        updatePostImageNode(tile, postImageState(key2), {
+          image,
+          index,
+          total,
+          title: tile.__ramingaTitle ?? ""
+        });
+      }
+    }
+    function applyPostImageState(key2, patch) {
+      const entry = postImageCache.get(key2) ?? { state: "idle", refs: 0 };
+      Object.assign(entry, patch);
+      postImageCache.set(key2, entry);
+      refreshPostImageNodes(key2);
+    }
+    function imageReasonFromPreview(preview, message = "") {
+      const status = String(preview?.status ?? "");
+      if (status === "not-downloaded") return "not-downloaded";
+      if (status === "copy-missing") return "copy-missing";
+      if (status === "hash-mismatch") return "hash-mismatch";
+      if (status === "unsupported") return "unsupported";
+      if (/离线|不可达|连接|超时|没有可核对|没有发起新的下载/.test(message)) return "offline";
+      if (/不在.*(?:公开|发布)清单/.test(message)) return "not-published";
+      if (/不存在|未下载/.test(message)) return "copy-missing";
+      if (/哈希|大小|版本/.test(message)) return "hash-mismatch";
+      return "error";
+    }
+    function objectUrlFromDataUrl(dataUrl, mime) {
+      const prefix = `data:${mime};base64,`;
+      if (typeof dataUrl !== "string" || !dataUrl.startsWith(prefix) || typeof atob !== "function") {
+        return { url: dataUrl, objectUrl: false };
+      }
+      try {
+        const binary = atob(dataUrl.slice(prefix.length));
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        const BlobCtor = win.Blob ?? globalThis.Blob;
+        const createObjectUrl = win.URL?.createObjectURL ?? globalThis.URL?.createObjectURL;
+        if (typeof BlobCtor !== "function" || typeof createObjectUrl !== "function") {
+          return { url: dataUrl, objectUrl: false };
+        }
+        return { url: createObjectUrl.call(win.URL ?? globalThis.URL, new BlobCtor([bytes], { type: mime })), objectUrl: true };
+      } catch {
+        return { url: dataUrl, objectUrl: false };
+      }
+    }
+    function validatePostImagePreview(preview, image) {
+      if (!preview || typeof preview !== "object") return "受控图片读取没有返回结果";
+      if (preview.status !== "ok" || preview.kind !== "image" || typeof preview.dataUrl !== "string" || preview.dataUrl.length === 0) {
+        return preview.error || "受控图片读取没有可显示的图片";
+      }
+      if (preview.mime !== image.mime) return `图片 MIME ${preview.mime || "缺失"} 与帖子声明的 ${image.mime} 不一致`;
+      if (String(preview.sha256 ?? "").toLowerCase() !== String(image.sha256).toLowerCase()) return "图片 SHA-256 与帖子声明不一致";
+      if (Number(preview.sizeBytes) !== Number(image.sizeBytes)) return "图片大小与帖子声明不一致";
+      return "";
+    }
+    function releaseAllPostImages() {
+      for (const timer of postImageTimers.values()) clearTimeout(timer);
+      postImageTimers.clear();
+      for (const entry of postImageCache.values()) {
+        if (entry.objectUrl && entry.url) {
+          try {
+            win.URL?.revokeObjectURL?.(entry.url);
+          } catch {
+          }
+          try {
+            globalThis.URL?.revokeObjectURL?.(entry.url);
+          } catch {
+          }
+        }
+      }
+      postImageCache.clear();
+      postImageQueues.length = 0;
+    }
+    function pumpPostImageQueue() {
+      while (postImageActive < 4 && postImageQueues.length > 0) {
+        const task = postImageQueues.shift();
+        postImageActive += 1;
+        Promise.resolve().then(task).catch(() => {
+        }).finally(() => {
+          postImageActive -= 1;
+          pumpPostImageQueue();
+        });
+      }
+    }
+    function ensurePostImage(subject, peerId2, image, { retry = false } = {}) {
+      if (!image || typeof image !== "object") return;
+      const key2 = postImageKeyForUi(subject, peerId2, image);
+      const existing = postImageCache.get(key2);
+      if (existing?.state === "loading" || existing?.state === "ready") return;
+      if (image.manifestState === "missing") {
+        applyPostImageState(key2, {
+          state: "error",
+          reason: "not-published",
+          detail: "对方当前公开清单中没有这张图片的条目"
+        });
+        return;
+      }
+      if (image.manifestState === "mismatch") {
+        applyPostImageState(key2, {
+          state: "error",
+          reason: "hash-mismatch",
+          detail: "公开清单中的图片大小或哈希与帖子声明不一致"
+        });
+        return;
+      }
+      const read = subject === "mine" ? typeof options.onLoadMineFileContent === "function" ? () => options.onLoadMineFileContent(image.publicPath, image.sha256, image.sizeBytes) : null : typeof options.onLoadPeerFileContent === "function" ? () => options.onLoadPeerFileContent(peerId2, image.publicPath, image.sha256, image.sizeBytes) : null;
+      if (read === null) {
+        applyPostImageState(key2, { state: "error", reason: "unsupported", detail: "当前宿主没有提供受控图片读取" });
+        return;
+      }
+      applyPostImageState(key2, { state: "loading", reason: "", detail: "", url: "", objectUrl: false });
+      postImageQueues.push(async () => {
+        let preview = null;
+        try {
+          preview = await read();
+        } catch (error) {
+          if (destroyed) return;
+          applyPostImageState(key2, {
+            state: "error",
+            reason: imageReasonFromPreview(null, errorText(error)),
+            detail: errorText(error) || "图片读取失败"
+          });
+          return;
+        }
+        if (destroyed) return;
+        const problem = validatePostImagePreview(preview, image);
+        if (problem.length > 0) {
+          applyPostImageState(key2, {
+            state: "error",
+            reason: imageReasonFromPreview(preview, problem),
+            detail: problem
+          });
+          return;
+        }
+        const media = objectUrlFromDataUrl(preview.dataUrl, image.mime);
+        applyPostImageState(key2, {
+          state: "ready",
+          reason: "",
+          detail: "",
+          url: media.url,
+          objectUrl: media.objectUrl,
+          mime: image.mime
+        });
+        const entry = postImageCache.get(key2);
+        if (entry && entry.refs === 0) schedulePostImageRelease(key2);
+      });
+      pumpPostImageQueue();
+    }
+    function observePostImages(container) {
+      const tiles = [...container.querySelectorAll?.("[data-post-image-key]") ?? []];
+      if (tiles.length === 0) return;
+      postImageContainerObservers.get(container)?.disconnect?.();
+      const Observer = win.IntersectionObserver;
+      if (typeof Observer !== "function") {
+        for (const tile of tiles) {
+          const image = tile.__ramingaImage;
+          const subject = tile.dataset.subject ?? "";
+          ensurePostImage(subject, tile.dataset.peerId ?? "", image);
+        }
+        return;
+      }
+      const observer = new Observer((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting && entry.intersectionRatio <= 0) continue;
+          const tile = entry.target;
+          observer.unobserve(tile);
+          const state = postImageState(tile.dataset.postImageKey ?? "");
+          if (state.state !== "idle") continue;
+          ensurePostImage(tile.dataset.subject ?? "", tile.dataset.peerId ?? "", tile.__ramingaImage);
+        }
+      }, { root: null, rootMargin: "300px" });
+      postImageContainerObservers.set(container, observer);
+      for (const tile of tiles) {
+        const state = postImageState(tile.dataset.postImageKey ?? "");
+        if (state.state === "ready") updatePostImageNode(tile, state, {
+          index: Number(tile.dataset.index ?? 0),
+          total: Number(tile.dataset.total ?? 1),
+          title: tile.__ramingaTitle ?? ""
+        });
+        else observer.observe(tile);
+      }
+    }
+    function pageScrollContainer(node) {
+      let current = node?.parentElement ?? null;
+      while (current && current !== root) {
+        if (current.classList?.contains("rm-page")) return current;
+        current = current.parentElement;
+      }
+      return null;
+    }
+    function openImagePreview(tile, item, images, key2) {
+      if (!imagePreviewDialog || !imagePreviewImg) return;
+      const state = postImageState(key2);
+      if (state.state !== "ready" || !state.url) return;
+      const image = tile.__ramingaImage;
+      const index = Number(tile.dataset.index ?? 0);
+      const total = Number(tile.dataset.total ?? 1);
+      const scrollNode = pageScrollContainer(tile) ?? profileView;
+      imagePreviewScroll = scrollNode ? { node: scrollNode, top: scrollNode.scrollTop } : null;
+      imagePreviewTrigger = tile;
+      imagePreviewKey = key2;
+      retainPostImage(key2);
+      const alt = image?.path ? `${item?.title || "动态"}配图` : "公开动态配图";
+      imagePreviewImg.src = state.url;
+      imagePreviewImg.alt = alt;
+      imagePreviewImg.hidden = false;
+      imagePreviewNote.hidden = true;
+      imagePreviewNote.textContent = "";
+      imagePreviewMeta.textContent = [
+        image?.mime === "image/jpeg" ? "JPEG" : image?.mime === "image/png" ? "PNG" : "图片",
+        Number(image?.width) > 0 && Number(image?.height) > 0 ? `${image.width}×${image.height}` : "",
+        Number(image?.sizeBytes) > 0 ? `${Math.round(Number(image.sizeBytes) / 1024)} KiB` : "",
+        "路径/MIME/SHA-256/大小已核对"
+      ].filter(Boolean).join(" · ");
+      imagePreviewCounter.textContent = total > 1 ? `${index + 1} / ${total}` : "";
+      imagePreviewDialog.dataset.subject = tile.dataset.subject ?? "";
+      openDialog(imagePreviewDialog, tile);
+    }
+    function handlePostImageAction(tile, item, images) {
+      const key2 = tile.dataset.postImageKey ?? "";
+      const image = tile.__ramingaImage;
+      const state = postImageState(key2);
+      if (state.state === "ready") {
+        openImagePreview(tile, item, images, key2);
+        return;
+      }
+      const subject = tile.dataset.subject ?? "";
+      ensurePostImage(subject, tile.dataset.peerId ?? "", image, { retry: true });
+    }
+    function cleanupImagePreview() {
+      imagePreviewImg?.removeAttribute("src");
+      imagePreviewImg?.setAttribute("hidden", "");
+      if (imagePreviewKey) releasePostImage(imagePreviewKey);
+      imagePreviewKey = "";
+      const scroll2 = imagePreviewScroll;
+      imagePreviewScroll = null;
+      if (scroll2?.node) scroll2.node.scrollTop = scroll2.top;
+      imagePreviewTrigger = null;
+    }
+    function closeImagePreview() {
+      if (!imagePreviewDialog?.open) {
+        cleanupImagePreview();
+        return;
+      }
+      closeDialog(imagePreviewDialog);
+    }
+    function renderFileCard(item, options2) {
+      return renderPublicFileCard(item, {
+        ...options2,
+        sourceOpen: view.pages.explore.sourceOpen,
+        save: scheduleSave,
+        renderMarkdown: renderMarkdownInto,
+        imageStateFor: (key2) => postImageState(key2),
+        onImageAction: (tile, item2, images) => handlePostImageAction(tile, item2, images),
+        retainImage: (key2) => retainPostImage(key2)
+      });
     }
     function renderDiscoveryList(items) {
       const focusKey = focusRestoreKey(discoveryList);
       const pageScroll = pageEls.explore.scrollTop;
+      disposePreviewMedia(discoveryList);
       discoveryList.replaceChildren();
       for (const item of items) {
-        const article = element("article", "rm-post");
-        article.dataset.postId = item.id;
-        const header = element("header", "rm-post-head");
-        const avatar = element("button", "rm-contact-avatar rm-post-avatar");
-        avatar.type = "button";
-        avatar.setAttribute("aria-label", `查看 ${shortPeerText(item.peerId)} 的档案`);
-        avatar.dataset.profilePeer = item.peerId;
-        avatar.dataset.profileRef = `explore:${item.id}`;
-        avatar.dataset.focusKey = `post-author:${item.id}`;
-        avatar.textContent = postOwnerLabel(item).slice(0, 1) || "?";
-        const copy = element("div", "rm-post-author");
-        const name = element("button", "rm-post-name");
-        name.type = "button";
-        name.dataset.profilePeer = item.peerId;
-        name.dataset.profileRef = `explore:${item.id}`;
-        name.dataset.focusKey = `post-name:${item.id}`;
-        name.textContent = postOwnerLabel(item);
-        const meta = element("span", "rm-post-meta");
-        meta.textContent = `${item.authorKind === "agent" ? "Agent 署名 · " : item.authorKind === "user" ? "用户署名 · " : ""}${shortPeerText(item.peerId)}`;
-        copy.append(name, meta);
-        const date = element("time", "rm-post-time");
-        const broughtAt = item.fetchedAt > 0 ? formatDateTime(item.fetchedAt) : "";
-        date.textContent = broughtAt ? `Agent 带回 · ${broughtAt}` : "Agent 带回";
-        header.append(avatar, copy, date);
-        const title = element("h2", "rm-post-title");
-        title.textContent = item.contentState === "unreadable" ? "这条公开内容暂时无法读取" : item.title;
-        const summary = element("p", "rm-post-summary");
-        summary.textContent = item.contentState === "unreadable" ? "本地副本缺失或损坏；来源信息仍保留。" : item.summary || "展开阅读正文。";
-        article.append(header, title, summary);
-        if (Array.isArray(item.tags) && item.tags.length > 0) {
-          const tags = element("div", "rm-post-tags");
-          for (const tag of item.tags) {
-            const chip = element("span", "rm-post-tag");
-            chip.textContent = tag;
-            tags.append(chip);
-          }
-          article.append(tags);
-        }
-        const details = sourceDetails({
-          rows: postSourceRows(item),
-          note: "来源由本机节点记录；帖子和署名来自发布节点的公开声明。",
-          focusKey: `post-source:${item.id}`
-        });
-        details.open = view.pages.explore.sourceOpen[item.id] === true;
-        details.ontoggle = () => {
-          if (destroyed) return;
-          if (details.open) view.pages.explore.sourceOpen[item.id] = true;
-          else delete view.pages.explore.sourceOpen[item.id];
-          scheduleSave();
-        };
         const expanded = view.pages.explore.expanded[item.id] === true;
-        const actions = element("div", "rm-post-actions");
-        const toggle = element("button", "rm-quiet rm-post-toggle");
-        toggle.type = "button";
-        toggle.dataset.expandPost = item.id;
-        toggle.dataset.focusKey = `post-toggle:${item.id}`;
-        toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-        toggle.textContent = expanded ? "收起内容" : "阅读内容";
-        actions.append(toggle);
-        article.append(details, actions);
-        if (expanded) {
-          const body = element("div", "rm-post-body");
-          const cached = postContent.get(item.id);
-          if (item.contentState === "unreadable") {
-            const failed = element("p", "rm-list-note");
-            failed.textContent = `这条公开内容的本地副本不可读取：${item.contentError || "副本缺失或损坏"}。来源和哈希仍保留，但不能假装仍可阅读。`;
-            body.append(failed);
-          } else if (!cached || cached.state === "loading") {
-            const loading = element("p", "rm-list-note");
-            loading.textContent = "正在核对本地副本与哈希…";
-            body.append(loading);
-          } else if (cached.state === "error") {
-            const failed = element("p", "rm-list-note");
-            failed.textContent = `这次没有读到公开内容：${cached.error}`;
-            const retry = element("button", "rm-list-retry");
-            retry.type = "button";
-            retry.dataset.retryPost = item.id;
-            retry.dataset.focusKey = `post-retry:${item.id}`;
-            retry.textContent = "重试读取内容";
-            body.append(failed, retry);
-          } else {
-            const content = element("div", "rm-rich-text");
-            renderMarkdownInto(content, cached.data.post?.bodyMarkdown ?? "");
-            body.append(content);
-          }
-          article.append(body);
-          if (!cached && item.contentState !== "unreadable") void ensurePostContent(item.id);
+        const reveal = revealResults.get(revealResultKey("explore", item)) ?? null;
+        const displayItem = itemWithPostMeta(item);
+        const card = renderFileCard(displayItem, {
+          subject: "explore",
+          expanded,
+          onToggle: (next) => togglePost(item.id, next),
+          preview: postContent.get(item.id) ?? null,
+          showReveal: revealCapable,
+          reveal,
+          onReveal: revealDiscoveryItem,
+          focusKey: `post:${item.id}`,
+          onOpenProfile: true,
+          // Only a recognized versioned post has an independent detail. Any
+          // defensive non-post row keeps the inline file preview path instead of
+          // rendering a title that would silently do nothing.
+          onOpenPost: isPostPath(item.path) ? (target, trigger) => openPostDetail(target, "explore", trigger) : null,
+          ...favoriteCardOptions(item, `post:${item.id}`)
+        });
+        if (expanded && item.contentState === "available" && !postContent.has(item.id)) {
+          void ensurePostContent(item.id);
         }
-        discoveryList.append(article);
-        if (expanded && focusKey === `post-toggle:${item.id}`) {
-        }
+        discoveryList.append(card);
+        observePostMetaCard(card, item);
       }
       discoveryList.hidden = false;
+      observePostImages(discoveryList);
       if (focusKey) {
         const target = [...discoveryList.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
         target?.focus({ preventScroll: true });
       }
       if (pageEls.explore.scrollTop !== pageScroll) pageEls.explore.scrollTop = pageScroll;
+      tryPostEditorReturnFocus();
+    }
+    function mineFeedItems(data) {
+      if (!data) return [];
+      let files = Array.isArray(data.files) ? data.files : [];
+      if (files.length === 0 && Array.isArray(data.posts?.posts) && data.posts.posts.length > 0) {
+        files = data.posts.posts.map((post) => ({
+          id: `legacy-mine:${post.path}`,
+          peerId: data.peerId ?? "",
+          publisherName: data.profile?.displayName || "我",
+          path: post.path,
+          name: post.path.split("/").pop() || post.path,
+          sha256: post.sha256,
+          sizeBytes: post.sizeBytes,
+          modifiedAt: 0,
+          fetchedAt: 0,
+          source: "local-public",
+          sources: ["local-public"],
+          kind: "markdown",
+          mime: "text/markdown",
+          previewable: true,
+          title: post.title,
+          summary: post.summary,
+          tags: Array.isArray(post.tags) ? post.tags : [],
+          publishedAt: post.publishedAt,
+          authorKind: post.authorKind,
+          authorName: post.authorName,
+          images: Array.isArray(post.images) ? post.images : [],
+          contentState: "available",
+          contentError: ""
+        }));
+      }
+      return files.filter((item) => isPostPath(item.path) && item.kind === "markdown");
+    }
+    function mineFeedCard(item, query) {
+      if (!postMatchesQuery(item, query)) return null;
+      const key2 = previewKeyFor("mine", item);
+      const expanded = mineExpanded.has(key2);
+      const card = renderFileCard(itemWithPostMeta(item), {
+        subject: "mine",
+        expanded,
+        onToggle: (next) => toggleMineFile(item, next),
+        preview: minePreviews.get(key2) ?? null,
+        showReveal: fileRevealCapable,
+        reveal: revealResults.get(revealResultKey("mine", item)) ?? null,
+        onReveal: (target) => {
+          void revealFileItem("mine", target);
+        },
+        focusKey: `mine-feed:${item.path}:${item.sha256}`,
+        onOpenProfile: null,
+        onOpenPost: (target, trigger) => openPostDetail(target, "mine", trigger),
+        edit: publicDraftImportCapable && isPostPath(item.path) ? (target, trigger) => {
+          void openExistingPostForEdit(item, trigger ?? target);
+        } : null,
+        ...favoriteCardOptions(item, `mine-feed:${item.path}:${item.sha256}`)
+      });
+      if (expanded && item.contentState === "available" && !minePreviews.has(key2)) {
+        void ensureMinePreview(item);
+      }
+      return card;
+    }
+    function updateMineFeedState() {
+      const title = mineFeedStateTitle;
+      const body = mineFeedStateBody;
+      const action2 = mineFeedStateAction;
+      view.pages.explore.query = exploreQuery.value;
+      discoveryList.hidden = true;
+      discoveryList.replaceChildren();
+      discoveryMeta.hidden = true;
+      discoveryMetaRetry.hidden = true;
+      discoveryScope.hidden = true;
+      discoveryScopeBody.replaceChildren();
+      $("#exploreState").hidden = true;
+      mineFeedList.hidden = true;
+      disposePreviewMedia(mineFeedList);
+      mineFeedList.replaceChildren();
+      exploreRefresh.hidden = false;
+      const refreshing = mineState.retrying;
+      exploreRefresh.dataset.busy = refreshing ? "true" : "false";
+      exploreRefresh.setAttribute("aria-busy", refreshing ? "true" : "false");
+      const label = exploreRefresh.querySelector("span");
+      if (label) label.textContent = refreshing ? "刷新中" : "刷新";
+      if (!mineCapable) {
+        stateCard(title, body, action2, {
+          tone: "unavailable",
+          title: "本机动态读取暂不可用",
+          body: "当前宿主没有提供本机公开资料读取。",
+          action: { label: "查看节点状态", run: () => openDialog(statusDialog, action2) }
+        });
+        mineFeedState.hidden = false;
+        return;
+      }
+      if (mineState.data === null) {
+        if (!mineState.retrying) void loadMine(false);
+        stateCard(title, body, action2, {
+          tone: "unavailable",
+          title: mineState.error ? "这次没有读到我的动态" : "正在读取我的动态",
+          body: mineState.error || "只展示本机 public/ 中已发布的动态。",
+          action: mineState.error ? { label: "重试读取", run: () => {
+            void loadMine(true);
+          } } : null
+        });
+        mineFeedState.hidden = false;
+        return;
+      }
+      const items = mineFeedItems(mineState.data);
+      const query = exploreQuery.value;
+      const filtered = items.filter((item) => postMatchesQuery(item, query));
+      if (items.length === 0) {
+        stateCard(title, body, action2, {
+          tone: "unavailable",
+          title: "还没有公开动态",
+          body: "本机 public/posts/ 中还没有可读取的公开动态。",
+          action: { label: "返回发现", run: () => setFilter("all") }
+        });
+        mineFeedState.hidden = false;
+        return;
+      }
+      if (filtered.length === 0) {
+        stateCard(title, body, action2, {
+          tone: "unavailable",
+          title: "没有找到匹配的我的动态",
+          body: `没有标题、摘要、标签、作者或路径匹配“${query.trim()}”。`,
+          action: { label: "清除搜索", run: () => clearExploreSearch({ focus: true }) }
+        });
+        mineFeedState.hidden = false;
+        return;
+      }
+      mineFeedState.hidden = true;
+      for (const item of filtered) {
+        const card = mineFeedCard(item, "");
+        if (card) mineFeedList.append(card);
+      }
+      mineFeedList.hidden = false;
+      observePostImages(mineFeedList);
     }
     function updateExploreState() {
+      if (currentPage === "post") {
+        renderPostDetailPage();
+        return;
+      }
+      if (postEditorState.open) renderPostEditorStatus();
+      if (view.pages.explore.filter === "mine") {
+        updateMineFeedState();
+        return;
+      }
+      mineFeedList.hidden = true;
+      mineFeedState.hidden = true;
       const title = $("#exploreStateTitle");
       const body = $("#exploreStateBody");
-      const action = $("#exploreStateAction");
+      const action2 = $("#exploreStateAction");
       $("#exploreState").hidden = false;
       view.pages.explore.query = exploreQuery.value;
       const familiar = view.pages.explore.filter === "familiar";
@@ -3530,11 +9094,11 @@ ${resultDetail}`;
         discoveryList.replaceChildren();
         $("#exploreState").hidden = false;
         updateDiscoveryMeta(data, { kind: "error", items: [], total: 0 });
-        stateCard(title, body, action, {
+        stateCard(title, body, action2, {
           tone: "unavailable",
           title: "公开内容读取暂不可用",
-          body: "当前宿主没有提供公开内容索引，不能把联系人清单或本地文件当作 Agent 推荐。",
-          action: { label: "查看节点状态", run: () => openDialog(statusDialog, action) }
+          body: "当前宿主没有提供公开内容索引。",
+          action: { label: "查看节点状态", run: () => openDialog(statusDialog, action2) }
         });
         return;
       }
@@ -3542,10 +9106,10 @@ ${resultDetail}`;
         discoveryList.hidden = true;
         discoveryList.replaceChildren();
         updateDiscoveryMeta(data, state);
-        stateCard(title, body, action, {
+        stateCard(title, body, action2, {
           tone: "unavailable",
           title: "正在整理公开动态",
-          body: "正在整理 Agent 带回的公开内容。",
+          body: "正在整理本机记录的手动获取与 Agent 获取公开内容。",
           action: discoveriesCapable ? { label: refreshing ? "正在刷新…" : "刷新动态", run: () => {
             void refreshDiscoveries(true);
           } } : null
@@ -3556,7 +9120,7 @@ ${resultDetail}`;
         discoveryList.hidden = true;
         discoveryList.replaceChildren();
         updateDiscoveryMeta(data, state);
-        stateCard(title, body, action, {
+        stateCard(title, body, action2, {
           tone: "error",
           title: "这次没有读到公开动态",
           body: data?.error ? `${data.error} 这不代表没有任何公开内容。` : "公开内容索引读取失败。这不代表没有任何公开内容。",
@@ -3570,20 +9134,11 @@ ${resultDetail}`;
         discoveryList.hidden = true;
         discoveryList.replaceChildren();
         updateDiscoveryMeta(data, state);
-        stateCard(title, body, action, {
+        stateCard(title, body, action2, {
           tone: "unavailable",
           title: "没有找到匹配的公开内容",
           body: `没有标题、摘要、标签、作者或路径匹配“${exploreQuery.value.trim()}”。`,
-          action: {
-            label: "清除搜索",
-            run: () => {
-              exploreQuery.value = "";
-              view.pages.explore.query = "";
-              updateExploreState();
-              saveNow();
-              exploreQuery.focus();
-            }
-          }
+          action: { label: "清除搜索", run: () => clearExploreSearch({ focus: true }) }
         });
         return;
       }
@@ -3591,10 +9146,10 @@ ${resultDetail}`;
         discoveryList.hidden = true;
         discoveryList.replaceChildren();
         updateDiscoveryMeta(data, state);
-        stateCard(title, body, action, {
+        stateCard(title, body, action2, {
           tone: "unavailable",
-          title: familiar ? "还没有你发过消息的节点带回的内容" : "还没有 Agent 带回的公开内容",
-          body: familiar ? "这里会显示你本人发过消息的节点带回的公开内容。仅建立联系，或由 Agent 发消息，都不算你本人发过消息。" : "当 Agent 从节点获取并核对公开内容后，会出现在这里。联系人清单或旧下载文件不会自动变成动态。",
+          title: familiar ? "有过交流的节点还没有公开帖子" : "还没有获取到公开帖子",
+          body: Number(data?.ignored) > 0 ? `本机获取记录里有 ${Number(data.ignored)} 个文件不是可识别的公开帖子，不算动态，也不会进入搜索或计数；普通文件请到对应联系人的「公开文件」查看。` : familiar ? "这里只显示本人或 Agent 实际发过消息的节点所带回的可识别公开帖子。仅建立联系、浏览档案或 last_interaction 不算有过交流。" : "当你在对方主页手动获取帖子，或 Agent 获取并核对公开帖子后，会出现在这里；两种来源会分别标注。",
           action: {
             label: familiar ? "返回发现" : "刷新动态",
             run: familiar ? () => setFilter("all") : () => {
@@ -3608,9 +9163,217 @@ ${resultDetail}`;
       updateDiscoveryMeta(data, state);
       renderDiscoveryList(state.items);
     }
+    function emptyPostView() {
+      return {
+        id: "",
+        peerId: "",
+        path: "",
+        sha256: "",
+        sizeBytes: 0,
+        source: "explore",
+        filter: "all",
+        query: "",
+        scroll: 0,
+        returnFocus: ""
+      };
+    }
+    function postDetailItem() {
+      const post = view.post;
+      if (!post) return null;
+      if (post.source === "mine") {
+        return mineFeedItems(mineState.data).find((item) => item.path === post.path && (post.sha256 === "" || String(item.sha256 ?? "").toLowerCase() === post.sha256)) ?? null;
+      }
+      const data = discoveryDataFor(post.filter === "familiar");
+      const items = Array.isArray(data?.items) ? data.items : [];
+      return items.find((item) => post.id.length > 0 && item.id === post.id || item.path === post.path && (post.sha256 === "" || String(item.sha256 ?? "").toLowerCase() === post.sha256)) ?? null;
+    }
+    function showPostDetailState({ title, body, tone = "unavailable", action: action2 = null }) {
+      postDetail.replaceChildren();
+      postDetail.hidden = true;
+      postDetailState.hidden = false;
+      stateCard(postDetailStateTitle, postDetailStateBody, postDetailStateAction, { title, body, action: action2, tone });
+    }
+    function renderPostDetailPage() {
+      if (destroyed || currentPage !== "post" || postDetailRendering) return;
+      if (!postDetail || !postDetailState) return;
+      postDetailRendering = true;
+      try {
+        const post = view.post;
+        postDetail.replaceChildren();
+        postDetail.hidden = true;
+        postDetailState.hidden = true;
+        if (!post || post.id.length === 0 && post.path.length === 0) {
+          showPostDetailState({
+            title: "这条动态没有可恢复的标识",
+            body: "返回动态列表后可以重新打开。",
+            action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
+          });
+          return;
+        }
+        if (post.source === "mine") {
+          if (!mineCapable) {
+            showPostDetailState({
+              title: "本机动态读取暂不可用",
+              body: "当前宿主没有提供本机公开资料读取。",
+              action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
+            });
+            return;
+          }
+          if (mineState.data === null) {
+            const failed = mineState.error.length > 0;
+            if (!failed && !mineState.retrying) void loadMine(false);
+            showPostDetailState(failed ? {
+              title: "这次没有读到我发布的动态",
+              body: mineState.error,
+              tone: "error",
+              action: { label: "重试读取", run: () => {
+                void loadMine(true);
+              } }
+            } : {
+              title: "正在读取我发布的动态",
+              body: "正在核对本机 public/posts/ 中的帖子。"
+            });
+            return;
+          }
+        } else {
+          if (!discoveriesCapable) {
+            showPostDetailState({
+              title: "公开动态读取暂不可用",
+              body: "当前宿主没有提供公开内容索引。",
+              action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
+            });
+            return;
+          }
+          const data = discoveryDataFor(post.filter === "familiar");
+          if (!data || data.at === null && !data.error) {
+            ensureDiscoveriesFresh(false);
+            showPostDetailState({
+              title: "正在打开这条动态",
+              body: "正在读取本机获取记录并核对帖子版本。"
+            });
+            return;
+          }
+          if (data.at === null && data.error) {
+            showPostDetailState({
+              title: "这次没有读到这条动态",
+              body: data.error,
+              tone: "error",
+              action: { label: "重试读取", run: () => {
+                void refreshDiscoveries(true);
+              } }
+            });
+            return;
+          }
+        }
+        const item = postDetailItem();
+        if (item === null) {
+          showPostDetailState({
+            title: "这条动态已不在当前列表中",
+            body: post.source === "mine" ? "本机公开目录或当前发布清单中已经没有这条帖子。" : "可能是本机获取记录已变化，或这条动态已不在当前筛选的缓存里。",
+            action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
+          });
+          return;
+        }
+        const source = post.source === "mine" ? "mine" : "explore";
+        const display = itemWithPostMeta(item);
+        const preview = source === "mine" ? minePreviews.get(previewKeyFor("mine", item)) ?? null : postContent.get(item.id) ?? null;
+        const reveal = source === "explore" ? revealResults.get(`explore:${item.id}`) ?? null : revealResults.get(revealResultKey("mine", item)) ?? null;
+        const favoriteOptions = favoriteCardOptions(display, `post-detail:${item.id || item.path}`);
+        const article = renderPostDetail(display, {
+          subject: source,
+          preview,
+          onOpenProfile: source === "explore",
+          edit: source === "mine" && publicDraftImportCapable ? (target) => {
+            void editPostFromDetail(target, `mine-feed:${target.path}:${target.sha256}:edit`);
+          } : null,
+          showReveal: source === "explore" ? revealCapable : fileRevealCapable,
+          onReveal: source === "explore" ? (target) => {
+            void revealDiscoveryItem(target);
+          } : (target) => {
+            void revealFileItem("mine", target);
+          },
+          reveal,
+          sourceOpen: view.pages.explore.sourceOpen,
+          save: scheduleSave,
+          renderMarkdown: renderMarkdownInto,
+          imageStateFor: (keyValue) => postImageState(keyValue),
+          onImageAction: (tile, target, images) => handlePostImageAction(tile, target, images),
+          retainImage: (keyValue) => retainPostImage(keyValue),
+          focusKey: `post-detail:${item.id || item.path}`,
+          ...favoriteOptions
+        });
+        article.dataset.postPage = "detail";
+        postDetail.append(article);
+        postDetail.hidden = false;
+        postDetailState.hidden = true;
+        observePostImages(postDetail);
+        if (preview === null && (item.contentState === "available" || item.contentState === "downloaded-unverified")) {
+          if (source === "mine") void ensureMinePreview(item);
+          else void ensurePostContent(item.id);
+        }
+      } finally {
+        postDetailRendering = false;
+      }
+    }
+    function openPostDetail(item, source = "explore", trigger = null) {
+      if (!isPostPath(item?.path)) return;
+      view.pages.explore.query = exploreQuery.value;
+      view.post = {
+        id: String(item.id ?? ""),
+        peerId: String(item.peerId ?? ""),
+        path: String(item.path ?? ""),
+        sha256: String(item.sha256 ?? "").toLowerCase(),
+        sizeBytes: Number(item.sizeBytes) || 0,
+        source: source === "mine" ? "mine" : "explore",
+        filter: source === "mine" ? "mine" : view.pages.explore.filter,
+        query: exploreQuery.value,
+        scroll: 0,
+        returnFocus: trigger?.dataset?.focusKey || (source === "mine" ? `mine-feed:${item.path}:${item.sha256}` : `post:${item.id}`)
+      };
+      showPage("post");
+      if (typeof win.requestAnimationFrame === "function") {
+        win.requestAnimationFrame(() => {
+          if (currentPage === "post" && !destroyed) postBack?.focus({ preventScroll: true });
+        });
+      }
+    }
+    function closePostDetail({ restoreFocus = true } = {}) {
+      if (currentPage !== "post") return;
+      const saved = {
+        ...emptyPostView(),
+        ...view.post || {}
+      };
+      if (saved.source === "mine" || saved.filter === "mine") view.pages.explore.filter = "mine";
+      else if (saved.filter === "familiar") view.pages.explore.filter = "familiar";
+      else view.pages.explore.filter = "all";
+      view.pages.explore.query = saved.query;
+      exploreQuery.value = saved.query;
+      view.post = emptyPostView();
+      const sourceScroll = Math.max(0, Number(view.pages.explore.scroll) || 0);
+      showPage("explore", { save: false });
+      updateExploreState();
+      saveNow();
+      if (!restoreFocus) return;
+      if (typeof win.requestAnimationFrame !== "function") return;
+      win.requestAnimationFrame(() => {
+        if (destroyed || currentPage !== "explore") return;
+        const target = saved.returnFocus ? [...pageEls.explore.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === saved.returnFocus) : null;
+        if (target) {
+          target.focus({ preventScroll: true });
+          restorePageScrollAfterFocus("explore", sourceScroll);
+        } else {
+          (exploreQuery ?? composePost ?? exploreRefresh)?.focus?.({ preventScroll: true });
+        }
+      });
+    }
+    async function editPostFromDetail(item, returnFocusKey = "") {
+      if (!item) return;
+      closePostDetail({ restoreFocus: false });
+      await openExistingPostForEdit(item, null, returnFocusKey);
+    }
     async function ensurePostContent(id, force = false) {
       const existing = postContent.get(id);
-      if (!force && existing && existing.state !== "error") return;
+      if (!force && existing && existing.state === "available") return;
       if (!discoveryContentCapable) {
         postContent.set(id, { state: "error", error: "当前宿主没有提供受控内容读取。" });
         updateExploreState();
@@ -3621,21 +9384,69 @@ ${resultDetail}`;
       try {
         const value = await options.onLoadDiscoveryContent(id);
         if (destroyed) return;
-        if (value && value.ok === true && value.post) {
+        if (value && typeof value === "object") {
           postContent.set(id, { state: "available", data: value });
         } else {
-          postContent.set(id, { state: "error", error: value?.error || "公开内容不可读取" });
+          postContent.set(id, { state: "error", error: "公开内容读取没有返回结果" });
         }
       } catch (error) {
         if (!destroyed) postContent.set(id, { state: "error", error: errorText(error) || "公开内容读取失败" });
       }
       if (!destroyed) updateExploreState();
     }
-    function togglePost(id) {
-      if (view.pages.explore.expanded[id] === true) delete view.pages.explore.expanded[id];
-      else view.pages.explore.expanded[id] = true;
+    function togglePost(id, next = null) {
+      const expand = next === null ? view.pages.explore.expanded[id] !== true : next === true;
+      if (!expand) {
+        delete view.pages.explore.expanded[id];
+        disposePreviewMedia(root.querySelector(`[data-file-card="explore:${selectorValue(id)}"]`) ?? discoveryList);
+      } else {
+        view.pages.explore.expanded[id] = true;
+      }
       saveNow();
       updateExploreState();
+    }
+    async function revealDiscoveryItem(item) {
+      if (!revealCapable) return;
+      const key2 = revealResultKey("explore", item);
+      revealResults.set(key2, { state: "loading" });
+      updateExploreState();
+      try {
+        const result = await options.onRevealDiscovery(item.id);
+        if (destroyed) return;
+        revealResults.set(key2, {
+          state: result?.status ?? (result?.ok ? "revealed" : "error"),
+          message: result?.error || ""
+        });
+      } catch (error) {
+        if (!destroyed) revealResults.set(key2, { state: "error", message: errorText(error) || "在文件夹中显示失败。" });
+      }
+      if (!destroyed) updateExploreState();
+    }
+    async function revealFileItem(subject, item) {
+      if (!fileRevealCapable) return;
+      const key2 = revealResultKey(subject, item);
+      revealResults.set(key2, { state: "loading" });
+      if (subject === "mine") renderMine();
+      else if (subject === "peer") rerenderProfileKeepingPosition();
+      try {
+        const result = await options.onRevealFile(
+          subject === "peer" ? "peer" : "mine",
+          item.peerId,
+          item.path,
+          item.sha256,
+          item.sizeBytes
+        );
+        if (destroyed) return;
+        revealResults.set(key2, {
+          state: result?.status ?? (result?.ok ? "revealed" : "error"),
+          message: result?.error || ""
+        });
+      } catch (error) {
+        if (!destroyed) revealResults.set(key2, { state: "error", message: errorText(error) || "在文件夹中显示失败。" });
+      }
+      if (destroyed) return;
+      if (subject === "mine") renderMine();
+      else if (subject === "peer") rerenderProfileKeepingPosition();
     }
     function refreshDiscoveries(force = false) {
       if (destroyed || !discoveriesCapable) {
@@ -3672,6 +9483,7 @@ ${resultDetail}`;
           familiar,
           relationComplete: familiar ? value.relationComplete === true : true
         });
+        postContent.clear();
         discoveryStale.delete(key2);
         if (discoveryKeyFor(view.pages.explore.filter === "familiar") === key2) updateExploreState();
       }).catch((error) => {
@@ -3692,8 +9504,411 @@ ${resultDetail}`;
         if (request.forceQueued) refreshDiscoveries(true);
       });
     }
-    function setContactsNotice(text2, { retry = false } = {}) {
-      const note = typeof text2 === "string" ? text2 : "";
+    function favoriteKeyFor(item) {
+      return `${String(item?.peerId ?? "")}\0${String(item?.path ?? "")}\0${String(item?.sha256 ?? "").toLowerCase()}`;
+    }
+    function favoriteFor(item) {
+      return favoritesState.byKey.get(favoriteKeyFor(item)) ?? null;
+    }
+    function favoriteCardState(item) {
+      const existing = favoriteFor(item);
+      const key2 = favoriteKeyFor(item);
+      return {
+        key: key2,
+        active: Boolean(existing && existing.available !== false ? existing : existing),
+        disabled: !setFavoriteCapable || favoritesState.pending.has(key2)
+      };
+    }
+    function favoriteCardOptions(item, focusKey, eligible = true) {
+      if (!favoritesCapable || !eligible || !isPostPath(item?.path)) return {};
+      return {
+        favorite: { ...favoriteCardState(item), key: favoriteKeyFor(item) },
+        onFavorite: (target, trigger) => {
+          void toggleFavorite(target, trigger);
+        },
+        focusKey
+      };
+    }
+    function favoriteNoticeText() {
+      return favoritesState.actionError || favoritesState.error || "";
+    }
+    function indexFavorites(items) {
+      for (const item of items) {
+        if (!item?.peerId || !item?.path || !item?.sha256) continue;
+        favoritesState.byKey.set(favoriteKeyFor(item), item);
+      }
+    }
+    async function loadFavorites({ before = "", append = false, force = false } = {}) {
+      if (destroyed || !favoritesCapable) return;
+      if (!hostReady) return;
+      if (favoritesState.loading) return;
+      if (!append && favoritesState.loaded && !force) return;
+      favoritesState.loading = true;
+      const request = ++favoritesState.requestSeq;
+      if (!append) favoritesState.error = "";
+      renderSettingsFavorites();
+      try {
+        const value = await Promise.resolve().then(() => options.onLoadFavorites(before, force === true)).catch((error) => ({ favorites: [], error: errorText(error) || "收藏读取失败", hasMore: false, nextBefore: "" }));
+        if (destroyed || request !== favoritesState.requestSeq) return;
+        if (value?.error) throw new Error(value.error);
+        const rows = Array.isArray(value?.favorites) ? value.favorites : [];
+        if (append) favoritesState.items = [...favoritesState.items, ...rows];
+        else favoritesState.items = rows;
+        favoritesState.items = favoritesState.items.filter((item) => item?.peerId && item?.path && item?.sha256);
+        favoritesState.byKey.clear();
+        indexFavorites(favoritesState.items);
+        favoritesState.loaded = true;
+        favoritesState.nextBefore = String(value?.nextBefore ?? "");
+        favoritesState.hasMore = value?.hasMore === true;
+        favoritesState.error = "";
+      } catch (error) {
+        if (destroyed || request !== favoritesState.requestSeq) return;
+        favoritesState.error = readFailureSummary(errorText(error), "收藏读取失败，请稍后重试。");
+      } finally {
+        if (!destroyed && request === favoritesState.requestSeq) {
+          favoritesState.loading = false;
+          if (currentPage === "explore") updateExploreState();
+          if (!profileView.hidden) rerenderProfileKeepingPosition();
+          renderSettingsFavorites();
+        }
+      }
+    }
+    async function toggleFavorite(item, trigger = null) {
+      if (!setFavoriteCapable || destroyed) return;
+      const current = favoriteFor(item);
+      const key2 = favoriteKeyFor(item);
+      if (favoritesState.pending.has(key2)) return;
+      favoritesState.pending.add(key2);
+      favoritesState.actionError = "";
+      if (trigger) {
+        trigger.disabled = true;
+        trigger.dataset.pending = "true";
+      }
+      const nextFavorite = !current;
+      try {
+        const result = await options.onSetFavorite({
+          peerId: item.peerId,
+          path: item.path,
+          sha256: item.sha256,
+          title: item.title || item.name || "",
+          favorite: nextFavorite
+        });
+        if (destroyed) return;
+        if (nextFavorite) {
+          if (!result?.item) throw new Error("收藏没有返回记录");
+          favoritesState.byKey.set(key2, result.item);
+          favoritesState.items = [result.item, ...favoritesState.items.filter((entry) => favoriteKeyFor(entry) !== key2)];
+        } else {
+          favoritesState.byKey.delete(key2);
+          favoritesState.items = favoritesState.items.filter((entry) => favoriteKeyFor(entry) !== key2);
+        }
+        favoritesState.loaded = true;
+      } catch (error) {
+        if (destroyed) return;
+        favoritesState.actionError = `收藏没有保存：${readFailureSummary(errorText(error), "未知错误")}`;
+      } finally {
+        if (!destroyed) {
+          favoritesState.pending.delete(key2);
+          if (currentPage === "explore") updateExploreState();
+          if (currentPage === "post") renderPostDetailPage();
+          if (!profileView.hidden) rerenderProfileKeepingPosition();
+          renderSettingsFavorites();
+        }
+      }
+    }
+    function selfPeerId() {
+      return String(mineState.data?.peerId || nodeState.status?.peerId || "");
+    }
+    function favoriteIsLocal(item) {
+      if (item?.local === true) return true;
+      const self = selfPeerId();
+      return self.length > 0 && String(item?.peerId ?? "") === self;
+    }
+    function favoriteCanRead(item) {
+      if (!item || item.available !== true) return false;
+      return favoriteIsLocal(item) ? mineFileContentCapable : peerFileContentCapable;
+    }
+    function settingsBackLabel() {
+      if (settingsFavoriteReturn) return "← 返回收藏的动态";
+      if (!settingsDirectEntry) return "← 返回设置";
+      const labels = { home: "主页", explore: "动态", contacts: "联系人", messages: "对话" };
+      return `← 返回${labels[settingsReturnPage] || "原页面"}`;
+    }
+    function updateSettingsFavoriteBackLabel() {
+      for (const back of $$("[data-settings-back]")) back.textContent = settingsBackLabel();
+    }
+    function clearSettingsFavoriteReturn() {
+      if (!settingsFavoriteReturn) return;
+      settingsFavoriteReturn = null;
+      updateSettingsFavoriteBackLabel();
+    }
+    function openOwnPublicSource(item, trigger) {
+      if (!item || typeof item.peerId !== "string" || item.peerId.length === 0) return;
+      const settingsPage = pageEls.settings;
+      const fromFavorites = currentPage === "settings" && view.settings.tab === "favorites";
+      const savedScroll = currentPage === "settings" && settingsPage && !settingsPage.hidden ? Math.max(0, Number(settingsPage.scrollTop) || 0) : Math.max(0, Number(view.settings.scroll) || 0);
+      clearSettingsFavoriteReturn();
+      settingsFavoriteReturn = fromFavorites ? {
+        scroll: savedScroll,
+        ref: trigger?.dataset?.profileRef || `settings:${item.id || favoriteKeyFor(item)}`
+      } : null;
+      view.settings.tab = "public";
+      view.settings.index = false;
+      if (currentPage !== "settings") showPage("settings");
+      else renderSettingsView();
+      if (settingsPage) settingsPage.scrollTop = 0;
+      profileMessage.hidden = true;
+      profileAddContact.hidden = true;
+      profileEditContact.hidden = true;
+      saveNow();
+    }
+    function returnToFavoritesFromSource() {
+      const snapshot = settingsFavoriteReturn;
+      if (!snapshot) return false;
+      settingsFavoriteReturn = null;
+      view.settings.tab = "favorites";
+      view.settings.index = false;
+      renderSettingsView();
+      const settingsPage = pageEls.settings;
+      if (settingsPage) settingsPage.scrollTop = snapshot.scroll;
+      saveNow();
+      const target = snapshot.ref ? [...root.querySelectorAll("[data-profile-ref]")].find((node) => node.dataset.profileRef === snapshot.ref) : null;
+      if (target) target.focus({ preventScroll: true });
+      if (settingsPage) {
+        if (Math.abs(Number(settingsPage.scrollTop) - snapshot.scroll) >= 1) settingsPage.scrollTop = snapshot.scroll;
+        if (typeof win.requestAnimationFrame === "function" && snapshot.scroll > 0) {
+          win.requestAnimationFrame(() => {
+            if (destroyed || currentPage !== "settings" || settingsFavoriteReturn) return;
+            if (Number(settingsPage.scrollTop) === 0) {
+              settingsPage.scrollTop = snapshot.scroll;
+              saveNow();
+            }
+          });
+        }
+      }
+      return true;
+    }
+    function renderFavoriteReader() {
+      if (!favoriteDialog || !favoriteDialogBody) return;
+      const item = favoriteReader.item;
+      if (!item) return;
+      favoriteDialogHeading.textContent = item.title || "收藏的动态";
+      const when = Number(item.createdAt) > 0 ? formatDateTime(new Date(Number(item.createdAt)).toISOString()) : "时间未知";
+      favoriteDialogMeta.textContent = `${favoriteIsLocal(item) ? "本机公开动态" : "远端公开动态"} · 收藏于 ${when} · 版本 ${String(item.sha256 || "").slice(0, 12)}…`;
+      const note = favoriteReader.error;
+      favoriteDialogNote.hidden = !(note || favoriteReader.loading);
+      favoriteDialogNote.dataset.tone = note ? "error" : "";
+      favoriteDialogNote.textContent = note || (favoriteReader.loading ? "正在核对并读取收藏版本…" : "");
+      favoriteDialogBody.replaceChildren();
+      if (!favoriteReader.preview) return;
+      const preview = favoriteReader.preview;
+      const itemForCard = {
+        ...item,
+        name: item.path.split("/").pop() || item.path,
+        kind: "markdown",
+        mime: "text/markdown",
+        previewable: true,
+        sizeBytes: Number(preview.sizeBytes) || 0,
+        contentState: "available"
+      };
+      const images = preview.post?.images?.map((image) => ({
+        ...image,
+        publicPath: item.path.replace(/\/post\.json$/, "") + "/" + image.path
+      })) ?? [];
+      const mediaNode = renderPostMedia(images, {
+        variant: "detail",
+        subject: favoriteIsLocal(item) ? "mine" : "peer",
+        peerId: item.peerId,
+        title: item.title,
+        stateFor: postImageState,
+        retainImage: retainPostImage
+      });
+      if (mediaNode) {
+        mediaNode.addEventListener("click", (event) => {
+          const tile = event.target.closest?.("[data-post-image-key]");
+          if (!tile) return;
+          event.preventDefault();
+          event.stopPropagation();
+          handlePostImageAction(tile, itemForCard, images, "detail");
+        });
+        favoriteDialogBody.append(mediaNode);
+      }
+      favoriteDialogBody.append(previewFeedback(
+        { state: "available", data: preview },
+        itemForCard,
+        { renderMarkdown: renderMarkdownInto }
+      ));
+      observePostImages(favoriteDialogBody);
+    }
+    async function readFavorite(item, trigger = null) {
+      if (!item || destroyed) return;
+      const local = favoriteIsLocal(item);
+      if (!item.available) {
+        favoriteReader.item = item;
+        favoriteReader.preview = null;
+        favoriteReader.loading = false;
+        favoriteReader.error = "原内容已不在保留范围，不能再阅读；收藏记录仍可在这里取消。";
+        renderFavoriteReader();
+        openDialog(favoriteDialog, trigger);
+        return;
+      }
+      if (local ? !mineFileContentCapable : !peerFileContentCapable) {
+        favoriteReader.item = item;
+        favoriteReader.preview = null;
+        favoriteReader.loading = false;
+        favoriteReader.error = local ? "当前宿主没有提供本机公开内容读取。" : "当前宿主没有提供远端公开内容读取。";
+        renderFavoriteReader();
+        openDialog(favoriteDialog, trigger);
+        return;
+      }
+      const request = ++favoriteReader.requestSeq;
+      favoriteReader.item = item;
+      favoriteReader.preview = null;
+      favoriteReader.error = "";
+      favoriteReader.loading = true;
+      renderFavoriteReader();
+      openDialog(favoriteDialog, trigger);
+      try {
+        const value = local ? await options.onLoadMineFileContent(item.path, item.sha256, 0) : await options.onLoadPeerFileContent(item.peerId, item.path, item.sha256, 0);
+        if (destroyed || request !== favoriteReader.requestSeq) return;
+        if (!value || typeof value !== "object") throw new Error("没有读取到这条动态。");
+        if (value.status !== "ok" && value.status !== "resource-error") {
+          throw new Error(value.error || "这条收藏版本无法阅读。");
+        }
+        const samePath = String(value.path || "") === item.path;
+        const sameSha = String(value.sha256 || "").toLowerCase() === String(item.sha256 || "").toLowerCase();
+        if (!samePath || !sameSha) throw new Error("读取到的内容与收藏版本不一致，未展示。");
+        favoriteReader.preview = value;
+      } catch (error) {
+        if (destroyed || request !== favoriteReader.requestSeq) return;
+        favoriteReader.error = `没有读到收藏版本：${readFailureSummary(errorText(error), "可以稍后重试。")}`;
+      } finally {
+        if (!destroyed && request === favoriteReader.requestSeq) {
+          favoriteReader.loading = false;
+          renderFavoriteReader();
+        }
+      }
+    }
+    function favoriteRow(item) {
+      const row = element5("article", "rm-favorite-row");
+      row.dataset.favoriteId = item.id || favoriteKeyFor(item);
+      const copy = element5("div", "rm-favorite-copy");
+      const title = element5("b");
+      title.textContent = item.title || item.path;
+      const meta = element5("p", "rm-list-note");
+      const when = Number(item.createdAt) > 0 ? formatDateTime(new Date(Number(item.createdAt)).toISOString()) : "时间未知";
+      meta.textContent = `${item.available ? "本地可用" : "原内容已不在保留范围"} · 收藏于 ${when}`;
+      meta.dataset.tone = item.available ? "ready" : "unavailable";
+      const detail = element5("details", "rm-tech rm-favorite-detail");
+      const summary = element5("summary");
+      summary.textContent = "版本与路径";
+      const detailBody = element5("p", "rm-list-note");
+      detailBody.textContent = `公开路径：${item.path} · 版本 SHA-256：${item.sha256}`;
+      detail.append(summary, detailBody);
+      copy.append(title, meta, detail);
+      const actions = element5("div", "rm-favorite-actions");
+      const read = element5("button", "rm-secondary");
+      read.type = "button";
+      read.dataset.favoriteRead = item.id || favoriteKeyFor(item);
+      read.textContent = "阅读这条动态";
+      read.disabled = !favoriteCanRead(item);
+      read.title = read.disabled ? item.available ? "当前宿主没有提供这条动态的受控读取" : "原内容已不在保留范围" : "";
+      read.onclick = () => {
+        void readFavorite(item, read);
+      };
+      const open = element5("button", "rm-quiet rm-favorite-source");
+      open.type = "button";
+      open.dataset.favoriteSource = item.id || favoriteKeyFor(item);
+      open.dataset.profileRef = `settings:${item.id || favoriteKeyFor(item)}`;
+      open.textContent = "查看来源";
+      open.disabled = !item.peerId;
+      open.onclick = () => {
+        if (!item.peerId) return;
+        if (favoriteIsLocal(item)) {
+          openOwnPublicSource(item, open);
+          return;
+        }
+        openPeerProfile(item.peerId, { source: "settings", ref: `settings:${item.id || favoriteKeyFor(item)}`, trigger: open });
+      };
+      const remove = element5("button", "rm-quiet rm-favorite-remove");
+      remove.type = "button";
+      remove.dataset.favoriteCancel = item.id || favoriteKeyFor(item);
+      remove.textContent = "取消收藏";
+      remove.setAttribute("aria-label", `取消收藏 ${item.title || item.path}`);
+      remove.onclick = () => {
+        void toggleFavorite(item, remove);
+      };
+      actions.append(read, open, remove);
+      row.append(copy, actions);
+      return row;
+    }
+    function renderSettingsFavorites() {
+      if (!settingsFavoritesList) return;
+      if (view.settings.index || view.settings.tab !== "favorites") return;
+      const note = favoriteNoticeText();
+      settingsFavoritesNote.hidden = note.length === 0 && !favoritesState.loading;
+      settingsFavoritesNote.dataset.tone = favoritesState.actionError || favoritesState.error ? "error" : "";
+      settingsFavoritesNote.textContent = note || (favoritesState.loading ? "正在读取收藏…" : "");
+      if (!favoritesCapable) {
+        settingsFavoritesList.hidden = true;
+        settingsFavoritesEmpty.hidden = false;
+        settingsFavoritesEmpty.querySelector("b").textContent = "当前宿主没有提供收藏读取";
+        settingsFavoritesEmpty.querySelector("p").textContent = "收藏不会用本地示例代替。";
+        settingsFavoritesMore.hidden = true;
+        return;
+      }
+      settingsFavoritesList.replaceChildren();
+      for (const item of favoritesState.items) settingsFavoritesList.append(favoriteRow(item));
+      settingsFavoritesList.hidden = favoritesState.items.length === 0;
+      settingsFavoritesEmpty.hidden = !(favoritesState.loaded && favoritesState.items.length === 0 && !favoritesState.error);
+      if (favoritesState.loaded && favoritesState.items.length === 0 && !favoritesState.error) {
+        settingsFavoritesEmpty.querySelector("b").textContent = "还没有收藏的动态";
+        settingsFavoritesEmpty.querySelector("p").textContent = "在动态卡片上使用星标收藏公开内容。";
+      }
+      settingsFavoritesMore.hidden = !favoritesState.hasMore;
+      settingsFavoritesMore.disabled = favoritesState.loading;
+      settingsFavoritesMore.textContent = favoritesState.loading ? "读取中…" : "加载更早收藏";
+      if (!favoritesState.loaded && !favoritesState.loading && !favoritesState.error) void loadFavorites({});
+    }
+    function renderSettingsMemory() {
+      if (!settingsMemoryList || view.settings.index || view.settings.tab !== "memory") return;
+      const friends = Array.isArray(contactsState.data?.friends) ? contactsState.data.friends : [];
+      const error = contactsState.transportError || contactsState.data?.error || "";
+      const loading = (contactsState.data === null || contactsState.data?.freshness === "loading") && friends.length === 0;
+      settingsMemoryNote.hidden = !(error || loading);
+      settingsMemoryNote.dataset.tone = error ? "error" : "";
+      settingsMemoryNote.textContent = error ? `联系人列表读取失败：${readFailureSummary(error, "可以稍后重试。")} 私有记忆入口不会用虚构联系人补足。` : loading ? "正在读取联系人…" : "";
+      settingsMemoryList.replaceChildren();
+      for (const friend of friends) {
+        const row = element5("article", "rm-memory-contact");
+        const copy = element5("div", "rm-memory-contact-copy");
+        const name = element5("b");
+        name.textContent = contactDisplayName(friend);
+        const summary = element5("p", "rm-list-note");
+        summary.textContent = friend.description ? String(friend.description) : "打开后读取本机私有印象与真实交互时间线；不会向远端发送。";
+        copy.append(name, summary);
+        const unread = Math.max(0, Number(friend.unreadCount) || 0);
+        if (unread > 0) {
+          const badge = element5("span", "rm-memory-unread");
+          badge.textContent = `${unread > 99 ? "99+" : unread} 条未读`;
+          copy.append(badge);
+        }
+        const open = element5("button", "rm-secondary");
+        open.type = "button";
+        open.textContent = "打开私有印象与时间线";
+        open.onclick = () => openPeerProfile(friend.peerId, { source: "settings", ref: `memory:${friend.peerId}`, trigger: open });
+        row.append(copy, open);
+        settingsMemoryList.append(row);
+      }
+      settingsMemoryList.hidden = friends.length === 0;
+      settingsMemoryEmpty.hidden = friends.length > 0 || loading || contactsState.data === null;
+      if (contactsState.data !== null && !error && friends.length === 0 && !loading) {
+        settingsMemoryEmpty.querySelector("b").textContent = "还没有联系人记忆";
+        settingsMemoryEmpty.querySelector("p").textContent = "添加联系人后，可在这里打开对方的私有印象与真实交互时间线。";
+      }
+    }
+    function setContactsNotice(text4, { retry = false } = {}) {
+      const note = typeof text4 === "string" ? text4 : "";
       const retryFocused = root.activeElement === contactsMetaRetry;
       contactsMeta.textContent = note;
       contactsMeta.hidden = note.length === 0;
@@ -3720,63 +9935,531 @@ ${resultDetail}`;
       contactsRetryAction.onclick = retry === true ? retryContacts : null;
       contactsShareAction.hidden = !share;
     }
+    function conversationForPeer(peerId2) {
+      const list = Array.isArray(conversationsState.data?.conversations) ? conversationsState.data.conversations : [];
+      return list.find((item) => item?.peerId === peerId2) ?? null;
+    }
+    function profileIsContact(peerId2 = profileState.peerId) {
+      return Boolean(peerId2 && contactFor(peerId2));
+    }
+    function profileContactsKnown() {
+      if (!contactsCapable) return true;
+      const data = contactsState.data;
+      if (data === null) return false;
+      return Number(data.at) > 0 || Array.isArray(data.friends) && data.friends.length > 0;
+    }
+    function totalUnreadCount() {
+      const listed = Number(conversationsState.data?.totalUnread);
+      if (Number.isFinite(listed) && listed >= 0) return listed;
+      const friends = Array.isArray(contactsState.data?.friends) ? contactsState.data.friends : [];
+      return friends.reduce((sum, friend) => sum + Math.max(0, Number(friend?.unreadCount) || 0), 0);
+    }
+    function refreshUnreadBadges() {
+      updateNavUnread(root, totalUnreadCount());
+      const friends = Array.isArray(contactsState.data?.friends) ? contactsState.data.friends : [];
+      const unreadPeers = friends.filter((friend) => Number(friend?.unreadCount) > 0).length;
+      if (contactAllCount) contactAllCount.textContent = String(friends.length);
+      if (contactUnreadCount) contactUnreadCount.textContent = String(unreadPeers);
+      for (const button of contactFilters) {
+        const active = button.dataset.contactFilter === view.pages.contacts.filter;
+        button.dataset.focusKey = `contact-filter:${button.dataset.contactFilter}`;
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      }
+    }
+    function verifiedContactProfileFor(peerId2) {
+      return verifiedContactProfiles.get(String(peerId2 ?? "")) ?? null;
+    }
+    function avatarKeyForPeer(peerId2, card, manifest) {
+      const avatarPath = String(card?.avatarPath ?? "");
+      const avatarSha = String(card?.avatarSha256 ?? "").toLowerCase();
+      const entry = avatarPath && Array.isArray(manifest?.entries) ? manifest.entries.find((item) => item.path === avatarPath) : null;
+      if (!avatarPath || !avatarSha || !entry) return "";
+      return `${peerId2}\0${avatarPath}\0${avatarSha}\0${entry.sizeBytes}`;
+    }
+    function contactRowName(friend) {
+      const verified = verifiedContactProfileFor(friend?.peerId);
+      return verified?.displayName || contactDisplayName(friend);
+    }
+    function contactAvatarUrl(peerId2) {
+      const verified = verifiedContactProfileFor(peerId2);
+      if (!verified?.avatarKey) return "";
+      const cached = peerAvatarState.get(String(peerId2));
+      return cached?.key === verified.avatarKey && cached.state === "ready" ? cached.url : "";
+    }
+    function rememberVerifiedContactProfile(peerId2, data) {
+      const id = String(peerId2 ?? "");
+      if (!id) return;
+      const card = data?.agentCard?.state === "available" ? data.agentCard.card : null;
+      if (!card) {
+        const failed = Boolean(data?.error) || data?.source === "unavailable";
+        if (data?.agentCard?.state === "missing" && !failed) verifiedContactProfiles.delete(id);
+        return;
+      }
+      const displayName = String(card.displayName ?? "").trim().slice(0, 80);
+      if (!displayName) return;
+      const next = {
+        peerId: id,
+        displayName,
+        description: String(card.description ?? "").trim().slice(0, 400),
+        interests: Array.isArray(card.interests) ? card.interests.slice(0, 10).map((value) => String(value).slice(0, 80)) : [],
+        conversationStyle: String(card.conversationStyle ?? "").trim().slice(0, 300),
+        avatarPath: String(card.avatarPath ?? ""),
+        avatarSha256: String(card.avatarSha256 ?? "").toLowerCase(),
+        avatarMime: String(card.avatarMime ?? ""),
+        avatarKey: avatarKeyForPeer(id, card, data?.manifest),
+        source: String(data?.source ?? ""),
+        at: Number(data?.at) > 0 ? Number(data.at) : Date.now()
+      };
+      verifiedContactProfiles.delete(id);
+      verifiedContactProfiles.set(id, next);
+      if (verifiedContactProfiles.size > 128) {
+        const oldest = verifiedContactProfiles.keys().next().value;
+        if (oldest !== void 0) verifiedContactProfiles.delete(oldest);
+      }
+    }
+    function applyContactAvatar(avatar, friend) {
+      if (!avatar) return;
+      const peerId2 = String(friend?.peerId ?? "");
+      const displayName = contactRowName(friend);
+      const url = contactAvatarUrl(peerId2);
+      avatar.replaceChildren();
+      avatar.dataset.kind = url ? "image" : "initial";
+      avatar.setAttribute("aria-label", `查看 ${displayName} 的档案`);
+      if (url) {
+        const image = element5("img", "rm-contact-avatar-img");
+        image.src = url;
+        image.alt = "";
+        image.decoding = "async";
+        avatar.append(image);
+      } else {
+        avatar.textContent = contactInitial({ name: displayName, peerId: peerId2 });
+      }
+    }
+    function refreshContactAvatar(peerId2) {
+      const id = String(peerId2 ?? "");
+      if (!id) return;
+      const row = [...contactList.querySelectorAll("[data-contact-row]")].find((item) => item.dataset.contactRow === id) ?? null;
+      const friend = contactFor(id);
+      if (!row || !friend) return;
+      applyContactAvatar(row.querySelector(":scope > button[data-profile-peer]"), friend);
+    }
+    function copyContactPeerId(peerId2, trigger) {
+      const id = String(peerId2 ?? "");
+      if (!id) return;
+      const restore = () => {
+        if (!trigger?.isConnected) return;
+        trigger.textContent = "复制";
+        trigger.removeAttribute("data-copied");
+      };
+      const finish = (ok) => {
+        if (trigger?.isConnected) {
+          trigger.textContent = ok ? "已复制" : "复制失败";
+          trigger.dataset.copied = ok ? "true" : "error";
+          setTimeout(() => {
+            if (!destroyed) restore();
+          }, 1800);
+        }
+        if (nodeLive) {
+          nodeLive.textContent = ok ? "完整 Peer ID 已复制。" : "复制失败，请展开完整 Peer ID 后手动选择。";
+        }
+      };
+      if (typeof options.onCopyText !== "function") {
+        finish(false);
+        return;
+      }
+      let request;
+      try {
+        request = options.onCopyText(id);
+      } catch {
+        finish(false);
+        return;
+      }
+      Promise.resolve(request).then((copied) => finish(copied !== false)).catch(() => {
+        if (!destroyed) finish(false);
+      });
+    }
+    function applyContactPeerIdVisibility(row, peerId2) {
+      const ident = row?.querySelector?.(".rm-contact-ident");
+      if (!ident) return;
+      const expanded = expandedContactIds.has(peerId2);
+      const short = ident.querySelector(".rm-peer-id-short");
+      const full = ident.querySelector(".rm-peer-id-full");
+      const toggle = ident.querySelector("[data-toggle-peer]");
+      if (short) short.hidden = expanded;
+      if (full) full.hidden = !expanded;
+      if (toggle) {
+        toggle.textContent = expanded ? "收起标识" : "展开完整标识";
+        toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      }
+    }
+    function openContactClue(clue, trigger) {
+      if (!clue) return;
+      const sentence = (value) => {
+        const text4 = String(value ?? "").trim();
+        return /[。！？.!?]$/.test(text4) ? text4 : `${text4}。`;
+      };
+      const parts = [`名称：${clue.name}。`, `Peer ID：${clue.peerId}。`];
+      if (clue.description) parts.push(`对方公开的简介：${sentence(clue.description)}`);
+      parts.push(`来源：${clue.sourceName}的公开通讯录，读取于 ${formatDateTime(clue.at)}。`);
+      parts.push("尚未访问：查看线索不会建立连接，不会自动添加联系人，也不会读取该节点的公开档案。");
+      openNotice("公开通讯录线索 · 尚未访问", parts.join(" "), "条目由来源节点公开声明；本机没有与目标节点建立联系。");
+      if (trigger?.isConnected) dialogTriggers.set(noticeDialog, trigger);
+    }
+    function renderContactClues() {
+      if (!contactClues || !contactClueList) return;
+      const clues = [...directoryClues.values()].filter((clue) => clue.peerId && clue.peerId !== selfPeerId() && !contactFor(clue.peerId)).sort((left, right) => (Number(right.at) || 0) - (Number(left.at) || 0));
+      contactClues.hidden = clues.length === 0;
+      if (clues.length === 0) {
+        contactClueList.replaceChildren();
+        contactCluesNote.textContent = "";
+        contactClues.dataset.signature = "";
+        return;
+      }
+      const signature = clues.map((clue) => [
+        clue.sourcePeerId,
+        clue.peerId,
+        clue.name,
+        clue.description,
+        clue.sourceName,
+        clue.at
+      ].join("\0")).join("");
+      if (contactClues.dataset.signature === signature && contactClueList.childElementCount === clues.length) {
+        return;
+      }
+      contactClues.dataset.signature = signature;
+      contactClueList.replaceChildren();
+      contactCluesNote.textContent = "以下条目来自本机实际读取的公开通讯录，由来源节点声明；尚未访问，查看不会建立连接或自动添加联系人。";
+      for (const clue of clues) {
+        const row = element5("article", "rm-clue-row");
+        row.dataset.cluePeer = clue.peerId;
+        row.dataset.clueSource = clue.sourcePeerId;
+        const avatar = element5("span", "rm-clue-avatar");
+        avatar.setAttribute("aria-hidden", "true");
+        avatar.textContent = contactInitial({ name: clue.name, peerId: clue.peerId });
+        const copy = element5("div", "rm-clue-copy");
+        const title = element5("div", "rm-clue-title");
+        const name = element5("b");
+        name.textContent = clue.name;
+        const badge = element5("span", "rm-badge rm-badge-quiet");
+        badge.textContent = "未访问";
+        title.append(name, badge);
+        copy.append(title);
+        const descriptionText = String(clue.description ?? "").trim();
+        if (descriptionText) {
+          const description = element5("p", "rm-clue-description");
+          description.textContent = descriptionText;
+          copy.append(description);
+        }
+        const peer = element5("code", "rm-peer-id");
+        peer.textContent = shortPeer(clue.peerId);
+        peer.title = clue.peerId;
+        copy.append(peer);
+        const source = element5("p", "rm-clue-source");
+        source.textContent = `来源：${clue.sourceName} 的公开通讯录 · ${formatDateTime(clue.at)}`;
+        copy.append(source);
+        const actions = element5("div", "rm-clue-actions");
+        const copyButton = element5("button", "rm-quiet");
+        copyButton.type = "button";
+        copyButton.dataset.copyPeer = clue.peerId;
+        copyButton.textContent = "复制";
+        copyButton.setAttribute("aria-label", `复制 ${clue.name} 的完整 Peer ID`);
+        const view2 = element5("button", "rm-secondary");
+        view2.type = "button";
+        view2.dataset.viewClue = clue.peerId;
+        view2.textContent = "查看线索";
+        view2.setAttribute("aria-label", `查看 ${clue.name} 的公开通讯录线索，不建立连接`);
+        actions.append(copyButton, view2);
+        row.append(avatar, copy, actions);
+        contactClueList.append(row);
+      }
+    }
+    function rememberDirectoryClues(sourcePeerId, data) {
+      const source = String(sourcePeerId ?? "");
+      if (!source || !data || data.source !== "remote" || data.error) return;
+      directorySourceReads.add(source);
+      const verified = verifiedContactProfileFor(source);
+      const local = contactFor(source);
+      const sourceName = verified?.displayName || (local ? contactRowName(local) : shortPeer(source));
+      const at = Number(data.at) > 0 ? Number(data.at) : Date.now();
+      for (const [key2, clue] of directoryClues) {
+        if (clue.sourcePeerId === source) directoryClues.delete(key2);
+      }
+      const friends = Array.isArray(data.friends) ? data.friends : [];
+      for (const friend of friends) {
+        const peerId2 = String(friend?.peerId ?? "").trim();
+        if (!peerId2 || peerId2 === selfPeerId() || peerId2 === source) continue;
+        if (contactFor(peerId2)) continue;
+        const key2 = `${source}\0${peerId2}`;
+        if (!directoryClues.has(key2) && directoryClues.size >= 80) {
+          const oldest = directoryClues.keys().next().value;
+          if (oldest !== void 0) directoryClues.delete(oldest);
+        }
+        directoryClues.set(key2, {
+          peerId: peerId2,
+          name: String(friend?.name ?? "").trim().slice(0, 120) || shortPeer(peerId2),
+          description: String(friend?.description ?? "").trim().slice(0, 280),
+          sourcePeerId: source,
+          sourceName,
+          at
+        });
+      }
+    }
+    function applyContactProjection(value) {
+      if (!value || typeof value !== "object") return;
+      const profiles = Array.isArray(value.profiles) ? value.profiles : [];
+      for (const item of profiles) {
+        const peerId2 = typeof item?.peerId === "string" ? item.peerId.trim() : "";
+        const displayName = typeof item?.displayName === "string" ? item.displayName.trim().slice(0, 80) : "";
+        if (!peerId2 || !displayName) continue;
+        const verifiedAt = Number(item.verifiedAt) > 0 ? Number(item.verifiedAt) : 0;
+        if (verifiedAt === 0) continue;
+        const existing = verifiedContactProfiles.get(peerId2);
+        if (existing && Number(existing.at) > verifiedAt) continue;
+        const avatarKey = typeof item.avatarKey === "string" ? item.avatarKey : "";
+        const avatarUrl = typeof item.avatarUrl === "string" ? item.avatarUrl : "";
+        const avatarState = typeof item.avatarState === "string" ? item.avatarState : "";
+        if (avatarKey && avatarState === "ready" && /^data:image\/(?:png|jpeg);base64,/i.test(avatarUrl)) {
+          const cached = peerAvatarState.get(peerId2);
+          if (!cached || cached.key !== avatarKey || cached.state !== "ready") {
+            peerAvatarState.set(peerId2, { key: avatarKey, state: "ready", url: avatarUrl });
+          }
+        }
+        verifiedContactProfiles.delete(peerId2);
+        verifiedContactProfiles.set(peerId2, {
+          peerId: peerId2,
+          displayName,
+          description: typeof item.description === "string" ? item.description.slice(0, 400) : "",
+          interests: Array.isArray(item.interests) ? item.interests.slice(0, 10).map((entry) => String(entry).slice(0, 80)) : [],
+          conversationStyle: typeof item.conversationStyle === "string" ? item.conversationStyle.slice(0, 300) : "",
+          avatarPath: "",
+          avatarSha256: typeof item.avatarSha256 === "string" ? item.avatarSha256 : "",
+          avatarMime: typeof item.avatarMime === "string" ? item.avatarMime : "",
+          avatarKey,
+          source: typeof item.source === "string" && item.source ? item.source : "local-projection",
+          at: verifiedAt
+        });
+      }
+      if (verifiedContactProfiles.size > 128) {
+        const oldest = verifiedContactProfiles.keys().next().value;
+        if (oldest !== void 0) verifiedContactProfiles.delete(oldest);
+      }
+      const clues = Array.isArray(value.clues) ? value.clues : [];
+      for (const item of clues) {
+        const peerId2 = typeof item?.peerId === "string" ? item.peerId.trim() : "";
+        const sourcePeerId = typeof item?.sourcePeerId === "string" ? item.sourcePeerId.trim() : "";
+        const name = typeof item?.name === "string" ? item.name.trim().slice(0, 120) : "";
+        if (!peerId2 || !sourcePeerId || !name || directorySourceReads.has(sourcePeerId)) continue;
+        const key2 = `${sourcePeerId}\0${peerId2}`;
+        if (directoryClues.has(key2)) continue;
+        if (directoryClues.size >= 80) break;
+        directoryClues.set(key2, {
+          peerId: peerId2,
+          name,
+          description: typeof item.description === "string" ? item.description.slice(0, 280) : "",
+          sourcePeerId,
+          sourceName: typeof item.sourceName === "string" && item.sourceName ? item.sourceName.slice(0, 80) : shortPeer(sourcePeerId),
+          at: Number(item.readAt) > 0 ? Number(item.readAt) : Date.now()
+        });
+      }
+      renderContactClues();
+      if (currentPage === "contacts" && contactsState.data !== null) updateContactsState();
+      if (currentPage === "messages" && contactsState.selectedPeerId && !conversationView.hidden) {
+        updateConversationIdentity(contactsState.selectedPeerId);
+      }
+      const addressNeedsProjection = view.contactProfile.tab === "address" && profileState.friends.data === null && (profileState.friends.error.length > 0 || profileState.friends.retrying);
+      if (!profileView.hidden && profileState.peerId && (profileState.data?.agentCard?.state !== "available" || addressNeedsProjection)) {
+        rerenderProfileKeepingPosition();
+      }
+    }
+    async function loadContactProjection() {
+      if (destroyed || !hostReady || !contactProjectionCapable || contactProjectionLoading || contactProjectionLoaded) return;
+      contactProjectionLoading = true;
+      try {
+        const value = await options.onLoadContactProjection();
+        if (destroyed) return;
+        if (value && typeof value === "object" && value.state !== "error") applyContactProjection(value);
+      } catch (error) {
+        console.warn("[raminga-ui] contact projection read failed", errorText(error));
+      } finally {
+        contactProjectionLoading = false;
+        contactProjectionLoaded = true;
+      }
+    }
     function fillContactRow(row, friend) {
       const peerId2 = String(friend?.peerId ?? "");
       row.dataset.contactRow = peerId2;
       row.className = "rm-contact rm-contact-row";
       const state = friend?.connection === "connected" || friend?.connection === "disconnected" ? friend.connection : "unknown";
-      const label = `${contactDisplayName(friend)}，${connectionStateText(state)}`;
-      const avatar = row.querySelector(":scope > button[data-profile-peer]") ?? element("button", "rm-contact-avatar rm-avatar-button");
+      const unread = Math.max(0, Number(friend?.unreadCount) || 0);
+      const verified = verifiedContactProfileFor(peerId2);
+      const displayName = contactRowName(friend);
+      const localName = typeof friend?.name === "string" ? friend.name.trim() : "";
+      const label = `${displayName}，${connectionStateText(state)}${unread > 0 ? `，${unread} 条未读` : ""}`;
+      const avatar = row.querySelector(":scope > button[data-profile-peer]") ?? element5("button", "rm-contact-avatar rm-avatar-button");
       avatar.type = "button";
       avatar.dataset.profilePeer = peerId2;
-      avatar.dataset.profileRef = `contacts:${peerId2}`;
+      avatar.dataset.profileRef = `contacts-avatar:${peerId2}`;
       avatar.dataset.focusKey = `contact-avatar:${peerId2}`;
-      avatar.setAttribute("aria-label", `查看 ${contactDisplayName(friend)} 的档案`);
-      avatar.textContent = contactInitial(friend);
-      const main = row.querySelector(":scope > button[data-contact-peer]") ?? element("button", "rm-contact-main");
+      applyContactAvatar(avatar, friend);
+      const main = row.querySelector(":scope > button[data-contact-peer]") ?? element5("button", "rm-contact-main");
       main.type = "button";
       main.dataset.contactPeer = peerId2;
       main.dataset.focusKey = `contact:${peerId2}`;
-      main.setAttribute("aria-label", `${label}，打开会话入口`);
-      const copy = element("span", "rm-contact-copy");
-      const nameLine = element("span", "rm-contact-name");
-      const name = element("b");
-      name.textContent = contactDisplayName(friend);
+      main.dataset.profileRef = `contacts:${peerId2}`;
+      main.setAttribute("aria-label", `${label}，打开 ${displayName} 的个人首页`);
+      const copy = element5("span", "rm-contact-copy");
+      const nameLine = element5("span", "rm-contact-name");
+      const name = element5("b");
+      name.textContent = displayName;
+      if (verified?.displayName) name.title = `公开 Agent 名称（${verified.source === "local-copy" ? "本机已核对副本" : "最近读取"}）`;
       nameLine.append(name);
+      const badge = element5("span", "rm-contact-state");
+      badge.dataset.state = state;
+      badge.textContent = connectionStateText(state);
+      if (state !== "connected") badge.title = "本机当前没有活动连接；这不等于对方永久离线。";
+      nameLine.append(badge);
       if (friend?.paused === true) {
-        const paused = element("span");
+        const paused = element5("span", "rm-contact-paused");
         paused.textContent = "已暂停主动连接";
         nameLine.append(paused);
       }
-      const id = element("code", "rm-peer-id");
-      id.textContent = peerId2;
-      copy.append(nameLine, id);
-      const description = typeof friend?.description === "string" ? friend.description.trim() : "";
-      if (description.length > 0) {
-        const note = element("span", "rm-contact-note");
-        note.textContent = description;
-        copy.append(note);
+      copy.append(nameLine);
+      if (verified?.description) {
+        const publicNote = element5("span", "rm-contact-note");
+        publicNote.textContent = verified.description;
+        publicNote.title = "对方公开 Agent 卡片中的简介";
+        copy.append(publicNote);
       }
-      const badge = element("span", "rm-contact-state");
-      badge.dataset.state = state;
-      badge.textContent = connectionStateText(state);
-      main.replaceChildren(copy, badge);
-      const menu = row.querySelector(":scope > button[data-quick-peer]") ?? element("button", "rm-quick-trigger");
+      const localDescription = typeof friend?.description === "string" ? friend.description.trim() : "";
+      const localPieces = [];
+      if (verified?.displayName) {
+        if (localName && localName !== verified.displayName) localPieces.push(localName);
+        if (localDescription && localDescription !== verified.description) localPieces.push(localDescription);
+      } else if (localDescription) {
+        localPieces.push(localDescription);
+      }
+      if (localPieces.length > 0) {
+        const localNote = element5("span", "rm-contact-local-note");
+        const localLabel = element5("span", "rm-contact-note-label");
+        localLabel.textContent = "本机备注";
+        const localText = element5("span");
+        localText.textContent = localPieces.join(" · ");
+        localNote.append(localLabel, localText);
+        copy.append(localNote);
+      }
+      const conversation = conversationForPeer(peerId2);
+      if (conversation && (conversation.hasMessages || conversation.preview)) {
+        const recent = element5("span", "rm-contact-recent");
+        const source = conversation.direction === "in" ? "对方" : conversation.origin === "human" ? "本人" : conversation.origin === "agent" ? "Agent" : "来源未知";
+        const preview = conversation.preview || "（空消息）";
+        recent.textContent = `最近：${preview}`;
+        recent.dataset.origin = source;
+        recent.setAttribute("aria-label", `最近消息，${source}：${preview}`);
+        copy.append(recent);
+      } else {
+        const recent = element5("span", "rm-contact-recent");
+        recent.textContent = "还没有消息";
+        recent.dataset.empty = "true";
+        copy.append(recent);
+      }
+      main.replaceChildren(copy);
+      row.dataset.unread = unread > 0 ? "true" : "false";
+      const actions = row.querySelector(":scope > .rm-contact-actions") ?? element5("div", "rm-contact-actions");
+      let time = actions.querySelector(":scope > .rm-contact-time");
+      if (conversation?.lastAt > 0) {
+        if (!time) {
+          time = element5("time", "rm-contact-time");
+          actions.prepend(time);
+        }
+        time.textContent = messageTimeText(conversation.lastAt);
+        time.dateTime = new Date(conversation.lastAt).toISOString();
+        time.hidden = false;
+      } else if (time) {
+        time.hidden = true;
+        time.textContent = "";
+        time.removeAttribute("datetime");
+      }
+      let actionRow = actions.querySelector(":scope > .rm-contact-action-row");
+      if (!actionRow) {
+        actionRow = element5("div", "rm-contact-action-row");
+        actions.append(actionRow);
+      }
+      const chat2 = actionRow.querySelector(":scope > button[data-chat-peer]") ?? element5("button", "rm-contact-chat");
+      chat2.type = "button";
+      chat2.dataset.chatPeer = peerId2;
+      chat2.dataset.focusKey = `contact-chat:${peerId2}`;
+      chat2.setAttribute("aria-label", unread > 0 ? `打开与 ${displayName} 的对话，${unread} 条未读` : `打开与 ${displayName} 的对话`);
+      if (!chat2.querySelector("svg")) {
+        chat2.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4 20l1.5-4.6A7.5 7.5 0 1 1 20 11.5Z"/><path d="M8.5 11.5h7M8.5 8.5h4.5"/></svg>';
+      }
+      chat2.querySelector(".rm-contact-unread")?.remove();
+      chat2.dataset.unread = unread > 0 ? "true" : "false";
+      if (unread > 0) {
+        const unreadBadge = element5("span", "rm-contact-unread");
+        unreadBadge.setAttribute("aria-label", `${unread} 条未读`);
+        unreadBadge.textContent = unread > 99 ? "99+" : String(unread);
+        chat2.append(unreadBadge);
+      }
+      const menu = actionRow.querySelector(":scope > button[data-quick-peer]") ?? element5("button", "rm-quick-trigger");
       menu.type = "button";
       menu.dataset.quickPeer = peerId2;
       menu.dataset.quickRef = `contacts-menu:${peerId2}`;
       menu.textContent = "⋯";
       menu.hidden = !friendEditCapable;
-      menu.setAttribute("aria-label", `更多操作：${contactDisplayName(friend)}`);
+      menu.setAttribute("aria-label", `更多操作：${displayName}`);
       menu.setAttribute("aria-haspopup", friendEditCapable ? "menu" : "false");
       menu.setAttribute("aria-controls", "contactQuickMenu");
       menu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === peerId2));
-      if (row.firstElementChild !== avatar || row.lastElementChild !== menu || row.childElementCount !== 3) {
-        row.replaceChildren(avatar, main, menu);
+      if (actionRow.firstElementChild !== chat2 || actionRow.lastElementChild !== menu) {
+        actionRow.replaceChildren(chat2, menu);
       }
+      const ident = row.querySelector(":scope > .rm-contact-ident") ?? element5("div", "rm-contact-ident");
+      let identLabel = ident.querySelector(":scope > .rm-contact-id-label");
+      if (!identLabel) {
+        identLabel = element5("span", "rm-contact-id-label");
+        identLabel.textContent = "节点标识";
+        ident.prepend(identLabel);
+      }
+      let shortId = ident.querySelector(":scope > .rm-peer-id-short");
+      if (!shortId) {
+        shortId = element5("code", "rm-peer-id rm-peer-id-short");
+        ident.append(shortId);
+      }
+      shortId.textContent = shortPeer(peerId2);
+      shortId.title = peerId2;
+      let fullId = ident.querySelector(":scope > .rm-peer-id-full");
+      if (!fullId) {
+        fullId = element5("code", "rm-peer-id rm-peer-id-full");
+        fullId.hidden = true;
+        ident.append(fullId);
+      }
+      fullId.textContent = peerId2;
+      let toggle = ident.querySelector(":scope > [data-toggle-peer]");
+      if (!toggle) {
+        toggle = element5("button", "rm-quiet rm-contact-id-toggle");
+        toggle.type = "button";
+        toggle.dataset.togglePeer = peerId2;
+        toggle.setAttribute("aria-label", `展开 ${displayName} 的完整 Peer ID`);
+        ident.append(toggle);
+      }
+      toggle.dataset.togglePeer = peerId2;
+      let copyButton = ident.querySelector(":scope > [data-copy-peer]");
+      if (!copyButton) {
+        copyButton = element5("button", "rm-quiet rm-contact-id-copy");
+        copyButton.type = "button";
+        copyButton.textContent = "复制";
+        copyButton.setAttribute("aria-label", `复制 ${displayName} 的完整 Peer ID`);
+        ident.append(copyButton);
+      }
+      copyButton.dataset.copyPeer = peerId2;
+      copyButton.setAttribute("aria-label", `复制 ${displayName} 的完整 Peer ID`);
+      if (row.firstElementChild !== avatar || row.childElementCount !== 4 || row.lastElementChild !== ident || actions.parentElement !== row || ident.parentElement !== row) {
+        row.replaceChildren(avatar, main, actions, ident);
+      }
+      applyContactPeerIdVisibility(row, peerId2);
     }
     function contactRow(friend) {
-      return element("div", "rm-contact");
+      return element5("div", "rm-contact");
     }
     function focusedContactRow() {
       const active = root.activeElement ?? doc.activeElement;
@@ -3787,6 +10470,9 @@ ${resultDetail}`;
       const activeRow = focusedContactRow();
       const activePeer = activeRow?.dataset.contactRow ?? "";
       const activeWasAvatar = Boolean(root.activeElement?.dataset?.profilePeer);
+      const activeWasChat = Boolean(root.activeElement?.dataset?.chatPeer);
+      const activeWasToggle = Boolean(root.activeElement?.dataset?.togglePeer);
+      const activeWasCopy = Boolean(root.activeElement?.dataset?.copyPeer);
       const rowsBefore = [...contactList.querySelectorAll("[data-contact-row]")];
       const activeIndex = activeRow ? rowsBefore.indexOf(activeRow) : -1;
       const listScroll = contactList.scrollTop;
@@ -3810,7 +10496,7 @@ ${resultDetail}`;
       const rowsAfter = [...contactList.querySelectorAll("[data-contact-row]")];
       const target = activePeer ? rowsAfter.find((row) => row.dataset.contactRow === activePeer) : null;
       if (target) {
-        const focusTarget = activeWasAvatar ? target.querySelector("button[data-profile-peer]") : target.querySelector("button[data-contact-peer]");
+        const focusTarget = activeWasAvatar ? target.querySelector("button[data-profile-peer]") : activeWasChat ? target.querySelector("button[data-chat-peer]") : activeWasToggle ? target.querySelector("[data-toggle-peer]") : activeWasCopy ? target.querySelector("[data-copy-peer]") : target.querySelector("button[data-contact-peer]");
         if (focusTarget && root.activeElement !== focusTarget) focusTarget.focus({ preventScroll: true });
       } else if (activeRow) {
         const fallback = rowsAfter[Math.min(Math.max(activeIndex, 0), rowsAfter.length - 1)] ?? null;
@@ -3848,7 +10534,16 @@ ${resultDetail}`;
       if (destroyed) return;
       const query = contactQuery.value;
       view.pages.contacts.query = query;
-      const state = contactListState(contactsState.data, query, contactsState.transportError);
+      const filter = view.pages.contacts.filter === "unread" ? "unread" : "all";
+      const state = contactListState(
+        contactsState.data,
+        query,
+        contactsState.transportError,
+        filter,
+        verifiedContactProfileFor
+      );
+      refreshUnreadBadges();
+      renderContactClues();
       const activeRow = focusedContactRow();
       if (state.kind === "ready") {
         const stateHadFocus = contactsSection.contains(root.activeElement);
@@ -3900,6 +10595,20 @@ ${resultDetail}`;
             share: true
           });
         }
+      } else if (state.kind === "unread-empty") {
+        showContactsState({
+          title: query.trim() ? "没有匹配的未读联系人" : "暂时没有未读消息",
+          body: query.trim() ? `有未读的联系人中没有名称、备注或 Peer ID 匹配“${query.trim()}”。` : "所有保留的入站消息都已读，或联系人还没有新消息。升级后从当前记录开始计未读。",
+          primary: {
+            label: query.trim() ? "清除搜索" : "查看全部联系人",
+            run: query.trim() ? clearContactSearch : () => {
+              view.pages.contacts.filter = "all";
+              updateContactsState();
+              saveNow();
+            }
+          },
+          retry: state.stale
+        });
       } else {
         const stale = state.stale || Boolean(state.error);
         showContactsState({
@@ -3924,14 +10633,21 @@ ${resultDetail}`;
       if (nextAt > 0 && previousAt > 0 && nextAt < previousAt) return;
       contactsState.data = value;
       contactsState.transportError = "";
+      refreshUnreadBadges();
       updateContactsState();
       updateConversationIndexState();
+      if (currentPage === "messages" && contactsState.selectedPeerId && !conversationView.hidden) {
+        updateConversationIdentity(contactsState.selectedPeerId);
+      }
+      if (currentPage === "settings" && !view.settings.index) renderSettingsMemory();
+      if (!profileView.hidden && profileState.peerId) rerenderProfileKeepingPosition();
     }
     function setContactsError(error) {
       if (destroyed) return;
       contactsState.transportError = errorText(error) || "联系人读取失败";
       updateContactsState();
       updateConversationIndexState();
+      if (currentPage === "settings" && !view.settings.index) renderSettingsMemory();
     }
     function contactFor(peerId2) {
       const friends = Array.isArray(contactsState.data?.friends) ? contactsState.data.friends : [];
@@ -4000,7 +10716,7 @@ ${resultDetail}`;
       quickMenuPeerId = peerId2;
       quickMenuTrigger = trigger;
       trigger.setAttribute("aria-expanded", "true");
-      const edit = element("button");
+      const edit = element5("button");
       edit.type = "button";
       edit.setAttribute("role", "menuitem");
       edit.dataset.quickAction = "edit";
@@ -4009,7 +10725,7 @@ ${resultDetail}`;
         closeContactQuickMenu({ restoreFocus: false, quiet: true });
         openEditContact(peerId2, trigger);
       };
-      const note = element("p", "rm-quick-menu-note");
+      const note = element5("p", "rm-quick-menu-note");
       note.setAttribute("role", "none");
       note.textContent = "只保存到本机并更新公开的 friends.json，不修改对方档案。";
       contactQuickMenu.append(edit, note);
@@ -4261,6 +10977,7 @@ ${resultDetail}`;
       scheduleSave();
     }
     function saveIndexScroll() {
+      if (currentPage !== "messages" || contactsState.selectedPeerId || pageEls.messages.hidden) return;
       view.pages.messages.scroll = Math.max(0, pageEls.messages.scrollTop || 0);
     }
     function resetChatFor(peerId2) {
@@ -4311,6 +11028,37 @@ ${resultDetail}`;
       applyComposerStatus("", "", "");
       updateComposerMeta();
     }
+    function updateConversationIdentity(peerId2) {
+      const id = String(peerId2 ?? "");
+      if (!id) return;
+      const friend = conversationFriend(id);
+      const identityFriend = friend ?? { peerId: id };
+      const displayName = contactRowName(identityFriend);
+      const verified = verifiedContactProfileFor(id);
+      const localName = typeof friend?.name === "string" ? friend.name.trim() : "";
+      const localDescription = typeof friend?.description === "string" ? friend.description.trim() : "";
+      const localPieces = [];
+      if (verified && localName && localName !== verified.displayName) localPieces.push(`本机备注：${localName}`);
+      if (verified && localDescription && localDescription !== verified.description) localPieces.push(localDescription);
+      conversationName.textContent = displayName;
+      conversationPeerId.textContent = id;
+      applyContactAvatar(conversationAvatar, identityFriend);
+      conversationAvatar.dataset.profilePeer = id;
+      conversationAvatar.dataset.profileRef = `chat:${id}`;
+      conversationLocalNote.textContent = localPieces.join(" · ");
+      conversationLocalNote.hidden = localPieces.length === 0;
+      conversationProfile.hidden = !peerProfileCapable;
+      conversationProfile.dataset.profilePeer = id;
+      conversationProfile.dataset.profileRef = `chat-profile:${id}`;
+      conversationProfile.setAttribute("aria-label", `查看 ${displayName} 的档案`);
+      conversationMenu.hidden = !(friendEditCapable && friend);
+      conversationMenu.dataset.quickPeer = id;
+      conversationMenu.dataset.quickRef = `chat-menu:${id}`;
+      conversationMenu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === id));
+      const state = friend?.connection === "connected" || friend?.connection === "disconnected" ? friend.connection : "unknown";
+      conversationState.dataset.state = state;
+      conversationState.textContent = connectionStateText(state);
+    }
     function renderConversation() {
       const peerId2 = contactsState.selectedPeerId;
       if (!peerId2) {
@@ -4322,44 +11070,77 @@ ${resultDetail}`;
         return;
       }
       if (chat.peerId !== peerId2) resetChatFor(peerId2);
-      const friend = conversationFriend(peerId2);
       pageEls.messages.dataset.view = "conversation";
       messagesIndex.hidden = true;
       conversationView.hidden = false;
       updateConversationBackLabel(peerId2);
-      conversationName.textContent = friend ? contactDisplayName(friend) : shortPeer(peerId2);
-      conversationPeerId.textContent = peerId2;
-      conversationAvatar.textContent = friend ? contactInitial(friend) : "?";
-      conversationAvatar.dataset.profilePeer = peerId2;
-      conversationAvatar.dataset.profileRef = `chat:${peerId2}`;
-      conversationAvatar.setAttribute("aria-label", `查看 ${friend ? contactDisplayName(friend) : shortPeer(peerId2)} 的档案`);
-      conversationMenu.hidden = !(friendEditCapable && friend);
-      conversationMenu.dataset.quickPeer = peerId2;
-      conversationMenu.dataset.quickRef = `chat-menu:${peerId2}`;
-      conversationMenu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === peerId2));
-      const state = friend?.connection === "connected" || friend?.connection === "disconnected" ? friend.connection : "unknown";
-      conversationState.dataset.state = state;
-      conversationState.textContent = connectionStateText(state);
+      updateConversationIdentity(peerId2);
       renderComposer();
       renderMessageList();
     }
     function updateConversationBackLabel(peerId2) {
       if (!conversationBack) return;
       const valid = Boolean(peerId2) && chat.returnPeer === peerId2;
-      conversationBack.textContent = valid && chat.returnPage === "contacts" ? "← 返回联系人" : valid && chat.returnPage === "raminga" ? "← 返回 Raminga" : "← 返回对话";
+      const origin = valid && chat.returnPage === "contacts" ? "联系人列表" : valid && chat.returnPage === "profile" ? "联系人档案" : valid && chat.returnPage === "home" ? "主页" : valid && chat.returnPage === "journey" && chat.returnJourneyId ? "漫游证据" : "会话列表";
+      conversationBack.textContent = valid && chat.returnPage === "contacts" ? "← 返回联系人" : valid && chat.returnPage === "profile" ? "← 返回联系人档案" : valid && chat.returnPage === "home" ? "← 返回主页" : valid && chat.returnPage === "journey" && chat.returnJourneyId ? "← 返回漫游" : "← 返回对话";
+      if (conversationOrigin) conversationOrigin.textContent = `入口来源：${origin}`;
     }
-    function openConversation(peerId2, { source = "messages", focus = true, focusMessageId = "" } = {}) {
+    function openMessagesIndex(source = "home") {
+      const from = pageElsHas(source) && source !== "messages" && source !== "settings" ? source : "home";
+      view.pages.messages.indexReturnPage = from;
+      showPage("messages");
+      if (contactsState.selectedPeerId) {
+        renderConversation();
+        saveNow();
+        return;
+      }
+      pageEls.messages.scrollTop = view.pages.messages.scroll;
+      conversationQuery.focus?.({ preventScroll: true });
+      saveNow();
+    }
+    function openConversation(peerId2, {
+      source = "messages",
+      focus = true,
+      focusMessageId = "",
+      journeyId = "",
+      journeyEvent = 0,
+      journeyMessageId = "",
+      profileTab = "interactions",
+      profileScroll = 0,
+      returnFocus = ""
+    } = {}) {
       if (!peerId2) return;
+      settingsFocusSeq += 1;
       if (contactsState.selectedPeerId && contactsState.selectedPeerId !== peerId2) saveChatScroll();
-      if (source !== "contacts") saveIndexScroll();
-      const returnPage = source === "contacts" ? "contacts" : source === "raminga" ? "raminga" : "messages";
+      if (source === "messages" && !contactsState.selectedPeerId) saveIndexScroll();
+      const profileSource2 = source === "profile" && view.contactProfile.peerId === peerId2;
+      const returnPage = source === "contacts" ? "contacts" : profileSource2 ? "profile" : source === "home" || source === "raminga" ? "home" : source === "journey" && typeof journeyId === "string" && journeyId.length > 0 ? "journey" : "messages";
+      const tab = ["interactions", "posts", "address"].includes(profileTab) ? profileTab : "interactions";
+      const scroll2 = Math.max(0, Math.floor(Number(profileScroll) || 0));
+      const focusKey = typeof returnFocus === "string" ? returnFocus.slice(0, 512) : "";
+      if (returnPage === "profile") {
+        profileReturn.open = false;
+        profileView.hidden = true;
+      }
       contactsState.selectedPeerId = peerId2;
       view.pages.messages.peerId = peerId2;
       view.pages.messages.returnPage = returnPage;
       view.pages.messages.returnPeer = peerId2;
+      view.pages.messages.returnJourneyId = returnPage === "journey" ? journeyId : "";
+      view.pages.messages.returnJourneyEvent = returnPage === "journey" && Number.isSafeInteger(Number(journeyEvent)) ? Number(journeyEvent) : 0;
+      view.pages.messages.returnJourneyMessage = returnPage === "journey" && typeof journeyMessageId === "string" ? journeyMessageId : "";
+      view.pages.messages.returnProfileTab = returnPage === "profile" ? tab : "interactions";
+      view.pages.messages.returnProfileScroll = returnPage === "profile" ? scroll2 : 0;
+      view.pages.messages.returnFocus = returnPage === "profile" || returnPage === "contacts" ? focusKey : "";
       renderConversation();
       chat.returnPage = returnPage;
       chat.returnPeer = peerId2;
+      chat.returnJourneyId = returnPage === "journey" ? journeyId : "";
+      chat.returnJourneyEvent = returnPage === "journey" ? Math.max(0, Math.floor(Number(journeyEvent) || 0)) : 0;
+      chat.returnJourneyMessage = returnPage === "journey" && typeof journeyMessageId === "string" ? journeyMessageId : "";
+      chat.returnProfileTab = returnPage === "profile" ? tab : "interactions";
+      chat.returnProfileScroll = returnPage === "profile" ? scroll2 : 0;
+      chat.returnFocus = returnPage === "profile" || returnPage === "contacts" ? focusKey : "";
       chat.focusMessageId = typeof focusMessageId === "string" ? focusMessageId : "";
       chat.focusNotice = chat.focusMessageId ? "已在当前保留记录中找到该消息引用。" : "";
       updateConversationBackLabel(peerId2);
@@ -4370,9 +11151,16 @@ ${resultDetail}`;
       if (focus) messageInput.focus({ preventScroll: true });
     }
     function closeConversation() {
+      settingsFocusSeq += 1;
+      cancelMarkRead();
       const peerId2 = contactsState.selectedPeerId;
-      const returnPage = chat.returnPage === "contacts" || chat.returnPage === "raminga" ? chat.returnPage : "messages";
+      const profileReturnPage = chat.returnPage === "profile" && view.contactProfile.peerId === peerId2;
+      const returnPage = chat.returnPage === "contacts" || chat.returnPage === "home" || profileReturnPage || chat.returnPage === "journey" && chat.returnJourneyId ? chat.returnPage : "messages";
+      const renderKey = chat.returnPeer === peerId2 ? `journey-evidence:${chat.returnJourneyId}:${chat.returnJourneyEvent}:${chat.returnJourneyMessage}` : "";
       const focusPeer = chat.returnPeer === peerId2 ? peerId2 : "";
+      const returnProfileTab = chat.returnProfileTab;
+      const returnProfileScroll = chat.returnProfileScroll;
+      const returnFocus = chat.returnFocus;
       if (peerId2) {
         saveChatScroll();
         chat.generation += 1;
@@ -4383,18 +11171,41 @@ ${resultDetail}`;
       view.pages.messages.peerId = "";
       view.pages.messages.returnPage = "";
       view.pages.messages.returnPeer = "";
+      view.pages.messages.returnJourneyId = "";
+      view.pages.messages.returnJourneyEvent = 0;
+      view.pages.messages.returnJourneyMessage = "";
+      view.pages.messages.returnProfileTab = "interactions";
+      view.pages.messages.returnProfileScroll = 0;
+      view.pages.messages.returnFocus = "";
       chat = createChatState("");
       renderConversation();
       updateConversationIndexState();
+      if (returnPage === "profile" && view.contactProfile.peerId === peerId2) {
+        restoreProfileAfterConversation(peerId2, returnProfileTab, returnProfileScroll, returnFocus);
+        return;
+      }
       if (returnPage === "contacts") {
         showPage("contacts", { save: false });
         pageEls.contacts.scrollTop = view.pages.contacts.scroll;
-        const row = focusPeer ? contactList.querySelector(`button[data-contact-peer="${selectorValue(focusPeer)}"]`) : null;
-        (row ?? contactQuery).focus({ preventScroll: true });
-      } else if (returnPage === "raminga") {
-        showPage("raminga", { save: false });
-        pageEls.raminga.scrollTop = view.pages.raminga.scroll;
-        const target = ramingaSessionList.querySelector("[data-session-toggle]") ?? $("#ramingaHeading");
+        let target = null;
+        if (focusPeer) {
+          target = returnFocus.startsWith("contact-chat:") ? contactList.querySelector(`button[data-chat-peer="${selectorValue(focusPeer)}"]`) : contactList.querySelector(`button[data-contact-peer="${selectorValue(focusPeer)}"]`);
+        }
+        if (!target && view.pages.contacts.filter === "unread") {
+          target = contactFilters.find((button) => button.dataset.contactFilter === "unread") ?? null;
+        }
+        (target ?? contactQuery).focus({ preventScroll: true });
+      } else if (returnPage === "journey") {
+        showPage("journey", { save: false });
+        pageEls.journey.scrollTop = view.journey.scroll;
+        saveNow();
+        const target = [...journeyDetail.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === renderKey);
+        (target ?? journeyBack).focus?.({ preventScroll: true });
+        return;
+      } else if (returnPage === "home") {
+        showPage("home", { save: false });
+        pageEls.home.scrollTop = view.home.scroll;
+        const target = ramingaSessionList.querySelector("[data-journey-open]") ?? homeAgentName;
         target?.focus?.({ preventScroll: true });
       } else {
         showPage("messages", { save: false });
@@ -4726,6 +11537,7 @@ ${resultDetail}`;
       chat.restoreWindow = false;
       updateMessageListChrome();
       if (chat.focusMessageId) void probeFocusInHistory();
+      else scheduleMarkRead();
       return markPageApplied(page, true);
     }
     function appendMessagePage(page, context) {
@@ -4775,6 +11587,7 @@ ${resultDetail}`;
       }
       updateMessageListChrome();
       if (chat.focusMessageId) void probeFocusInHistory();
+      else scheduleMarkRead();
       return markPageApplied(page, true);
     }
     function captureVisibleMessageAnchor() {
@@ -4815,9 +11628,120 @@ ${resultDetail}`;
       if (!messageList || messageList.hidden) return chat.firstPage;
       return messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight <= 48;
     }
+    function updateJumpToLatest() {
+      if (!composerJump || !messageJumpLatest) return;
+      const visible = currentPage === "messages" && !conversationView.hidden && !pageEls.messages.hidden && !messageList.hidden && chat.items.length > 0;
+      composerJump.hidden = !(visible && !isMessageListAtBottom());
+    }
+    function jumpToLatestMessages() {
+      const peerId2 = contactsState.selectedPeerId;
+      if (!peerId2) return;
+      stayAtLatestMessages();
+      updateMessageListChrome();
+      updateJumpToLatest();
+      if (!composer.hidden) focusMessageInput();
+      else {
+        const rows = messageList.querySelectorAll(".rm-message[data-message-id]");
+        rows[rows.length - 1]?.focus({ preventScroll: true });
+      }
+      scheduleMarkRead();
+    }
     function scrollMessagesToBottom() {
       if (!messageList || messageList.hidden) return;
       applyMessageListScrollTop(messageList.scrollHeight);
+    }
+    function cancelMarkRead() {
+      if (markReadTimer !== null) {
+        win.clearTimeout(markReadTimer);
+        markReadTimer = null;
+      }
+      markReadKey = "";
+      markReadSeq += 1;
+    }
+    function latestReadableMessage() {
+      const state = currentMessageState();
+      if (state.kind !== "ready" || !Array.isArray(state.messages) || state.messages.length === 0) return null;
+      return [...state.messages].sort((left, right) => {
+        if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
+        return String(left.messageId).localeCompare(String(right.messageId));
+      }).at(-1) ?? null;
+    }
+    function markReadEligible() {
+      if (!markReadCapable || destroyed || doc.visibilityState !== "visible") return false;
+      if (typeof doc.hasFocus === "function" && !doc.hasFocus()) return false;
+      if (currentPage !== "messages" || conversationView.hidden) return false;
+      const pageId = pageEls.messages;
+      if (!pageId || pageId.hidden) return false;
+      const peerId2 = contactsState.selectedPeerId;
+      if (!peerId2) return false;
+      if (!messageList || messageList.hidden) return false;
+      if (chat.pendingRestore || chat.focusMessageId || chat.focusBusy || chat.restoreLoading) return false;
+      const active = root.activeElement ?? doc.activeElement;
+      if (!active || active === doc.body || !conversationView.contains(active)) return false;
+      if (!isMessageListAtBottom()) return false;
+      return Boolean(latestReadableMessage());
+    }
+    function scheduleMarkRead() {
+      if (!markReadCapable || destroyed) return;
+      if (!markReadEligible()) {
+        cancelMarkRead();
+        return;
+      }
+      const peerId2 = contactsState.selectedPeerId;
+      const latest = latestReadableMessage();
+      if (!peerId2 || !latest?.messageId) return;
+      const key2 = `${peerId2}\0${latest.messageId}`;
+      if (markReadKey === key2 || markReadInFlight) return;
+      markReadKey = key2;
+      if (markReadTimer !== null) win.clearTimeout(markReadTimer);
+      const seq = ++markReadSeq;
+      markReadTimer = win.setTimeout(() => {
+        markReadTimer = null;
+        if (seq !== markReadSeq) return;
+        if (!markReadEligible()) {
+          cancelMarkRead();
+          return;
+        }
+        void flushMarkRead(peerId2, latest.messageId, key2, seq);
+      }, 500);
+    }
+    async function flushMarkRead(peerId2, messageId2, key2, seq) {
+      if (!markReadCapable || markReadInFlight || seq !== markReadSeq) return;
+      markReadInFlight = true;
+      try {
+        const result = await options.onMarkRead(peerId2, messageId2);
+        if (destroyed || seq !== markReadSeq) return;
+        const unread = Math.max(0, Number(result?.unreadCount) || 0);
+        const conversations = conversationsState.data;
+        if (conversations && Array.isArray(conversations.conversations)) {
+          const row = conversations.conversations.find((item) => item?.peerId === peerId2);
+          if (row) {
+            const previous = Math.max(0, Number(row.unreadCount) || 0);
+            row.unreadCount = unread;
+            row.lastReadMessageId = result?.lastReadMessageId || messageId2;
+            row.lastReadAt = Number(result?.lastReadAt) || Date.now();
+            if (Number.isFinite(Number(conversations.totalUnread))) {
+              conversations.totalUnread = Math.max(0, Number(conversations.totalUnread) - previous + unread);
+            }
+          }
+        }
+        const friend = contactFor(peerId2);
+        if (friend) friend.unreadCount = unread;
+        markReadKey = key2;
+        refreshUnreadBadges();
+        updateConversationIndexState();
+        updateContactsState();
+      } catch (error) {
+        console.warn("[raminga-ui] mark read failed", errorText(error));
+        markReadKey = "";
+      } finally {
+        markReadInFlight = false;
+        if (!destroyed && markReadEligible()) {
+          const newest = latestReadableMessage();
+          const newestKey = newest?.messageId ? `${contactsState.selectedPeerId}\0${newest.messageId}` : "";
+          if (newestKey && newestKey !== markReadKey && newest?.messageId !== messageId2) scheduleMarkRead();
+        }
+      }
     }
     function focusMessageInput() {
       messageInput.focus({ preventScroll: true });
@@ -4828,15 +11752,15 @@ ${resultDetail}`;
         messageInput.focus({ preventScroll: true });
       }
     }
-    function showMessageState(kind, { title, body, action = null, retry = false }) {
+    function showMessageState(kind, { title, body, action: action2 = null, retry = false }) {
       messageStateSection.hidden = false;
       messageStateSection.dataset.tone = kind === "error" ? "error" : "unavailable";
       $("#messageStateTitle").textContent = title;
       $("#messageStateBody").textContent = body;
       const actionEl = $("#messageStateAction");
-      actionEl.hidden = action === null;
-      actionEl.textContent = action?.label ?? "";
-      actionEl.onclick = action === null ? null : action.run;
+      actionEl.hidden = action2 === null;
+      actionEl.textContent = action2?.label ?? "";
+      actionEl.onclick = action2 === null ? null : action2.run;
       const retryEl = $("#messageStateRetry");
       retryEl.hidden = retry !== true;
       retryEl.textContent = messagesRetrying ? "正在重试…" : "重试读取";
@@ -4871,6 +11795,7 @@ ${resultDetail}`;
       requestMessages(peerId2, true);
     }
     function updateMessageListChrome() {
+      updateJumpToLatest();
       if (messageFocusNote) {
         messageFocusNote.textContent = chat.focusNotice || "";
         messageFocusNote.hidden = !chat.focusNotice;
@@ -5018,33 +11943,32 @@ ${resultDetail}`;
           chat.focusMessageId = "";
         }
       }
+      scheduleMarkRead();
     }
     function renderMessageRow(message) {
-      const row = element("div", "rm-message");
+      const row = element5("div", "rm-message");
       row.dataset.messageId = message.messageId;
       row.dataset.peerId = message.peerId;
       row.dataset.direction = message.direction === "out" ? "out" : "in";
       row.tabIndex = -1;
-      const bubble = element("div", "rm-message-bubble");
+      const bubble = element5("div", "rm-message-bubble");
       bubble.textContent = message.text;
-      const meta = element("div", "rm-message-meta");
-      const clock = element("span");
+      const meta = element5("div", "rm-message-meta");
+      const origin = element5("span", "rm-message-origin");
+      origin.dataset.origin = message.direction === "in" ? "peer" : String(message.origin ?? "unknown");
+      origin.textContent = messageSourceLabel(message);
+      const clock = element5("span");
       clock.textContent = messageClock(message.createdAt);
-      meta.append(clock);
+      meta.append(origin, clock);
       if (message.direction === "out") {
-        const status = element("span", "rm-message-status");
+        const status = element5("span", "rm-message-status");
         status.dataset.tone = deliveryStatusTone(message.deliveryStatus);
         status.textContent = deliveryStatusText(message);
         meta.append(status);
-        if (message.origin === "agent") {
-          const origin = element("span");
-          origin.textContent = "Agent 发出";
-          meta.append(origin);
-        }
       }
       row.append(bubble, meta);
       if (message.direction === "out" && message.deliveryError && ["failed", "pending", "unknown"].includes(String(message.deliveryStatus))) {
-        const tech = element("button", "rm-detail-link rm-message-tech");
+        const tech = element5("button", "rm-detail-link rm-message-tech");
         tech.type = "button";
         tech.dataset.messageAction = "detail";
         tech.textContent = "投递技术详情";
@@ -5053,9 +11977,9 @@ ${resultDetail}`;
         tech.onclick = (event) => openMessageDetail(message, event.currentTarget);
         row.append(tech);
       }
-      const actions = element("div", "rm-message-actions");
+      const actions = element5("div", "rm-message-actions");
       if (isCancelable(message) && cancelsCapable) {
-        const cancel = element("button", "rm-quiet");
+        const cancel = element5("button", "rm-quiet");
         cancel.type = "button";
         cancel.dataset.messageAction = "cancel";
         cancel.textContent = cancellingIds.has(message.messageId) ? "正在取消…" : "取消待发";
@@ -5066,7 +11990,7 @@ ${resultDetail}`;
         actions.append(cancel);
       }
       if (message.direction === "out" && String(message.deliveryStatus) === "failed") {
-        const retry = element("button", "rm-quiet");
+        const retry = element5("button", "rm-quiet");
         retry.type = "button";
         retry.dataset.messageAction = "reedit";
         retry.textContent = "重新编辑";
@@ -5224,25 +12148,28 @@ ${resultDetail}`;
       composerStatus.hidden = !hasStatus;
       const hasTech = !composerTech.hidden;
       const hasActions = !composerActions.hidden;
+      const wasHidden = composerOverlay.hidden;
+      const wasAtBottom = !messageList.hidden && isMessageListAtBottom();
       composerOverlay.hidden = composer.hidden || !(hasStatus || hasTech || hasActions);
+      if (wasHidden && !composerOverlay.hidden && wasAtBottom) scrollMessagesToBottom();
     }
     function updateComposerDetail(task = null) {
       const value = task ?? (contactsState.selectedPeerId ? taskFor(contactsState.selectedPeerId) : null);
       composerTech.hidden = composerDetailForTask(value).length === 0;
       updateComposerOverlay();
     }
-    function applyComposerStatus(text2, tone = "", detail = "") {
-      const value = String(text2 || "");
+    function applyComposerStatus(text4, tone = "", detail = "") {
+      const value = String(text4 || "");
       composerStatus.textContent = value;
       if (tone) composerStatus.dataset.tone = tone;
       else composerStatus.removeAttribute("data-tone");
       composerDetailText = typeof detail === "string" ? detail.trim() : "";
       updateComposerDetail();
     }
-    function setComposerNotice(peerId2, text2, tone = "", detail = "", meta = {}) {
+    function setComposerNotice(peerId2, text4, tone = "", detail = "", meta = {}) {
       composerNotice = {
         peerId: peerId2,
-        text: String(text2 || ""),
+        text: String(text4 || ""),
         tone,
         detail: String(detail || ""),
         taskRequestId: String(meta.taskRequestId || ""),
@@ -5253,12 +12180,12 @@ ${resultDetail}`;
       }
     }
     function openTechnicalDetail({ title, intro, raw, trigger = null, messageId: messageId2 = "" }) {
-      const text2 = String(raw || "").trim();
-      if (!text2) return;
+      const text4 = String(raw || "").trim();
+      if (!text4) return;
       technicalHeading.textContent = String(title || "技术详情");
       technicalIntro.textContent = String(intro || "");
       technicalIntro.hidden = technicalIntro.textContent.length === 0;
-      technicalRaw.textContent = text2;
+      technicalRaw.textContent = text4;
       technicalRaw.scrollTop = 0;
       if (technicalRaw.setSelectionRange) technicalRaw.setSelectionRange(0, 0);
       technicalReturn = { messageId: String(messageId2 || "") };
@@ -5292,8 +12219,8 @@ ${resultDetail}`;
       const messageId2 = technicalReturn?.messageId;
       if (messageId2) {
         const row = messageList.querySelector(`[data-message-id="${selectorValue(messageId2)}"]`);
-        const action = row?.querySelector('[data-message-action="detail"]');
-        if (action) return action;
+        const action2 = row?.querySelector('[data-message-action="detail"]');
+        if (action2) return action2;
         if (row) return row;
       }
       return composerTech.hidden ? null : composerTech;
@@ -5303,8 +12230,9 @@ ${resultDetail}`;
       const limit = Number(nodeState.status?.maxChatTextBytes) > 0 ? Number(nodeState.status.maxChatTextBytes) : 4096;
       const bytes = countTextBytes(messageInput.value);
       const over = bytes > limit;
-      messageCounter.textContent = `${bytes} / ${limit} 字节`;
+      messageCounter.textContent = over ? `${bytes} / ${limit} 字节 · 超过上限` : `${bytes} / ${limit} 字节`;
       messageCounter.dataset.over = String(over);
+      messageCounter.hidden = bytes === 0 && !over;
       const peerId2 = contactsState.selectedPeerId;
       const task = peerId2 ? taskFor(peerId2) : null;
       const empty = messageInput.value.trim().length === 0;
@@ -5337,10 +12265,10 @@ ${resultDetail}`;
       }
       updateComposerOverlay();
     }
-    function validateMessage(text2) {
-      if (text2.trim().length === 0) return "请输入消息。";
+    function validateMessage(text4) {
+      if (text4.trim().length === 0) return "请输入消息。";
       const limit = Number(nodeState.status?.maxChatTextBytes) > 0 ? Number(nodeState.status.maxChatTextBytes) : 4096;
-      const bytes = countTextBytes(text2);
+      const bytes = countTextBytes(text4);
       if (bytes > limit) return `消息太长了：${bytes} 字节，当前节点上限 ${limit} 字节。请缩短后再发送。`;
       return "";
     }
@@ -5350,19 +12278,19 @@ ${resultDetail}`;
       if (!peerId2) return;
       let task = taskFor(peerId2);
       if (task?.sending) return;
-      let text2;
+      let text4;
       let requestId;
       const retryingFailed = retry === true && task?.outcome?.title === "发送失败";
       if (reconcile) {
         if (!task || !task.unknown || task.sending) return;
-        text2 = task.text;
+        text4 = task.text;
         requestId = task.requestId;
       } else if (retryingFailed) {
-        text2 = task.text;
+        text4 = task.text;
         requestId = task.requestId;
       } else {
-        text2 = messageInput.value;
-        const invalid = validateMessage(text2);
+        text4 = messageInput.value;
+        const invalid = validateMessage(text4);
         if (invalid) {
           setComposerNotice(peerId2, invalid, "error");
           focusMessageInput();
@@ -5370,16 +12298,16 @@ ${resultDetail}`;
           return;
         }
         requestId = newRequestId();
-        if (messageInput.value === text2) {
+        if (messageInput.value === text4) {
           messageInput.value = "";
           persistDraft(peerId2, "");
         }
       }
-      if (!text2.trim() || !requestId) return;
+      if (!text4.trim() || !requestId) return;
       const attempt = ++sendSeq;
       task = {
         peerId: peerId2,
-        text: text2,
+        text: text4,
         requestId,
         messageId: "",
         attempt,
@@ -5394,7 +12322,7 @@ ${resultDetail}`;
       renderComposer();
       let result;
       try {
-        result = await options.onSend(peerId2, text2, requestId);
+        result = await options.onSend(peerId2, text4, requestId);
       } catch (error) {
         result = {
           ok: false,
@@ -5473,32 +12401,39 @@ ${resultDetail}`;
       const name = friend ? contactDisplayName(friend) : shortPeer(peerId2);
       const summary = conversationSummaryText(item);
       const status = conversationStatusLabel(item);
-      const avatar = row.querySelector(":scope > button[data-profile-peer]") ?? element("button", "rm-contact-avatar rm-avatar-button");
+      const avatar = row.querySelector(":scope > button[data-profile-peer]") ?? element5("button", "rm-contact-avatar rm-avatar-button");
       avatar.type = "button";
       avatar.dataset.profilePeer = peerId2;
       avatar.dataset.profileRef = `messages:${peerId2}`;
       avatar.dataset.focusKey = `conversation-avatar:${peerId2}`;
       avatar.setAttribute("aria-label", `查看 ${name} 的档案`);
       avatar.textContent = friend ? contactInitial(friend) : "?";
-      const main = row.querySelector(":scope > button[data-conversation-peer]") ?? element("button", "rm-conversation-main");
+      const main = row.querySelector(":scope > button[data-conversation-peer]") ?? element5("button", "rm-conversation-main");
       main.type = "button";
       main.dataset.conversationPeer = peerId2;
       main.dataset.focusKey = `conversation:${peerId2}`;
       main.setAttribute("aria-label", `${name}。${summary}。${status}。打开会话`);
-      const copy = element("span", "rm-conversation-copy");
-      const top = element("span", "rm-conversation-top");
-      const title = element("b");
+      const copy = element5("span", "rm-conversation-copy");
+      const top = element5("span", "rm-conversation-top");
+      const title = element5("b");
       title.textContent = name;
-      const time = element("span", "rm-conversation-time");
+      const time = element5("span", "rm-conversation-time");
       time.textContent = item.hasMessages ? messageTimeText(item.lastAt) : "";
+      const unread = Math.max(0, Number(item.unreadCount) || 0);
+      if (unread > 0) {
+        const unreadBadge = element5("span", "rm-conversation-unread");
+        unreadBadge.textContent = unread > 99 ? "99+" : String(unread);
+        unreadBadge.setAttribute("aria-label", `${unread} 条未读`);
+        time.append(" ", unreadBadge);
+      }
       top.append(title, time);
-      const preview = element("span", "rm-conversation-preview");
+      const preview = element5("span", "rm-conversation-preview");
       preview.textContent = summary;
-      const meta = element("span", "rm-conversation-meta");
-      const id = element("code", "rm-peer-id");
+      const meta = element5("span", "rm-conversation-meta");
+      const id = element5("code", "rm-peer-id");
       id.textContent = shortPeer(peerId2);
       id.title = peerId2;
-      const badge = element("span", "rm-conversation-status");
+      const badge = element5("span", "rm-conversation-status");
       badge.dataset.tone = conversationStatusTone(item);
       badge.textContent = status;
       meta.append(id, badge);
@@ -5509,7 +12444,7 @@ ${resultDetail}`;
       }
     }
     function conversationRow(item) {
-      return element("div", "rm-conversation");
+      return element5("div", "rm-conversation");
     }
     function reconcileConversationList(items) {
       const active = root.activeElement;
@@ -5552,10 +12487,10 @@ ${resultDetail}`;
       messagesStateSection.dataset.tone = kind === "error" ? "error" : "unavailable";
       $("#messagesStateTitle").textContent = title;
       $("#messagesStateBody").textContent = body;
-      const action = $("#messagesStateAction");
-      action.hidden = primary === null;
-      action.textContent = primary?.label ?? "";
-      action.onclick = primary === null ? null : primary.run;
+      const action2 = $("#messagesStateAction");
+      action2.hidden = primary === null;
+      action2.textContent = primary?.label ?? "";
+      action2.onclick = primary === null ? null : primary.run;
       const retryEl = $("#messagesStateRetry");
       retryEl.hidden = retry !== true;
       retryEl.textContent = conversationsRetrying ? "正在重试…" : "重试读取";
@@ -5666,7 +12601,9 @@ ${resultDetail}`;
       if (nextAt > 0 && previousAt > 0 && nextAt < previousAt) return;
       conversationsState.data = value;
       conversationsState.transportError = "";
+      refreshUnreadBadges();
       updateConversationIndexState();
+      updateContactsState();
     }
     function setConversationsError(error) {
       if (destroyed) return;
@@ -5902,10 +12839,10 @@ ${resultDetail}`;
       shareAddresses.replaceChildren();
       const addresses = Array.isArray(result.addresses) ? result.addresses : [];
       for (const address of addresses) {
-        const item = element("div", "rm-share-address");
-        const code = element("code");
+        const item = element5("div", "rm-share-address");
+        const code = element5("code");
         code.textContent = String(address.multiaddr || "");
-        const scope = element("span");
+        const scope = element5("span");
         scope.textContent = addressScopeText(address);
         item.append(code, scope);
         shareAddresses.append(item);
@@ -5926,12 +12863,12 @@ ${resultDetail}`;
       shareCopy.disabled = String(result.peerId || "").length === 0;
     }
     async function copyShareInfo() {
-      const text2 = shareText(currentShare);
-      if (text2.length === 0) return;
+      const text4 = shareText(currentShare);
+      if (text4.length === 0) return;
       shareCopy.disabled = true;
       try {
         if (typeof options.onCopyText !== "function") throw new Error("复制能力不可用");
-        const copied = await options.onCopyText(text2);
+        const copied = await options.onCopyText(text4);
         if (copied === false) throw new Error("复制能力不可用");
         shareCopyStatus.textContent = "已复制。粘贴给对方即可。";
         shareCopyStatus.dataset.tone = "";
@@ -5939,7 +12876,7 @@ ${resultDetail}`;
       } catch {
         shareCopyStatus.textContent = "复制失败，请手动选择下面的内容。";
         shareCopyStatus.dataset.tone = "error";
-        shareManual.value = text2;
+        shareManual.value = text4;
         shareManual.hidden = false;
         shareManual.focus({ preventScroll: true });
         shareManual.select();
@@ -5947,36 +12884,46 @@ ${resultDetail}`;
         shareCopy.disabled = !currentShare || String(currentShare.peerId || "").length === 0;
       }
     }
+    function setContactFilter(filter) {
+      view.pages.contacts.filter = filter === "unread" ? "unread" : "all";
+      refreshUnreadBadges();
+      updateContactsState();
+      pageEls.contacts.scrollTop = 0;
+      saveNow();
+    }
     function setFilter(filter) {
-      view.pages.explore.filter = filter === "familiar" ? "familiar" : "all";
+      view.pages.explore.filter = filter === "familiar" || filter === "mine" ? filter : "all";
       $$("[data-filter]").forEach((button) => {
         button.setAttribute("aria-pressed", String(button.dataset.filter === view.pages.explore.filter));
       });
       updateExploreState();
-      ensureDiscoveriesFresh(false);
-      saveNow();
-    }
-    function setSearchOpen(open, { focus = false } = {}) {
-      view.pages.explore.searchOpen = open;
-      exploreSearch.hidden = !open;
-      exploreSearchToggle.setAttribute("aria-expanded", String(open));
-      if (open) {
-        if (focus) exploreQuery.focus();
+      if (view.pages.explore.filter === "mine") {
+        if (mineCapable && mineState.data === null) void loadMine(false);
       } else {
-        exploreQuery.value = "";
-        view.pages.explore.query = "";
-        updateExploreState();
+        ensureDiscoveriesFresh(false);
       }
       saveNow();
+    }
+    function updateExploreSearchState() {
+      view.pages.explore.searchOpen = true;
+      exploreSearch.hidden = false;
+      if (exploreClear) exploreClear.hidden = exploreQuery.value.length === 0;
+    }
+    function clearExploreSearch({ focus = false } = {}) {
+      exploreQuery.value = "";
+      view.pages.explore.query = "";
+      updateExploreSearchState();
+      updateExploreState();
+      saveNow();
+      if (focus) exploreQuery.focus({ preventScroll: true });
     }
     function restoreControls() {
       exploreQuery.value = view.pages.explore.query;
       contactQuery.value = view.pages.contacts.query;
       conversationQuery.value = view.pages.messages.query;
       contactsState.selectedPeerId = view.pages.messages.peerId;
-      const restoredReturnPage = contactsState.selectedPeerId && view.pages.messages.returnPeer === contactsState.selectedPeerId && (view.pages.messages.returnPage === "contacts" || view.pages.messages.returnPage === "messages" || view.pages.messages.returnPage === "raminga") ? view.pages.messages.returnPage : "";
-      exploreSearch.hidden = !view.pages.explore.searchOpen;
-      exploreSearchToggle.setAttribute("aria-expanded", String(view.pages.explore.searchOpen));
+      const restoredReturnPage = contactsState.selectedPeerId && view.pages.messages.returnPeer === contactsState.selectedPeerId && ["contacts", "messages", "home", "settings", "journey", "profile"].includes(view.pages.messages.returnPage) && (view.pages.messages.returnPage !== "journey" || view.pages.messages.returnJourneyId.length > 0) && (view.pages.messages.returnPage !== "profile" || view.contactProfile.peerId === contactsState.selectedPeerId) ? view.pages.messages.returnPage : "";
+      updateExploreSearchState();
       $$("[data-filter]").forEach((button) => {
         button.setAttribute("aria-pressed", String(button.dataset.filter === view.pages.explore.filter));
       });
@@ -5988,6 +12935,12 @@ ${resultDetail}`;
         if (restoredReturnPage && chat.peerId === contactsState.selectedPeerId) {
           chat.returnPage = restoredReturnPage;
           chat.returnPeer = contactsState.selectedPeerId;
+          chat.returnJourneyId = restoredReturnPage === "journey" ? view.pages.messages.returnJourneyId : "";
+          chat.returnJourneyEvent = restoredReturnPage === "journey" ? view.pages.messages.returnJourneyEvent : 0;
+          chat.returnJourneyMessage = restoredReturnPage === "journey" ? view.pages.messages.returnJourneyMessage : "";
+          chat.returnProfileTab = restoredReturnPage === "profile" ? view.pages.messages.returnProfileTab : "interactions";
+          chat.returnProfileScroll = restoredReturnPage === "profile" ? view.pages.messages.returnProfileScroll : 0;
+          chat.returnFocus = ["contacts", "profile"].includes(restoredReturnPage) ? view.pages.messages.returnFocus : "";
           updateConversationBackLabel(contactsState.selectedPeerId);
         }
         pageEls.messages.scrollTop = 0;
@@ -5998,18 +12951,21 @@ ${resultDetail}`;
       if (dialog !== editContactDialog) closeContactQuickMenu({ restoreFocus: false, quiet: true });
       dialogTriggers.set(dialog, trigger ?? root.activeElement ?? doc.activeElement);
       dialog.showModal();
+      if (dialog === statusDialog) void loadBootstrap(false);
       dialog.querySelector("[data-close-dialog]")?.focus({ preventScroll: true });
     }
     function closeDialog(dialog, { restoreFocus = true } = {}) {
       if (!dialog.open) return;
       const trigger = dialogTriggers.get(dialog);
       const detailFallback = dialog === technicalDialog ? technicalFocusFallback() : null;
+      const previewKey = dialog === imagePreviewDialog ? imagePreviewKey : "";
       dialog.close();
       dialogTriggers.delete(dialog);
       if (dialog === technicalDialog) technicalReturn = null;
       if (!restoreFocus) return;
       const triggerAvailable = Boolean(trigger?.isConnected && !trigger.closest?.("[hidden]"));
-      let target = triggerAvailable ? trigger : dialog === technicalDialog ? detailFallback?.isConnected ? detailFallback : messageInput.hidden ? null : messageInput : null;
+      const previewFallback = previewKey ? [...root.querySelectorAll("[data-post-image-key]")].find((node) => node.dataset.postImageKey === previewKey) ?? null : null;
+      let target = triggerAvailable ? trigger : dialog === technicalDialog ? detailFallback?.isConnected ? detailFallback : messageInput.hidden ? null : messageInput : dialog === imagePreviewDialog && previewFallback?.isConnected ? previewFallback : null;
       if (target) {
         target.focus({ preventScroll: true });
         if (root.activeElement !== target) target = null;
@@ -6059,7 +13015,7 @@ ${resultDetail}`;
       nodeLabel.textContent = pill;
       nodeTrigger.dataset.phase = phase;
       nodeDot.dataset.phase = phase;
-      const label = `${pill}。打开节点状态详情`;
+      const label = `节点状态：${pill}。打开节点状态详情`;
       nodeTrigger.setAttribute("aria-label", label);
       nodeTrigger.title = label;
     }
@@ -6068,6 +13024,64 @@ ${resultDetail}`;
       if (!status) return "—";
       const summary = connectionSummary(status);
       return `${summary.connections} 条连接 · ${summary.peers} 个已连接节点`;
+    }
+    async function loadBootstrap(force = false) {
+      if (!bootstrapCapable || bootstrapState.request !== null) return;
+      if (!force && bootstrapState.data !== null) return;
+      const request = { force };
+      bootstrapState.request = request;
+      statusBootstrapNote.textContent = "正在读取引导节点配置…";
+      statusBootstrapNote.dataset.tone = "";
+      statusBootstrapCopy.disabled = true;
+      try {
+        const value = await options.onLoadBootstrap();
+        if (destroyed || bootstrapState.request !== request) return;
+        bootstrapState.data = value;
+        bootstrapState.error = value?.error || "";
+      } catch (error) {
+        if (destroyed || bootstrapState.request !== request) return;
+        bootstrapState.data = null;
+        bootstrapState.error = errorText(error) || "引导节点配置读取失败";
+      } finally {
+        if (bootstrapState.request === request) bootstrapState.request = null;
+      }
+      if (!destroyed) renderBootstrap();
+    }
+    function renderBootstrap() {
+      if (!bootstrapCapable) {
+        statusBootstrapNote.textContent = "当前宿主没有提供引导节点只读查看。";
+        statusBootstrapNote.hidden = false;
+        statusBootstrapList.replaceChildren();
+        statusBootstrapCopy.disabled = true;
+        statusBootstrapRefresh.hidden = true;
+        return;
+      }
+      statusBootstrapRefresh.hidden = false;
+      const peers = Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : [];
+      statusBootstrapList.replaceChildren();
+      for (const peer of peers) {
+        const item = element5("li", "rm-address-item");
+        const code = element5("code");
+        code.textContent = peer;
+        item.append(code);
+        statusBootstrapList.append(item);
+      }
+      statusBootstrapCopy.disabled = peers.length === 0;
+      if (bootstrapState.error) {
+        statusBootstrapNote.textContent = `引导节点配置读取失败：${bootstrapState.error}。`;
+        statusBootstrapNote.dataset.tone = "error";
+      } else if (bootstrapState.data === null) {
+        statusBootstrapNote.textContent = "尚未读取。展开这项或点击重新读取。";
+        statusBootstrapNote.dataset.tone = "";
+      } else if (peers.length === 0) {
+        statusBootstrapNote.textContent = "当前配置没有引导节点。";
+        statusBootstrapNote.dataset.tone = "unavailable";
+      } else {
+        const at = bootstrapState.data.at ? ` · ${formatDateTime(bootstrapState.data.at)} 读取` : "";
+        statusBootstrapNote.textContent = `来自本机 DhtStatus 的只读配置${at}。修改请编辑本机 config.toml，不在此处编辑。`;
+        statusBootstrapNote.dataset.tone = "";
+      }
+      statusBootstrapNote.hidden = false;
     }
     function renderStatusDialog() {
       const status = nodeState.status;
@@ -6094,7 +13108,7 @@ ${resultDetail}`;
       const log = $("#statusEventLog");
       log.replaceChildren();
       for (const event of nodeState.events) {
-        const item = element("li");
+        const item = element5("li");
         item.textContent = `${formatClock(event.atUnixMs)} · ${event.summary || event.kind || "事件"}`;
         log.append(item);
       }
@@ -6112,52 +13126,2748 @@ ${resultDetail}`;
       statusRefresh.disabled = pendingRefresh || nodeState.phase === "loading";
       statusRefresh.title = typeof options.onRefresh === "function" ? "刷新节点状态" : "刷新暂时不可用";
     }
+    async function ensureMinePreview(item) {
+      const key2 = previewKeyFor("mine", item);
+      const existing = minePreviews.get(key2);
+      if (existing?.state === "loading") return;
+      if (!mineFileContentCapable) {
+        minePreviews.set(key2, { state: "error", error: "当前宿主没有提供本机公开文件的按需读取。" });
+        renderMine();
+        return;
+      }
+      minePreviews.set(key2, { state: "loading" });
+      renderMine();
+      if (currentPage === "post") renderPostDetailPage();
+      try {
+        const value = await options.onLoadMineFileContent(item.path, item.sha256, item.sizeBytes);
+        if (destroyed) return;
+        if (value && typeof value === "object") minePreviews.set(key2, { state: "available", data: value });
+        else minePreviews.set(key2, { state: "error", error: "本机公开文件读取没有返回结果" });
+      } catch (error) {
+        if (!destroyed) minePreviews.set(key2, { state: "error", error: errorText(error) || "本机公开文件读取失败" });
+      }
+      if (!destroyed) {
+        renderMine();
+        if (currentPage === "post") renderPostDetailPage();
+      }
+    }
+    function toggleMineFile(item, next) {
+      const key2 = previewKeyFor("mine", item);
+      if (!next) {
+        mineExpanded.delete(key2);
+        disposePreviewMedia(minePostList);
+      } else {
+        mineExpanded.add(key2);
+      }
+      renderMine();
+    }
+    function homeAgentModel() {
+      const model = buildHomeAgentModel({
+        mine: mineState.data,
+        error: mineState.error,
+        capable: mineCapable
+      });
+      model.avatarUrl = homeAvatarState.url;
+      return model;
+    }
+    function refreshHomeAvatar() {
+      const data = mineState.data;
+      const card = data?.agentCard?.state === "available" ? data.agentCard.card : null;
+      const avatarPath = card?.avatarPath || "";
+      const file = avatarPath && Array.isArray(data?.files) ? data.files.find((item) => item.path === avatarPath) : null;
+      if (!avatarPath || !file || !mineFileContentCapable) {
+        homeAvatarState.key = "";
+        homeAvatarState.url = "";
+        if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
+          renderProfileAvatar();
+          renderProfileDraftStatus();
+        }
+        return;
+      }
+      const key2 = `${avatarPath}\0${file.sha256}\0${file.sizeBytes}`;
+      if (homeAvatarState.key === key2 || homeAvatarState.loading) return;
+      homeAvatarState.loading = true;
+      void options.onLoadMineFileContent(avatarPath, file.sha256, file.sizeBytes).then((preview) => {
+        if (destroyed) return;
+        if (preview?.status === "ok" && preview.kind === "image" && preview.dataUrl) {
+          homeAvatarState.key = key2;
+          homeAvatarState.url = preview.dataUrl;
+        } else {
+          homeAvatarState.key = "";
+          homeAvatarState.url = "";
+        }
+      }).catch(() => {
+        if (!destroyed) {
+          homeAvatarState.key = "";
+          homeAvatarState.url = "";
+        }
+      }).finally(() => {
+        homeAvatarState.loading = false;
+        if (!destroyed) {
+          renderHome();
+          if (currentPage === "settings" && view.settings.tab === "public") {
+            renderProfileAvatar();
+            renderProfileDraftStatus();
+          }
+        }
+      });
+    }
+    function homeActivityModel() {
+      return buildHomeActivity({
+        activity: activityState.data,
+        activityCapable,
+        activityError: activityState.error,
+        journey: journeyState.data,
+        journeyError: journeyState.error,
+        capable: journeyCapable,
+        previousInstanceId: activityState.previousInstanceId,
+        peerLabel: (peerId2) => {
+          const friend = contactFor(peerId2);
+          return friend ? contactDisplayName(friend) : shortPeer(peerId2);
+        }
+      });
+    }
+    function activityFeaturedSessionId() {
+      const model = homeActivityModel();
+      if (!activityCapable) return model.session?.id ?? "";
+      if (model.kind === "running" && model.target?.kind === "journey" && model.target.journeyId) {
+        return model.target.journeyId;
+      }
+      return model.kind === "journey-live" || model.kind === "journey-paused" ? model.session?.id ?? "" : "";
+    }
+    function visibleActivityCard() {
+      const model = homeActivityModel();
+      return model.kind === "recent" ? homeActivityRecent : model.kind === "running" || model.kind === "journey-live" || model.kind === "journey-paused" ? homeActivityLive : null;
+    }
+    function ensureActivityDetail(operationId) {
+      const detail = activityState.detail;
+      if (!operationId || !activityDetailCapable) return Promise.resolve(null);
+      if (detail.id === operationId) {
+        if (detail.pending) return detail.pending;
+        if (detail.loading || detail.data !== null || detail.error) return Promise.resolve(detail.data);
+      }
+      detail.id = operationId;
+      detail.data = null;
+      detail.error = "";
+      detail.loading = true;
+      const request = ++detail.request;
+      let pending;
+      try {
+        pending = options.onLoadActivityDetail(operationId);
+      } catch (error) {
+        pending = Promise.reject(error);
+      }
+      const task = Promise.resolve(pending).then((value) => {
+        if (destroyed || detail.request !== request) return null;
+        if (value === null || typeof value !== "object") throw new Error("工具活动详情没有返回结果");
+        detail.data = value;
+        detail.error = "";
+        return value;
+      }).catch((error) => {
+        if (destroyed || detail.request !== request) return null;
+        detail.error = errorText(error) || "工具活动详情读取失败";
+        return null;
+      }).finally(() => {
+        if (destroyed || detail.request !== request) return;
+        detail.loading = false;
+        detail.pending = null;
+        renderHome();
+        if (currentPage === "journey") renderJourneyDetailPage();
+      });
+      detail.pending = task;
+      return task;
+    }
+    function toggleActivityDetail(model, forceOpen = null) {
+      if (!model?.showDetail) return;
+      const open = forceOpen === null ? !view.home.activityExpanded : forceOpen === true;
+      view.home.activityExpanded = open;
+      if (open && model.operation?.operationId) ensureActivityDetail(model.operation.operationId);
+      saveNow();
+      renderHome();
+    }
+    function activateHomeActivity(model) {
+      const target = model?.target;
+      if (target?.kind === "journey" && target.journeyId) {
+        openJourneyFromActivity(model);
+        return;
+      }
+      if (target?.kind === "messages" && target.peerId) {
+        openConversation(target.peerId, { source: "home" });
+        return;
+      }
+      if (target?.kind === "peer" && target.peerId) {
+        if (peerProfileCapable) {
+          openPeerProfile(target.peerId, { source: "home", ref: `activity:${model.operation?.operationId || ""}` });
+        } else {
+          openConversation(target.peerId, { source: "home" });
+        }
+        return;
+      }
+      toggleActivityDetail(model, true);
+    }
+    function renderHome() {
+      if (destroyed) return;
+      const agent = homeAgentModel();
+      const activity = homeActivityModel();
+      agent.statusText = activity.statusText;
+      agent.statusTone = activity.statusTone;
+      renderHomeAgent(doc, {
+        avatar: homeAgentAvatar,
+        initial: homeAgentInitial,
+        name: homeAgentName,
+        badge: homeAgentBadge,
+        bio: homeAgentBio,
+        notice: homeAgentProfileNote,
+        noticeText: homeAgentProfileNoteText,
+        interests: homeAgentInterests,
+        style: homeAgentStyle,
+        statusText: homeAgentStatusText,
+        statusDot: homeAgentStatusDot
+      }, agent);
+      renderHomeHuman(doc, {
+        title: homeHumanTitle,
+        summary: homeHumanSummary,
+        profile: mineProfileContent,
+        renderMarkdown: renderMarkdownInto
+      }, agent);
+      if (homeActivityDisclosure) homeActivityDisclosure.hidden = !activityCapable;
+      renderHomeActivity(doc, {
+        live: homeActivityLive,
+        recent: homeActivityRecent,
+        empty: homeActivityEmpty,
+        detail: homeActivityDetail,
+        toggle: homeActivityToggle
+      }, activity);
+      for (const card of [homeActivityLive, homeActivityRecent]) {
+        if (!card) continue;
+        card.setAttribute("aria-controls", "homeActivityDetail");
+        card.dataset.focusKey = "home-activity-card";
+        card.onclick = card.hidden ? null : () => {
+          if (activity.target?.kind && activity.target.kind !== "none") activateHomeActivity(activity);
+          else toggleActivityDetail(activity, true);
+        };
+      }
+      if (homeActivityToggle) {
+        const canExpand = Boolean(activity.showDetail);
+        if (!canExpand) view.home.activityExpanded = false;
+        homeActivityToggle.hidden = !canExpand;
+        homeActivityToggle.disabled = !canExpand;
+        homeActivityToggle.onclick = () => toggleActivityDetail(activity);
+        homeActivityToggle.setAttribute("aria-expanded", view.home.activityExpanded ? "true" : "false");
+        homeActivityToggle.textContent = view.home.activityExpanded ? "收起详情" : "查看详情";
+        const expanded = canExpand && view.home.activityExpanded;
+        homeActivityDetail.hidden = !expanded;
+        const card = visibleActivityCard();
+        if (card) card.setAttribute("aria-expanded", expanded ? "true" : "false");
+        if (expanded) {
+          const selectedId = activityState.detail.id || activity.operation?.operationId || "";
+          const selectedOperation = selectedId ? activity.history.find((item) => item.operationId === selectedId) || (activity.operation?.operationId === selectedId ? activity.operation : null) : null;
+          if (selectedOperation?.operationId) ensureActivityDetail(selectedOperation.operationId);
+          const detailActivity = selectedOperation ? { ...activity, operation: selectedOperation } : activity;
+          homeActivityDetail.replaceChildren();
+          if (selectedOperation) {
+            const detail = activityState.detail;
+            const same = detail.id === selectedOperation.operationId;
+            renderActivityDetail(doc, homeActivityDetail, detailActivity, same ? detail.data : null, {
+              loading: same && detail.loading,
+              error: same ? detail.error : "",
+              currentInstanceId: activity.instanceId,
+              peerLabel: (peerId2) => {
+                const friend = contactFor(peerId2);
+                return friend ? contactDisplayName(friend) : shortPeer(peerId2);
+              }
+            });
+          } else if (activity.session) {
+            const note = doc.createElement("p");
+            note.className = "rm-list-note rm-activity-summary-note";
+            note.textContent = "Agent 生成的 Journey 摘要，不是传输证据；本机工具调用记录单独来自 activity.jsonl，两者不互相改写。";
+            const link = doc.createElement("button");
+            link.type = "button";
+            link.className = "rm-journey-action";
+            link.dataset.activityJourney = activity.session.id;
+            link.textContent = "打开这段漫游详情";
+            homeActivityDetail.append(note, link);
+            if (activity.history.length > 0) {
+              const historyWrap = doc.createElement("div");
+              historyWrap.className = "rm-activity-history-wrap";
+              renderActivityDetail(doc, historyWrap, { ...activity, operation: null }, null, {
+                currentInstanceId: activity.instanceId,
+                peerLabel: (peerId2) => {
+                  const friend = contactFor(peerId2);
+                  return friend ? contactDisplayName(friend) : shortPeer(peerId2);
+                }
+              });
+              homeActivityDetail.append(historyWrap);
+            }
+          } else {
+            renderActivityDetail(doc, homeActivityDetail, activity, null, {
+              currentInstanceId: activity.instanceId,
+              peerLabel: (peerId2) => {
+                const friend = contactFor(peerId2);
+                return friend ? contactDisplayName(friend) : shortPeer(peerId2);
+              }
+            });
+          }
+          homeActivityDetail.hidden = false;
+        }
+      }
+      renderMineIdentity();
+      renderSettingsNode({ label: settingsNodeStatusLabel, summary: settingsNodeSummary }, {
+        phase: nodeState.phase,
+        status: nodeState.status,
+        summary: nodeStatusSummaryText()
+      });
+    }
+    function nodeStatusSummaryText() {
+      if (!nodeState.status) {
+        return nodeState.phase === "loading" ? "正在读取本机节点状态…" : "";
+      }
+      const phase = resolveNodePhase({
+        status: nodeState.status,
+        stats: nodeState.stats,
+        freshness: nodeState.freshness,
+        error: nodeState.error,
+        stream: nodeState.stream
+      });
+      return `${nodePhaseText(phase)} · ${nodePillText(phase, nodeState.status)}`;
+    }
+    function renderPrivateEditors() {
+      if (destroyed) return;
+      const data = journeyState.data;
+      const readError = journeyState.error || (data?.state === "error" ? data.sessionsError : "");
+      const fields = [
+        ["persona", data?.persona ?? null, settingsStableInput, settingsStableSave, settingsStableMeta, settingsStableStatus],
+        ["growth", data?.growth ?? null, settingsGrowthInput, settingsGrowthSave, settingsGrowthMeta, settingsGrowthStatus]
+      ];
+      for (const [field, value, input, save, meta, status] of fields) {
+        const editor = privateEditors[field];
+        if (!editor.dirty) editor.expectedSha = value?.sha256 ?? "";
+        if (value?.state === "available" && !editor.dirty) {
+          editor.expectedSha = value.sha256 ?? "";
+        }
+        renderPrivateField({
+          input,
+          status,
+          meta,
+          save
+        }, field, value, {
+          dirty: editor.dirty,
+          error: editor.error || (readError && !editor.dirty ? `读取失败：${readError}` : ""),
+          saving: editor.saving,
+          capable: privateAgentSaveCapable && journeyCapable
+        });
+        if (!privateAgentSaveCapable || !journeyCapable) {
+          save.disabled = true;
+        }
+      }
+      if (settingsPrivateNote.hidden) {
+        settingsPrivateNote.hidden = journeyCapable;
+        if (!journeyCapable) {
+          settingsPrivateNote.textContent = "当前宿主没有提供私有 Agent 记录读取或保存。";
+          settingsPrivateNote.hidden = false;
+          settingsPrivateNote.dataset.tone = "error";
+        }
+      }
+    }
+    async function savePrivateEditor(field) {
+      if (!privateAgentSaveCapable || !journeyCapable) return;
+      const editor = privateEditors[field];
+      if (editor.saving) return;
+      const input = field === "persona" ? settingsStableInput : settingsGrowthInput;
+      const content = input.value;
+      const expectedSha = editor.expectedSha;
+      editor.saving = true;
+      editor.error = "";
+      const seq = ++privateSaveSeq;
+      renderPrivateEditors();
+      const result = await Promise.resolve().then(() => options.onSavePrivateAgent(field, content, expectedSha)).catch((error) => ({ saved: false, error: errorText(error) || "私有资料保存失败", conflict: false }));
+      if (destroyed) return;
+      editor.saving = false;
+      if (result?.saved === true) {
+        editor.dirty = false;
+        editor.expectedSha = String(result.sha256 || "");
+        editor.error = "";
+        if (journeyState.data) {
+          journeyState.data = {
+            ...journeyState.data,
+            [field]: { state: "available", markdown: content, error: "", sha256: editor.expectedSha }
+          };
+        }
+        settingsPrivateNote.textContent = `已保存 ${field === "persona" ? "persona.md" : "growth.md"}${result.sha256 ? ` · SHA-256 ${String(result.sha256).slice(0, 12)}…` : ""}${result.savedAt ? ` · ${formatDateTime(result.savedAt)}` : ""}。仅本机可见。`;
+        settingsPrivateNote.hidden = false;
+        settingsPrivateNote.dataset.tone = "ready";
+      } else if (result?.conflict === true) {
+        editor.dirty = true;
+        editor.error = result.error || "文件已在别处修改，未覆盖；请重新读取后再保存。";
+        settingsPrivateNote.textContent = editor.error;
+        settingsPrivateNote.hidden = false;
+        settingsPrivateNote.dataset.tone = "error";
+      } else {
+        editor.dirty = true;
+        editor.error = result?.error || "保存没有完成；输入已保留，原文件未被覆盖。";
+        settingsPrivateNote.textContent = editor.error;
+        settingsPrivateNote.hidden = false;
+        settingsPrivateNote.dataset.tone = "error";
+      }
+      renderPrivateEditors();
+    }
+    function splitList(value) {
+      return String(value ?? "").split(/[,，\n]/).map((entry) => entry.trim()).filter((entry) => entry.length > 0).slice(0, 10);
+    }
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const Reader = win.FileReader ?? globalThis.FileReader;
+        if (typeof Reader !== "function") {
+          reject(new Error("当前环境没有文件读取能力"));
+          return;
+        }
+        const reader = new Reader();
+        reader.onerror = () => reject(new Error("读取本地图片失败"));
+        reader.onload = () => {
+          const result = String(reader.result ?? "");
+          const comma = result.indexOf(",");
+          resolve(comma >= 0 ? result.slice(comma + 1) : "");
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    function imageSize(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+          const value = { width: image.naturalWidth || image.width, height: image.naturalHeight || image.height };
+          URL.revokeObjectURL(url);
+          resolve(value);
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("图片无法解码"));
+        };
+        image.src = url;
+      });
+    }
+    const draftAssetCache = /* @__PURE__ */ new Map();
+    const draftAssetPending = /* @__PURE__ */ new Map();
+    const draftAssetGeneration = /* @__PURE__ */ new Map();
+    function draftAssetScopeGeneration(scope) {
+      return draftAssetGeneration.get(scope) ?? 0;
+    }
+    function bumpDraftAssetScope(scope) {
+      draftAssetGeneration.set(scope, draftAssetScopeGeneration(scope) + 1);
+    }
+    function releaseDraftAsset(scope, draftId, assetId) {
+      const key2 = `${scope}:${draftId}:${assetId}`;
+      const entry = draftAssetCache.get(key2);
+      if (entry?.url && entry.objectUrl) {
+        try {
+          URL.revokeObjectURL(entry.url);
+        } catch {
+        }
+      }
+      draftAssetCache.delete(key2);
+      draftAssetPending.delete(key2);
+    }
+    function releaseDraftAssetScope(scope) {
+      bumpDraftAssetScope(scope);
+      for (const key2 of [...draftAssetCache.keys()]) {
+        if (!key2.startsWith(`${scope}:`)) continue;
+        const [, draftId, assetId] = key2.split(":");
+        releaseDraftAsset(scope, draftId, assetId);
+      }
+    }
+    function releaseAllDraftAssets() {
+      releaseDraftAssetScope("profile");
+      releaseDraftAssetScope("post");
+    }
+    function base64ToBytes(raw) {
+      const value = String(raw ?? "").replace(/\s+/g, "");
+      if (value.length === 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
+        throw new Error("草稿图片不是有效 base64");
+      }
+      const binary = atob(value);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+    function bytesToBase64(bytes) {
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    }
+    function assetObjectUrl(bytes, mime) {
+      const type = mime === "image/jpeg" ? "image/jpeg" : "image/png";
+      if (typeof Blob === "function" && typeof URL?.createObjectURL === "function") {
+        try {
+          return { url: URL.createObjectURL(new Blob([bytes], { type })), objectUrl: true };
+        } catch {
+        }
+      }
+      return { url: `data:${type};base64,${bytesToBase64(bytes)}`, objectUrl: false };
+    }
+    function ensureDraftAssetPreview(scope, draftId, image) {
+      const assetId = String(image?.assetId ?? "");
+      if (!publicDraftAssetCapable || draftId.length === 0 || assetId.length === 0) return Promise.resolve(null);
+      const key2 = `${scope}:${draftId}:${assetId}`;
+      const cached = draftAssetCache.get(key2);
+      if (cached) return Promise.resolve(cached);
+      const pending = draftAssetPending.get(key2);
+      if (pending) return pending;
+      const generation = draftAssetScopeGeneration(scope);
+      const promise = Promise.resolve().then(() => options.onLoadPublicDraftAsset(draftId, assetId)).then((result) => {
+        if (destroyed || generation !== draftAssetScopeGeneration(scope)) return null;
+        const meta = result?.image || image;
+        if (!result || meta?.assetId !== assetId) throw new Error("草稿图片响应与请求不一致");
+        const bytes = base64ToBytes(result.dataBase64);
+        if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) throw new Error("草稿图片为空或超过 8 MiB");
+        const { url, objectUrl } = assetObjectUrl(bytes, meta.mime || image.mime);
+        const entry = { url, objectUrl, image: { ...image, ...meta } };
+        draftAssetCache.set(key2, entry);
+        return entry;
+      }).catch((error) => {
+        if (!destroyed && generation === draftAssetScopeGeneration(scope)) {
+          draftAssetCache.set(key2, { error: errorText(error) || "草稿图片读取失败" });
+        }
+        return null;
+      }).finally(() => {
+        if (draftAssetPending.get(key2) === promise) draftAssetPending.delete(key2);
+      });
+      draftAssetPending.set(key2, promise);
+      return promise;
+    }
+    function releaseProfileAvatarPreview() {
+      if (profileDraftState.avatarPreviewObject && profileDraftState.avatarPreviewUrl) {
+        try {
+          URL.revokeObjectURL(profileDraftState.avatarPreviewUrl);
+        } catch {
+        }
+      }
+      profileDraftState.avatarPreviewUrl = "";
+      profileDraftState.avatarPreviewObject = false;
+      profileDraftState.avatarPreviewAssetId = "";
+    }
+    function fallbackProfileDraft() {
+      const publicProfile = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
+      const card = mineState.data?.agentCard?.state === "available" ? mineState.data.agentCard.card : null;
+      const human = mineState.data?.profile?.state === "available" ? mineState.data.profile : null;
+      const avatar = publicProfile?.avatarPath ? { assetId: "", sha256: publicProfile.avatarSha256, mime: publicProfile.avatarMime, path: publicProfile.avatarPath } : card?.avatarPath ? { assetId: "", sha256: card.avatarSha256, mime: card.avatarMime, path: card.avatarPath } : null;
+      return {
+        draftId: "profile",
+        kind: "profile",
+        revision: 0,
+        agentName: publicProfile?.agentName || card?.displayName || "",
+        agentDescription: publicProfile?.agentDescription || card?.description || "",
+        agentInterests: publicProfile?.agentInterests || card?.interests || [],
+        agentConversationStyle: publicProfile?.agentConversationStyle || card?.conversationStyle || "",
+        humanName: publicProfile?.humanName || human?.displayName || "",
+        humanBioMarkdown: publicProfile?.humanBioMarkdown || (human ? String(human.markdown).replace(/^#.*$/m, "").trim() : ""),
+        avatar,
+        publishedSha256: "",
+        publishedRevision: 0,
+        publishedPath: ""
+      };
+    }
+    function profileFormValues() {
+      return {
+        agentName: publicAgentName.value,
+        agentDescription: publicAgentDescription.value,
+        agentInterests: splitList(publicAgentInterests.value),
+        agentConversationStyle: publicAgentStyle.value,
+        humanName: publicHumanName.value,
+        humanBioMarkdown: publicHumanBio.value
+      };
+    }
+    function sameProfileValues(left, right) {
+      return Boolean(left && right && left.agentName === right.agentName && left.agentDescription === right.agentDescription && left.agentConversationStyle === right.agentConversationStyle && left.humanName === right.humanName && left.humanBioMarkdown === right.humanBioMarkdown && (left.agentInterests || []).join("\0") === (right.agentInterests || []).join("\0"));
+    }
+    function profileDraftValues(draft) {
+      return {
+        agentName: draft?.agentName || "",
+        agentDescription: draft?.agentDescription || "",
+        agentInterests: draft?.agentInterests || [],
+        agentConversationStyle: draft?.agentConversationStyle || "",
+        humanName: draft?.humanName || "",
+        humanBioMarkdown: draft?.humanBioMarkdown || ""
+      };
+    }
+    function profileDraftMatchesCurrent(draft = profileDraftState.draft) {
+      if (!draft) return false;
+      if (!sameProfileValues(profileFormValues(), profileDraftValues(draft))) return false;
+      if (profileDraftState.avatarFile !== null) return false;
+      const draftAvatar = draft.avatar || null;
+      if (profileDraftState.avatarClear) return draftAvatar === null;
+      if (profileDraftState.avatarAssetId) return String(draftAvatar?.assetId || "") === profileDraftState.avatarAssetId;
+      return draftAvatar === null || String(draftAvatar.assetId || "") === "";
+    }
+    function adoptProfileDraftBaseline(receipt) {
+      if (!receipt) return;
+      const current = profileDraftState.draft || {};
+      const avatar = Object.prototype.hasOwnProperty.call(receipt, "avatar") ? receipt.avatar ?? null : current.avatar ?? null;
+      profileDraftState.draft = { ...current, ...receipt, avatar };
+      profileDraftState.fromFallback = false;
+      profileDraftState.conflict = false;
+    }
+    function profileAvatarSelectionMatches(request) {
+      return Boolean(request && profileDraftState.avatarFile === request.avatarFile && profileDraftState.avatarAssetId === request.avatarAssetId && profileDraftState.avatarClear === request.clearAvatar);
+    }
+    function restoreProfileAvatarFromDraft(draft, fallbackAvatar = null) {
+      const avatar = draft?.avatar || fallbackAvatar || null;
+      releaseProfileAvatarPreview();
+      profileDraftState.avatarFile = null;
+      profileDraftState.avatarAssetId = avatar?.assetId || "";
+      profileDraftState.avatarClear = false;
+      profileDraftState.avatarLoadingAssetId = "";
+      if (profileDraftState.draft) {
+        profileDraftState.draft = { ...profileDraftState.draft, avatar };
+      }
+      renderProfileAvatar();
+    }
+    function setProfileForm(draft) {
+      if (!draft) return;
+      releaseDraftAssetScope("profile");
+      releaseProfileAvatarPreview();
+      publicAgentName.value = draft.agentName || "";
+      publicAgentDescription.value = draft.agentDescription || "";
+      publicAgentInterests.value = (draft.agentInterests || []).join("，");
+      publicAgentStyle.value = draft.agentConversationStyle || "";
+      publicHumanName.value = draft.humanName || "";
+      publicHumanBio.value = draft.humanBioMarkdown || "";
+      profileDraftState.avatarAssetId = draft.avatar?.assetId || "";
+      profileDraftState.avatarClear = false;
+      profileDraftState.avatarFile = null;
+      profileDraftState.avatarError = "";
+      profileDraftState.formVersion += 1;
+      profileDraftState.dirty = false;
+      profileDraftState.reloadArmed = false;
+      profileDraftState.confirm = false;
+      profileDraftState.confirmSnapshot = "";
+      profileDraftState.confirmNotice = "";
+      if (publicPublishButton) publicPublishButton.textContent = "检查发布内容";
+      if (publicPublishCancel) publicPublishCancel.hidden = true;
+      renderProfileAvatar();
+      renderHumanPreview();
+      renderPublicVersionPreview();
+    }
+    function renderProfileAvatar() {
+      if (!publicAvatarPreview) return;
+      const image = publicAvatarPreview.querySelector("img");
+      if (!image) return;
+      image.hidden = false;
+      const avatar = profileDraftState.draft?.avatar || null;
+      const assetId = profileDraftState.avatarAssetId;
+      const showPlaceholder = (empty, label) => {
+        image.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+        publicAvatarPreview.dataset.loading = "false";
+        publicAvatarPreview.dataset.empty = empty ? "true" : "false";
+        publicAvatarPreview.setAttribute("aria-label", label);
+      };
+      if (profileDraftState.avatarPreviewUrl) {
+        image.src = profileDraftState.avatarPreviewUrl;
+        publicAvatarPreview.dataset.empty = "false";
+        publicAvatarPreview.dataset.loading = "false";
+        publicAvatarPreview.setAttribute("aria-label", "Agent 头像预览");
+        return;
+      }
+      if (publicDraftAssetCapable && assetId && avatar?.assetId === assetId) {
+        image.removeAttribute("src");
+        publicAvatarPreview.dataset.empty = "false";
+        publicAvatarPreview.dataset.loading = "true";
+        publicAvatarPreview.setAttribute("aria-label", "正在读取 Agent 草稿头像");
+        profileDraftState.avatarLoadingAssetId = assetId;
+        void ensureDraftAssetPreview("profile", "profile", avatar).then((entry) => {
+          if (destroyed || profileDraftState.avatarAssetId !== assetId || profileDraftState.avatarLoadingAssetId !== assetId) return;
+          profileDraftState.avatarLoadingAssetId = "";
+          if (!entry?.url) {
+            profileDraftState.avatarError = "草稿头像读取失败；保存或发布时会重新校验。";
+            showPlaceholder(true, "Agent 头像暂时无法显示");
+            renderProfileDraftStatus();
+            return;
+          }
+          profileDraftState.avatarError = "";
+          profileDraftState.avatarPreviewUrl = entry.url;
+          profileDraftState.avatarPreviewObject = entry.objectUrl === true;
+          profileDraftState.avatarPreviewAssetId = assetId;
+          image.src = entry.url;
+          publicAvatarPreview.dataset.loading = "false";
+          publicAvatarPreview.dataset.empty = "false";
+          publicAvatarPreview.setAttribute("aria-label", "Agent 头像预览");
+          renderProfileDraftStatus();
+        });
+        return;
+      }
+      if (!profileDraftState.avatarClear && avatar && homeAvatarState.url) {
+        image.src = homeAvatarState.url;
+        publicAvatarPreview.dataset.loading = "false";
+        publicAvatarPreview.dataset.empty = "false";
+        publicAvatarPreview.setAttribute("aria-label", "Agent 公开头像");
+        return;
+      }
+      if (!profileDraftState.avatarClear && avatar) {
+        image.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+        publicAvatarPreview.dataset.loading = "true";
+        publicAvatarPreview.dataset.empty = "false";
+        publicAvatarPreview.setAttribute("aria-label", "正在读取已公开的 Agent 头像");
+        return;
+      }
+      showPlaceholder(true, "尚未设置 Agent 头像");
+    }
+    function renderHumanPreview() {
+      if (!settingsHumanPreview) return;
+      const value = publicHumanBio.value.trim();
+      if (value.length === 0) {
+        settingsHumanPreview.replaceChildren();
+        settingsHumanPreview.hidden = true;
+        return;
+      }
+      settingsHumanPreview.hidden = false;
+      renderMarkdownInto(settingsHumanPreview, value);
+    }
+    function currentPublishedProfile() {
+      const data = mineState.data;
+      if (!data) return null;
+      const v2 = data.publicProfile?.state === "available" ? data.publicProfile.profile : null;
+      if (v2) {
+        return {
+          source: "profile.json",
+          sourcePath: v2.path || "profile/profile.json",
+          agentName: v2.agentName || "",
+          agentDescription: v2.agentDescription || "",
+          agentInterests: Array.isArray(v2.agentInterests) ? v2.agentInterests : [],
+          agentConversationStyle: v2.agentConversationStyle || "",
+          humanName: v2.humanName || "",
+          humanBioMarkdown: v2.humanBioMarkdown || "",
+          avatarPath: v2.avatarPath || "",
+          avatarSha256: v2.avatarSha256 || "",
+          avatarMime: v2.avatarMime || "",
+          updatedAt: v2.updatedAt || ""
+        };
+      }
+      const card = data.agentCard?.state === "available" ? data.agentCard.card : null;
+      const human = data.profile?.state === "available" ? data.profile : null;
+      if (!card && !human) return null;
+      return {
+        source: card ? "agent-card.json" : "index.md",
+        sourcePath: card?.path || human?.path || "profile/index.md",
+        agentName: card?.displayName || "",
+        agentDescription: card?.description || "",
+        agentInterests: Array.isArray(card?.interests) ? card.interests : [],
+        agentConversationStyle: card?.conversationStyle || "",
+        humanName: human?.displayName || "",
+        humanBioMarkdown: human ? String(human.markdown).replace(/^#.*$/gm, "").trim() : "",
+        avatarPath: card?.avatarPath || "",
+        avatarSha256: card?.avatarSha256 || "",
+        avatarMime: card?.avatarMime || "",
+        updatedAt: card?.updatedAt || ""
+      };
+    }
+    function renderPublicVersionPreview() {
+      if (!publicVersionName) return;
+      const published = currentPublishedProfile();
+      const loading = mineState.data === null && mineState.retrying;
+      const readError = mineState.error || (mineState.data?.publicProfile?.state === "error" ? mineState.data.publicProfile.error : "");
+      if (publicVersionPreview) publicVersionPreview.classList.toggle("is-empty", !published);
+      publicRestorePublished.disabled = !published || profileDraftState.publishing || profileDraftState.saving;
+      if (!published) {
+        publicVersionName.textContent = loading ? "正在读取公开版本…" : "尚无公开版本";
+        publicVersionDescription.textContent = loading ? "读取完成后会在这里显示当前公开内容。" : readError ? "当前公开版本读取失败，详细诊断在「版本、路径与诊断」中。" : "发布成功后会在这里保留一份可恢复的公开内容预览。";
+        publicVersionInterests.replaceChildren();
+        publicVersionInterests.hidden = true;
+        publicVersionStyle.textContent = "";
+        publicVersionHuman.textContent = "";
+        publicVersionNote.textContent = readError ? "读取公开版本没有完成；这不表示本机没有公开内容。" : "还没有公开版本。";
+        const image2 = publicVersionAvatar?.querySelector("img");
+        const initial2 = publicVersionAvatar?.querySelector("span");
+        if (image2) image2.hidden = true;
+        if (initial2) {
+          initial2.hidden = false;
+          initial2.textContent = "?";
+        }
+        return;
+      }
+      publicVersionName.textContent = published.agentName || "未命名 Agent";
+      publicVersionDescription.textContent = published.agentDescription || "尚未填写 Agent 简介。";
+      publicVersionInterests.replaceChildren();
+      for (const interest of published.agentInterests.slice(0, 10)) {
+        const item = element5("li");
+        item.textContent = interest;
+        publicVersionInterests.append(item);
+      }
+      publicVersionInterests.hidden = published.agentInterests.length === 0;
+      publicVersionStyle.textContent = published.agentConversationStyle ? `公开交流风格 · ${published.agentConversationStyle}` : "";
+      publicVersionHuman.textContent = published.humanName ? `关联人类 · ${published.humanName}${published.humanBioMarkdown ? `：${plainSummary(published.humanBioMarkdown, 160)}` : ""}` : "关联人类介绍尚未填写。";
+      publicVersionNote.textContent = `公开版本 · ${published.sourcePath}${published.updatedAt ? ` · 更新于 ${formatDateTime(published.updatedAt)}` : ""}`;
+      const image = publicVersionAvatar?.querySelector("img");
+      const initial = publicVersionAvatar?.querySelector("span");
+      if (image && initial) {
+        if (published.avatarPath && homeAvatarState.url) {
+          image.src = homeAvatarState.url;
+          image.hidden = false;
+          initial.hidden = true;
+        } else {
+          image.hidden = true;
+          initial.hidden = false;
+          initial.textContent = (published.agentName || "A").slice(0, 1);
+        }
+      }
+    }
+    function profileFactRow(label, value, { code = false } = {}) {
+      const row = element5("div");
+      const key2 = element5("dt");
+      key2.textContent = label;
+      const detail = element5("dd");
+      if (code) {
+        const codeNode = element5("code");
+        codeNode.textContent = value || "—";
+        detail.append(codeNode);
+      } else {
+        detail.textContent = value || "—";
+      }
+      row.append(key2, detail);
+      return row;
+    }
+    function renderProfileTechDetails() {
+      if (!publicDraftMeta) return;
+      const draft = profileDraftState.draft;
+      const hasSavedDraft = Boolean(draft && !profileDraftState.fromFallback);
+      const published = currentPublishedProfile();
+      publicDraftMeta.replaceChildren();
+      publicDraftMeta.append(
+        profileFactRow("私有草稿", hasSavedDraft ? `profile · revision ${draft.revision}` : "尚未创建"),
+        profileFactRow("草稿更新", hasSavedDraft && draft?.updatedAtUnixMs ? formatDateTime(new Date(draft.updatedAtUnixMs).toISOString()) : "—"),
+        profileFactRow("公开 revision", draft?.publishedRevision ? String(draft.publishedRevision) : "—"),
+        profileFactRow("公开路径", draft?.publishedPath || published?.sourcePath || "—", { code: true }),
+        profileFactRow("公开 SHA-256", draft?.publishedSha256 || (published?.source === "profile.json" ? mineState.data?.publicProfile?.profile?.sha256 : "") || "—", { code: true }),
+        profileFactRow("公开资料格式", published?.sourcePath === "profile/profile.json" ? "profile.json v2（兼容 index.md；已有 agent-card.json 会同步）" : published ? "旧格式回退" : "—"),
+        profileFactRow("草稿存储", "本机 SQLite；只有确认发布后才写入 public/")
+      );
+      renderProfilePublishReceiptDetails();
+    }
+    function renderProfilePublishReceiptDetails() {
+      if (!publicPublishReceiptDetails) return;
+      publicPublishReceiptDetails.replaceChildren();
+      const receipt = profileDraftState.receipt;
+      if (!receipt) {
+        publicPublishReceiptDetails.hidden = true;
+        return;
+      }
+      publicPublishReceiptDetails.hidden = false;
+      const block = element5("div", "rm-public-publish-details");
+      const line = (text4) => {
+        const paragraph = element5("p");
+        paragraph.textContent = text4;
+        block.append(paragraph);
+      };
+      const label = {
+        published: "发布完成",
+        already_published: "内容已是最新公开版本",
+        conflict: "发布冲突，未覆盖公开文件",
+        invalid: "发布内容无效，未写入公开文件",
+        partial: "发布部分完成，请核对实际清单",
+        unspecified: "发布状态未知"
+      }[receipt.status] || "发布状态未知";
+      line(label);
+      if (receipt.error) line(`错误：${receipt.error}`);
+      if (receipt.profilePath) line(`公开资料：${receipt.profilePath}`);
+      if (receipt.manifestVersion) line(`公开清单版本：${receipt.manifestVersion}`);
+      if (receipt.manifestSha256) line(`公开清单 SHA-256：${receipt.manifestSha256}`);
+      for (const file of receipt.files || []) line(`文件：${file.path} · ${file.sizeBytes} B · ${file.sha256}`);
+      for (const warning of receipt.warnings || []) line(`提示：${warning}`);
+      if (receipt.status === "published" || receipt.status === "already_published") {
+        line("以上为本次真实公开清单回执；发布完成后主页和公开文件会重新读取实际清单。");
+      }
+      publicPublishReceiptDetails.append(block);
+    }
+    function profilePublishReceiptText(receipt) {
+      if (!receipt) return "";
+      switch (receipt.status) {
+        case "published":
+          return "发布完成，公开版本已更新。";
+        case "already_published":
+          return "内容已是当前公开版本，本次没有重复写入。";
+        case "conflict":
+          return `发布冲突，未覆盖公开文件。${receipt.error ? ` ${receipt.error}` : ""}本机输入仍保留。`;
+        case "invalid":
+          return `发布内容无效，没有写入公开文件。${receipt.error ? ` ${receipt.error}` : ""}`;
+        case "partial":
+          return `发布部分完成，请核对实际公开清单。${receipt.error ? ` ${receipt.error}` : ""}`;
+        default:
+          return `发布状态未知，未把它当作成功。${receipt.error ? ` ${receipt.error}` : ""}`;
+      }
+    }
+    function renderProfileDraftStatus() {
+      if (!publicDraftStatus) return;
+      const state = profileDraftState;
+      const lock = state.publishing || state.loading !== null;
+      publicDraftSave.disabled = !publicDraftSaveCapable || state.saving || lock || state.loading !== null;
+      publicDraftSave.textContent = state.saving ? "保存中…" : "保存草稿";
+      publicDraftReload.disabled = !publicDraftLoadCapable || state.saving || lock || state.loading !== null;
+      publicDraftReload.textContent = state.reloadArmed ? "确认放弃修改并重新载入" : "重新载入草稿";
+      publicPublishButton.disabled = !publishDraftCapable || state.saving || lock || state.loading !== null;
+      publicPublishButton.textContent = lock ? "正在发布…" : state.confirm ? "确认发布公开资料" : "检查发布内容";
+      publicPublishCancel.hidden = !state.confirm || lock;
+      publicPublishCancel.disabled = lock;
+      publicAvatarInput.disabled = lock;
+      const hasAvatar = !state.avatarClear && (state.avatarFile !== null || Boolean(state.avatarAssetId) || Boolean(state.draft?.avatar) || Boolean(homeAvatarState.url));
+      publicAvatarClear.disabled = lock || !hasAvatar;
+      for (const input of [publicAgentName, publicAgentDescription, publicAgentInterests, publicAgentStyle, publicHumanName, publicHumanBio]) {
+        input.disabled = lock;
+      }
+      publicRestorePublished.disabled = lock || state.saving || !currentPublishedProfile();
+      if (publicAvatarNote) {
+        if (state.avatarError) {
+          publicAvatarNote.hidden = false;
+          publicAvatarNote.dataset.tone = "error";
+          publicAvatarNote.textContent = state.avatarError;
+        } else if (state.avatarLoadingAssetId) {
+          publicAvatarNote.hidden = false;
+          publicAvatarNote.dataset.tone = "";
+          publicAvatarNote.textContent = "正在读取本机草稿头像…";
+        } else {
+          publicAvatarNote.hidden = true;
+          publicAvatarNote.textContent = "";
+          delete publicAvatarNote.dataset.tone;
+        }
+      }
+      if (!publicDraftLoadCapable) {
+        publicDraftStatus.hidden = false;
+        publicDraftStatus.dataset.tone = "error";
+        publicDraftStatus.textContent = "当前宿主没有提供公开草稿读取，编辑与发布暂不可用。";
+        publicDraftBanner.textContent = "当前宿主不支持公开草稿";
+        publicDraftBanner.dataset.tone = "error";
+        settingsHumanStatus.textContent = "草稿不可用";
+        publicPublishStatus.textContent = "不可用";
+        publicPublishReceipt.hidden = true;
+        renderPublicVersionPreview();
+        renderProfileTechDetails();
+        return;
+      }
+      const hasSavedDraft = Boolean(state.draft && !state.fromFallback);
+      const statusText = state.loading !== null ? "读取中" : state.publishing ? "发布中" : state.draft?.publishedSha256 ? "已发布过" : hasSavedDraft ? "草稿" : "尚未创建";
+      if (publicDraftBanner) {
+        publicDraftBanner.dataset.tone = state.error ? "error" : state.confirm ? "ready" : hasSavedDraft ? "ready" : "unavailable";
+        publicDraftBanner.dataset.debounce = "draft-save-debounce";
+        publicDraftBanner.textContent = state.publishing ? "正在发布 · 等待真实公开回执" : state.confirm ? "已检查当前内容 · 等待确认发布" : state.dirty || state.saving ? "有未保存修改 · 草稿仅本机可见" : state.draft?.publishedSha256 ? "已发布公开版本 · 新修改不会自动公开" : hasSavedDraft ? "草稿仅本机可见 · 不会自动发布" : "尚未创建草稿 · 保存后只写入本机";
+      }
+      const agentStatus = root.querySelector("#settingsPublicAgentStatus");
+      const humanStatus = root.querySelector("#settingsHumanStatus");
+      if (agentStatus) agentStatus.textContent = statusText;
+      if (humanStatus) humanStatus.textContent = statusText;
+      const lines = [];
+      if (state.error) lines.push(state.error);
+      if (state.conflict) lines.push("草稿已在别处更新；本机输入已保留，请重新载入最新草稿或复制修改后再保存。");
+      if (state.confirmNotice && !state.confirm) lines.push(state.confirmNotice);
+      if (state.confirm && state.confirmNotice) lines.push(state.confirmNotice);
+      if (state.reloadArmed) lines.push("未保存的修改会丢失。再次点击“确认放弃修改并重新载入”继续。");
+      if (state.saving) lines.push("正在保存本机草稿…");
+      else if (state.dirty) lines.push("有未保存修改；草稿仅本机可见。");
+      else if (hasSavedDraft) {
+        const savedAt = state.draft.updatedAtUnixMs ? ` · ${formatDateTime(new Date(state.draft.updatedAtUnixMs).toISOString())}` : "";
+        const published = Boolean(state.draft.publishedSha256);
+        const sameAsPublished = published && Number(state.draft.publishedRevision) === Number(state.draft.revision);
+        if (sameAsPublished) {
+          lines.push(`当前草稿已发布为公开版本${savedAt}。`);
+        } else if (published) {
+          lines.push(`草稿已保存${savedAt}。新修改仅本机可见，尚未发布。`);
+        } else {
+          lines.push(`草稿已保存${savedAt}。仅本机可见，尚未发布。`);
+        }
+      } else if (!state.loading) {
+        lines.push(state.draft ? "尚未创建本机草稿；当前内容来自已有公开资料或空白表单，保存后只写入本机。" : "还没有公开资料草稿。填写后点击“保存草稿”。");
+      }
+      const visible = lines.filter(Boolean);
+      publicDraftStatus.hidden = visible.length === 0;
+      publicDraftStatus.dataset.tone = state.error || state.conflict ? "error" : state.dirty || state.saving ? "unavailable" : "ready";
+      publicDraftStatus.textContent = visible.join(" ");
+      const hasNewerDraft = Boolean(state.draft?.publishedSha256 && Number(state.draft.publishedRevision) !== Number(state.draft.revision));
+      publicPublishStatus.textContent = state.publishing ? "正在发布…" : state.confirm ? "等待确认" : state.conflict ? "发布冲突" : state.receipt && (state.receipt.status === "published" || state.receipt.status === "already_published") ? hasNewerDraft ? "已发布 · 有新草稿" : "已发布" : state.receipt ? "发布未完成" : state.draft?.publishedSha256 ? "已发布版本" : "尚未发布";
+      if (state.confirm && !state.receipt) {
+        publicPublishReceipt.hidden = false;
+        publicPublishReceipt.dataset.tone = "unavailable";
+        publicPublishReceipt.textContent = `将以关联人类“${publicHumanName.value.trim() || "未填写"}”与 Agent“${publicAgentName.value.trim() || "未命名"}”发布当前内容。确认后才会公开。`;
+      } else if (state.receipt) {
+        publicPublishReceipt.hidden = false;
+        publicPublishReceipt.dataset.tone = state.receipt.status === "published" || state.receipt.status === "already_published" ? "ready" : "error";
+        publicPublishReceipt.textContent = profilePublishReceiptText(state.receipt) + (hasNewerDraft ? " 发布后又保存了新草稿；它尚未公开。" : "");
+      } else {
+        publicPublishReceipt.hidden = true;
+      }
+      renderPublicVersionPreview();
+      renderProfileTechDetails();
+    }
+    function profileDraftErrorText(error) {
+      const message = errorText(error);
+      if (/image_(?:type|decode)|只支持 PNG|PNG 或 JPEG|图片(?:内容|头部)?.*(?:损坏|截断|解码|格式)/i.test(message)) {
+        return "头像图片无法识别、已损坏或格式不一致；请选择有效的 PNG 或 JPEG 图片。";
+      }
+      if (/image_size|超过上限|超过.*MiB/i.test(message)) {
+        return "头像图片过大（上限 4 MiB）；请压缩后重试。";
+      }
+      if (/image_dimensions|超过单边|总像素|像素上限/i.test(message)) {
+        return "头像尺寸超出限制（单边不超过 4096 像素）；请缩小后重试。";
+      }
+      return /conflict|冲突|已在别处|failed_precondition/i.test(message) ? "草稿已在别处更新，本地输入已保留；请重新载入最新草稿或复制修改后再保存。" : message;
+    }
+    function ensureProfileDraft(force = false) {
+      if (!publicDraftLoadCapable) {
+        renderProfileDraftStatus();
+        return Promise.resolve(null);
+      }
+      if (profileDraftState.loading !== null) return profileDraftState.loading;
+      if (profileDraftState.loaded && !force) {
+        renderProfileDraftStatus();
+        return Promise.resolve(profileDraftState.draft);
+      }
+      const seq = ++profileDraftState.loadingSeq;
+      const promise = (async () => {
+        try {
+          const result = await options.onLoadPublicDraft("profile");
+          if (destroyed || seq !== profileDraftState.loadingSeq) return null;
+          if (result?.error) throw new Error(result.error);
+          const hasSavedDraft = Boolean(result?.found && result.draft);
+          let draft = hasSavedDraft ? result.draft : null;
+          if (!hasSavedDraft && mineCapable && mineState.data === null) {
+            await loadMine(false);
+            if (destroyed || seq !== profileDraftState.loadingSeq) return null;
+          }
+          if (!hasSavedDraft) draft = fallbackProfileDraft();
+          profileDraftState.draft = draft;
+          profileDraftState.loaded = true;
+          profileDraftState.fromFallback = !hasSavedDraft;
+          profileDraftState.error = "";
+          profileDraftState.conflict = false;
+          profileDraftState.reloadArmed = false;
+          setProfileForm(draft);
+        } catch (error) {
+          if (destroyed || seq !== profileDraftState.loadingSeq) return null;
+          profileDraftState.error = profileDraftErrorText(error);
+          profileDraftState.loaded = true;
+          if (!profileDraftState.draft) {
+            const fallback = fallbackProfileDraft();
+            profileDraftState.draft = fallback;
+            profileDraftState.fromFallback = true;
+            setProfileForm(fallback);
+          }
+        } finally {
+          if (!destroyed && seq === profileDraftState.loadingSeq) {
+            profileDraftState.loading = null;
+            renderProfileDraftStatus();
+          }
+        }
+        return profileDraftState.draft;
+      })();
+      profileDraftState.loading = promise;
+      renderProfileDraftStatus();
+      return promise;
+    }
+    function profileRequestValues() {
+      return {
+        values: profileFormValues(),
+        avatarFile: profileDraftState.avatarFile,
+        avatarAssetId: profileDraftState.avatarClear ? "" : profileDraftState.avatarAssetId,
+        clearAvatar: profileDraftState.avatarClear === true,
+        version: profileDraftState.formVersion
+      };
+    }
+    async function saveProfileDraftOnce(expectedRevision, avatarAssetId, values, clearAvatar) {
+      const result = await options.onSavePublicDraft({
+        draftId: "profile",
+        kind: "profile",
+        expectedRevision,
+        ...values,
+        avatarAssetId: avatarAssetId || "",
+        clearAvatar: clearAvatar === true,
+        imageAssetIds: [],
+        tags: []
+      });
+      if (!result?.draft) throw new Error("保存草稿没有返回结果");
+      return result.draft;
+    }
+    function dataUrlToFile(dataUrl, name, mime) {
+      const value = String(dataUrl || "");
+      const comma = value.indexOf(",");
+      if (comma < 0 || !/;base64/i.test(value.slice(0, comma))) throw new Error("已公开头像不是有效的 base64 图片");
+      const bytes = base64ToBytes(value.slice(comma + 1));
+      if (bytes.length === 0) throw new Error("已公开头像为空");
+      const FileCtor = win.File ?? globalThis.File;
+      if (typeof FileCtor !== "function") throw new Error("当前环境无法把已公开头像转为本机草稿图片");
+      return new FileCtor([bytes], name || "avatar.png", { type: mime || "image/png" });
+    }
+    async function importPublishedAvatarForDraft() {
+      const draft = profileDraftState.draft;
+      const avatar = draft?.avatar;
+      if (!avatar?.path || avatar.assetId || profileDraftState.avatarFile || profileDraftState.avatarAssetId || profileDraftState.avatarClear) return;
+      if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取；请重新选择头像或移除头像后再保存。");
+      const file = mineState.data?.files?.find((item) => item.path === avatar.path) ?? null;
+      if (!file) throw new Error("已公开头像不在本机发布清单中；请重新选择头像或移除头像后再保存。");
+      const version = profileDraftState.formVersion;
+      const avatarPath = avatar.path;
+      const avatarSha = String(avatar.sha256 || "");
+      const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
+      if (destroyed || profileDraftState.draft !== draft || version !== profileDraftState.formVersion) return;
+      if (profileDraftState.avatarFile || profileDraftState.avatarAssetId || profileDraftState.avatarClear) return;
+      const current = profileDraftState.draft?.avatar;
+      if (!current || current.path !== avatarPath || String(current.sha256 || "") !== avatarSha) return;
+      if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
+        throw new Error(preview?.error || "已公开头像读取失败；请重新选择头像或移除头像后再保存。");
+      }
+      releaseProfileAvatarPreview();
+      profileDraftState.avatarFile = dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime);
+      profileDraftState.avatarPreviewUrl = preview.dataUrl;
+      profileDraftState.avatarPreviewObject = false;
+      profileDraftState.avatarAssetId = "";
+      profileDraftState.avatarClear = false;
+      profileDraftState.avatarError = "";
+      profileDraftState.avatarLoadingAssetId = "";
+      renderProfileAvatar();
+    }
+    async function saveProfileDraft({ manual = false } = {}) {
+      if (!publicDraftSaveCapable) {
+        profileDraftState.error = "当前宿主没有提供公开草稿保存。";
+        renderProfileDraftStatus();
+        return null;
+      }
+      if (profileDraftState.publishing) return null;
+      if (profileDraftState.saving) {
+        profileDraftState.queuedSave = true;
+        return profileDraftState.savingPromise;
+      }
+      if (profileDraftState.conflict && !manual) {
+        renderProfileDraftStatus();
+        return profileDraftState.draft;
+      }
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      if (profileDraftState.confirm) {
+        invalidateProfileConfirm("草稿开始保存；旧确认已撤销，请重新检查发布内容。");
+      }
+      profileDraftState.saving = true;
+      profileDraftState.error = "";
+      profileDraftState.reloadArmed = false;
+      renderProfileDraftStatus();
+      const promise = (async () => {
+        let request = null;
+        let baseline = null;
+        let beforeDraftAvatar = null;
+        try {
+          await importPublishedAvatarForDraft();
+          if (destroyed) return profileDraftState.draft;
+          request = profileRequestValues();
+          beforeDraftAvatar = profileDraftState.draft?.avatar || null;
+          const draft = profileDraftState.draft;
+          let saved = await saveProfileDraftOnce(draft?.revision || 0, request.avatarAssetId, request.values, request.clearAvatar);
+          baseline = saved;
+          adoptProfileDraftBaseline(saved);
+          if (request.avatarFile) {
+            if (!publicDraftImageCapable) throw new Error("当前宿主不支持上传草稿头像");
+            const base64 = await fileToBase64(request.avatarFile);
+            const uploaded = await options.onPutPublicDraftImage(saved.draftId, "avatar", request.avatarFile.name, base64);
+            if (!uploaded?.image?.assetId) throw new Error("头像上传没有返回资源");
+            saved = await saveProfileDraftOnce(saved.revision, uploaded.image.assetId, request.values, false);
+            baseline = saved;
+            adoptProfileDraftBaseline(saved);
+            if (request.version === profileDraftState.formVersion && profileDraftState.avatarFile === request.avatarFile) {
+              profileDraftState.avatarAssetId = uploaded.image.assetId;
+              profileDraftState.avatarFile = null;
+              profileDraftState.avatarClear = false;
+            }
+          }
+          profileDraftState.draft = saved;
+          profileDraftState.fromFallback = false;
+          profileDraftState.conflict = false;
+          profileDraftState.confirmNotice = "";
+          profileDraftState.dirty = !profileDraftMatchesCurrent(saved);
+          if (!profileDraftState.dirty) {
+            profileDraftState.error = "";
+            if (!profileDraftState.avatarFile) profileDraftState.avatarAssetId = saved.avatar?.assetId || "";
+            profileDraftState.avatarClear = false;
+          }
+        } catch (error) {
+          const message = profileDraftErrorText(error);
+          const raw = String(error?.message ?? error);
+          const imageFailure = /image_(?:type|decode|size|dimensions)|只支持 PNG|PNG 或 JPEG|图片.*(?:损坏|截断|解码|格式|尺寸|像素)/i.test(raw);
+          profileDraftState.error = message;
+          profileDraftState.conflict = /冲突|已在别处|conflict|failed_precondition/i.test(raw);
+          if (baseline && request && profileAvatarSelectionMatches(request)) {
+            restoreProfileAvatarFromDraft(baseline, beforeDraftAvatar);
+          }
+          if (imageFailure) profileDraftState.avatarError = message;
+          profileDraftState.dirty = !baseline || !profileDraftMatchesCurrent();
+        } finally {
+          profileDraftState.saving = false;
+          const retry = profileDraftState.queuedSave || profileDraftState.dirty && !profileDraftState.error && !profileDraftState.conflict && !profileDraftState.publishing;
+          profileDraftState.queuedSave = false;
+          if (!destroyed) {
+            renderProfileAvatar();
+            renderProfileDraftStatus();
+            if (retry) queueProfileSave(350);
+          }
+        }
+        return profileDraftState.draft;
+      })();
+      profileDraftState.savingPromise = promise;
+      return promise;
+    }
+    function queueProfileSave(delay = 600) {
+      if (profileSaveTimer !== null) win.clearTimeout(profileSaveTimer);
+      profileSaveTimer = win.setTimeout(() => {
+        profileSaveTimer = null;
+        if (!destroyed) void saveProfileDraft();
+      }, delay);
+    }
+    function scheduleProfileSave() {
+      profileDraftState.formVersion += 1;
+      profileDraftState.dirty = true;
+      profileDraftState.reloadArmed = false;
+      if (profileDraftState.conflict) {
+        renderProfileDraftStatus();
+        return;
+      }
+      profileDraftState.error = "";
+      if (profileDraftState.confirm) {
+        invalidateProfileConfirm("内容已修改；旧确认已撤销，请重新检查发布内容。");
+      }
+      renderProfileDraftStatus();
+      if (!publicDraftSaveCapable) return;
+      queueProfileSave(600);
+    }
+    function invalidateProfileConfirm(message = "") {
+      if (!profileDraftState.confirm && !message) return;
+      profileDraftState.confirm = false;
+      profileDraftState.confirmSnapshot = "";
+      if (message) profileDraftState.confirmNotice = message;
+      if (publicPublishButton) publicPublishButton.textContent = "检查发布内容";
+      if (publicPublishCancel) publicPublishCancel.hidden = true;
+      renderProfileDraftStatus();
+    }
+    function profilePublishSnapshot() {
+      return JSON.stringify({
+        version: profileDraftState.formVersion,
+        revision: Number(profileDraftState.draft?.revision) || 0,
+        publishedSha256: String(profileDraftState.draft?.publishedSha256 || "").toLowerCase(),
+        draftId: profileDraftState.draft?.draftId || "profile",
+        values: profileFormValues(),
+        avatarAssetId: profileDraftState.avatarClear ? "" : profileDraftState.avatarAssetId,
+        avatarClear: profileDraftState.avatarClear === true,
+        avatarFile: profileDraftState.avatarFile ? [profileDraftState.avatarFile.name, profileDraftState.avatarFile.size, profileDraftState.avatarFile.lastModified] : null
+      });
+    }
+    async function flushProfileDraftForPublish() {
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        if (profileDraftState.saving) {
+          await profileDraftState.savingPromise;
+          continue;
+        }
+        if (profileDraftState.conflict) throw new Error("草稿已在别处更新，不能直接发布；请重新载入最新草稿后再检查。");
+        try {
+          await importPublishedAvatarForDraft();
+        } catch (error) {
+          throw new Error(`${errorText(error)} 未保存为草稿，发布也不会丢弃旧头像。`);
+        }
+        if (profileDraftState.avatarFile) profileDraftState.dirty = true;
+        if (!profileDraftState.dirty && profileDraftState.draft) return profileDraftState.draft;
+        await saveProfileDraft({ manual: true });
+        if (profileDraftState.conflict) throw new Error("草稿已在别处更新，不能直接发布；本机输入已保留。");
+        if (profileDraftState.error) throw new Error(profileDraftState.error);
+        if (!profileDraftState.dirty && profileDraftState.draft) return profileDraftState.draft;
+      }
+      throw new Error("当前修改还没有保存完成；请检查本机草稿状态后再发布。");
+    }
+    async function publishProfileNow() {
+      if (!publishDraftCapable) {
+        profileDraftState.error = "当前宿主没有提供公开发布。";
+        renderProfileDraftStatus();
+        return;
+      }
+      const draft = profileDraftState.draft;
+      if (!draft) {
+        profileDraftState.error = "没有可发布的草稿。";
+        renderProfileDraftStatus();
+        return;
+      }
+      const seq = ++profileDraftState.publishSeq;
+      profileDraftState.publishing = true;
+      profileDraftState.confirm = false;
+      profileDraftState.confirmSnapshot = "";
+      profileDraftState.confirmNotice = "";
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      renderProfileDraftStatus();
+      try {
+        const receipt = await options.onPublishPublicDraft(draft.draftId, draft.revision, draft.publishedSha256 || "");
+        if (destroyed || seq !== profileDraftState.publishSeq) return;
+        profileDraftState.receipt = receipt;
+        if (receipt.status === "published" || receipt.status === "already_published") {
+          profileDraftState.draft = {
+            ...draft,
+            publishedSha256: receipt.currentPublishedSha256 || draft.publishedSha256,
+            publishedRevision: receipt.currentRevision || draft.revision,
+            publishedPath: receipt.profilePath || draft.publishedPath
+          };
+          profileDraftState.dirty = !profileDraftMatchesCurrent(profileDraftState.draft);
+          profileDraftState.conflict = false;
+          profileDraftState.error = "";
+          profileDraftState.confirmNotice = "";
+          void loadMine(true).then(() => {
+            if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
+              renderProfileDraftStatus();
+            }
+          });
+        } else if (receipt.status === "conflict") {
+          profileDraftState.conflict = true;
+          profileDraftState.error = receipt.error || "发布冲突；本地草稿未覆盖公开文件。";
+        } else {
+          profileDraftState.error = receipt.error || "发布没有完成；本机草稿和输入均保留。";
+        }
+      } catch (error) {
+        if (destroyed || seq !== profileDraftState.publishSeq) return;
+        profileDraftState.error = profileDraftErrorText(error);
+        profileDraftState.conflict = /冲突|已在别处|conflict|failed_precondition/i.test(String(error?.message ?? error));
+      } finally {
+        if (!destroyed && seq === profileDraftState.publishSeq) {
+          profileDraftState.publishing = false;
+          renderProfileDraftStatus();
+          publicPublishButton.focus?.({ preventScroll: true });
+        }
+      }
+    }
+    async function requestProfilePublish() {
+      if (profileDraftState.publishing) return;
+      if (profileDraftState.confirm) {
+        const snapshot = profilePublishSnapshot();
+        if (snapshot !== profileDraftState.confirmSnapshot) {
+          invalidateProfileConfirm("内容或草稿版本已变化；旧确认无效，请重新检查发布内容。");
+          return;
+        }
+        await publishProfileNow();
+        return;
+      }
+      try {
+        await flushProfileDraftForPublish();
+      } catch (error) {
+        profileDraftState.error = errorText(error);
+        renderProfileDraftStatus();
+        return;
+      }
+      if (!profileDraftState.draft) {
+        profileDraftState.error = "没有可检查的草稿。";
+        renderProfileDraftStatus();
+        return;
+      }
+      profileDraftState.receipt = null;
+      profileDraftState.confirm = true;
+      profileDraftState.confirmSnapshot = profilePublishSnapshot();
+      profileDraftState.confirmNotice = "";
+      renderProfileDraftStatus();
+      publicPublishButton.focus?.({ preventScroll: true });
+    }
+    function handleProfileReload() {
+      if (!publicDraftLoadCapable || profileDraftState.saving || profileDraftState.publishing) return;
+      const hasLocalChanges = profileDraftState.dirty || profileDraftState.avatarFile !== null || profileDraftState.confirm || profileDraftState.reloadArmed;
+      if (hasLocalChanges && !profileDraftState.reloadArmed) {
+        profileDraftState.reloadArmed = true;
+        invalidateProfileConfirm("");
+        renderProfileDraftStatus();
+        return;
+      }
+      profileDraftState.reloadArmed = false;
+      profileDraftState.dirty = false;
+      profileDraftState.error = "";
+      profileDraftState.conflict = false;
+      profileDraftState.receipt = null;
+      profileDraftState.confirm = false;
+      profileDraftState.confirmSnapshot = "";
+      profileDraftState.confirmNotice = "";
+      profileDraftState.loaded = false;
+      profileDraftState.loadingSeq += 1;
+      void ensureProfileDraft(true);
+    }
+    async function restorePublishedProfile() {
+      const published = currentPublishedProfile();
+      if (!published || profileDraftState.publishing || profileDraftState.saving) return;
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      const restored = {
+        draftId: "profile",
+        kind: "profile",
+        revision: profileDraftState.draft?.revision || 0,
+        agentName: published.agentName,
+        agentDescription: published.agentDescription,
+        agentInterests: [...published.agentInterests],
+        agentConversationStyle: published.agentConversationStyle,
+        humanName: published.humanName,
+        humanBioMarkdown: published.humanBioMarkdown,
+        avatar: published.avatarPath ? { assetId: "", sha256: published.avatarSha256, mime: published.avatarMime, path: published.avatarPath } : null,
+        publishedSha256: profileDraftState.draft?.publishedSha256 || "",
+        publishedRevision: profileDraftState.draft?.publishedRevision || 0,
+        publishedPath: profileDraftState.draft?.publishedPath || ""
+      };
+      setProfileForm(restored);
+      if (published.avatarPath) {
+        try {
+          const avatar = restored.avatar;
+          if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取");
+          const file = mineState.data?.files?.find((item) => item.path === avatar.path) ?? null;
+          if (!file) throw new Error("已公开头像不在本机发布清单中");
+          const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
+          if (destroyed) return;
+          if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
+            throw new Error(preview?.error || "已公开头像读取失败");
+          }
+          profileDraftState.avatarFile = dataUrlToFile(preview.dataUrl, file.name || avatar.path.split("/").pop(), preview.mime || avatar.mime);
+          profileDraftState.avatarPreviewUrl = preview.dataUrl;
+          profileDraftState.avatarPreviewObject = false;
+          profileDraftState.avatarAssetId = "";
+          profileDraftState.avatarClear = false;
+          renderProfileAvatar();
+        } catch (error) {
+          profileDraftState.avatarError = `${errorText(error)}；请重新选择头像后再发布。`;
+          profileDraftState.fromFallback = true;
+        }
+      } else {
+        profileDraftState.avatarClear = true;
+        profileDraftState.avatarFile = null;
+        profileDraftState.avatarAssetId = "";
+      }
+      const hadSavedDraft = Boolean(profileDraftState.draft && !profileDraftState.fromFallback);
+      profileDraftState.draft = { ...profileDraftState.draft, avatar: restored.avatar };
+      profileDraftState.formVersion += 1;
+      profileDraftState.dirty = true;
+      profileDraftState.fromFallback = !hadSavedDraft;
+      profileDraftState.reloadArmed = false;
+      profileDraftState.confirm = false;
+      profileDraftState.confirmSnapshot = "";
+      profileDraftState.confirmNotice = "已恢复公开版本；保存后成为本机草稿。";
+      renderProfileAvatar();
+      renderHumanPreview();
+      renderProfileDraftStatus();
+      publicDraftStatus.scrollIntoView?.({ block: "nearest" });
+    }
+    function postFormValues() {
+      return {
+        title: postTitleInput.value,
+        bodyMarkdown: postBodyInput.value,
+        tags: splitList(postTagsInput.value),
+        authorKind: postAuthorKind.value === "agent" ? "agent" : "user"
+      };
+    }
+    function samePostFormValues(left, right) {
+      if (!left || !right) return false;
+      return left.title === right.title && left.bodyMarkdown === right.bodyMarkdown && left.authorKind === right.authorKind && left.tags.join("\0") === right.tags.join("\0");
+    }
+    function clonePostDraft(draft) {
+      if (!draft || typeof draft !== "object") return null;
+      try {
+        return JSON.parse(JSON.stringify(draft));
+      } catch {
+        return { ...draft, images: Array.isArray(draft.images) ? [...draft.images] : [] };
+      }
+    }
+    function postEditorViewSnapshot() {
+      const values = postFormValues();
+      return { draft: clonePostDraft(postEditorState.draft), values: { ...values, tags: [...values.tags] }, dirty: postEditorState.dirty };
+    }
+    function restorePostEditorView(snapshot) {
+      if (!snapshot) return false;
+      postEditorState.draft = clonePostDraft(snapshot.draft);
+      postEditorState.draftEpoch += 1;
+      postEditorState.formVersion += 1;
+      setPostForm(postEditorState.draft);
+      postTitleInput.value = snapshot.values.title;
+      postBodyInput.value = snapshot.values.bodyMarkdown;
+      postTagsInput.value = snapshot.values.tags.join("，");
+      postAuthorKind.value = snapshot.values.authorKind === "agent" ? "agent" : "user";
+      postAuthorKind.disabled = Boolean(postEditorState.draft?.publishedPath);
+      postImageInput.disabled = isLegacyV1PostPath(postEditorState.draft?.publishedPath);
+      postEditorState.dirty = snapshot.dirty;
+      postEditorState.receipt = null;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      postEditorState.confirmNotice = "";
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      renderPostAuthorNote();
+      renderPostImages();
+      renderPostDraftList();
+      renderPostEditorStatus();
+      return true;
+    }
+    function postEditorSnapshot() {
+      const values = postFormValues();
+      const draft = postEditorState.draft;
+      return JSON.stringify({
+        draftId: draft?.draftId || "",
+        revision: Number(draft?.revision) || 0,
+        publishedPath: draft?.publishedPath || "",
+        publishedSha256: String(draft?.publishedSha256 || "").toLowerCase(),
+        title: values.title,
+        bodyMarkdown: values.bodyMarkdown,
+        tags: values.tags,
+        authorKind: values.authorKind,
+        images: (draft?.images || []).map((image) => [
+          image.assetId,
+          String(image.sha256 || "").toLowerCase(),
+          Number(image.sizeBytes) || 0
+        ]),
+        pending: postEditorState.pending.map((pending) => [
+          pending.file.name,
+          pending.file.size,
+          pending.file.lastModified
+        ])
+      });
+    }
+    function postConfirmationTarget(draft = postEditorState.draft) {
+      const publishedPath = String(draft?.publishedPath || "").trim();
+      if (publishedPath) return publishedPath;
+      const draftId = String(draft?.draftId || "").trim();
+      if (!draftId) return "";
+      return `posts/${draftId.replace(/^draft-/, "post-")}/post.json`;
+    }
+    function isLegacyV1PostPath(value) {
+      return /^posts\/[A-Za-z0-9._-]+\.json$/.test(String(value ?? ""));
+    }
+    function updatePostEditorHeading(draft = postEditorState.draft) {
+      const editing = Boolean(draft?.publishedPath);
+      postEditorHeading.textContent = editing ? "编辑公开动态" : "写一条公开动态";
+      postEditorPanel.dataset.mode = editing ? "edit" : "new";
+    }
+    function setPostForm(draft) {
+      releaseDraftAssetScope("post");
+      postTitleInput.value = draft?.title || "";
+      postBodyInput.value = draft?.bodyMarkdown || "";
+      postTagsInput.value = (draft?.tags || []).join("，");
+      postAuthorKind.value = draft?.authorKind === "agent" ? "agent" : "user";
+      postAuthorKind.disabled = Boolean(draft?.publishedPath);
+      postImageInput.disabled = isLegacyV1PostPath(draft?.publishedPath);
+      postEditorState.imported = Boolean(draft?.publishedPath);
+      postEditorState.dirty = false;
+      if (postSaveAsNew) postSaveAsNew.hidden = true;
+      if (postWriteAnother) postWriteAnother.hidden = true;
+      updatePostEditorHeading(draft);
+      renderPostAuthorNote();
+      renderPostImages();
+    }
+    function renderPostAuthorNote() {
+      const agentName = mineState.data?.agentCard?.state === "available" ? mineState.data.agentCard.card?.displayName : "";
+      const humanName = mineState.data?.profile?.displayName || mineState.data?.publicProfile?.profile?.humanName || "";
+      const draft = postEditorState.draft;
+      if (draft?.publishedPath) {
+        const kind = draft.authorKind === "agent" ? `Agent${agentName ? ` · ${agentName}` : ""}` : `本人${humanName ? ` · ${humanName}` : ""}`;
+        postAuthorNote.textContent = `正在编辑已公开动态；署名来源保留为${kind}，发布会更新原帖。`;
+      } else if (postAuthorKind.value === "agent") {
+        postAuthorNote.textContent = `将以 Agent${agentName ? ` · ${agentName}` : ""} 署名发布。`;
+      } else {
+        postAuthorNote.textContent = `将以本人${humanName ? ` · ${humanName}` : ""} 署名发布。`;
+      }
+      if (isLegacyV1PostPath(draft?.publishedPath)) {
+        postAuthorNote.textContent += " 旧版动态保持原格式，本次只更新文字，不能加入图片。";
+      }
+    }
+    function renderPostImages() {
+      if (!postImageList) return;
+      postImageList.replaceChildren();
+      const draft = postEditorState.draft;
+      const draftId = draft?.draftId || "";
+      const images = draft?.images || [];
+      for (const image of images) {
+        const item = element5("div", "rm-post-editor-image");
+        const thumb = element5("img", "rm-post-editor-thumb");
+        thumb.alt = image.mime === "image/png" ? "PNG 草稿图片" : "JPEG 草稿图片";
+        const copy = element5("div", "rm-post-editor-image-copy");
+        const label = element5("span");
+        label.textContent = `${image.mime === "image/png" ? "PNG" : "JPEG"} · ${image.width}×${image.height} · ${image.sizeBytes} B`;
+        copy.append(label);
+        const remove = element5("button", "rm-quiet");
+        remove.type = "button";
+        remove.textContent = "移除";
+        remove.addEventListener("click", () => {
+          if (postEditorState.loading || postEditorState.saving || postEditorState.uploading || postEditorState.publishing) {
+            postEditorNote.hidden = false;
+            postEditorNote.textContent = "正在读取、保存或发布；完成后再移除图片。";
+            return;
+          }
+          const current = postEditorState.draft;
+          if (!current) return;
+          releaseDraftAsset("post", current.draftId, image.assetId);
+          current.images = (current.images || []).filter((entry) => entry.assetId !== image.assetId);
+          markPostEditorChanged("已移除图片；请重新检查发布内容。");
+          renderPostImages();
+          postImageInput.focus({ preventScroll: true });
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "已从草稿中移除图片；保存草稿后生效。";
+          schedulePostSave();
+        }, { signal: controller.signal });
+        if (publicDraftAssetCapable && draftId) {
+          const key2 = `post:${draftId}:${image.assetId}`;
+          const cached = draftAssetCache.get(key2);
+          if (cached?.url) {
+            thumb.src = cached.url;
+          } else if (cached?.error) {
+            item.dataset.thumb = "error";
+            const note = element5("small", "rm-post-editor-thumb-error");
+            note.textContent = cached.error;
+            copy.append(note);
+          } else {
+            item.dataset.thumb = "loading";
+            void ensureDraftAssetPreview("post", draftId, image).then((entry) => {
+              if (!thumb.isConnected) return;
+              if (entry?.url) {
+                thumb.src = entry.url;
+                item.dataset.thumb = "ready";
+              } else {
+                const failed = draftAssetCache.get(key2)?.error || "缩略图读取失败";
+                item.dataset.thumb = "error";
+                const note = element5("small", "rm-post-editor-thumb-error");
+                note.textContent = failed;
+                copy.append(note);
+              }
+            });
+          }
+        }
+        item.append(thumb, copy, remove);
+        postImageList.append(item);
+      }
+      for (const [index, pending] of postEditorState.pending.entries()) {
+        const item = element5("div", "rm-post-editor-image");
+        const thumb = element5("img", "rm-post-editor-thumb");
+        thumb.src = pending.url;
+        thumb.alt = pending.file.name;
+        const copy = element5("div", "rm-post-editor-image-copy");
+        const label = element5("span");
+        label.textContent = `${pending.file.name} · 待上传`;
+        copy.append(label);
+        const remove = element5("button", "rm-quiet");
+        remove.type = "button";
+        remove.textContent = "移除";
+        remove.addEventListener("click", () => {
+          if (postEditorState.loading || postEditorState.saving || postEditorState.uploading || postEditorState.publishing) {
+            postEditorNote.hidden = false;
+            postEditorNote.textContent = "正在读取、保存或发布；完成后再移除图片。";
+            return;
+          }
+          URL.revokeObjectURL(pending.url);
+          postEditorState.pending.splice(index, 1);
+          markPostEditorChanged("已移除待上传图片；请重新检查发布内容。");
+          renderPostImages();
+          postImageInput.focus({ preventScroll: true });
+        }, { signal: controller.signal });
+        item.append(thumb, copy, remove);
+        postImageList.append(item);
+      }
+    }
+    function renderPostDraftList() {
+      if (!postDraftSelect) return;
+      const selected = postEditorState.draft?.draftId || "";
+      postDraftSelect.replaceChildren();
+      const blank = doc.createElement("option");
+      blank.value = "";
+      blank.textContent = "新建草稿";
+      postDraftSelect.append(blank);
+      for (const draft of postEditorState.list) {
+        const option = doc.createElement("option");
+        option.value = draft.draftId;
+        option.textContent = `${draft.title || "未命名动态"} · ${draft.authorKind === "agent" ? "Agent" : "本人"} · r${draft.revision}`;
+        postDraftSelect.append(option);
+      }
+      postDraftSelect.value = selected;
+    }
+    async function loadPostDrafts() {
+      if (!publicDraftListCapable) return;
+      const seq = ++postEditorState.listSeq;
+      try {
+        const result = await options.onLoadPublicDrafts("post");
+        if (seq !== postEditorState.listSeq) return;
+        postEditorState.list = Array.isArray(result?.drafts) ? result.drafts : [];
+        postEditorState.listLoaded = true;
+        renderPostDraftList();
+      } catch (error) {
+        if (seq !== postEditorState.listSeq) return;
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = `读取动态草稿失败：${errorText(error)}`;
+      }
+    }
+    function postEditorHasUnsavedChanges() {
+      if (postEditorState.dirty || postEditorState.pending.length > 0) return true;
+      const draft = postEditorState.draft;
+      const values = postFormValues();
+      if (!draft) {
+        return Boolean(values.title || values.bodyMarkdown || values.tags.length > 0 || values.authorKind !== "user");
+      }
+      const draftTags = (draft.tags || []).map((tag) => String(tag));
+      return values.title !== (draft.title || "") || values.bodyMarkdown !== (draft.bodyMarkdown || "") || values.tags.join("\0") !== draftTags.join("\0") || values.authorKind !== (draft.authorKind === "agent" ? "agent" : "user");
+    }
+    function invalidatePostConfirm(message = "") {
+      if (!postEditorState.confirm && !message) return;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      if (message) postEditorState.confirmNotice = message;
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      renderPostEditorStatus();
+    }
+    function markPostEditorChanged(message = "内容已修改；请重新检查发布内容。") {
+      postEditorState.formVersion += 1;
+      const values = postFormValues();
+      postEditorState.dirty = !(postEditorState.draft === null && postEditorState.pending.length === 0 && values.authorKind === "user" && !values.title && !values.bodyMarkdown && values.tags.length === 0);
+      if (postWriteAnother) postWriteAnother.hidden = true;
+      if (postEditorState.confirm) invalidatePostConfirm(message);
+      renderPostStashControl();
+    }
+    function stashHasContent(stash) {
+      if (!stash) return false;
+      return Boolean(stash.values.title || stash.values.bodyMarkdown || stash.values.tags.length > 0 || stash.values.authorKind !== "user" || stash.files.length > 0);
+    }
+    function postStashLabel(stash) {
+      const title = String(stash?.values?.title || "").trim();
+      return title ? `“${title.slice(0, 18)}${title.length > 18 ? "…" : ""}”` : "未命名内容";
+    }
+    function samePostStashContent(left, right) {
+      if (!left || !right) return false;
+      if (left.kind !== right.kind) return false;
+      if ((left.draft?.draftId || "") !== (right.draft?.draftId || "")) return false;
+      const a = left.values || {};
+      const b = right.values || {};
+      if (a.title !== b.title || a.bodyMarkdown !== b.bodyMarkdown || a.authorKind !== b.authorKind) return false;
+      if ((a.tags || []).join("\0") !== (b.tags || []).join("\0")) return false;
+      const aFiles = left.files || [];
+      const bFiles = right.files || [];
+      if (aFiles.length !== bFiles.length) return false;
+      return aFiles.every((file, index) => {
+        const other = bFiles[index];
+        return file === other || file.name === other.name && file.size === other.size && file.type === other.type && file.lastModified === other.lastModified;
+      });
+    }
+    function buildPostEditorStash(reason = "") {
+      if (!postEditorHasUnsavedChanges()) return null;
+      const values = postFormValues();
+      const draft = clonePostDraft(postEditorState.draft);
+      const stash = {
+        kind: draft ? "draft" : "new",
+        reason,
+        values: { ...values, tags: [...values.tags] },
+        files: postEditorState.pending.map((pending) => pending.file),
+        draft,
+        dirty: postEditorState.dirty,
+        at: Date.now()
+      };
+      return stashHasContent(stash) ? stash : null;
+    }
+    function postEditorStashWouldBeReplaced() {
+      const existing = postEditorState.stash;
+      if (!stashHasContent(existing)) return null;
+      const incoming = buildPostEditorStash();
+      if (!stashHasContent(incoming)) return null;
+      return samePostStashContent(existing, incoming) ? null : existing;
+    }
+    function blockPostEditorStashReplacement(action2 = "切换草稿") {
+      const existing = postEditorState.stash;
+      if (!stashHasContent(existing)) return false;
+      renderPostDraftList();
+      postDraftSelect.value = postEditorState.draft?.draftId || "";
+      const kind = existing.kind === "draft" ? "未保存的草稿修改" : "未保存的新动态";
+      postEditorNote.hidden = false;
+      postEditorNote.textContent = `已有一份${kind}（${postStashLabel(existing)}）尚未处理；为避免覆盖，本次没有${action2}。请先保存当前草稿（标题和正文完整时），或点“用旧内容替换当前输入”恢复旧项；如不再需要旧项，可点“丢弃旧恢复项”后再继续。`;
+      renderPostStashControl();
+      postDraftSelect.focus({ preventScroll: true });
+      return true;
+    }
+    function capturePostEditorStash(reason = "") {
+      const stash = buildPostEditorStash(reason);
+      if (!stash) return null;
+      postEditorState.stash = stash;
+      renderPostStashControl();
+      return stash;
+    }
+    function clearPendingPostImages() {
+      for (const pending of postEditorState.pending) URL.revokeObjectURL(pending.url);
+      postEditorState.pending = [];
+    }
+    function restorePostEditorStash({ focus = false, replace = false } = {}) {
+      const stash = postEditorState.stash;
+      if (!stash || postEditorState.loading || postEditorState.saving || postEditorState.publishing || postEditorState.uploading) return false;
+      const replacing = postEditorHasUnsavedChanges();
+      if (replacing && !replace) return false;
+      if (replacing) {
+        if (postSaveTimer !== null) {
+          win.clearTimeout(postSaveTimer);
+          postSaveTimer = null;
+        }
+        clearPendingPostImages();
+      }
+      postEditorState.stash = null;
+      postEditorState.loading = false;
+      postEditorState.draft = clonePostDraft(stash.draft);
+      postEditorState.draftEpoch += 1;
+      postEditorState.formVersion += 1;
+      setPostForm(postEditorState.draft);
+      postTitleInput.value = stash.values.title;
+      postBodyInput.value = stash.values.bodyMarkdown;
+      postTagsInput.value = stash.values.tags.join("，");
+      postAuthorKind.value = stash.values.authorKind === "agent" ? "agent" : "user";
+      postAuthorKind.disabled = Boolean(postEditorState.draft?.publishedPath);
+      postImageInput.disabled = isLegacyV1PostPath(postEditorState.draft?.publishedPath);
+      for (const file of stash.files) {
+        let url = "";
+        try {
+          url = URL.createObjectURL(file);
+        } catch {
+          url = "";
+        }
+        if (url) postEditorState.pending.push({ file, url });
+      }
+      postEditorState.dirty = true;
+      postEditorState.error = "";
+      postEditorState.receipt = null;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      postEditorState.confirmNotice = "";
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      renderPostAuthorNote();
+      renderPostImages();
+      renderPostDraftList();
+      renderPostEditorStatus();
+      postEditorNote.hidden = false;
+      if (stash.kind === "draft") {
+        postEditorNote.textContent = replacing ? "已用旧的未保存草稿修改替换当前输入；当前输入未保存。原公开动态未被覆盖，请保存或检查后发布。" : "已恢复切换前未保存的草稿修改；原公开动态未被覆盖，请保存或检查后发布。";
+      } else {
+        postEditorNote.textContent = replacing ? "已用旧的未保存新动态替换当前输入；当前输入未保存。它仍只在本机编辑器中，尚未保存或公开。" : "已恢复上次未保存的新动态输入；它仍只在本机编辑器中，尚未保存或公开。";
+      }
+      if (focus) postTitleInput.focus({ preventScroll: true });
+      return true;
+    }
+    function discardPostEditorStash({ focus = false } = {}) {
+      if (!stashHasContent(postEditorState.stash)) return false;
+      postEditorState.stash = null;
+      renderPostStashControl();
+      postEditorNote.hidden = false;
+      postEditorNote.textContent = "已丢弃旧的未保存内容；当前编辑器输入未被改动，可重新选择草稿。";
+      if (focus) postDraftSelect.focus({ preventScroll: true });
+      return true;
+    }
+    function renderPostStashControl() {
+      if (!postRestoreStash) return;
+      const stash = postEditorState.stash;
+      const available = Boolean(stash) && !postEditorState.loading && !postEditorState.saving && !postEditorState.publishing && !postEditorState.uploading;
+      const replacing = available && postEditorHasUnsavedChanges();
+      postRestoreStash.hidden = !available;
+      if (postDiscardStash) postDiscardStash.hidden = !available;
+      if (!available) {
+        postRestoreStash.title = "";
+        return;
+      }
+      const label = postStashLabel(stash);
+      postRestoreStash.textContent = replacing ? `用旧内容替换当前输入（${label}）` : stash.kind === "new" ? `恢复未保存的新动态（${label}）` : `恢复未保存的草稿修改（${label}）`;
+      postRestoreStash.title = replacing ? "当前未保存输入会被替换；标题和正文完整时请先保存当前草稿。" : "";
+    }
+    function resetPostEditorForm() {
+      if (postSaveTimer !== null) {
+        win.clearTimeout(postSaveTimer);
+        postSaveTimer = null;
+      }
+      clearPendingPostImages();
+      postEditorState.draft = null;
+      postEditorState.dirty = false;
+      postEditorState.error = "";
+      postEditorState.receipt = null;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      postEditorState.confirmNotice = "";
+      postEditorState.imported = false;
+      postEditorState.loading = false;
+      postEditorState.formVersion += 1;
+      postEditorState.draftEpoch += 1;
+      postEditorState.draftLoadSeq += 1;
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      if (postWriteAnother) postWriteAnother.hidden = true;
+      setPostForm(null);
+      postEditorNote.hidden = true;
+      postEditorNote.textContent = "";
+      renderPostDraftList();
+      renderPostEditorStatus();
+    }
+    function stablePostFocusPrefix(key2) {
+      const withoutAction = String(key2 ?? "").replace(/:edit$/, "");
+      const mine = /^(mine-feed:.+):[0-9a-f]{64}$/i.exec(withoutAction);
+      return mine ? `${mine[1]}:` : withoutAction;
+    }
+    function postEditorReturnContext(trigger, fallbackFocusKey = "") {
+      const page = pageElsHas(currentPage) ? currentPage : "explore";
+      const focusKey = trigger?.dataset?.focusKey || fallbackFocusKey;
+      return {
+        page,
+        scroll: Math.max(0, Number(pageEls[page]?.scrollTop) || 0),
+        trigger: trigger ?? null,
+        focusKey,
+        focusKeyPrefix: stablePostFocusPrefix(focusKey),
+        focusKeySuffix: focusKey.endsWith(":edit") ? ":edit" : ""
+      };
+    }
+    function postEditorControlVisible(node) {
+      return Boolean(node?.isConnected && !node.closest?.("[hidden]") && !node.closest?.("dialog:not([open])"));
+    }
+    function postEditorReturnTarget(context) {
+      if (!context || context.page !== currentPage) return null;
+      if (postEditorControlVisible(context.trigger)) return context.trigger;
+      const nodes = [...pageEls[currentPage]?.querySelectorAll("[data-focus-key]") ?? []];
+      let target = context.focusKey ? nodes.find((node) => node.dataset.focusKey === context.focusKey) ?? null : null;
+      if (!target && context.focusKeyPrefix) {
+        const candidates = nodes.filter((node) => node.dataset.focusKey?.startsWith(context.focusKeyPrefix));
+        target = (context.focusKeySuffix ? candidates.find((node) => node.dataset.focusKey?.endsWith(context.focusKeySuffix)) : null) ?? candidates[0] ?? null;
+      }
+      return target ?? null;
+    }
+    function applyPostEditorReturnFocus(context) {
+      const target = postEditorReturnTarget(context);
+      if (!target) return false;
+      target.focus({ preventScroll: true });
+      restorePageScrollAfterFocus(context.page, context.scroll);
+      return true;
+    }
+    function tryPostEditorReturnFocus() {
+      const pending = postEditorReturnFocus;
+      if (!pending) return;
+      if (pending.page !== currentPage || pending.token !== postEditorReturnFocusToken) {
+        postEditorReturnFocus = null;
+        return;
+      }
+      const active = root.activeElement;
+      if (active && active !== composePost && active !== doc.body && active !== root) {
+        postEditorReturnFocus = null;
+        return;
+      }
+      if (applyPostEditorReturnFocus(pending)) postEditorReturnFocus = null;
+    }
+    function restorePostEditorReturnFocus(context) {
+      if (!context || context.page !== currentPage) return;
+      if (applyPostEditorReturnFocus(context)) return;
+      if (currentPage === "explore") composePost.focus({ preventScroll: true });
+      const token = ++postEditorReturnFocusToken;
+      postEditorReturnFocus = { ...context, token };
+      if (typeof win.setTimeout === "function") {
+        win.setTimeout(() => {
+          if (postEditorReturnFocus?.token === token) postEditorReturnFocus = null;
+        }, 1500);
+      }
+    }
+    async function openPostEditor({ trigger = null, editItem = null, returnFocusKey = "" } = {}) {
+      if (destroyed) return;
+      if (postEditorState.saving || postEditorState.uploading || postEditorState.publishing || postEditorState.validatingImages > 0) {
+        if (postEditorState.open) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = postEditorState.validatingImages > 0 ? "图片仍在校验；完成后再打开其他动态或切换草稿。" : "当前草稿正在保存或发布；完成后再打开其他动态。";
+        }
+        return;
+      }
+      const alreadyOpen = postEditorState.open;
+      postEditorReturnFocus = null;
+      postEditorReturnFocusToken += 1;
+      if (!alreadyOpen) postEditorReturn = postEditorReturnContext(trigger ?? composePost, returnFocusKey);
+      postEditorState.open = true;
+      postEditorState.error = "";
+      postEditorPanel.hidden = false;
+      if (!postEditorPanel.open) openDialog(postEditorPanel, trigger ?? composePost);
+      postEditorPanel.hidden = false;
+      const seq = ++postEditorState.requestSeq;
+      if (!postEditorState.listLoaded && publicDraftListCapable) void loadPostDrafts();
+      if (editItem) {
+        if (postEditorStashWouldBeReplaced()) {
+          postEditorState.loading = false;
+          renderPostEditorStatus();
+          blockPostEditorStashReplacement("打开其他动态");
+          return;
+        }
+        const previousView = postEditorViewSnapshot();
+        const stashed = capturePostEditorStash("打开其他动态");
+        resetPostEditorForm();
+        postEditorState.loading = true;
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "正在打开这条公开动态的编辑草稿…";
+        renderPostEditorStatus();
+        try {
+          const result = await options.onImportPublicPost(editItem.path);
+          if (destroyed || seq !== postEditorState.requestSeq || !postEditorState.open) return;
+          if (!result?.draft) throw new Error("没有返回编辑草稿");
+          postEditorState.draft = result.draft;
+          postEditorState.receipt = null;
+          postEditorState.dirty = false;
+          setPostForm(result.draft);
+          if (!postEditorState.listLoaded) await loadPostDrafts();
+          else renderPostDraftList();
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = stashed ? "正在编辑已公开动态；打开前未保存的内容已保留，关闭后可点“写动态”或恢复按钮找回。" : "正在编辑已公开动态；保存草稿不会公开，确认发布后更新原帖。";
+        } catch (error) {
+          if (destroyed || seq !== postEditorState.requestSeq || !postEditorState.open) return;
+          postEditorState.loading = false;
+          if (stashed) restorePostEditorStash();
+          else restorePostEditorView(previousView);
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = errorText(error) || "这条公开动态暂时不能编辑。";
+        } finally {
+          if (!destroyed && seq === postEditorState.requestSeq && postEditorState.open) {
+            postEditorState.loading = false;
+            renderPostEditorStatus();
+            renderPostStashControl();
+            if (postEditorState.draft) postTitleInput.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+      const draft = postEditorState.draft;
+      if (draft?.publishedPath) {
+        if (postEditorHasUnsavedChanges()) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "当前已发布动态还有未保存的修改，已保留原草稿；保存或发布后再点“写动态”开始新动态。";
+        } else {
+          resetPostEditorForm();
+          const restored = postEditorState.stash?.kind === "new" && restorePostEditorStash();
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = restored ? "已恢复打开其他动态前未保存的新动态输入；它仍只在本机编辑器中。" : "已开始一条新动态；要修改已发布动态，请使用动态卡片上的“编辑”。";
+        }
+      } else if (!draft) {
+        if (postEditorHasUnsavedChanges()) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "当前新动态尚未保存，已保留输入；先保存草稿再开始另一条。";
+        } else if (postEditorState.stash?.kind === "new" && restorePostEditorStash()) {
+        } else {
+          resetPostEditorForm();
+        }
+      } else {
+        renderPostStashControl();
+      }
+      postEditorState.loading = false;
+      renderPostEditorStatus();
+      renderPostStashControl();
+      postTitleInput.focus({ preventScroll: true });
+    }
+    async function openExistingPostForEdit(item, trigger = null, returnFocusKey = "") {
+      if (!publicDraftImportCapable) return;
+      if (postEditorState.saving || postEditorState.uploading || postEditorState.publishing || postEditorState.validatingImages > 0) {
+        if (postEditorPanel.open) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = postEditorState.validatingImages > 0 ? "图片仍在校验；完成后再打开其他动态。" : "当前草稿正在保存或发布；完成后再打开其他动态。";
+        }
+        return;
+      }
+      const fallbackKey = returnFocusKey || `mine-feed:${item.path}:${item.sha256}:edit`;
+      await openPostEditor({ trigger, editItem: item, returnFocusKey: fallbackKey });
+    }
+    function cancelPostConfirm({ focus = false } = {}) {
+      if (!postEditorState.confirm) return;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      postEditorState.confirmNotice = "";
+      postEditorState.receipt = null;
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      renderPostEditorStatus();
+      if (focus) postPublishButton.focus({ preventScroll: true });
+    }
+    function startAnotherPost() {
+      if (postEditorState.saving || postEditorState.publishing || postEditorState.loading || postEditorState.uploading || postEditorState.validatingImages > 0) return;
+      if (postEditorHasUnsavedChanges()) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "当前动态还有未保存或未发布的内容，先保存或关闭后再开始新动态。";
+        return;
+      }
+      postEditorState.stash = null;
+      resetPostEditorForm();
+      postEditorState.open = true;
+      postEditorPanel.hidden = false;
+      postEditorNote.hidden = false;
+      postEditorNote.textContent = "已开始一条全新的空白动态；不会继承刚才发布的内容、ID 或图片。";
+      renderPostEditorStatus();
+      renderPostStashControl();
+      postTitleInput.focus({ preventScroll: true });
+    }
+    function closePostEditor({ restoreFocus = true } = {}) {
+      if (!postEditorState.open && !postEditorPanel.open) return;
+      const context = postEditorReturn;
+      postEditorState.open = false;
+      postEditorState.requestSeq += 1;
+      postEditorState.loading = false;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      postEditorState.confirmNotice = "";
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      if (postSaveTimer !== null) {
+        win.clearTimeout(postSaveTimer);
+        postSaveTimer = null;
+        if (postEditorState.dirty && postEditorState.draft && publicDraftSaveCapable && !postEditorState.saving) {
+          void savePostDraft();
+        }
+      }
+      postEditorPanel.hidden = true;
+      closeDialog(postEditorPanel, { restoreFocus: false });
+      renderPostEditorStatus();
+      postEditorReturn = null;
+      saveNow();
+      if (restoreFocus) restorePostEditorReturnFocus(context);
+    }
+    function restorePostEditorControlFocus(preferred) {
+      if (!postEditorPanel.open || postEditorState.loading) return;
+      const active = root.activeElement;
+      if (active && active !== doc.body && active !== root && active !== postEditorPanel) return;
+      preferred?.focus?.({ preventScroll: true });
+    }
+    function renderPostEditorStatus() {
+      const validating = postEditorState.validatingImages > 0;
+      const busy = postEditorState.loading || postEditorState.saving || postEditorState.publishing || postEditorState.uploading || validating;
+      const locked = postEditorState.loading || postEditorState.publishing;
+      const draft = postEditorState.draft;
+      postDraftSelect.disabled = busy;
+      postTitleInput.disabled = locked;
+      postBodyInput.disabled = locked;
+      postTagsInput.disabled = locked;
+      postAuthorKind.disabled = locked || Boolean(draft?.publishedPath);
+      postImageInput.disabled = locked || postEditorState.saving || postEditorState.uploading || validating || isLegacyV1PostPath(draft?.publishedPath);
+      postDraftSave.disabled = !publicDraftSaveCapable || busy;
+      postPublishButton.disabled = !publishDraftCapable || busy;
+      postPublishCancel.hidden = !postEditorState.confirm;
+      postWriteAnother.hidden = !(postEditorState.receipt && !postEditorState.dirty && (postEditorState.receipt.status === "published" || postEditorState.receipt.status === "already_published"));
+      postEditorPanel.setAttribute("aria-busy", String(busy));
+      postEditorStatus.textContent = postEditorState.loading ? "打开中…" : postEditorState.publishing ? "发布中…" : postEditorState.saving || postEditorState.uploading ? "保存中…" : validating ? "校验图片中…" : draft ? `草稿 revision ${draft.revision}` : "新草稿";
+      updatePostEditorHeading(draft);
+      if (postEditorState.receipt) {
+        postPublishReceipt.hidden = false;
+        postPublishReceipt.dataset.tone = postEditorState.receipt.status === "published" || postEditorState.receipt.status === "already_published" ? "ready" : "error";
+        postPublishReceipt.textContent = postPublishReceiptText(postEditorState.receipt);
+      } else if (postEditorState.confirmNotice) {
+        postPublishReceipt.hidden = false;
+        postPublishReceipt.dataset.tone = "unavailable";
+        postPublishReceipt.textContent = postEditorState.confirmNotice;
+      } else if (postEditorState.confirm) {
+        postPublishReceipt.hidden = false;
+        postPublishReceipt.dataset.tone = "unavailable";
+      } else {
+        postPublishReceipt.hidden = true;
+        postPublishReceipt.textContent = "";
+        postPublishReceipt.dataset.tone = "";
+      }
+      renderPostStashControl();
+    }
+    function postPublishReceiptText(receipt) {
+      const label = {
+        published: "发布完成",
+        already_published: "内容已是最新公开版本",
+        conflict: "发布冲突，未覆盖",
+        invalid: "发布内容无效",
+        partial: "发布部分完成，请核对实际清单",
+        unspecified: "发布状态未知"
+      }[receipt.status] || "发布状态未知";
+      const files = (receipt.files || []).map((file) => `${file.path} (${file.sizeBytes} B, ${String(file.sha256).slice(0, 12)}…)`).join("；");
+      return [
+        label,
+        receipt.error,
+        receipt.postPath ? `动态：${receipt.postPath}` : "",
+        files ? `实际文件：${files}` : "",
+        receipt.manifestSha256 ? `清单摘要：${receipt.manifestSha256}` : "",
+        (receipt.warnings || []).join("；")
+      ].filter(Boolean).join(" ");
+    }
+    async function validatePostFiles(files) {
+      const accepted = [];
+      const errors = [];
+      for (const file of files) {
+        if (!["image/png", "image/jpeg"].includes(file.type)) {
+          errors.push(`${file.name} 不是 PNG/JPEG；SVG、GIF、WebP 不接受。`);
+          continue;
+        }
+        if (file.size > 8 * 1024 * 1024) {
+          errors.push(`${file.name} 超过 8 MiB。`);
+          continue;
+        }
+        let dimensions;
+        try {
+          dimensions = await imageSize(file);
+        } catch {
+          errors.push(`${file.name} 无法解码，可能是损坏图片。`);
+          continue;
+        }
+        if (dimensions.width > 8192 || dimensions.height > 8192 || dimensions.width * dimensions.height > 32e6) {
+          errors.push(`${file.name} 尺寸 ${dimensions.width}×${dimensions.height} 超过限制。`);
+          continue;
+        }
+        accepted.push(file);
+      }
+      const total = (postEditorState.draft?.images?.length || 0) + postEditorState.pending.length + accepted.length;
+      if (total > 4) {
+        errors.push("一条动态最多 4 张图片；多出的图片未加入。");
+        accepted.splice(Math.max(0, 4 - (postEditorState.draft?.images?.length || 0) - postEditorState.pending.length));
+      }
+      return { accepted, errors };
+    }
+    async function addPostFiles(files) {
+      if (postEditorState.saving || postEditorState.uploading || postEditorState.publishing || postEditorState.loading) return;
+      if (postEditorState.confirm) {
+        invalidatePostConfirm("图片正在校验，旧确认已撤销；请重新检查发布内容。");
+      }
+      postEditorState.validatingImages += 1;
+      renderPostEditorStatus();
+      let result;
+      try {
+        result = await validatePostFiles([...files]);
+      } finally {
+        postEditorState.validatingImages = Math.max(0, postEditorState.validatingImages - 1);
+        renderPostEditorStatus();
+      }
+      const accepted = result?.accepted ?? [];
+      const errors = result?.errors ?? [];
+      if (accepted.length > 0) {
+        for (const file of accepted) {
+          let url = "";
+          try {
+            url = URL.createObjectURL(file);
+          } catch {
+            url = "";
+          }
+          if (url) postEditorState.pending.push({ file, url });
+        }
+        markPostEditorChanged("已更新图片；请重新检查发布内容。");
+        if (postEditorState.confirmNotice) {
+          postEditorState.confirmNotice = "已更新图片；旧确认已撤销，请重新检查发布内容。";
+        }
+      } else if (postEditorState.confirmNotice.includes("正在校验")) {
+        postEditorState.confirmNotice = "图片未加入；旧确认已撤销，请检查标题、正文和图片后重新检查发布内容。";
+      }
+      postEditorNote.hidden = false;
+      postEditorNote.textContent = [
+        errors.join(" "),
+        accepted.length > 0 ? `已加入 ${accepted.length} 张图片；检查发布内容时会保存并上传。` : "",
+        accepted.length === 0 ? "图片未加入；标题、正文、标签和署名等原输入均保留。" : ""
+      ].filter(Boolean).join(" ");
+      renderPostImages();
+      renderPostEditorStatus();
+    }
+    function stalePostEditorError() {
+      const error = new Error("编辑器已切换或草稿回执已过期");
+      error.postEditorStale = true;
+      return error;
+    }
+    async function uploadPendingPostImages(draft, { epoch, pendingSnapshot } = {}) {
+      const pendingList = Array.isArray(pendingSnapshot) ? pendingSnapshot : [...postEditorState.pending];
+      if (pendingList.length === 0) return draft;
+      if (!publicDraftImageCapable) throw new Error("当前宿主不支持上传草稿图片");
+      const expectedEpoch = epoch ?? postEditorState.draftEpoch;
+      postEditorState.uploading = true;
+      renderPostEditorStatus();
+      try {
+        const assetIds = (draft.images || []).map((image) => image.assetId);
+        for (const pending of pendingList) {
+          if (expectedEpoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+          const base64 = await fileToBase64(pending.file);
+          if (expectedEpoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+          const uploaded = await options.onPutPublicDraftImage(draft.draftId, "image", pending.file.name, base64);
+          if (expectedEpoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+          if (!uploaded?.image?.assetId) throw new Error(`图片 ${pending.file.name} 上传没有返回资源`);
+          assetIds.push(uploaded.image.assetId);
+        }
+        const saved = (await options.onSavePublicDraft({
+          ...postFormValues(),
+          draftId: draft.draftId,
+          kind: "post",
+          expectedRevision: draft.revision,
+          imageAssetIds: assetIds
+        })).draft;
+        if (expectedEpoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+        for (const pending of pendingList) URL.revokeObjectURL(pending.url);
+        postEditorState.pending = postEditorState.pending.filter((pending) => !pendingList.includes(pending));
+        return saved;
+      } finally {
+        postEditorState.uploading = false;
+        renderPostEditorStatus();
+      }
+    }
+    async function copyDraftImagesTo(sourceDraft, targetDraft) {
+      const ids = [];
+      if (!sourceDraft || (sourceDraft.images || []).length === 0) return ids;
+      if (!publicDraftAssetCapable) {
+        throw new Error("当前宿主无法读取原草稿图片，暂不能另存为新草稿。");
+      }
+      for (const image of sourceDraft.images || []) {
+        const fetched = await options.onLoadPublicDraftAsset(sourceDraft.draftId, image.assetId);
+        if (!fetched?.dataBase64 || fetched.image?.assetId !== image.assetId) {
+          throw new Error("原草稿图片没有完整读取，未另存新草稿。");
+        }
+        const uploaded = await options.onPutPublicDraftImage(
+          targetDraft.draftId,
+          "image",
+          `copy-${image.assetId}${image.mime === "image/jpeg" ? ".jpg" : ".png"}`,
+          fetched.dataBase64
+        );
+        if (!uploaded?.image?.assetId) throw new Error("原草稿图片复制失败，未另存新草稿。");
+        ids.push(uploaded.image.assetId);
+      }
+      return ids;
+    }
+    async function uploadPendingToDraft(targetDraft) {
+      const ids = [];
+      for (const pending of postEditorState.pending) {
+        const base64 = await fileToBase64(pending.file);
+        const uploaded = await options.onPutPublicDraftImage(targetDraft.draftId, "image", pending.file.name, base64);
+        if (!uploaded?.image?.assetId) throw new Error(`图片 ${pending.file.name} 上传没有返回资源`);
+        ids.push(uploaded.image.assetId);
+      }
+      return ids;
+    }
+    async function savePostAsNewDraft() {
+      if (!publicDraftSaveCapable || postEditorState.saving || postEditorState.publishing || postEditorState.loading) return;
+      const values = postFormValues();
+      if (!values.title.trim() || !values.bodyMarkdown.trim()) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "标题和正文不能为空。";
+        return;
+      }
+      const sourceDraft = postEditorState.draft;
+      if ((sourceDraft?.images || []).length > 0 && !publicDraftAssetCapable) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "当前宿主无法读取原草稿图片，暂不能另存为新草稿；原草稿未被改动。";
+        return;
+      }
+      postEditorState.saving = true;
+      renderPostEditorStatus();
+      let createdId = "";
+      try {
+        const created = (await options.onSavePublicDraft({
+          ...values,
+          draftId: "",
+          kind: "post",
+          expectedRevision: 0,
+          imageAssetIds: []
+        })).draft;
+        if (!created?.draftId) throw new Error("另存新草稿没有返回草稿");
+        createdId = created.draftId;
+        const assetIds = await copyDraftImagesTo(sourceDraft, created);
+        assetIds.push(...await uploadPendingToDraft(created));
+        let saved = created;
+        if (assetIds.length > 0) {
+          saved = (await options.onSavePublicDraft({
+            ...values,
+            draftId: created.draftId,
+            kind: "post",
+            expectedRevision: created.revision,
+            imageAssetIds: assetIds
+          })).draft;
+        }
+        for (const pending of postEditorState.pending) URL.revokeObjectURL(pending.url);
+        postEditorState.pending = [];
+        postEditorState.draft = saved;
+        postEditorState.draftEpoch += 1;
+        postEditorState.formVersion += 1;
+        postEditorState.error = "";
+        postEditorState.receipt = null;
+        postEditorState.confirm = false;
+        postEditorState.confirmSnapshot = null;
+        postEditorState.confirmNotice = "";
+        if (postSaveAsNew) postSaveAsNew.hidden = true;
+        if (postWriteAnother) postWriteAnother.hidden = true;
+        setPostForm(saved);
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = assetIds.length > 0 ? "已另存为新草稿，原有图片和本次选择的图片都已保留；原草稿未被改动。" : "已另存为新草稿；原草稿未被改动。";
+        await loadPostDrafts();
+      } catch (error) {
+        if (createdId && typeof options.onDeletePublicDraft === "function" && postEditorState.draft?.draftId !== createdId) {
+          try {
+            await options.onDeletePublicDraft(createdId, 0);
+          } catch {
+          }
+        }
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = errorText(error);
+      } finally {
+        postEditorState.saving = false;
+        renderPostEditorStatus();
+      }
+    }
+    async function savePostDraft() {
+      if (!publicDraftSaveCapable) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "当前宿主没有提供动态草稿保存。";
+        return null;
+      }
+      if (postEditorState.saving || postEditorState.publishing || postEditorState.loading || postEditorState.uploading) return null;
+      if (postEditorState.validatingImages > 0) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "图片仍在校验；完成后再保存或检查发布内容。";
+        return null;
+      }
+      const values = postFormValues();
+      if (!values.title.trim() || !values.bodyMarkdown.trim()) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "标题和正文不能为空。";
+        return null;
+      }
+      if (postSaveTimer !== null) {
+        win.clearTimeout(postSaveTimer);
+        postSaveTimer = null;
+      }
+      if (postEditorState.confirm) invalidatePostConfirm("草稿已保存新版本；请重新检查发布内容。");
+      const epoch = postEditorState.draftEpoch;
+      const versionAtStart = postEditorState.formVersion;
+      const pendingAtStart = [...postEditorState.pending];
+      postEditorState.saving = true;
+      postEditorState.error = "";
+      renderPostEditorStatus();
+      let savedDraft = null;
+      try {
+        let draft = postEditorState.draft;
+        if (draft === null) {
+          const created = await options.onSavePublicDraft({
+            ...values,
+            draftId: "",
+            kind: "post",
+            expectedRevision: 0,
+            imageAssetIds: []
+          });
+          if (epoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+          draft = created.draft;
+        } else {
+          const saved = await options.onSavePublicDraft({
+            ...values,
+            draftId: draft.draftId,
+            kind: "post",
+            expectedRevision: draft.revision,
+            imageAssetIds: (draft.images || []).map((image) => image.assetId)
+          });
+          if (epoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+          draft = saved.draft;
+        }
+        savedDraft = draft;
+        draft = await uploadPendingPostImages(draft, { epoch, pendingSnapshot: pendingAtStart });
+        if (epoch !== postEditorState.draftEpoch) throw stalePostEditorError();
+        postEditorState.draft = draft;
+        postAuthorKind.disabled = Boolean(draft.publishedPath);
+        postImageInput.disabled = isLegacyV1PostPath(draft.publishedPath);
+        renderPostAuthorNote();
+        const changedWhileSaving = postEditorState.formVersion !== versionAtStart;
+        postEditorState.dirty = changedWhileSaving || postEditorState.pending.length > 0;
+        if (postSaveAsNew) postSaveAsNew.hidden = true;
+        if (postWriteAnother) postWriteAnother.hidden = true;
+        if (postEditorState.receipt && postEditorState.receipt.currentRevision !== draft.revision) {
+          postEditorState.receipt = null;
+        }
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = changedWhileSaving ? `草稿已保存 · revision ${draft.revision}；保存期间内容又有更新，当前输入尚未保存，请再次保存或检查。` : `草稿已保存 · revision ${draft.revision}。仅本机可见，尚未发布。`;
+        await loadPostDrafts();
+        renderPostImages();
+        return draft;
+      } catch (error) {
+        if (error?.postEditorStale) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "草稿回执属于已切换的编辑器，未应用到当前内容；原输入保留。";
+          return null;
+        }
+        if (savedDraft && epoch === postEditorState.draftEpoch) {
+          postEditorState.draft = savedDraft;
+        }
+        const message = errorText(error);
+        postEditorState.error = /conflict|冲突|已在别处/i.test(message) ? "草稿已在别处更新；本地输入保留，请重新载入草稿后再保存。" : message;
+        if (postSaveAsNew) postSaveAsNew.hidden = !/conflict|冲突|已在别处/i.test(message);
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = postEditorState.error;
+        return null;
+      } finally {
+        postEditorState.saving = false;
+        renderPostEditorStatus();
+        restorePostEditorControlFocus(postDraftSave);
+      }
+    }
+    function schedulePostSave() {
+      if (postEditorState.loading) return;
+      markPostEditorChanged("内容已修改；请重新检查发布内容。");
+      if (postEditorState.saving || postEditorState.uploading || postEditorState.publishing) return;
+      if (!publicDraftSaveCapable || postEditorState.draft === null) return;
+      if (postSaveTimer !== null) win.clearTimeout(postSaveTimer);
+      postSaveTimer = win.setTimeout(() => {
+        postSaveTimer = null;
+        if (postEditorState.dirty) void savePostDraft();
+      }, 600);
+    }
+    async function publishPost() {
+      if (postEditorState.publishing || postEditorState.saving || postEditorState.loading || postEditorState.uploading) return;
+      if (!publishDraftCapable) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "当前宿主没有提供公开发布。";
+        return;
+      }
+      if (postEditorState.validatingImages > 0) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "图片仍在校验；完成后再检查或发布。";
+        return;
+      }
+      if (!postEditorState.confirm) {
+        if (!postFormValues().title.trim() || !postFormValues().bodyMarkdown.trim()) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "标题和正文不能为空；只有标题的输入会留在本机编辑器中，不会发布。";
+          return;
+        }
+        const draft2 = postEditorState.dirty || postEditorState.draft === null ? await savePostDraft() : postEditorState.draft;
+        if (!draft2 || !postEditorState.open || !postEditorPanel.open) return;
+        if (postEditorState.dirty) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "保存期间内容有更新；当前版本尚未保存，请再次检查发布内容。";
+          return;
+        }
+        if (postEditorState.pending.length > 0) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "还有待上传图片；保存完成后再检查发布内容。";
+          return;
+        }
+        postEditorState.confirm = true;
+        postEditorState.confirmSnapshot = postEditorSnapshot();
+        postEditorState.confirmNotice = "";
+        postEditorState.receipt = null;
+        postPublishButton.textContent = "确认发布这条动态";
+        postPublishCancel.hidden = false;
+        const target = postConfirmationTarget(draft2);
+        const identity = draft2.authorKind === "agent" ? `Agent${mineState.data?.agentCard?.state === "available" && mineState.data.agentCard.card?.displayName ? ` · ${mineState.data.agentCard.card.displayName}` : ""}` : `本人${mineState.data?.profile?.displayName ? ` · ${mineState.data.profile.displayName}` : ""}`;
+        postPublishReceipt.hidden = false;
+        postPublishReceipt.dataset.tone = "unavailable";
+        postPublishReceipt.textContent = `将以${identity}署名发布到 ${target}${draft2.images?.length ? ` 与 ${draft2.images.length} 张图片` : ""}。确认后才会公开。`;
+        postPublishButton.focus({ preventScroll: true });
+        renderPostEditorStatus();
+        postPublishReceipt.scrollIntoView?.({ block: "nearest" });
+        return;
+      }
+      const confirmedSnapshot = postEditorState.confirmSnapshot;
+      if (!confirmedSnapshot || confirmedSnapshot !== postEditorSnapshot() || postEditorState.pending.length > 0) {
+        invalidatePostConfirm("内容或草稿版本已变化；旧确认已撤销，请重新检查发布内容。");
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = "检查后的内容或图片已变化，请重新检查发布内容。";
+        return;
+      }
+      const draft = postEditorState.draft;
+      if (!draft) {
+        invalidatePostConfirm("没有可发布的草稿；请重新检查发布内容。");
+        return;
+      }
+      const epoch = postEditorState.draftEpoch;
+      const versionAtPublish = postEditorState.formVersion;
+      postEditorState.confirm = false;
+      postEditorState.confirmSnapshot = null;
+      postEditorState.confirmNotice = "";
+      postPublishButton.textContent = "检查发布内容";
+      postPublishCancel.hidden = true;
+      postEditorState.publishing = true;
+      renderPostEditorStatus();
+      try {
+        const receipt = await options.onPublishPublicDraft(draft.draftId, draft.revision, draft.publishedSha256 || "");
+        if (epoch !== postEditorState.draftEpoch || postEditorState.draft?.draftId !== draft.draftId) {
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = "发布回执属于已切换的草稿，未应用到当前编辑器；请核对实际公开清单。";
+          return;
+        }
+        postEditorState.receipt = receipt;
+        if (receipt.status === "published" || receipt.status === "already_published") {
+          const changedDuringPublish = postEditorState.formVersion !== versionAtPublish;
+          postEditorState.draft = {
+            ...postEditorState.draft,
+            publishedSha256: receipt.currentPublishedSha256 || draft.publishedSha256,
+            publishedRevision: receipt.currentRevision || draft.revision,
+            publishedPath: receipt.postPath || draft.publishedPath
+          };
+          postEditorState.dirty = changedDuringPublish;
+          postAuthorKind.disabled = Boolean(postEditorState.draft.publishedPath);
+          renderPostAuthorNote();
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = changedDuringPublish ? "发布完成，但发布期间又有输入更新；新输入尚未保存或发布，请先保存草稿。" : "发布完成。真实公开路径与清单摘要见下方回执。";
+          postPublishReceipt.scrollIntoView?.({ block: "nearest" });
+          void loadMine(true);
+        } else {
+          postEditorState.error = receipt.error || "";
+          postEditorNote.hidden = false;
+          postEditorNote.textContent = receipt.error || "发布没有完成；原输入和草稿均保留。";
+        }
+      } catch (error) {
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = errorText(error);
+      } finally {
+        postEditorState.publishing = false;
+        postEditorState.saving = false;
+        renderPostEditorStatus();
+        const success = postEditorState.receipt && (postEditorState.receipt.status === "published" || postEditorState.receipt.status === "already_published");
+        if (!postEditorState.open) {
+        } else {
+          restorePostEditorControlFocus(success && !postWriteAnother.hidden ? postWriteAnother : postPublishButton);
+        }
+        await loadPostDrafts();
+      }
+    }
+    function renderSettingsView() {
+      if (destroyed) return;
+      view.settings.tab = showSettingsTab(root, view.settings.tab, { index: view.settings.index });
+      updateSettingsFavoriteBackLabel();
+      if (!view.settings.index && (view.settings.tab === "public" || view.settings.tab === "files") && mineCapable && mineState.data === null) void loadMine(false);
+      if (!view.settings.index && (view.settings.tab === "private" || view.settings.tab === "node") && journeyCapable && journeyState.data === null) {
+        void loadJourney(false);
+      }
+      renderPrivateEditors();
+      renderSettingsMemory();
+      renderSettingsFavorites();
+      if (view.pages.explore.filter === "mine") updateMineFeedState();
+      if (!view.settings.index && view.settings.tab === "public") void ensureProfileDraft(false);
+      renderProfileDraftStatus();
+      renderSettingsNode({ label: settingsNodeStatusLabel, summary: settingsNodeSummary }, {
+        phase: nodeState.phase,
+        status: nodeState.status,
+        summary: nodeStatusSummaryText()
+      });
+    }
+    function openSettings(tab = "") {
+      if (destroyed) return;
+      settingsFocusSeq += 1;
+      clearSettingsFavoriteReturn();
+      if (currentPage !== "settings") {
+        settingsReturnPage = pageElsHas(currentPage) ? currentPage : "home";
+        view.settings.returnPage = settingsReturnPage;
+        settingsReturnScroll = pageTracksScroll(settingsReturnPage) && pageEls[settingsReturnPage] && !pageEls[settingsReturnPage].hidden ? Math.max(0, Number(pageEls[settingsReturnPage].scrollTop) || 0) : Math.max(0, Number(pageStateFor(settingsReturnPage)?.scroll) || 0);
+        const active = root.activeElement ?? doc.activeElement;
+        settingsReturnFocus = active && active !== doc.body && active.isConnected ? active : null;
+      }
+      settingsDirectEntry = Boolean(tab) && currentPage !== "settings";
+      if (tab) {
+        view.settings.tab = normalizeSettingsTab(tab);
+        view.settings.index = false;
+      } else {
+        view.settings.index = true;
+      }
+      showPage("settings");
+      renderSettingsView();
+      saveNow();
+    }
+    function closeSettings() {
+      clearSettingsFavoriteReturn();
+      settingsDirectEntry = false;
+      flushPublicDraftEditors();
+      const target = pageElsHas(view.settings.returnPage) && view.settings.returnPage !== "settings" ? view.settings.returnPage : "home";
+      const targetScroll = target === settingsReturnPage ? settingsReturnScroll : pageTracksScroll(target) ? Math.max(0, Number(pageStateFor(target)?.scroll) || 0) : 0;
+      settingsReturnScroll = 0;
+      showPage(target);
+      const restoreTarget = target === "messages" ? contactsState.selectedPeerId ? messageInput : conversationQuery : settingsReturnFocus?.isConnected && !settingsReturnFocus.closest?.("[hidden]") ? settingsReturnFocus : null;
+      settingsReturnFocus = null;
+      const restoreSourceScroll = () => {
+        if (destroyed || currentPage !== target || target === "messages" || targetScroll === 0) return;
+        const page = pageEls[target];
+        if (!page || page.hidden) return;
+        if (Math.abs(Number(page.scrollTop) - targetScroll) >= 1) page.scrollTop = targetScroll;
+        saveNow();
+      };
+      if (restoreTarget) {
+        const seq = ++settingsFocusSeq;
+        const focusReturnedControl = () => {
+          if (destroyed || seq !== settingsFocusSeq || currentPage !== target) return;
+          if (!restoreTarget.isConnected || restoreTarget.closest?.("[hidden]")) {
+            if (target === "messages") conversationQuery.focus({ preventScroll: true });
+            restoreSourceScroll();
+            return;
+          }
+          restoreTarget.focus({ preventScroll: true });
+          restoreSourceScroll();
+        };
+        if (typeof win.setTimeout === "function") win.setTimeout(focusReturnedControl, 0);
+        else focusReturnedControl();
+      } else if (typeof win.setTimeout === "function") {
+        win.setTimeout(restoreSourceScroll, 0);
+      } else {
+        restoreSourceScroll();
+      }
+      if (target !== "messages" && typeof win.requestAnimationFrame === "function") {
+        win.requestAnimationFrame(restoreSourceScroll);
+      }
+      if (target !== "messages" && typeof win.setTimeout === "function" && targetScroll > 0) {
+        win.setTimeout(restoreSourceScroll, 120);
+        win.setTimeout(restoreSourceScroll, 260);
+      }
+    }
+    function flushPublicDraftEditors() {
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      if (profileDraftState.dirty && profileDraftState.loaded && publicDraftSaveCapable) {
+        void saveProfileDraft();
+      }
+      if (postSaveTimer !== null) {
+        win.clearTimeout(postSaveTimer);
+        postSaveTimer = null;
+      }
+      if (postEditorState.open && postEditorState.dirty && publicDraftSaveCapable) {
+        void savePostDraft();
+      }
+    }
+    function selectSettingsTab(tab) {
+      if (!SETTINGS_TABS2.includes(tab)) return;
+      clearSettingsFavoriteReturn();
+      settingsDirectEntry = false;
+      view.settings.tab = tab;
+      view.settings.index = false;
+      renderSettingsView();
+      pageEls.settings.scrollTop = 0;
+      saveNow();
+    }
     function renderMine() {
       const data = mineState.data;
       const profile = data?.profile ?? null;
       const posts = data?.posts ?? null;
-      const profileStatus = mineProfileStateText(profile);
-      mineProfileStatus.textContent = profileStatus.text;
-      mineProfileStatus.dataset.tone = profileStatus.tone;
-      mineProfileContent.replaceChildren();
-      mineProfileNote.hidden = true;
-      if (data === null) {
-        mineProfileNote.textContent = mineCapable ? mineState.error || "正在读取本机公开档案…" : "当前宿主没有提供本机公开资料读取。";
-        mineProfileNote.hidden = false;
-      } else if (profile?.state === "available") {
-        renderMarkdownInto(mineProfileContent, profile.markdown);
-      } else if (profile?.state === "missing") {
-        mineProfileNote.textContent = "本机还没有公开用户档案（public/profile/index.md）。这里不会用 Agent 的稳定人格资料当作你的用户资料。";
-        mineProfileNote.hidden = false;
-      } else {
-        mineProfileNote.textContent = `公开用户档案读取失败：${profile?.error || "未知错误"}。这不表示档案不存在。`;
-        mineProfileNote.hidden = false;
+      let files = Array.isArray(data?.files) ? data.files : [];
+      files = files.filter((item) => !isPostImagePath(item.path));
+      if (files.length === 0 && Array.isArray(posts?.posts) && posts.posts.length > 0) {
+        files = posts.posts.map((post) => ({
+          id: `legacy-mine:${post.path}`,
+          peerId: data?.peerId ?? "",
+          publisherName: profile?.displayName || "我",
+          path: post.path,
+          name: post.path.split("/").pop() || post.path,
+          sha256: post.sha256,
+          sizeBytes: post.sizeBytes,
+          modifiedAt: 0,
+          fetchedAt: 0,
+          source: "local-public",
+          sources: ["local-public"],
+          kind: "markdown",
+          mime: "text/markdown",
+          previewable: true,
+          title: post.title,
+          summary: post.summary,
+          tags: Array.isArray(post.tags) ? post.tags : [],
+          publishedAt: post.publishedAt,
+          authorKind: post.authorKind,
+          authorName: post.authorName,
+          contentState: "available",
+          contentError: ""
+        }));
       }
-      const postsStatus = minePostsStateText(posts);
+      const postsStatus = minePostsStateText(data ? { ...posts, files } : posts);
       mineContentStatus.textContent = postsStatus.text;
       mineContentStatus.dataset.tone = postsStatus.tone;
+      disposePreviewMedia(minePostList);
       minePostList.replaceChildren();
       minePostList.hidden = true;
       const notes = [];
       if (data === null) {
         notes.push(mineState.error || "正在读取本机公开内容…");
       } else if (posts?.state === "error") {
-        notes.push(`公开内容读取失败：${posts.error || "未知错误"}。这不表示没有公开内容。`);
+        notes.push(`公开文件读取失败：${posts.error || "未知错误"}。这不表示没有公开内容。`);
       } else if (posts?.state === "missing") {
         notes.push("本机公开目录不可用，无法读取公开内容。");
-      } else if (posts && posts.posts.length === 0) {
-        notes.push("还没有明确署名为你的公开内容。公开文件存在本身不能证明是你发布的。");
+      } else if (files.length === 0) {
+        notes.push("本机 public/ 目录中没有公开文件。");
       }
-      if (posts && posts.unattributed > 0) {
-        notes.push(`另有 ${posts.unattributed} 个公开文件缺少明确的本人作者声明，未列入“我的公开内容”。`);
-      }
-      if (posts && posts.agentAuthored > 0) {
-        notes.push(`另有 ${posts.agentAuthored} 个公开文件明确标注为 Agent 署名，未算作你的内容。`);
-      }
-      if (posts && posts.invalid > 0) {
-        notes.push(`有 ${posts.invalid} 个公开文件格式损坏或无法读取，未列入。`);
-      }
-      if (posts?.truncated) notes.push("公开内容超过本次有界扫描上限，列表可能不完整。");
+      if (posts?.truncated || data?.filesTruncated) notes.push("公开内容超过本次有界扫描上限，列表可能不完整。");
+      if (posts?.invalid > 0) notes.push(`有 ${posts.invalid} 个文件无法完整解析；如属于支持格式，仍会按文件信息显示。`);
+      if (posts?.unattributed > 0) notes.push(`其中 ${posts.unattributed} 个文件缺少明确的本人作者声明；仍按发布节点公开名列出，原作者声明只在详情保留。`);
+      if (posts?.agentAuthored > 0) notes.push(`另有 ${posts.agentAuthored} 个 Agent 署名文件也按公开内容列出，不再按用户作者身份排除。`);
       mineContentNote.textContent = notes.join(" ");
       mineContentNote.hidden = notes.length === 0;
       mineRetry.hidden = !(mineCapable && (data === null || posts?.state === "error" || profile?.state === "error"));
@@ -6165,308 +15875,57 @@ ${resultDetail}`;
       mineRetry.onclick = mineCapable ? () => {
         void loadMine(true);
       } : null;
-      if (posts?.state === "available" && posts.posts.length > 0) {
-        for (const post of posts.posts) {
-          const article = element("article", "rm-post rm-own-post");
-          const head = element("header", "rm-post-head");
-          const avatar = element("span", "rm-contact-avatar rm-post-avatar");
-          avatar.textContent = (profile?.displayName || "我").slice(0, 1) || "我";
-          avatar.setAttribute("aria-hidden", "true");
-          const copy = element("div", "rm-post-author");
-          const name = element("b");
-          name.textContent = profile?.displayName || "本人署名";
-          const meta = element("span", "rm-post-meta");
-          meta.textContent = `用户署名 · ${post.publishedAt ? formatDateTime(post.publishedAt) : "时间未记录"}`;
-          copy.append(name, meta);
-          head.append(avatar, copy);
-          const title = element("h2", "rm-post-title");
-          title.textContent = post.title;
-          const summary = element("p", "rm-post-summary");
-          summary.textContent = post.summary || plainExcerpt(post.bodyMarkdown, 140);
-          const tags = element("div", "rm-post-tags");
-          for (const tag of post.tags) {
-            const chip = element("span", "rm-post-tag");
-            chip.textContent = tag;
-            tags.append(chip);
-          }
-          if (post.tags.length === 0) tags.hidden = true;
-          const source = sourceDetails({
-            rows: [
-              ["来源", "本机公开目录"],
-              ["公开路径", post.path],
-              ["内容版本", post.sha256],
-              ["大小", post.sizeBytes > 0 ? `${post.sizeBytes} 字节` : ""]
-            ],
-            note: "来自本机公开目录；这是明确署名为你的内容，未从远端重新验证。"
+      if (files.length > 0) {
+        for (const item of files) {
+          const key2 = previewKeyFor("mine", item);
+          const expanded = mineExpanded.has(key2);
+          const card = renderFileCard(itemWithPostMeta(item), {
+            subject: "mine",
+            expanded,
+            onToggle: (next) => toggleMineFile(item, next),
+            preview: minePreviews.get(key2) ?? null,
+            showReveal: fileRevealCapable,
+            reveal: revealResults.get(revealResultKey("mine", item)) ?? null,
+            onReveal: (target) => {
+              void revealFileItem("mine", target);
+            },
+            focusKey: `mine:${item.path}:${item.sha256}`,
+            onOpenProfile: null
           });
-          const details = element("details", "rm-own-post-body");
-          const summaryEl = element("summary");
-          summaryEl.textContent = "阅读全文";
-          const content = element("div", "rm-rich-text");
-          renderMarkdownInto(content, post.bodyMarkdown);
-          details.append(summaryEl, content);
-          article.append(head, title, summary, tags, source, details);
-          minePostList.append(article);
+          if (expanded && item.contentState === "available" && !minePreviews.has(key2)) {
+            void ensureMinePreview(item);
+          }
+          minePostList.append(card);
         }
         minePostList.hidden = false;
+        observePostImages(minePostList);
       }
       if (!mineCapable) {
-        mineProfileNote.textContent = "当前宿主没有提供本机公开资料读取。";
-        mineProfileNote.hidden = false;
         mineContentNote.textContent = "当前宿主没有提供本机公开内容读取。";
         mineContentNote.hidden = false;
       }
-    }
-    function renderJourneyText(panel, target, note, value, label) {
-      target.replaceChildren();
-      note.hidden = true;
-      if (!value || value.state === "missing") {
-        panel.hidden = false;
-        note.textContent = `还没有${label}记录。`;
-        note.hidden = false;
-        return;
+      if (view.pages.explore.filter === "mine") {
+        updateMineFeedState();
+        tryPostEditorReturnFocus();
       }
-      if (value.state === "error") {
-        panel.hidden = false;
-        note.textContent = `${label}读取失败：${value.error || "未知错误"}`;
-        note.hidden = false;
-        return;
+      if (profileDraftState.loaded && !profileDraftState.dirty) {
+        const refreshed = fallbackProfileDraft();
+        const editableFallback = profileDraftState.fromFallback && profileDraftState.draft && profileDraftState.draft.revision === 0;
+        if (editableFallback) {
+          profileDraftState.draft = { ...refreshed, draftId: "profile", kind: "profile", revision: 0 };
+          setProfileForm(profileDraftState.draft);
+        } else if (profileDraftState.draft && profileDraftState.draft.revision === 0) {
+          profileDraftState.draft = { ...profileDraftState.draft, avatar: refreshed.avatar, publishedSha256: refreshed.publishedSha256 };
+        }
+        if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
+          renderProfileAvatar();
+          renderProfileDraftStatus();
+        }
       }
-      panel.hidden = false;
-      renderMarkdownInto(target, value.markdown);
+      renderHome();
     }
     function journeyCheckFor(peerId2, messageId2) {
       return journeyState.messageChecks?.get(`${peerId2}:${messageId2}`) ?? null;
-    }
-    function renderJourneyRawDetails(rows, label = "记录详情") {
-      const details = element("details", "rm-journey-record");
-      const summary = element("summary");
-      summary.textContent = label;
-      const facts = element("dl", "rm-journey-facts");
-      for (const [keyText, value] of rows) {
-        if (!value) continue;
-        const row = element("div");
-        const key2 = element("dt");
-        key2.textContent = keyText;
-        const val = element("dd");
-        val.textContent = value;
-        row.append(key2, val);
-        facts.append(row);
-      }
-      if (facts.childElementCount === 0) return null;
-      details.append(summary, facts);
-      return details;
-    }
-    function renderJourneySession(session) {
-      const expanded = view.pages.raminga.expandedSessions[session.id] === true;
-      const article = element("article", "rm-journey-card");
-      const header = element("button", "rm-journey-head");
-      header.type = "button";
-      header.dataset.sessionToggle = session.id;
-      header.dataset.focusKey = `journey:${session.id}`;
-      header.setAttribute("aria-expanded", expanded ? "true" : "false");
-      const copy = element("span", "rm-journey-copy");
-      const title = element("b");
-      title.textContent = journeySessionTitle(session);
-      const meta = element("span", "rm-journey-meta");
-      const time = journeyTimeText(session);
-      meta.textContent = `${session.id}${time ? ` · ${time}` : ""}`;
-      copy.append(title, meta);
-      const status = journeyStatusText(session.state);
-      const chip = element("span", "rm-journey-status");
-      chip.dataset.tone = status.tone;
-      chip.textContent = status.label;
-      header.append(copy, chip);
-      article.append(header);
-      if (status.note.length > 0) {
-        const note = element("p", "rm-list-note");
-        note.textContent = status.note;
-        article.append(note);
-      }
-      if (session.stateError) {
-        const failed = element("p", "rm-list-note");
-        failed.textContent = `state.json 无法解析：${session.stateError}。只展示仍可读取的事件与报告。`;
-        article.append(failed);
-      }
-      if (!expanded) return article;
-      const detail = element("div", "rm-journey-detail");
-      if (session.state) {
-        const facts = element("dl", "rm-journey-facts");
-        const addFact = (labelText, value) => {
-          if (!value) return;
-          const row = element("div");
-          const key2 = element("dt");
-          key2.textContent = labelText;
-          const val = element("dd");
-          val.textContent = value;
-          row.append(key2, val);
-          facts.append(row);
-        };
-        addFact("记录状态", status.label);
-        addFact("模式", journeyModeText(session.state.mode));
-        addFact("开始", formatDateTime(session.state.startedAt));
-        addFact("最后保存", formatDateTime(session.state.updatedAt));
-        addFact("完成时间", formatDateTime(session.state.completedAt));
-        addFact("结束原因", session.state.completionReason);
-        addFact("当前对象", session.state.currentPeerId ? shortPeerText(session.state.currentPeerId) : "");
-        addFact("访问过", session.state.visitedPeerIds.map(shortPeerText).join("、"));
-        addFact("发现来源", session.state.discoverySources.join("、"));
-        if (facts.childElementCount > 0) detail.append(facts);
-        const sessionRaw = renderJourneyRawDetails([
-          ["状态原文", session.state.status],
-          ["模式原文", session.state.mode],
-          ["会话标识", session.id],
-          ["当前对象完整 ID", session.state.currentPeerId],
-          ["访问对象完整 ID", session.state.visitedPeerIds.join("\n")],
-          ["发现来源", session.state.discoverySources.join("、")]
-        ]);
-        if (sessionRaw) detail.append(sessionRaw);
-      }
-      if (session.eventsRead === "error") {
-        const failed = element("p", "rm-list-note");
-        failed.textContent = `events.jsonl 读取失败：${session.eventsError}`;
-        detail.append(failed);
-      } else if (session.events.length === 0) {
-        const empty = element("p", "rm-list-note");
-        empty.textContent = session.eventsRead === "missing" ? "这次 Journey 没有 events.jsonl。" : "events.jsonl 中没有可解析的活动。";
-        detail.append(empty);
-      } else {
-        const list = element("ol", "rm-journey-events");
-        for (const event of session.events) {
-          const item = element("li");
-          item.dataset.sequence = String(event.sequence);
-          const line = element("div", "rm-journey-event-head");
-          const seq = element("span", "rm-journey-sequence");
-          seq.textContent = `#${event.sequence}`;
-          const label = element("b");
-          label.textContent = journeyEventLabel(event);
-          const at = element("span", "rm-journey-event-time");
-          at.textContent = event.timestamp ? formatDateTime(event.timestamp) : "";
-          line.append(seq, label, at);
-          item.append(line);
-          if (event.summary) {
-            const summary = element("p", "rm-journey-event-text");
-            summary.textContent = event.summary;
-            item.append(summary);
-          }
-          const refs = journeyMessageRefs(event);
-          const contentPaths = Array.isArray(event.contentPaths) ? event.contentPaths : [];
-          if (event.peerId) {
-            const peerRef = element("p", "rm-journey-peer-ref");
-            peerRef.textContent = `相关对象 ${shortPeerText(event.peerId)}`;
-            peerRef.title = event.peerId;
-            item.append(peerRef);
-          }
-          const actions = element("div", "rm-journey-actions");
-          if (event.peerId) {
-            const related = element("button", "rm-journey-action");
-            related.type = "button";
-            related.dataset.profilePeer = event.peerId;
-            related.dataset.profileRef = `raminga:${session.id}:${event.sequence}`;
-            related.dataset.focusKey = `journey-peer:${session.id}:${event.sequence}`;
-            related.textContent = "查看相关对象";
-            related.setAttribute("aria-label", `查看相关对象 ${shortPeerText(event.peerId)}`);
-            actions.append(related);
-          }
-          if (event.peerId && refs.length > 0) {
-            const chat2 = element("button", "rm-journey-action");
-            chat2.type = "button";
-            chat2.dataset.openJourneyChat = event.peerId;
-            chat2.dataset.focusKey = `journey-chat:${session.id}:${event.sequence}`;
-            chat2.textContent = "打开相关会话";
-            actions.append(chat2);
-          }
-          for (const ref of refs) {
-            if (ref.peerConflict || ref.peerId.length === 0) continue;
-            const locate = element("button", "rm-journey-action");
-            locate.type = "button";
-            locate.dataset.locatePeer = ref.peerId;
-            locate.dataset.locateMessage = ref.messageId;
-            locate.dataset.focusKey = `journey-locate:${session.id}:${event.sequence}:${ref.messageId}`;
-            locate.textContent = "核对当前保留消息";
-            actions.append(locate);
-          }
-          if (actions.childElementCount > 0) item.append(actions);
-          const results = element("div", "rm-journey-results");
-          for (const ref of refs) {
-            if (ref.peerConflict) {
-              results.append(journeyCheckNode("unavailable", "引用中的 Peer 不一致，这里不猜测会话，也未跳转。"));
-              continue;
-            }
-            if (ref.peerId.length === 0) {
-              results.append(journeyCheckNode("unavailable", "这条引用没有可用的 Peer，无法核对当前消息。"));
-              continue;
-            }
-            const check = journeyCheckFor(ref.peerId, ref.messageId);
-            if (!check) continue;
-            const node = journeyCheckNode(check.tone, check.text);
-            node.dataset.locateResult = ref.messageId;
-            results.append(node);
-          }
-          if (results.childElementCount > 0) item.append(results);
-          if (contentPaths.length > 0) {
-            const paths = element("p", "rm-journey-content-paths");
-            paths.textContent = `公开内容引用：${contentPaths.join("、")}（不会自动重新抓取）`;
-            item.append(paths);
-          }
-          if (event.messageEvidence) {
-            const evidence = event.messageEvidence;
-            const box = element("div", "rm-journey-evidence");
-            const evidenceTitle = element("b");
-            evidenceTitle.textContent = "Journey 当时的历史观察";
-            const text2 = element("p");
-            text2.textContent = `${evidence.summary || "没有摘要"} · ${journeyDirectionText(evidence.direction)}${evidence.observedAt ? ` · 观察于 ${formatDateTime(evidence.observedAt)}` : ""}`;
-            const note = element("p", "rm-list-note");
-            note.textContent = "这是当时保存的观察，不是 Node 当前投递或 ACK 状态；核对当前保留消息只以当前记录为准。";
-            box.append(evidenceTitle, text2, note);
-            item.append(box);
-          }
-          const raw = renderJourneyRawDetails([
-            ["事件序号", event.sequence > 0 ? `#${event.sequence}` : ""],
-            ["事件类型原文", event.type],
-            ["消息 ID", refs.map((ref) => ref.messageId).join("、")],
-            ["方向原文", event.messageEvidence?.direction || ""],
-            ["当时确认", typeof event.messageEvidence?.acked === "boolean" ? event.messageEvidence.acked ? "已确认（仅当时）" : "尚未确认（仅当时）" : ""],
-            ["观察时间", event.messageEvidence?.observedAt ? formatDateTime(event.messageEvidence.observedAt) : ""],
-            ["内容版本", event.messageEvidence?.contentSha256 || ""],
-            ["内容引用", contentPaths.join("、")]
-          ]);
-          if (raw) item.append(raw);
-          list.append(item);
-        }
-        detail.append(list);
-        if (session.eventsTruncated) {
-          const truncated = element("p", "rm-list-note");
-          truncated.textContent = `只展示前 ${session.events.length} 条事件；events.jsonl 还有更多内容。`;
-          detail.append(truncated);
-        }
-        if (session.badEventLines > 0) {
-          const bad = element("p", "rm-list-note");
-          bad.textContent = `events.jsonl 有 ${session.badEventLines} 行无法解析，已跳过；其他活动仍按原文展示。`;
-          detail.append(bad);
-        }
-      }
-      if (session.reportRead === "available") {
-        const panel = element("section", "rm-journey-report");
-        const heading = element("h3");
-        heading.textContent = "Journey 报告";
-        const content = element("div", "rm-rich-text");
-        renderMarkdownInto(content, session.reportMarkdown);
-        panel.append(heading, content);
-        detail.append(panel);
-      } else if (session.reportRead === "error") {
-        const failed = element("p", "rm-list-note");
-        failed.textContent = `report.md 读取失败：${session.reportError}`;
-        detail.append(failed);
-      }
-      article.append(detail);
-      return article;
-    }
-    function journeyCheckNode(tone, text2) {
-      const node = element("p", "rm-journey-check");
-      node.dataset.tone = tone;
-      node.textContent = text2;
-      return node;
     }
     function journeyCacheNeedsRead() {
       const data = journeyState.data;
@@ -6474,121 +15933,458 @@ ${resultDetail}`;
       const at = Number(data.at);
       return !(at > 0) || Date.now() - at > JOURNEY_REVALIDATE_MS;
     }
-    function captureJourneyRenderContext() {
-      const page = pageEls.raminga;
+    function journeyPeerLabel(peerId2) {
+      const friend = contactFor(peerId2);
+      return friend ? contactDisplayName(friend) : shortPeer(peerId2);
+    }
+    function journeySessions() {
+      const data = journeyState.data;
+      return Array.isArray(data?.sessions) ? data.sessions : [];
+    }
+    function journeyReadAt() {
+      const at = Number(journeyState.data?.at);
+      return at > 0 ? formatDateTime(at) : "";
+    }
+    function journeyScopeInfo() {
+      const data = journeyState.data;
+      const sessions = journeySessions();
+      const readAt = journeyReadAt();
+      const parts = [];
+      if (readAt) parts.push(`读取于 ${readAt}`);
+      if (data && data.state === "available") parts.push(`本次保留 ${sessions.length} 个 Journey 目录`);
+      else if (data?.state === "missing") parts.push("没有可读取的 Journey 目录");
+      else if (data?.state === "error") parts.push("Journey 目录读取失败");
+      parts.push("事件最多展示 500 条，报告读取上限 512 KiB");
+      if (data?.sessionsTruncated) parts.push("更早的目录未在本次读取范围内");
+      return { readAt, sessions, truncated: data?.sessionsTruncated === true, text: parts.join("；") + "。" };
+    }
+    function capturePageRenderContext(pageName) {
+      const page = pageEls[pageName];
+      if (!page) return null;
       const active = root.activeElement;
       const inside = Boolean(active && page.contains(active));
       return {
-        scroll: page.scrollTop,
+        scroll: Math.max(0, page.scrollTop || 0),
         focusKey: inside ? active.dataset?.focusKey || (active.id ? `#${active.id}` : "") : ""
       };
     }
-    function restoreJourneyRenderContext(context) {
-      if (!context) return;
-      if (currentPage === "raminga") pageEls.raminga.scrollTop = context.scroll;
+    function restorePageRenderContext(page, context) {
+      if (!page || !context) return;
+      if (currentPage === page.dataset.page) page.scrollTop = context.scroll;
       if (context.focusKey.length === 0) return;
       const target = context.focusKey.startsWith("#") ? root.querySelector(context.focusKey) : [...root.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === context.focusKey);
-      if (target) target.focus({ preventScroll: true });
+      target?.focus({ preventScroll: true });
     }
-    function renderJourneyRefreshBar(data) {
-      ramingaRecordsBar.hidden = !journeyCapable;
-      if (!journeyCapable) return;
-      const readAt = Number(data?.at) > 0 ? formatDateTime(data.at) : "";
-      const readable = data !== null && data.state !== "error";
-      const partial = readable && (data.persona?.state === "error" || data.growth?.state === "error" || data.sessionsState === "error");
-      let text2 = "";
+    function focusJourneyReturnKey(selector) {
+      if (!selector) return;
+      const target = selector.startsWith("#") ? root.querySelector(selector) : [...root.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === selector);
+      target?.focus?.({ preventScroll: true });
+    }
+    function openJourneysPage({ focusSearch = true } = {}) {
+      showPage("journeys");
+      pageEls.journeys.scrollTop = view.pages.journeys.scroll;
+      if (focusSearch) journeyQuery.focus?.({ preventScroll: true });
+      saveNow();
+    }
+    function openJourneyDetail(sessionId, {
+      source = "journeys",
+      eventSeq = 0,
+      operationId = "",
+      returnFocus = ""
+    } = {}) {
+      const id = typeof sessionId === "string" ? sessionId : "";
+      if (id.length === 0) return;
+      const focusKey = returnFocus || (source === "home" ? `journey-home:${id}` : source === "journeys" ? `journey-list:${id}` : source === "activity" ? "home-activity-card" : `journey-memory:${id}`);
+      view.journey = {
+        id,
+        source,
+        scroll: 0,
+        highlightSeq: Math.max(0, Math.floor(Number(eventSeq) || 0)),
+        activityOperationId: operationId || "",
+        returnFocus: focusKey
+      };
+      showPage("journey");
+      pageEls.journey.scrollTop = 0;
+      if (journeyCapable && journeyState.data === null) void loadJourney(false);
+      if (operationId && activityDetailCapable) void ensureActivityDetail(operationId);
+      saveNow();
+    }
+    function openJourneyFromActivity(model) {
+      const target = model?.target;
+      if (!target || target.kind !== "journey" || !target.journeyId) return;
+      const operationId = model.operation?.operationId || "";
+      if (operationId) void ensureActivityDetail(operationId);
+      openJourneyDetail(target.journeyId, {
+        source: "activity",
+        operationId,
+        returnFocus: "home-activity-card"
+      });
+    }
+    function matchJourneyEvent(session, detail) {
+      if (!session || !detail) return 0;
+      const operation = detail.operation || {};
+      const evidence = detail.evidence || operation.evidence || {};
+      const messages = new Set(Array.isArray(evidence.message_ids) ? evidence.message_ids : []);
+      const path = String(evidence.path || operation.target?.path || "");
+      const peer = String(evidence.peer_id || operation.target?.peer_id || "");
+      let byMessage = 0;
+      let byPath = 0;
+      let byPeer = 0;
+      for (const event of Array.isArray(session.events) ? session.events : []) {
+        if (messages.size > 0 && journeyMessageRefs(event).some((ref) => messages.has(ref.messageId))) {
+          byMessage = Math.max(byMessage, Number(event.sequence) || 0);
+        }
+        const paths = Array.isArray(event.contentPaths) ? event.contentPaths : [];
+        if (path.length > 0 && paths.includes(path)) byPath = Math.max(byPath, Number(event.sequence) || 0);
+        if (peer.length > 0 && event.peerId === peer) byPeer = Math.max(byPeer, Number(event.sequence) || 0);
+      }
+      return byMessage || byPath || byPeer;
+    }
+    function renderJourneyReadDetails() {
+      const data = journeyState.data;
+      const readAt = journeyReadAt();
+      let statusText = "";
       let tone = "";
       if (journeyState.retrying) {
-        text2 = readable && readAt.length > 0 ? `正在刷新记录…下面仍是 ${readAt} 读取的内容。` : "正在读取本机 Agent 记录…";
+        statusText = readAt ? `正在刷新记录…下面仍是 ${readAt} 读取的内容。` : "正在读取本机 Journey 记录…";
       } else if (journeyState.error) {
-        text2 = readable && readAt.length > 0 ? `刷新没有完成，下面仍是 ${readAt} 读取的旧记录。${journeyState.error}` : `没有读到 Agent 记录：${journeyState.error}`;
+        statusText = `刷新没有完成${readAt ? `，下面仍是 ${readAt} 读取的旧记录` : ""}：${journeyState.error}`;
         tone = "error";
-      } else if (data === null) {
-        text2 = "正在读取本机 Agent 记录…";
-      } else if (data.state === "error") {
-        text2 = "没有读到 Agent 记录。";
-        tone = "error";
-      } else if (data.state === "missing") {
-        text2 = readAt.length > 0 ? `${readAt} 读取完成；还没有找到 Agent 记录。` : "还没有找到 Agent 记录。";
-      } else if (partial) {
-        text2 = `${readAt.length > 0 ? `${readAt} 读取；` : ""}部分记录读取失败，可以刷新重试。`;
+      } else if (data?.freshness === "stale") {
+        statusText = `${readAt ? `${readAt} 读取；` : ""}内容可能不是最新，可以刷新。`;
         tone = "unavailable";
-      } else if (data.freshness === "stale") {
-        text2 = `${readAt.length > 0 ? `${readAt} 读取；` : ""}内容可能不是最新，可以刷新。`;
-        tone = "unavailable";
-      } else {
-        text2 = readAt.length > 0 ? `记录读取于 ${readAt}。` : "记录已读取。";
+      } else if (readAt) {
+        statusText = `记录读取于 ${readAt}。`;
       }
-      ramingaRecordsStatus.textContent = text2;
-      ramingaRecordsStatus.hidden = text2.length === 0;
+      ramingaRecordsStatus.textContent = statusText;
+      ramingaRecordsStatus.hidden = statusText.length === 0;
       ramingaRecordsStatus.dataset.tone = tone;
-      ramingaRefresh.dataset.focusKey = "journey-refresh";
-      ramingaRefresh.textContent = journeyState.retrying ? "正在刷新…" : journeyState.error ? "重试刷新" : "刷新记录";
-      ramingaRefresh.setAttribute("aria-busy", journeyState.retrying ? "true" : "false");
+      const notes = [];
+      if (data?.sessionsState === "missing") notes.push("还没有 Journey 记录。一次 Journey 不是聊天线程，也不由连接数生成。");
+      if (data?.sessionsState === "error") notes.push(`Journey 列表读取失败：${data.sessionsError}`);
+      if (data?.sessionsTruncated) notes.push(`只展示最近 ${journeySessions().length} 个 Journey 目录；更早记录不在本次读取范围。`);
+      ramingaJourneyMeta.textContent = notes.join(" ");
+      ramingaJourneyMeta.hidden = notes.length === 0;
+      ramingaJourneyMeta.dataset.tone = data?.sessionsState === "error" ? "error" : "";
+      const scope = journeyScopeInfo();
+      journeysScopeBody.textContent = scope.text;
+      journeysWarning.textContent = [
+        data?.sessionsTruncated ? "本次只读取最近保留的 Journey 目录；更早记录未列出，不能据此断言没有更早的漫游。" : "",
+        data?.sessionsState === "error" ? `Journey 列表读取失败：${data.sessionsError}` : ""
+      ].filter(Boolean).join(" ");
+      journeysWarning.hidden = journeysWarning.textContent.length === 0;
+      journeysWarning.dataset.tone = data?.sessionsState === "error" ? "error" : "unavailable";
+    }
+    function renderHomeJourneyRecords() {
+      const data = journeyState.data;
+      const sessions = data?.state === "available" ? journeySessions() : [];
+      const featured = activityFeaturedSessionId();
+      const recent = sessions.filter((session) => session.id !== featured).slice(0, 6);
+      const focusKey = focusRestoreKey(ramingaSessionList);
+      const scroll2 = pageEls.home.scrollTop;
+      ramingaSessionList.replaceChildren();
+      for (const session of recent) {
+        ramingaSessionList.append(renderJourneyTile(doc, session, {
+          source: "home",
+          peerLabel: journeyPeerLabel,
+          focusKey: `journey-home:${session.id}`
+        }));
+      }
+      ramingaSessionList.hidden = recent.length === 0;
+      homeJourneysEmpty.hidden = !(data?.state === "available" && recent.length === 0);
+      if (homeJourneysEmpty.hidden === false) {
+        homeJourneysEmpty.textContent = sessions.length === 0 ? "还没有可读取的漫游记录。这里不会用工具活动记录冒充 Journey。" : "最近一条已显示在活动卡中；打开「全部记录」查看保留的 Journey。";
+      }
+      if (focusKey) {
+        const target = [...ramingaSessionList.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
+        target?.focus({ preventScroll: true });
+      }
+      ramingaSessionList.scrollTop = 0;
+      if (currentPage === "home" && pageEls.home.scrollTop !== scroll2) pageEls.home.scrollTop = scroll2;
+      homeJourneysAll.disabled = !journeyCapable;
+    }
+    function renderJourneysPage() {
+      if (!journeyCapable) {
+        journeyList.hidden = true;
+        journeysState.hidden = false;
+        journeysState.dataset.tone = "unavailable";
+        journeysStateTitle.textContent = "漫游记录读取暂不可用";
+        journeysStateBody.textContent = "当前宿主没有提供私有 Agent 记录读取。";
+        journeysStateAction.hidden = true;
+        journeysCount.textContent = "不可用";
+        journeysClear.hidden = view.pages.journeys.query.length === 0;
+        return;
+      }
+      if (journeyQuery.value !== view.pages.journeys.query) journeyQuery.value = view.pages.journeys.query;
+      const query = view.pages.journeys.query;
+      journeysClear.hidden = query.trim().length === 0;
+      const data = journeyState.data;
+      const sessions = data?.state === "available" ? journeySessions() : [];
+      const filtered = sessions.filter((session) => journeyMatches(session, query, journeyPeerLabel));
+      const focusKey = focusRestoreKey(journeyList);
+      journeyList.replaceChildren();
+      for (const session of filtered) {
+        journeyList.append(renderJourneyTile(doc, session, {
+          source: "journeys",
+          peerLabel: journeyPeerLabel,
+          focusKey: `journey-list:${session.id}`
+        }));
+      }
+      const ready = data !== null && data.state !== "error" && data.state !== "missing";
+      journeyList.hidden = !ready || filtered.length === 0;
+      journeysState.hidden = true;
+      journeysStateAction.hidden = true;
+      journeysStateAction.onclick = null;
+      if (data === null) {
+        journeysState.hidden = false;
+        journeysStateTitle.textContent = journeyState.error ? "这次没有读到漫游记录" : "正在读取漫游记录";
+        journeysStateBody.textContent = journeyState.error || "正在从本机 Agent 目录读取 Journey 记录。";
+        journeysCount.textContent = "读取中";
+        if (journeyState.error) {
+          journeysStateAction.hidden = false;
+          journeysStateAction.textContent = "重试读取";
+          journeysStateAction.onclick = () => {
+            void loadJourney(true);
+          };
+        }
+      } else if (data.state === "missing" || data.state === "available" && sessions.length === 0) {
+        journeysState.hidden = false;
+        journeysStateTitle.textContent = "还没有漫游记录";
+        journeysStateBody.textContent = journeyState.error || "本机 agent/sessions 中还没有可读取的 Journey。";
+        journeysCount.textContent = "0 条";
+      } else if (data.state === "error") {
+        journeysState.hidden = false;
+        journeysState.dataset.tone = "error";
+        journeysStateTitle.textContent = "漫游记录读取失败";
+        journeysStateBody.textContent = `${data.sessionsError || journeyState.error || "受控文件读取失败"}。这不代表没有记录。`;
+        journeysCount.textContent = "读取失败";
+        journeysStateAction.hidden = false;
+        journeysStateAction.textContent = "重试读取";
+        journeysStateAction.onclick = () => {
+          void loadJourney(true);
+        };
+      } else if (filtered.length === 0) {
+        journeysState.hidden = false;
+        journeysStateTitle.textContent = "没有找到匹配的漫游记录";
+        journeysStateBody.textContent = "换一个旅程名称或访问对象，或清除筛选。";
+        journeysCount.textContent = `0 / ${sessions.length} 条`;
+      } else {
+        journeysCount.textContent = query.trim().length > 0 ? `显示 ${filtered.length} / ${sessions.length} 条` : `共 ${sessions.length} 条`;
+      }
+      if (focusKey) {
+        const target = [...journeyList.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
+        target?.focus({ preventScroll: true });
+      }
+      renderJourneyReadDetails();
+      journeysScope.hidden = false;
+      journeysRefresh.disabled = !journeyCapable;
+      journeysRefresh.textContent = journeyState.retrying ? "正在刷新…" : "刷新记录";
+    }
+    function renderJourneyMissing(sessionId, { fallbackDetail = null } = {}) {
+      const wrap = doc.createDocumentFragment();
+      const eyebrow = element5("p", "rm-eyebrow");
+      eyebrow.textContent = "LITTLE JOURNEY · 缺失";
+      const heading = element5("h1", "rm-journey-missing-title");
+      heading.textContent = "漫游记录已不在本机";
+      const body = element5("p", "rm-journey-missing-body");
+      const activityId = view.journey.activityOperationId;
+      body.textContent = activityId ? "关联的工具调用仍在 activity.jsonl 中，但对应的 Journey 目录已不存在或无法读取。不会用其他 Journey 代替。" : "这条 Journey 目录已不存在或无法读取。不会用其他 Journey 代替。";
+      const id = element5("p", "rm-list-note");
+      id.textContent = `记录标识：${sessionId}`;
+      wrap.append(eyebrow, heading, body, id);
+      if (activityId && activityDetailCapable) {
+        const detail = activityState.detail.data;
+        const same = activityState.detail.id === activityId;
+        if (!same || activityState.detail.loading) {
+          const loading = element5("p", "rm-list-note");
+          loading.textContent = "正在核对关联工具调用的可用证据…";
+          wrap.append(loading);
+        } else if (activityState.detail.error) {
+          const failed = element5("p", "rm-journey-check");
+          failed.dataset.tone = "error";
+          failed.textContent = `工具活动证据读取失败：${activityState.detail.error}`;
+          wrap.append(failed);
+        }
+        const evidence = detail?.evidence || detail?.operation?.evidence || {};
+        const peer = String(evidence.peer_id || detail?.operation?.target?.peer_id || "");
+        const messageIds = Array.isArray(evidence.message_ids) ? evidence.message_ids : [];
+        const actions = element5("div", "rm-journey-actions");
+        if (peer) {
+          const profile = element5("button", "rm-journey-action");
+          profile.type = "button";
+          profile.dataset.journeyFallbackPeer = peer;
+          profile.textContent = "查看相关对象";
+          const chat2 = element5("button", "rm-journey-action");
+          chat2.type = "button";
+          chat2.dataset.journeyFallbackChat = peer;
+          chat2.textContent = "打开相关会话";
+          actions.append(profile, chat2);
+        }
+        for (const messageId2 of messageIds.slice(0, 6)) {
+          if (!messageId2 || !peer) continue;
+          const locate = element5("button", "rm-journey-action");
+          locate.type = "button";
+          locate.dataset.journeyFallbackLocatePeer = peer;
+          locate.dataset.journeyFallbackLocateMessage = messageId2;
+          locate.textContent = `核对消息 ${String(messageId2).slice(0, 10)}…`;
+          actions.append(locate);
+        }
+        if (actions.childElementCount > 0) wrap.append(actions);
+        if (!peer && same && !activityState.detail.loading) {
+          const missing = element5("p", "rm-journey-check");
+          missing.dataset.tone = "unavailable";
+          missing.textContent = "这条工具调用没有可用的 Peer 或消息证据，无法回退。";
+          wrap.append(missing);
+        }
+      }
+      const note = element5("p", "rm-list-note");
+      note.textContent = "缺失只说明本次读取没有找到该记录，不会把其他旅程当成同一条。";
+      wrap.append(note);
+      journeyDetail.replaceChildren(wrap);
+      journeyDetail.hidden = false;
+      journeyPageState.hidden = true;
+      journeyPageStateAction.hidden = true;
+    }
+    function renderJourneyDetailPage() {
+      if (!journeyDetail) return;
+      journeyBack.textContent = view.journey.source === "journeys" ? "← 返回全部记录" : "← 返回主页";
+      if (!journeyCapable) {
+        journeyDetail.replaceChildren();
+        journeyDetail.hidden = true;
+        journeyPageState.hidden = false;
+        journeyPageStateTitle.textContent = "漫游记录读取暂不可用";
+        journeyPageStateBody.textContent = "当前宿主没有提供私有 Agent 记录读取。";
+        journeyPageStateAction.hidden = false;
+        journeyPageStateAction.textContent = "返回主页";
+        journeyPageStateAction.onclick = () => showPage("home");
+        return;
+      }
+      const data = journeyState.data;
+      const id = view.journey.id;
+      const session = journeySessions().find((item) => item.id === id) ?? null;
+      if (data === null) {
+        journeyDetail.replaceChildren();
+        journeyDetail.hidden = true;
+        journeyPageState.hidden = false;
+        journeyPageState.dataset.tone = "unavailable";
+        journeyPageStateTitle.textContent = journeyState.error ? "这次没有读到漫游记录" : "正在读取漫游记录";
+        journeyPageStateBody.textContent = journeyState.error || "正在从本机 Agent 目录读取 Journey。";
+        journeyPageStateAction.hidden = !journeyState.error;
+        journeyPageStateAction.textContent = "重试读取";
+        journeyPageStateAction.onclick = journeyState.error ? () => {
+          void loadJourney(true);
+        } : null;
+        return;
+      }
+      if (!session) {
+        renderJourneyMissing(id);
+        return;
+      }
+      journeyPageState.hidden = true;
+      journeyDetail.hidden = false;
+      let highlightSeq = view.journey.highlightSeq;
+      let activityMissing = false;
+      let activityOperation = null;
+      if (view.journey.source === "activity" && view.journey.activityOperationId) {
+        const detail = activityState.detail.id === view.journey.activityOperationId ? activityState.detail.data : null;
+        if (detail) {
+          activityOperation = detail.operation || null;
+          const matched = matchJourneyEvent(session, detail);
+          if (matched > 0) highlightSeq = matched;
+          else activityMissing = true;
+        } else if (!activityState.detail.loading) {
+          activityMissing = true;
+        }
+      }
+      const scope = journeyScopeInfo();
+      const pageScroll = pageEls.journey.scrollTop;
+      renderJourneyDetail(doc, journeyDetail, session, {
+        peerLabel: journeyPeerLabel,
+        renderMarkdown: renderMarkdownInto,
+        checkFor: journeyCheckFor,
+        highlightSeq,
+        activityMissingEvent: activityMissing,
+        activityOperation,
+        source: view.journey.source,
+        scope,
+        highlightFocus: highlightSeq > 0
+      });
+      journeyDetail.hidden = false;
+      if (highlightSeq === 0 && currentPage === "journey" && pageEls.journey.scrollTop !== pageScroll) {
+        pageEls.journey.scrollTop = pageScroll;
+      }
     }
     function renderJourney() {
       if (destroyed) return;
-      const context = captureJourneyRenderContext();
+      const homeContext = capturePageRenderContext("home");
+      const journeysContext = capturePageRenderContext("journeys");
+      const journeyContext = capturePageRenderContext("journey");
       try {
         const data = journeyState.data;
-        const statusAction = $("#ramingaStateAction");
+        const statePanel = $("#ramingaState");
         const stateTitle = $("#ramingaStateTitle");
         const stateBody = $("#ramingaStateBody");
-        ramingaSelfPanel.hidden = true;
-        ramingaGrowthPanel.hidden = true;
-        ramingaJourneyPanel.hidden = true;
-        ramingaSessionList.replaceChildren();
-        ramingaSessionList.hidden = true;
-        $("#ramingaState").hidden = false;
-        statusAction.hidden = false;
-        statusAction.textContent = "查看节点状态";
-        statusAction.onclick = () => openDialog(statusDialog, statusAction);
-        renderJourneyRefreshBar(data);
+        const stateAction = $("#ramingaStateAction");
+        ramingaRefresh.hidden = !journeyCapable;
+        ramingaRefresh.textContent = journeyState.retrying ? "正在刷新…" : journeyState.error ? "重试刷新" : "刷新记录";
+        ramingaRefresh.setAttribute("aria-busy", journeyState.retrying ? "true" : "false");
+        ramingaRefresh.dataset.focusKey = "journey-refresh";
+        statePanel.hidden = true;
         if (!journeyCapable) {
+          statePanel.hidden = false;
           stateTitle.textContent = "Agent 记录读取暂不可用";
-          stateBody.textContent = "当前宿主没有提供私有 Agent 资料读取。这里不会用连接数生成日记，也不会把公开内容混入。";
-          return;
-        }
-        if (journeyState.retrying && (data === null || data.state === "error")) {
-          stateTitle.textContent = "正在重新读取 Agent 记录";
-          stateBody.textContent = "正在从本机数据目录读取稳定人格、成长提案与 Journey 记录。";
-          return;
-        }
-        if (data === null) {
+          stateBody.textContent = "当前宿主没有提供私有 Agent 资料读取。";
+          stateAction.hidden = false;
+          stateAction.textContent = "查看节点状态";
+          stateAction.onclick = () => openDialog(statusDialog, stateAction);
+          ramingaSessionList.hidden = true;
+          homeJourneysEmpty.hidden = true;
+        } else if (journeyState.retrying && (data === null || data.state === "error")) {
+          statePanel.hidden = false;
+          stateTitle.textContent = "正在读取 Agent 记录";
+          stateBody.textContent = "正在从本机数据目录读取 Journey 记录。";
+          stateAction.hidden = false;
+          stateAction.textContent = "查看节点状态";
+          stateAction.onclick = () => openDialog(statusDialog, stateAction);
+        } else if (data === null) {
+          statePanel.hidden = false;
           stateTitle.textContent = journeyState.error ? "这次没有读到 Agent 记录" : "正在读取 Agent 记录";
-          stateBody.textContent = journeyState.error || "正在从本机数据目录读取稳定人格、成长提案与 Journey 记录。";
-          return;
-        }
-        if (data.state === "missing") {
+          stateBody.textContent = journeyState.error || "正在从本机数据目录读取 Journey 记录。";
+          stateAction.hidden = false;
+          stateAction.textContent = "查看节点状态";
+          stateAction.onclick = () => openDialog(statusDialog, stateAction);
+        } else if (data.state === "missing") {
+          statePanel.hidden = false;
+          statePanel.dataset.tone = journeyState.error ? "error" : "unavailable";
           if (journeyState.error && !journeyState.retrying) {
             stateTitle.textContent = "这次没有刷新到 Agent 记录";
-            stateBody.textContent = `${journeyState.error}。下面保留上次的空结果；这不代表现在一定没有记录，可以再次刷新核对。`;
+            stateBody.textContent = `${journeyState.error}。下面保留上次的空结果；这不代表现在一定没有记录。`;
           } else {
             stateTitle.textContent = "还没有可读取的 Agent 记录";
-            stateBody.textContent = "没有找到 agent/persona.md、growth.md 或 sessions/。这不代表没有发生过活动，只是本宿主还没有可读取的记录。";
+            stateBody.textContent = "没有找到 agent/sessions/。这不代表没有发生过活动。";
           }
-          return;
-        }
-        if (data.state === "error") {
+          stateAction.hidden = false;
+          stateAction.textContent = "查看节点状态";
+          stateAction.onclick = () => openDialog(statusDialog, stateAction);
+        } else if (data.state === "error") {
+          statePanel.hidden = false;
+          statePanel.dataset.tone = "error";
           stateTitle.textContent = "Agent 私有记录读取失败";
           stateBody.textContent = `${data.sessionsError || journeyState.error || "受控文件读取失败"}。这不代表没有记录，也不据此推测 Agent 正在运行。`;
-          return;
+          stateAction.hidden = false;
+          stateAction.textContent = "查看节点状态";
+          stateAction.onclick = () => openDialog(statusDialog, stateAction);
         }
-        $("#ramingaState").hidden = true;
-        renderJourneyText(ramingaSelfPanel, ramingaSelf, ramingaSelfNote, data.persona, " 稳定人格 ");
-        renderJourneyText(ramingaGrowthPanel, ramingaGrowth, ramingaGrowthNote, data.growth, " 成长提案 ");
-        ramingaJourneyPanel.hidden = false;
-        const notes = [];
-        if (data.sessionsState === "missing") notes.push("还没有 Journey 记录。一次 Journey 不是聊天线程，也不由连接数生成。");
-        if (data.sessionsState === "error") notes.push(`Journey 列表读取失败：${data.sessionsError}`);
-        if (data.sessionsTruncated) notes.push(`只展示最近 ${data.sessions.length} 个 Journey 目录；还有更多未读取。`);
-        ramingaJourneyMeta.textContent = notes.join(" ");
-        ramingaJourneyMeta.hidden = notes.length === 0;
-        ramingaJourneyMeta.dataset.tone = data.sessionsState === "error" ? "error" : "";
-        for (const session of data.sessions) ramingaSessionList.append(renderJourneySession(session));
-        ramingaSessionList.hidden = data.sessions.length === 0;
+        renderJourneyReadDetails();
+        renderHomeJourneyRecords();
+        if (currentPage === "journeys") renderJourneysPage();
+        if (currentPage === "journey") renderJourneyDetailPage();
+        renderPrivateEditors();
+        renderHome();
       } finally {
-        restoreJourneyRenderContext(context);
+        if (currentPage === "home") restorePageRenderContext(pageEls.home, homeContext);
+        if (currentPage === "journeys") restorePageRenderContext(pageEls.journeys, journeysContext);
+        if (currentPage === "journey") restorePageRenderContext(pageEls.journey, journeyContext);
       }
     }
     function loadJourney(force = false) {
@@ -6652,15 +16448,7 @@ ${resultDetail}`;
         if (request.forceQueued && !destroyed) loadJourney(true);
       });
     }
-    function toggleJourneySession(id) {
-      if (view.pages.raminga.expandedSessions[id] === true) delete view.pages.raminga.expandedSessions[id];
-      else view.pages.raminga.expandedSessions[id] = true;
-      saveNow();
-      renderJourney();
-      const target = [...ramingaSessionList.querySelectorAll("[data-session-toggle]")].find((node) => node.dataset.sessionToggle === id);
-      target?.focus({ preventScroll: true });
-    }
-    async function locateJourneyMessage(peerId2, messageId2) {
+    async function locateJourneyMessage(peerId2, messageId2, { source = "home", journeyId = "", eventSeq = 0 } = {}) {
       const key2 = `${peerId2}:${messageId2}`;
       journeyState.messageChecks ??= /* @__PURE__ */ new Map();
       if (!locateMessageCapable) {
@@ -6691,7 +16479,13 @@ ${resultDetail}`;
             text: `当前保留记录中存在这条消息（${formatDateTime(result.message.createdAt)}）。已打开会话；不会替换为其他消息。`
           });
           renderJourney();
-          openConversation(peerId2, { source: "raminga", focusMessageId: messageId2 });
+          openConversation(peerId2, {
+            source: source === "journey" && journeyId ? "journey" : source === "messages" ? "messages" : "home",
+            focusMessageId: messageId2,
+            journeyId,
+            journeyEvent: eventSeq,
+            journeyMessageId: messageId2
+          });
           return;
         }
         const message = result?.complete === false ? result.error || "在本次有界查找中没有找到该消息；它可能更早或已被裁剪。" : result?.error || "该消息引用已不在当前保留消息中，无法定位；这里只保留历史观察。";
@@ -6725,16 +16519,26 @@ ${resultDetail}`;
     function openPeerProfile(peerId2, { source = "contacts", ref = "", trigger = null } = {}) {
       const canonical = typeof peerId2 === "string" ? peerId2 : "";
       if (canonical.length === 0) return;
+      if (canonical === selfPeerId()) {
+        openOwnPublicSource({ peerId: canonical, id: ref || canonical }, trigger);
+        return;
+      }
       const current = currentPage;
+      if (current === "messages" && contactsState.selectedPeerId) saveChatScroll();
       const tracksScroll = pageTracksScroll(current);
-      const sourceScroll = tracksScroll ? profileEntryScroll(current) : Math.max(0, Number(view.pages[current]?.scroll) || 0);
+      const sourceScroll = tracksScroll ? profileEntryScroll(current) : Math.max(0, Number(pageStateFor(current)?.scroll) || 0);
       profileReturn.page = current;
       profileReturn.peerId = contactsState.selectedPeerId;
       profileReturn.scroll = sourceScroll;
       profileReturn.open = true;
+      profileReturn.focusKey = "";
+      profileScrollMemory = { tab: view.contactProfile.tab, scroll: 0, at: 0 };
       profileTriggerRef = ref || profileRefFor(canonical, source, canonical);
-      view.profile = {
+      if (view.contactProfile.peerId !== canonical) view.contactProfile.tab = "interactions";
+      if (profileState.peerId !== canonical) resetProfileMemoryUi(canonical);
+      view.contactProfile = {
         peerId: canonical,
+        tab: view.contactProfile.tab,
         returnPage: current,
         returnPeer: current === "messages" ? contactsState.selectedPeerId : "",
         triggerId: profileTriggerRef
@@ -6742,30 +16546,54 @@ ${resultDetail}`;
       profileState.peerId = canonical;
       profileState.data = null;
       profileState.error = "";
-      if (tracksScroll) view.pages[current].scroll = sourceScroll;
+      profileState.filesOpen = false;
+      profileState.filesReturnTab = "interactions";
+      profileState.filesReturnScroll = 0;
+      profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+      const humanDetails = profileView.querySelector(".rm-profile-human-details");
+      if (humanDetails) humanDetails.open = false;
+      if (profileOriginDetails) profileOriginDetails.open = false;
+      if (tracksScroll) {
+        const sourceState = pageStateFor(current);
+        if (sourceState) sourceState.scroll = sourceScroll;
+      }
       saveNow();
       pageEls[current].hidden = true;
       profileView.hidden = false;
       profileView.scrollTop = 0;
       renderProfile();
-      void loadPeerProfile(canonical, false);
+      void loadPeerProfile(canonical, true);
     }
     function closePeerProfile({ restoreFocus = true } = {}) {
       if (profileView.hidden) return;
-      const sourcePage = isMainPage(view.profile.returnPage) ? view.profile.returnPage : "explore";
+      const sourcePage = pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts";
       const tracksScroll = pageTracksScroll(sourcePage);
       const savedScroll = tracksScroll ? Math.max(0, Number(profileReturn.scroll) || 0) : Math.max(0, Number(view.pages[sourcePage]?.scroll) || 0);
       profileView.hidden = true;
       pageEls[sourcePage].hidden = false;
-      if (tracksScroll) view.pages[sourcePage].scroll = savedScroll;
+      if (tracksScroll) {
+        const sourceState = pageStateFor(sourcePage);
+        if (sourceState) sourceState.scroll = savedScroll;
+      }
       pageEls[sourcePage].scrollTop = savedScroll;
-      view.profile = { peerId: "", returnPage: "", returnPeer: "", triggerId: "" };
+      view.contactProfile = { peerId: "", tab: "interactions", returnPage: "", returnPeer: "", triggerId: "" };
       profileState.peerId = "";
       profileState.data = null;
       profileState.error = "";
+      profileState.filesOpen = false;
+      profileState.filesReturnTab = "interactions";
+      profileState.filesReturnScroll = 0;
+      profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+      resetProfileMemoryUi("");
       saveNow();
       profileReturn.open = false;
       profileReturn.scroll = null;
+      profileReturn.focusKey = "";
+      profileScrollMemory = { tab: "", scroll: 0, at: 0 };
       updatePrimaryNav(root, sourcePage);
       if (!restoreFocus) {
         if (tracksScroll) restorePageScrollAfterFocus(sourcePage, savedScroll);
@@ -6776,6 +16604,77 @@ ${resultDetail}`;
       if (target) target.focus({ preventScroll: true });
       else root.querySelector("#nodeTrigger")?.focus({ preventScroll: true });
       if (tracksScroll) restorePageScrollAfterFocus(sourcePage, savedScroll);
+    }
+    function profileChatEntryScroll(trigger, fallback) {
+      const pressed = profileChatPress;
+      profileChatPress = null;
+      if (pressed && pressed.trigger === trigger && Date.now() - pressed.at <= 1500 && pressed.scroll > 0) {
+        return pressed.scroll;
+      }
+      const current = Math.max(0, Math.floor(Number(fallback) || 0));
+      if (current > 0) return current;
+      const tab = view.contactProfile.tab;
+      if (profileScrollMemory.tab === tab && Date.now() - profileScrollMemory.at <= 2500) {
+        return profileScrollMemory.scroll;
+      }
+      return 0;
+    }
+    function profileFocusTarget(key2) {
+      if (!key2) return null;
+      return [...profileView.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === key2) ?? null;
+    }
+    function restoreProfileAfterConversation(peerId2, tab, scrollTop, focusKey) {
+      const sourcePage = pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts";
+      const activeTab = ["interactions", "posts", "address"].includes(tab) ? tab : "interactions";
+      for (const page of Object.values(pageEls)) page.hidden = true;
+      view.contactProfile.tab = activeTab;
+      view.contactProfile.returnPeer = sourcePage === "messages" ? peerId2 : "";
+      profileView.hidden = false;
+      currentPage = sourcePage;
+      view.page = sourcePage;
+      updatePrimaryNav(root, sourcePage);
+      if (profileState.peerId !== peerId2) {
+        resetProfileMemoryUi(peerId2);
+        profileState.peerId = peerId2;
+        profileState.data = null;
+        profileState.error = "";
+        profileState.retrying = false;
+        profileState.filesOpen = false;
+        profileState.filesReturnTab = activeTab;
+        profileState.filesReturnScroll = 0;
+        profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
+        profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
+        profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+        renderProfile();
+        void loadPeerProfile(peerId2, true);
+        if (activeTab === "address") void loadPeerFriends(peerId2, true);
+      } else {
+        renderProfileTabs();
+        if (profileState.data === null && !profileState.retrying) {
+          void loadPeerProfile(peerId2, true);
+        }
+        if (activeTab === "address" && profileState.friends.data === null && !profileState.friends.retrying) {
+          void loadPeerFriends(peerId2, true);
+        }
+        if (activeTab === "posts" && profileState.posts.data === null && !profileState.posts.retrying) {
+          void loadPeerDiscoveries(peerId2, true);
+        }
+        if (activeTab === "interactions" && profileState.memory.data === null && !profileState.memory.retrying) {
+          void loadContactMemory(peerId2, true);
+        }
+      }
+      const savedSourceScroll = pageTracksScroll(sourcePage) ? Math.max(0, Number(pageStateFor(sourcePage)?.scroll) || 0) : Math.max(0, Number(view.pages.messages?.scroll) || 0);
+      profileReturn.page = sourcePage;
+      profileReturn.peerId = sourcePage === "messages" ? peerId2 : "";
+      profileReturn.open = true;
+      profileReturn.scroll = savedSourceScroll;
+      const resolvedFocus = focusKey ? memoryFocusLookup(profileState.memory.data?.timeline || [], focusKey)?.key || focusKey : "";
+      const exactTarget = profileFocusTarget(resolvedFocus);
+      const target = exactTarget ?? (profileMessage.hidden ? null : profileMessage);
+      profileReturn.focusKey = exactTarget ? "" : resolvedFocus;
+      target?.focus?.({ preventScroll: true });
+      profileView.scrollTop = Math.max(0, Math.floor(Number(scrollTop) || 0));
+      saveNow();
     }
     async function loadPeerProfile(peerId2, force = false) {
       if (!hostReady) {
@@ -6798,6 +16697,9 @@ ${resultDetail}`;
         if (value === null || typeof value !== "object") throw new Error("对方公开资料没有返回结果");
         profileState.data = value;
         profileState.error = value.error || "";
+        rememberVerifiedContactProfile(peerId2, value);
+        if (currentPage === "contacts" && contactsState.data !== null) updateContactsState();
+        if (contactsState.selectedPeerId === peerId2 && !conversationView.hidden) updateConversationIdentity(peerId2);
       } catch (error) {
         if (destroyed || request !== profileState.requestSeq) return;
         profileState.error = errorText(error) || "对方公开资料读取失败";
@@ -6808,32 +16710,1284 @@ ${resultDetail}`;
         }
       }
     }
+    async function loadPeerFriends(peerId2, force = false) {
+      const target = typeof peerId2 === "string" ? peerId2 : "";
+      if (target.length === 0) return;
+      if (!peerFriendsCapable) {
+        profileState.friends.error = "当前宿主没有提供公开通讯录读取。";
+        renderProfileFriends();
+        return;
+      }
+      if (!hostReady) {
+        profileState.friends.error = "工作区正在连接本机节点，请稍后重试。";
+        renderProfileFriends();
+        return;
+      }
+      const request = ++profileState.friends.requestSeq;
+      profileState.friends.retrying = true;
+      profileState.friends.error = "";
+      renderProfileFriends();
+      try {
+        const value = await options.onLoadPeerFriends(target, force === true);
+        if (destroyed || request !== profileState.friends.requestSeq || profileState.peerId !== target) return;
+        if (value === null || typeof value !== "object") throw new Error("公开通讯录没有返回结果");
+        const failure = String(value.error ?? "").trim();
+        if (failure.length > 0) {
+          profileState.friends.error = failure;
+          return;
+        }
+        profileState.friends.data = value;
+        profileState.friends.error = "";
+        rememberDirectoryClues(target, value);
+        renderContactClues();
+      } catch (error) {
+        if (destroyed || request !== profileState.friends.requestSeq || profileState.peerId !== target) return;
+        profileState.friends.error = errorText(error) || "公开通讯录读取失败";
+      } finally {
+        if (!destroyed && request === profileState.friends.requestSeq) {
+          profileState.friends.retrying = false;
+          renderProfileFriends();
+        }
+      }
+    }
+    function profileFriendHistory(sourcePeerId) {
+      const source = String(sourcePeerId ?? "");
+      const rows = [];
+      if (source.length === 0) return rows;
+      for (const clue of directoryClues.values()) {
+        const peerId2 = String(clue?.peerId ?? "").trim();
+        if (!peerId2 || clue.sourcePeerId !== source || peerId2 === source || peerId2 === selfPeerId()) continue;
+        rows.push({
+          peerId: peerId2,
+          name: clue.name,
+          description: clue.description,
+          at: Number(clue.at) > 0 ? Number(clue.at) : 0
+        });
+      }
+      rows.sort((left, right) => right.at - left.at);
+      return rows;
+    }
+    function renderProfileFriends() {
+      if (!profileAddressStatus) return;
+      const data = profileState.friends.data;
+      const error = String(profileState.friends.error || data?.error || "").trim();
+      const live = data !== null && typeof data === "object" && String(data.error ?? "").trim().length === 0 && data.source !== "unavailable";
+      const liveFriends = live && Array.isArray(data.friends) ? data.friends.filter((friend) => String(friend?.peerId ?? "").trim().length > 0) : [];
+      const history = live ? [] : profileFriendHistory(profileState.peerId);
+      const friends = live ? liveFriends : history;
+      const loading = !live && profileState.friends.retrying && error.length === 0;
+      const historyMode = friends.length > 0 && (!live || error.length > 0);
+      const historyLabel = live ? "上次读取" : "本机历史";
+      const lastReadAt = historyMode ? live ? Number(data?.at) > 0 ? Number(data.at) : 0 : history.reduce((newest, row) => Math.max(newest, Number(row.at) || 0), 0) : 0;
+      profileAddressStatus.textContent = !peerFriendsCapable ? "不可用" : loading ? "读取中" : error ? "读取失败" : friends.length > 0 ? `${friends.length} 位` : "无记录";
+      profileAddressStatus.dataset.tone = error ? "error" : friends.length > 0 ? "ready" : "unavailable";
+      profileFriendList.replaceChildren();
+      profileFriendList.hidden = friends.length === 0;
+      const failedEmpty = !loading && error.length > 0 && friends.length === 0;
+      const successEmpty = !loading && error.length === 0 && live && friends.length === 0;
+      profileAddressEmpty.hidden = !(failedEmpty || successEmpty);
+      if (failedEmpty) {
+        profileAddressEmpty.dataset.tone = "error";
+        if (profileAddressEmptyTitle) profileAddressEmptyTitle.textContent = "没有可用的历史通讯录";
+        if (profileAddressEmptyText) profileAddressEmptyText.textContent = "本次读取失败，本机也没有保存过对方的通讯录；可以稍后重试。";
+      } else {
+        delete profileAddressEmpty.dataset.tone;
+        if (profileAddressEmptyTitle) profileAddressEmptyTitle.textContent = "没有读取到公开通讯录";
+        if (profileAddressEmptyText) profileAddressEmptyText.textContent = "对方没有公开通讯录，或当前清单中没有条目。";
+      }
+      profileAddressRetry.hidden = !peerFriendsCapable || error.length === 0;
+      profileAddressRetry.textContent = profileState.friends.retrying ? "正在重试…" : "重试读取通讯录";
+      profileAddressRetry.disabled = profileState.friends.retrying;
+      if (!peerFriendsCapable) {
+        profileAddressNote.textContent = "当前宿主没有提供公开通讯录读取。";
+      } else if (error) {
+        const reason = readFailureSummary(error, "对方当前不可达或没有公开通讯录。");
+        if (friends.length > 0) {
+          const at = lastReadAt > 0 ? `，读取于 ${formatDateTime(lastReadAt)}` : "";
+          profileAddressNote.textContent = live ? `本次读取失败：${reason} 下面保留本次面板上次成功读取的 ${friends.length} 条结果${at}；它只代表上次读取，不是本次实时通讯录，也不代表完整同步。` : `本次读取失败：${reason} 下面是从本机历史恢复的上次读取记录，共 ${friends.length} 条${at}。本机持久投影只保留有界的一部分，可能只是部分历史，不是对方当前通讯录的完整内容。`;
+        } else {
+          profileAddressNote.textContent = `通讯录读取失败：${reason}`;
+        }
+        profileAddressNote.title = "";
+      } else if (loading) {
+        profileAddressNote.textContent = friends.length > 0 ? `正在读取对方公开通讯录… 下面先显示本机上次成功读取的 ${friends.length} 条历史，成功后会替换。` : "正在读取对方公开通讯录…";
+      } else if (data?.limited) {
+        profileAddressNote.textContent = "公开通讯录只读取到本次有界清单的一部分。";
+      } else if (data) {
+        profileAddressNote.textContent = "条目由对方公开声明，不代表你已认识这些节点。";
+      } else {
+        profileAddressNote.textContent = "打开这个区域时读取对方的公开通讯录。";
+      }
+      profileAddressNote.hidden = profileAddressNote.textContent.length === 0;
+      profileAddressDetails.hidden = !error;
+      profileAddressRaw.textContent = error || "";
+      for (const friend of friends) {
+        const friendPeer = String(friend?.peerId ?? "").trim();
+        if (friendPeer.length === 0) continue;
+        const displayName = String(friend?.name ?? "").trim() || shortPeer(friendPeer);
+        const local = contactFor(friendPeer);
+        const row = element5("article", "rm-friend-row");
+        row.dataset.friendPeer = friendPeer;
+        if (historyMode) row.dataset.friendHistory = live ? "last-read" : "local-history";
+        const avatar = element5("span", "rm-friend-avatar");
+        avatar.setAttribute("aria-hidden", "true");
+        avatar.textContent = (displayName || "?").slice(0, 1);
+        const copy = element5("div", "rm-friend-copy");
+        const head = element5("div", "rm-friend-head");
+        const name = element5("b");
+        name.textContent = displayName;
+        const badge = element5("span", local ? "rm-badge rm-friend-badge" : "rm-badge rm-badge-quiet rm-friend-badge");
+        badge.textContent = local ? "已有联系" : "公开线索";
+        head.append(name, badge);
+        if (historyMode) {
+          const historyBadge = element5("span", "rm-badge rm-badge-quiet rm-friend-badge rm-friend-history");
+          historyBadge.textContent = historyLabel;
+          historyBadge.title = lastReadAt > 0 ? `上次成功读取于 ${formatDateTime(lastReadAt)}` : "上次成功读取的本机记录";
+          head.append(historyBadge);
+        }
+        const peer = element5("code", "rm-peer-id");
+        peer.textContent = shortPeer(friendPeer);
+        copy.append(head, peer);
+        const descriptionText = String(friend?.description ?? "").trim();
+        if (descriptionText.length > 0) {
+          const description = element5("p", "rm-friend-description");
+          description.textContent = descriptionText;
+          copy.append(description);
+        }
+        row.append(avatar, copy);
+        if (!local) {
+          const hint = element5("span", "rm-friend-hint");
+          hint.textContent = "尚未联系";
+          row.append(hint);
+        }
+        profileFriendList.append(row);
+      }
+    }
+    function rerenderProfileKeepingPosition() {
+      const scroll2 = profileView.scrollTop;
+      const active = root.activeElement;
+      const focusKey = active?.dataset?.focusKey || profileReturn.focusKey || "";
+      renderProfile();
+      profileView.scrollTop = scroll2;
+      if (focusKey) {
+        const target = [...profileView.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
+        target?.focus({ preventScroll: true });
+        if (target && profileReturn.focusKey === focusKey) profileReturn.focusKey = "";
+      }
+    }
+    async function ensureProfilePreview(item) {
+      const key2 = previewKeyFor("peer", item);
+      const existing = profilePreviews.get(key2);
+      if (existing?.state === "loading") return;
+      if (!peerFileContentCapable) {
+        profilePreviews.set(key2, { state: "error", error: "当前宿主没有提供对方公开文件的按需读取。" });
+        rerenderProfileKeepingPosition();
+        return;
+      }
+      profilePreviews.set(key2, { state: "loading" });
+      rerenderProfileKeepingPosition();
+      try {
+        const value = await options.onLoadPeerFileContent(item.peerId, item.path, item.sha256, item.sizeBytes);
+        if (destroyed) return;
+        if (value && typeof value === "object") profilePreviews.set(key2, { state: "available", data: value });
+        else profilePreviews.set(key2, { state: "error", error: "对方公开文件读取没有返回结果" });
+      } catch (error) {
+        if (!destroyed) profilePreviews.set(key2, { state: "error", error: errorText(error) || "对方公开文件读取失败" });
+      }
+      if (!destroyed) rerenderProfileKeepingPosition();
+    }
+    function toggleProfileFile(item, next) {
+      const key2 = previewKeyFor("peer", item);
+      if (!next) {
+        profileExpanded.delete(key2);
+        disposePreviewMedia(profileView);
+      } else {
+        profileExpanded.add(key2);
+      }
+      rerenderProfileKeepingPosition();
+    }
+    function renderProfileEntryList(container, entries) {
+      disposePreviewMedia(container);
+      container.replaceChildren();
+      for (const item of entries) {
+        const key2 = previewKeyFor("peer", item);
+        const expanded = profileExpanded.has(key2);
+        const displayItem = itemWithPostMeta(item);
+        const card = renderFileCard(displayItem, {
+          subject: "peer",
+          expanded,
+          onToggle: (next) => toggleProfileFile(item, next),
+          preview: profilePreviews.get(key2) ?? null,
+          showReveal: fileRevealCapable,
+          reveal: revealResults.get(revealResultKey("peer", item)) ?? null,
+          onReveal: (target) => {
+            void revealFileItem("peer", target);
+          },
+          focusKey: `profile:${item.path}:${item.sha256}`,
+          onOpenProfile: null
+        });
+        if (expanded && !profilePreviews.has(key2)) {
+          void ensureProfilePreview(item);
+        }
+        container.append(card);
+        observePostMetaCard(card, item);
+      }
+      container.hidden = entries.length === 0;
+      observePostImages(container);
+    }
+    function appendAddressRows(container, addresses) {
+      container.replaceChildren();
+      for (const address of addresses) {
+        const item = element5("li", "rm-address-item");
+        const code = element5("code");
+        code.textContent = address.multiaddr;
+        const meta = element5("span", "rm-address-meta");
+        const observed = address.observedAt ? ` · ${formatDateTime(address.observedAt)}` : "";
+        const detail = address.sourceDetail && address.sourceDetail !== address.source ? ` · ${address.sourceDetail}` : "";
+        meta.textContent = `${addressSourceLabel(address.source)}${detail} · ${reachabilityLabel(address.reachability)}${observed}`;
+        meta.dataset.reachability = address.reachability;
+        item.append(code, meta);
+        container.append(item);
+      }
+    }
+    async function copyTextWithNotice(text4, note, success) {
+      if (!text4) {
+        note.textContent = "没有可复制的内容。";
+        note.hidden = false;
+        return;
+      }
+      try {
+        if (typeof options.onCopyText !== "function") throw new Error("复制能力不可用");
+        const copied = await options.onCopyText(text4);
+        if (copied === false) throw new Error("复制能力不可用");
+        note.textContent = success;
+        note.hidden = false;
+        note.dataset.tone = "";
+      } catch {
+        note.textContent = "复制失败，请手动选择页面上的文本。";
+        note.hidden = false;
+        note.dataset.tone = "error";
+      }
+    }
+    async function refreshPeerNodeInfo() {
+      const peerId2 = profileState.peerId;
+      if (!peerId2) return;
+      if (!peerNodeInfoCapable) {
+        profileNodeNote.textContent = "当前宿主没有提供对方节点信息刷新。";
+        profileNodeNote.hidden = false;
+        profileNodeNote.dataset.tone = "error";
+        return;
+      }
+      if (!profileState.data) {
+        await loadPeerProfile(peerId2, true);
+        return;
+      }
+      profileNodeRefresh.disabled = true;
+      profileNodeNote.textContent = "正在重新读取本机 Status 快照…";
+      profileNodeNote.hidden = false;
+      profileNodeNote.dataset.tone = "";
+      try {
+        const value = await options.onLoadPeerNodeInfo(peerId2, true);
+        if (destroyed || profileState.peerId !== peerId2) return;
+        if (profileState.data) profileState.data = { ...profileState.data, node: value };
+        renderPeerNodeInfo(value);
+        rerenderProfileKeepingPosition();
+      } catch (error) {
+        if (destroyed) return;
+        profileNodeNote.textContent = `节点信息刷新失败：${errorText(error)}。保留已有快照并标明未验证。`;
+        profileNodeNote.hidden = false;
+        profileNodeNote.dataset.tone = "error";
+      } finally {
+        profileNodeRefresh.disabled = !peerNodeInfoCapable || !profileState.peerId;
+      }
+    }
+    function renderPeerNodeInfo(node) {
+      const peerId2 = profileState.peerId;
+      profileNodePeerId.textContent = peerId2 || "—";
+      const value = node || {
+        connectionState: "unknown",
+        directConnections: 0,
+        relayConnections: 0,
+        currentAddresses: [],
+        knownAddresses: [],
+        statusAt: null,
+        freshness: "unavailable",
+        error: ""
+      };
+      profileNodeConnection.textContent = `${connectionStateLabel(value.connectionState, value.freshness)} · 直连 ${value.directConnections} · 中继 ${value.relayConnections}`;
+      profileNodeRoutes.textContent = value.freshness === "live" ? "状态来自最近一次本机 Status 读取" : "非实时快照；旧地址未验证可达";
+      profileNodeStatusAt.textContent = value.statusAt ? refreshedText(value.statusAt) : "尚未读取";
+      const knownAddresses = Array.isArray(value.knownAddresses) ? value.knownAddresses : [];
+      appendAddressRows(profileCurrentAddrs, value.currentAddresses);
+      appendAddressRows(profileAnnouncedAddrs, knownAddresses);
+      profileCurrentNote.textContent = value.currentAddresses.length === 0 ? "当前没有到对方的活动连接地址。这不等于对方永久离线。" : value.freshness === "live" ? "这些地址来自本机当前连接，已在本机建立连接时验证。" : "这些是旧快照中的连接地址，当前未验证可达。";
+      profileCurrentNote.hidden = false;
+      profileAnnouncedNote.textContent = knownAddresses.length === 0 ? "本机没有缓存到对方已知地址。" : "这些是本机 Peerstore、缓存或联系人中的已知地址，不是对方公告证据，也不证明现在可达。";
+      profileAnnouncedNote.hidden = false;
+      profileCopyCurrent.disabled = value.currentAddresses.length === 0;
+      profileCopyAnnounced.disabled = knownAddresses.length === 0;
+      profileCopyPeer.disabled = peerId2.length === 0;
+      profileNodeRefresh.disabled = !peerNodeInfoCapable || peerId2.length === 0;
+      if (value.error) {
+        profileNodeNote.textContent = `节点信息读取失败：${value.error}。下面保留已有地址并标明未验证。`;
+        profileNodeNote.hidden = false;
+        profileNodeNote.dataset.tone = "error";
+      } else if (value.freshness !== "live") {
+        profileNodeNote.textContent = "连接状态不是实时快照；只把已列出来源和可达性标签作为线索。";
+        profileNodeNote.hidden = false;
+        profileNodeNote.dataset.tone = "unavailable";
+      } else {
+        profileNodeNote.hidden = true;
+        profileNodeNote.textContent = "";
+        profileNodeNote.dataset.tone = "";
+      }
+    }
+    async function loadPeerDiscoveries(peerId2, force = false) {
+      const target = typeof peerId2 === "string" ? peerId2 : "";
+      if (!target) return;
+      if (!peerDiscoveriesCapable) {
+        profileState.posts.error = "当前宿主没有提供联系人动态读取。";
+        renderProfilePeerPosts(target);
+        return;
+      }
+      if (!hostReady) {
+        profileState.posts.error = "工作区正在连接本机节点，请稍后重试。";
+        renderProfilePeerPosts(target);
+        return;
+      }
+      const request = ++profileState.posts.requestSeq;
+      profileState.posts.retrying = true;
+      profileState.posts.error = "";
+      renderProfilePeerPosts(target);
+      try {
+        const value = await options.onLoadPeerDiscoveries(target, force === true);
+        if (destroyed || request !== profileState.posts.requestSeq || profileState.peerId !== target) return;
+        if (value === null || typeof value !== "object") throw new Error("联系人动态没有返回结果");
+        profileState.posts.data = value;
+        profileState.posts.error = value.error || "";
+      } catch (error) {
+        if (destroyed || request !== profileState.posts.requestSeq || profileState.peerId !== target) return;
+        profileState.posts.error = errorText(error) || "联系人动态读取失败";
+      } finally {
+        if (!destroyed && request === profileState.posts.requestSeq) {
+          profileState.posts.retrying = false;
+          renderProfilePeerPosts(target);
+        }
+      }
+    }
+    async function loadContactMemory(peerId2, force = false) {
+      const target = typeof peerId2 === "string" ? peerId2 : "";
+      if (!target) return;
+      if (!contactMemoryCapable) {
+        profileState.memory.error = "当前宿主没有提供私有社交记忆读取。";
+        renderProfileMemory();
+        return;
+      }
+      if (!hostReady) {
+        profileState.memory.error = "工作区正在连接本机节点，请稍后重试。";
+        renderProfileMemory();
+        return;
+      }
+      if (!force && profileState.memory.data !== null) {
+        renderProfileMemory();
+        return;
+      }
+      const request = ++profileState.memory.requestSeq;
+      profileState.memory.retrying = true;
+      profileState.memory.error = "";
+      renderProfileMemory();
+      try {
+        const value = await options.onLoadContactMemory(target);
+        if (destroyed || request !== profileState.memory.requestSeq || profileState.peerId !== target) return;
+        if (value === null || typeof value !== "object") throw new Error("私有社交记忆没有返回结果");
+        profileState.memory.data = value;
+        profileState.memory.error = value.error || "";
+      } catch (error) {
+        if (destroyed || request !== profileState.memory.requestSeq || profileState.peerId !== target) return;
+        profileState.memory.error = errorText(error) || "私有社交记忆读取失败";
+      } finally {
+        if (!destroyed && request === profileState.memory.requestSeq) {
+          profileState.memory.retrying = false;
+          renderProfileMemory();
+        }
+      }
+    }
+    function renderProfilePeerPosts(peerId2) {
+      if (!profilePostList) return;
+      const data = profileState.posts.data;
+      const error = profileState.posts.error || data?.error || "";
+      const localItems = Array.isArray(data?.items) ? data.items : [];
+      const manifest = profileState.data?.manifest ?? null;
+      const currentEntries = manifest && manifest.source !== "local-history" && Array.isArray(manifest.entries) ? manifest.entries.filter((entry) => isPostPath(entry.path)) : [];
+      const seen = /* @__PURE__ */ new Set();
+      const items = [];
+      const discoveryKeys = /* @__PURE__ */ new Set();
+      for (const item of [...localItems, ...currentEntries]) {
+        if (!item || !isPostPath(item.path)) continue;
+        const key2 = `${item.path}\0${String(item.sha256 || "").toLowerCase()}`;
+        if (seen.has(key2)) continue;
+        seen.add(key2);
+        items.push(item);
+        if (localItems.includes(item)) discoveryKeys.add(key2);
+      }
+      const loading = data === null && profileState.posts.retrying && error.length === 0 && items.length === 0;
+      profilePostsStatus.textContent = loading ? "读取中" : error ? items.length > 0 ? `${items.length} 条（局部）` : "读取失败" : items.length > 0 ? `${items.length} 条` : "无本地副本";
+      profilePostsStatus.dataset.tone = error ? "error" : items.length > 0 ? "ready" : "unavailable";
+      const notes = [];
+      if (loading) notes.push("正在读取本机发现记录中属于该联系人的公开动态副本…");
+      if (error) notes.push(`本地历史副本读取失败：${error}`);
+      if (currentEntries.length > 0) {
+        notes.push(`对方公开清单当前列出 ${currentEntries.length} 条动态；其中 ${localItems.length} 条已有本机获取记录。`);
+      }
+      if (!error && currentEntries.length === 0 && localItems.length === 0) {
+        notes.push("本机没有获取过这位联系人的公开动态；没有动态副本不等于对方当前没有动态。");
+      } else if (currentEntries.length === 0 && localItems.length > 0) {
+        notes.push("这些是本机发现记录中的已获取副本，不是对方当前完整清单；对方离线时仍可阅读。");
+      }
+      if (data?.truncated) notes.push("本次有界读取没有覆盖全部本地副本。");
+      if (favoritesState.actionError) notes.push(favoritesState.actionError);
+      profilePostsNote.textContent = notes.join(" ");
+      profilePostsNote.hidden = notes.length === 0;
+      const focusKey = focusRestoreKey(profilePostList);
+      const pageScroll = profileView.scrollTop;
+      disposePreviewMedia(profilePostList);
+      profilePostList.replaceChildren();
+      for (const item of items) {
+        const key2 = previewKeyFor("peer", item);
+        const expanded = profileExpanded.has(key2);
+        const itemKey = `${item.path}\0${String(item.sha256 || "").toLowerCase()}`;
+        const localEvidence = discoveryKeys.has(itemKey) || item.contentState === "available";
+        const card = renderFileCard(itemWithPostMeta(item), {
+          subject: "peer",
+          expanded,
+          onToggle: (next) => toggleProfileFile(item, next),
+          preview: profilePreviews.get(key2) ?? null,
+          showReveal: false,
+          reveal: null,
+          onReveal: null,
+          focusKey: `profile-post:${item.path}:${item.sha256}`,
+          onOpenProfile: null,
+          ...favoriteCardOptions(item, `profile-post:${item.path}:${item.sha256}`, localEvidence)
+        });
+        if (expanded && localEvidence && !profilePreviews.has(key2)) void ensureProfilePreview(item);
+        profilePostList.append(card);
+        observePostMetaCard(card, item);
+      }
+      profilePostList.hidden = items.length === 0;
+      observePostImages(profilePostList);
+      if (focusKey) {
+        const target = [...profilePostList.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
+        target?.focus({ preventScroll: true });
+      }
+      if (profileView.scrollTop !== pageScroll) profileView.scrollTop = pageScroll;
+    }
+    function memoryEvidenceButtons(item) {
+      const line = element5("div", "rm-memory-evidence");
+      const evidence = item.evidence || {};
+      const itemId = typeof item.id === "string" ? item.id : "";
+      const seenMessages = /* @__PURE__ */ new Set();
+      for (const rawMessageId of (evidence.messageIds || []).slice(0, 6)) {
+        const messageId2 = typeof rawMessageId === "string" ? rawMessageId : String(rawMessageId ?? "");
+        if (!messageId2 || seenMessages.has(messageId2)) continue;
+        seenMessages.add(messageId2);
+        const button = element5("button", "rm-evidence-link");
+        button.type = "button";
+        button.dataset.memoryMessage = messageId2;
+        button.dataset.memoryPeer = profileState.peerId;
+        button.dataset.memoryItem = itemId;
+        button.dataset.focusKey = memoryEvidenceFocusKey(profileState.peerId, itemId, messageId2);
+        button.dataset.profileChatReturn = "";
+        button.textContent = `消息 ${String(messageId2).slice(0, 10)}…`;
+        button.title = messageId2;
+        line.append(button);
+      }
+      const sessions = /* @__PURE__ */ new Set();
+      for (const sessionId of evidence.sessionIds || []) {
+        if (sessionId) sessions.add(String(sessionId).split(":")[0]);
+      }
+      for (const eventId of evidence.eventIds || []) {
+        if (eventId) sessions.add(String(eventId).split(":")[0]);
+      }
+      for (const sessionId of [...sessions].filter(Boolean).slice(0, 4)) {
+        const button = element5("button", "rm-evidence-link");
+        button.type = "button";
+        button.dataset.memoryJourney = sessionId;
+        button.textContent = `Journey ${sessionId.slice(0, 18)}`;
+        line.append(button);
+      }
+      for (const contentPath of (evidence.contentPaths || []).slice(0, 4)) {
+        if (!contentPath) continue;
+        const span = element5("span", "rm-evidence-path");
+        span.textContent = contentPath;
+        span.title = "本机发现记录中的公开内容路径";
+        line.append(span);
+      }
+      for (const digest of (evidence.contentSha256 || []).slice(0, 2)) {
+        if (!digest) continue;
+        const span = element5("span", "rm-evidence-path");
+        span.textContent = `sha256 ${String(digest).slice(0, 12)}…`;
+        span.title = digest;
+        line.append(span);
+      }
+      return line.childElementCount > 0 ? line : null;
+    }
+    function openMessageFromMemory(peerId2, messageId2, trigger = null) {
+      if (!peerId2 || !messageId2) return;
+      const itemId = trigger?.closest?.("[data-memory-item-id]")?.dataset?.memoryItemId || trigger?.dataset?.memoryItem || "";
+      openConversation(peerId2, {
+        source: "profile",
+        focus: true,
+        focusMessageId: messageId2,
+        profileTab: "interactions",
+        profileScroll: profileChatEntryScroll(trigger, profileView ? profileView.scrollTop : 0),
+        returnFocus: memoryEvidenceFocusKey(peerId2, itemId, messageId2)
+      });
+    }
+    function memoryClockText(item) {
+      const date = memoryDateValue(item?.at);
+      if (!date) return "时间未知";
+      try {
+        return date.toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+      } catch {
+        return formatDateTime(date.toISOString()) || "时间未知";
+      }
+    }
+    function memoryMessageDirection(item) {
+      if (String(item?.direction ?? "") === "in") return "对方消息";
+      if (String(item?.origin ?? "") === "human") return "本人消息";
+      if (String(item?.origin ?? "") === "agent") return "Agent 消息";
+      return "来源未知的发出消息";
+    }
+    function memorySourceLine(item) {
+      const kind = memorySourceKind(item);
+      let text4 = memorySourceText(item.source || (kind === "message" ? memoryMessageDirection(item) : "来源未注明"));
+      if (kind === "publicClue") {
+        const target = String(item.subjectPeerId || item.peerId || "");
+        if (target && target !== profileState.peerId) text4 += ` · 线索对象 ${shortPeer(target)}`;
+        text4 += " · 仅是记录中的声明，不等于已访问或已联系";
+      } else if (item.sourcePeerId && item.sourcePeerId !== profileState.peerId) {
+        text4 += ` · 来源 ${shortPeer(item.sourcePeerId)}`;
+      }
+      if (item.private && (kind === "observation" || kind === "impression" || kind === "curiosity")) {
+        text4 = `仅本机可见 · ${text4}`;
+      }
+      return text4;
+    }
+    function memoryFocusLookup(timeline, focusKey) {
+      if (!focusKey || !profileState.peerId || !Array.isArray(timeline)) return null;
+      const prefix = `profile-evidence:${profileState.peerId}:`;
+      if (!focusKey.startsWith(prefix)) return null;
+      const rest = focusKey.slice(prefix.length);
+      const messageIds = (item2) => Array.isArray(item2?.evidence?.messageIds) ? item2.evidence.messageIds.map((id) => String(id ?? "")).filter(Boolean) : [];
+      for (const item2 of timeline) {
+        const itemId = typeof item2?.id === "string" ? item2.id : "";
+        if (!itemId) continue;
+        for (const messageId3 of messageIds(item2)) {
+          if (rest === `${encodeURIComponent(itemId)}:${encodeURIComponent(messageId3)}`) {
+            return {
+              item: item2,
+              messageId: messageId3,
+              key: memoryEvidenceFocusKey(profileState.peerId, itemId, messageId3)
+            };
+          }
+        }
+      }
+      const matching = timeline.filter((item2) => messageIds(item2).includes(rest));
+      const item = matching.find((candidate) => memorySourceKind(candidate) === "message") ?? matching[0] ?? null;
+      if (!item) return null;
+      const messageId2 = messageIds(item).find((id) => id === rest) ?? "";
+      return {
+        item,
+        messageId: messageId2,
+        key: memoryEvidenceFocusKey(profileState.peerId, typeof item.id === "string" ? item.id : "", messageId2)
+      };
+    }
+    function revealMemoryFocus(grouped, timeline, focusKey) {
+      const found = memoryFocusLookup(timeline, focusKey);
+      if (!found) return null;
+      for (const [dayIndex, day] of grouped.days.entries()) {
+        for (const group of day.groups) {
+          if (!group.items.includes(found.item)) continue;
+          profileMemoryUi.daysShown = Math.max(profileMemoryUi.daysShown, dayIndex + 1);
+          profileMemoryUi.closedGroups.delete(group.key);
+          profileMemoryUi.openGroups.add(group.key);
+          const index = group.items.indexOf(found.item);
+          const current = profileMemoryUi.groupLimits.get(group.key) || MEMORY_GROUP_PAGE;
+          if (index >= current) {
+            profileMemoryUi.groupLimits.set(group.key, Math.ceil((index + 1) / MEMORY_GROUP_PAGE) * MEMORY_GROUP_PAGE);
+          }
+          return found;
+        }
+      }
+      return null;
+    }
+    function memoryGroupOpen(group) {
+      if (profileMemoryUi.openGroups.has(group.key)) return true;
+      if (profileMemoryUi.closedGroups.has(group.key)) return false;
+      return group.items.length === 1;
+    }
+    function renderMemoryEvent(item) {
+      const kind = memorySourceKind(item);
+      const row = element5("article", "rm-memory-event");
+      row.dataset.memoryKind = item.kind || "unknown";
+      row.dataset.memorySource = kind;
+      row.dataset.memoryItemId = item.id || "";
+      row.tabIndex = -1;
+      const head = element5("div", "rm-memory-event-head");
+      const kindNode = element5("span", "rm-memory-kind");
+      kindNode.textContent = memoryKindLabel(item);
+      kindNode.dataset.source = kind;
+      const time = element5("time");
+      time.textContent = memoryClockText(item);
+      const at = memoryDateValue(item.at);
+      if (at) {
+        time.dateTime = at.toISOString();
+        time.title = formatDateTime(at.toISOString());
+      }
+      head.append(kindNode, time);
+      const bodyText = memoryBody(item);
+      const summary = element5("p", "rm-memory-summary");
+      summary.textContent = memoryPreview(bodyText) || "（没有摘要）";
+      row.append(head, summary);
+      const long = [...bodyText].length > 140 || /\n/.test(bodyText);
+      if (long) {
+        const full = element5("details", "rm-memory-text");
+        full.dataset.memoryTextFor = item.id || "";
+        if (profileMemoryUi.openItems.has(item.id)) full.open = true;
+        const toggle = element5("summary");
+        toggle.textContent = "展开原文";
+        const text4 = element5("p", "rm-memory-body");
+        text4.textContent = bodyText;
+        full.append(toggle, text4);
+        full.addEventListener("toggle", () => {
+          if (full.open) profileMemoryUi.openItems.add(item.id);
+          else profileMemoryUi.openItems.delete(item.id);
+        }, { signal: controller.signal });
+        row.append(full);
+      }
+      const source = element5("p", "rm-memory-source");
+      source.textContent = memorySourceLine(item);
+      row.append(source);
+      if (kind === "publicClue") row.dataset.clue = "true";
+      const evidence = memoryEvidenceButtons(item);
+      if (evidence) row.append(evidence);
+      return row;
+    }
+    function renderMemoryGroup(group) {
+      const details = element5("details", "rm-memory-group");
+      details.dataset.memoryGroup = group.key;
+      details.open = memoryGroupOpen(group);
+      details.addEventListener("toggle", () => {
+        if (details.open) {
+          profileMemoryUi.openGroups.add(group.key);
+          profileMemoryUi.closedGroups.delete(group.key);
+        } else {
+          profileMemoryUi.closedGroups.add(group.key);
+          profileMemoryUi.openGroups.delete(group.key);
+        }
+      }, { signal: controller.signal });
+      const summary = element5("summary", "rm-memory-group-summary");
+      const title = element5("span", "rm-memory-group-title");
+      title.textContent = group.title;
+      const meta = element5("span", "rm-memory-group-meta");
+      meta.textContent = `${group.items.length} 条`;
+      summary.append(title, meta);
+      if (group.note) {
+        const note = element5("span", "rm-memory-group-note");
+        note.textContent = group.note;
+        summary.append(note);
+      }
+      const latest = group.items[0];
+      if (latest) {
+        const preview = element5("span", "rm-memory-group-preview");
+        preview.textContent = memoryPreview(memoryBody(latest), 72);
+        summary.append(preview);
+      }
+      const body = element5("div", "rm-memory-group-body");
+      const limit = profileMemoryUi.groupLimits.get(group.key) || MEMORY_GROUP_PAGE;
+      const visible = group.items.slice(0, limit);
+      for (const item of visible) body.append(renderMemoryEvent(item));
+      if (group.items.length > visible.length) {
+        const more = element5("button", "rm-quiet rm-memory-group-more");
+        more.type = "button";
+        more.textContent = `显示更早的 ${Math.min(MEMORY_GROUP_PAGE, group.items.length - visible.length)} 条`;
+        more.onclick = () => {
+          profileMemoryUi.groupLimits.set(group.key, limit + MEMORY_GROUP_PAGE);
+          profileMemoryUi.openGroups.add(group.key);
+          const scroll2 = profileView.scrollTop;
+          renderProfileMemory();
+          profileView.scrollTop = scroll2;
+          const target = [...profileTimeline.querySelectorAll("[data-memory-group]")].find((node) => node.dataset.memoryGroup === group.key);
+          target?.querySelector?.("summary")?.focus?.({ preventScroll: true });
+        };
+        body.append(more);
+      }
+      details.append(summary, body);
+      return details;
+    }
+    function renderMemoryOverview(grouped) {
+      const summary = summarizeContactMemory(grouped);
+      if (summary.total === 0) {
+        profileMemoryOverview.hidden = true;
+        return;
+      }
+      profileMemoryOverview.hidden = false;
+      const latestDate = memoryDateValue(summary.latest);
+      const earliestDate = memoryDateValue(summary.earliest);
+      const latest = latestDate ? formatDateTime(latestDate.toISOString()) : "";
+      const earliest = earliestDate ? formatDateTime(earliestDate.toISOString()) : "";
+      const pieces = [`历史摘要 · 本轮读取到 ${summary.total} 条本机记录`];
+      if (latest) pieces.push(`最近 ${latest}`);
+      if (earliest && earliest !== latest) pieces.push(`最早 ${earliest}`);
+      profileMemorySummary.textContent = `${pieces.join("；")}。`;
+      profileMemoryKinds.replaceChildren();
+      for (const chip of summary.chips) {
+        const node = element5("span", "rm-memory-kind-chip");
+        node.dataset.memoryChip = chip.key;
+        node.textContent = `${chip.label} ${chip.count}`;
+        profileMemoryKinds.append(node);
+      }
+      if (summary.unknown > 0) {
+        const unknown = element5("span", "rm-memory-kind-chip");
+        unknown.dataset.memoryChip = "unknown-time";
+        unknown.textContent = `时间未记录 ${summary.unknown}`;
+        profileMemoryKinds.append(unknown);
+      }
+      profileMemorySource.textContent = "来源：持久消息、Journey 事件/报告与私有记忆；仅在本机合并读取。浏览档案、连接状态和 last_interaction 不计入。";
+    }
+    function renderProfileMemory() {
+      if (!profileTimeline) return;
+      const data = profileState.memory.data;
+      const error = profileState.memory.error || data?.error || "";
+      const capable = contactMemoryCapable;
+      const retrying = profileState.memory.retrying;
+      const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
+      const grouped = groupContactMemory(timeline);
+      const requestedFocus = profileReturn.focusKey || focusRestoreKey(profileTimeline);
+      const focused = revealMemoryFocus(grouped, timeline, requestedFocus);
+      const pageScroll = Math.max(0, Number(profileView.scrollTop) || 0);
+      profileTimelineStatus.textContent = !capable ? "不可用" : retrying && data === null ? "读取中" : error ? "读取失败" : `${timeline.length} 条`;
+      profileTimelineStatus.dataset.tone = error ? "error" : timeline.length > 0 ? "ready" : "unavailable";
+      profileMemoryError.hidden = !error;
+      profileMemoryError.textContent = error ? `私有记忆或交互读取未完成：${readFailureSummary(error, "可以稍后重试。")}` : "";
+      profileMemoryDetails.hidden = !error;
+      profileMemoryRaw.textContent = error || "";
+      profileMemoryRetry.hidden = !(capable && error);
+      profileMemoryRetry.disabled = retrying;
+      profileMemoryRetry.textContent = retrying ? "正在重试…" : "重试读取私有记忆";
+      profileMemoryRetry.onclick = capable ? () => {
+        void loadContactMemory(profileState.peerId, true);
+      } : null;
+      renderMemoryOverview(grouped);
+      const overview = summarizeContactMemory(grouped);
+      profileMemoryQuickbar.hidden = timeline.length === 0;
+      if (timeline.length > 0) {
+        profileMemoryQuickSummary.textContent = `历史摘要 · ${overview.total} 条本机记录`;
+        const c = overview.counts;
+        const quickParts = [
+          ["消息", c.message],
+          ["访问", c.visit + c.contentRead],
+          ["漫游", c.journeyEvent + c.journeyReport],
+          ["线索", c.publicClue],
+          ["私有", c.privateMemory]
+        ].filter(([, count]) => count > 0).map(([label, count]) => `${label}${count}`);
+        profileMemoryQuickSource.textContent = quickParts.join(" · ");
+      }
+      profileMemoryTimelineCount.textContent = timeline.length > 0 ? `${grouped.days.length} 天 · ${timeline.length} 条` : "—";
+      const remainingDays = Math.max(0, grouped.days.length - profileMemoryUi.daysShown);
+      profileMemoryMore.hidden = remainingDays <= 0;
+      profileMemoryMore.textContent = `显示更早的 ${Math.min(2, remainingDays)} 天记录`;
+      profileMemoryMore.onclick = () => {
+        profileMemoryUi.daysShown += 2;
+        const scroll2 = profileView.scrollTop;
+        renderProfileMemory();
+        profileView.scrollTop = scroll2;
+        profileMemoryMore.focus?.({ preventScroll: true });
+      };
+      profileTimeline.replaceChildren();
+      for (const day of grouped.days.slice(0, profileMemoryUi.daysShown)) {
+        const section = element5("section", "rm-memory-day");
+        section.dataset.memoryDay = day.key;
+        const header = element5("header", "rm-memory-day-head");
+        const heading = element5("h3");
+        heading.textContent = day.label;
+        const count = element5("span");
+        count.textContent = `${day.items.length} 条`;
+        header.append(heading, count);
+        section.append(header);
+        for (const group of day.groups) section.append(renderMemoryGroup(group));
+        profileTimeline.append(section);
+      }
+      profileTimeline.hidden = timeline.length === 0;
+      profileTimelineEmpty.hidden = !(data !== null && !error && timeline.length === 0);
+      if (data !== null && !error && timeline.length === 0) {
+        profileTimelineEmpty.querySelector("b").textContent = "还没有可核实的交互";
+        profileTimelineEmpty.querySelector("p").textContent = "这里只显示持久消息、Journey 事件或私有印象；浏览档案和连接数不会变成聊天记录。";
+      }
+      const notes = [];
+      if (overview.unknown > 0) notes.push(`${overview.unknown} 条记录没有可用时间，归入「日期未知」；没有推测日期。`);
+      if (data?.timelineTruncated) notes.push("本次有界读取只保留最新记录；更早的消息可能已被裁剪，不能据此断言没有交流。");
+      profileMemoryTimelineNote.hidden = notes.length === 0;
+      profileMemoryTimelineNote.textContent = notes.join(" ");
+      if (data?.timelineTruncated) {
+        profileInteractionNote.textContent = "交互时间线只显示本次有界读取的最新记录；更早的消息可能已被裁剪，不能据此断言没有交流。";
+      } else if (!capable) {
+        profileInteractionNote.textContent = "私有交互时间线暂未开放：当前宿主没有提供私有社交记忆读取。";
+      } else if (retrying && data === null) {
+        profileInteractionNote.textContent = "正在合并持久消息、Journey 记录与私有印象…";
+      } else if (error) {
+        profileInteractionNote.textContent = "这一部分读取失败；不会用推测补足交互记录。";
+      } else if (data !== null) {
+        const privateCount = timeline.filter((item) => item.private && item.kind !== "message" && item.kind !== "journey").length;
+        profileInteractionNote.textContent = privateCount > 0 ? `共 ${timeline.length} 条可见记录，其中 ${privateCount} 条来自仅本机保存的私有记忆；印象不是聊天记录。` : `共 ${timeline.length} 条可见记录；消息与 Journey 是真实来源，浏览档案不计入。`;
+      }
+      const contact = data?.contact ?? null;
+      const impressions = Array.isArray(contact?.impressions) ? [...contact.impressions] : [];
+      impressions.sort((left, right) => Date.parse(right.updatedAt || right.createdAt || "") - Date.parse(left.updatedAt || left.createdAt || ""));
+      const latest = impressions[0] || null;
+      profileImpressionSummary.textContent = latest?.summary || "还没有记录印象。";
+      profileImpressionMeta.hidden = !latest;
+      if (latest) {
+        const uncertainty = latest.uncertainty === "low" ? "低" : latest.uncertainty === "high" ? "高" : latest.uncertainty === "medium" ? "中" : "未标注";
+        const when = latest.updatedAt || latest.createdAt;
+        const count = ["sessionIds", "eventIds", "messageIds", "contentPaths"].reduce((sum, key2) => sum + (latest.evidenceRefs?.[key2] || []).length, 0);
+        profileImpressionMeta.textContent = `确定性：${uncertainty}${when ? ` · 更新于 ${formatDateTime(when)}` : ""} · ${count > 0 ? `${count} 条证据引用` : "尚未关联证据引用；这不是聊天证据"}`;
+      }
+      const impressionText = latest?.summary || "";
+      const impressionLong = [...impressionText].length > 160 || (impressionText.match(/\n/g) || []).length > 2;
+      profileImpressionSummary.classList.toggle("is-expanded", profileMemoryUi.impressionExpanded);
+      profileImpressionToggle.hidden = !impressionLong;
+      profileImpressionToggle.textContent = profileMemoryUi.impressionExpanded ? "收起印象" : "展开完整印象";
+      profileImpressionToggle.setAttribute("aria-expanded", String(profileMemoryUi.impressionExpanded));
+      profileImpressionToggle.onclick = impressionLong ? () => {
+        profileMemoryUi.impressionExpanded = !profileMemoryUi.impressionExpanded;
+        profileImpressionSummary.classList.toggle("is-expanded", profileMemoryUi.impressionExpanded);
+        profileImpressionToggle.textContent = profileMemoryUi.impressionExpanded ? "收起印象" : "展开完整印象";
+        profileImpressionToggle.setAttribute("aria-expanded", String(profileMemoryUi.impressionExpanded));
+        profileImpressionToggle.focus?.({ preventScroll: true });
+      } : null;
+      const canEditImpression = Boolean(saveContactImpressionCapable && data && (data.state === "available" || data.state === "missing") && data.schemaVersion !== 1);
+      profileImpressionEdit.hidden = !canEditImpression;
+      profileImpressionEdit.disabled = profileState.memory.retrying;
+      profileImpressionEdit.onclick = canEditImpression ? () => openImpressionEditor(profileImpressionEdit) : null;
+      profileImpressionQuickText.textContent = latest?.summary || "还没有记录印象。";
+      profileImpressionQuickEdit.hidden = !canEditImpression;
+      profileImpressionQuickEdit.disabled = profileState.memory.retrying;
+      profileImpressionQuickEdit.onclick = canEditImpression ? () => openImpressionEditor(profileImpressionQuickEdit) : null;
+      if (data?.schemaVersion === 1) {
+        profileImpressionMeta.hidden = false;
+        profileImpressionMeta.textContent = "旧版本私有记忆只读兼容；不会自动改写。请由 Agent 初始化后再编辑。";
+      }
+      if (requestedFocus) {
+        const focusKey = focused?.key || requestedFocus;
+        const target = [...profileTimeline.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
+        if (target) {
+          target.focus({ preventScroll: true });
+          if (profileReturn.focusKey === requestedFocus) profileReturn.focusKey = "";
+        }
+      }
+      if (profileView.scrollTop !== pageScroll) profileView.scrollTop = pageScroll;
+    }
+    function openImpressionEditor(trigger = null) {
+      if (!saveContactImpressionCapable) return;
+      const data = profileState.memory.data;
+      const peerId2 = profileState.peerId;
+      if (!data || data.state === "error" || data.schemaVersion === 1) return;
+      const contact = data.contact;
+      const impressions = Array.isArray(contact?.impressions) ? [...contact.impressions] : [];
+      impressions.sort((left, right) => Date.parse(right.updatedAt || right.createdAt || "") - Date.parse(left.updatedAt || left.createdAt || ""));
+      const latest = impressions[0] || null;
+      impressionEditState.open = true;
+      impressionEditState.saving = false;
+      impressionEditState.peerId = peerId2;
+      impressionEditState.impressionId = latest?.id || "";
+      impressionEditState.expectedSha = String(data.sha256 || "");
+      impressionSummaryInput.value = latest?.summary || "";
+      impressionUncertainty.value = latest?.uncertainty || "medium";
+      impressionDialogNote.hidden = true;
+      impressionDialogNote.textContent = "";
+      impressionSave.disabled = false;
+      impressionSave.textContent = "保存印象";
+      openDialog(impressionDialog, trigger);
+      impressionSummaryInput.focus({ preventScroll: true });
+    }
+    async function submitImpression() {
+      if (!impressionEditState.open || impressionEditState.saving || !saveContactImpressionCapable) return;
+      const summary = impressionSummaryInput.value.trim();
+      if (summary.length === 0) {
+        impressionDialogNote.hidden = false;
+        impressionDialogNote.dataset.tone = "error";
+        impressionDialogNote.textContent = "印象内容不能为空。";
+        impressionSummaryInput.focus();
+        return;
+      }
+      impressionEditState.saving = true;
+      impressionSave.disabled = true;
+      impressionSave.textContent = "保存中…";
+      impressionDialogNote.hidden = true;
+      let result;
+      try {
+        result = await options.onSaveContactImpression({
+          peerId: impressionEditState.peerId,
+          impressionId: impressionEditState.impressionId,
+          summary,
+          uncertainty: impressionUncertainty.value,
+          expectedSha256: impressionEditState.expectedSha
+        });
+      } catch (error) {
+        result = { saved: false, error: errorText(error) || "私有印象保存失败。", conflict: false };
+      }
+      if (destroyed) return;
+      impressionEditState.saving = false;
+      impressionSave.disabled = false;
+      impressionSave.textContent = "保存印象";
+      if (result?.saved === true) {
+        impressionEditState.open = false;
+        if (result.memory) profileState.memory.data = result.memory;
+        closeDialog(impressionDialog);
+        profileImpressionStatus.hidden = false;
+        profileImpressionStatus.dataset.tone = "ok";
+        profileImpressionStatus.textContent = "已保存到本机私有记忆 · 仅本机可见，未写入公开资料、公开清单或 friends.json";
+        renderProfileMemory();
+        profileImpressionEdit.focus({ preventScroll: true });
+        return;
+      }
+      impressionDialogNote.hidden = false;
+      impressionDialogNote.dataset.tone = "error";
+      impressionDialogNote.textContent = result?.conflict ? `文件已在别处修改，未覆盖：${result.error || "请重新读取后再保存"}` : result?.error || "私有印象保存失败。";
+    }
+    function renderProfilePublicFiles(peerId2, data) {
+      const manifest = data?.manifest ?? null;
+      const entries = Array.isArray(manifest?.entries) ? manifest.entries : [];
+      const files = entries.filter((entry) => !isPostPath(entry.path) && !isPostImagePath(entry.path));
+      const manifestError = manifest?.error || (data ? "" : profileState.error);
+      const localHistory = manifest?.source === "local-history";
+      const loading = data === null && profileState.retrying && !manifestError;
+      profileFilesStatus.textContent = loading ? "读取中" : localHistory ? `本地历史 ${files.length} 个文件` : manifestError ? "读取失败" : files.length > 0 ? `${files.length} 个文件` : "无文件";
+      const fileNotes = [];
+      if (manifest?.source === "local-history") {
+        fileNotes.push("对方当前不可达；这里只列出本机已核对的历史下载副本。");
+      } else if (manifestError) {
+        fileNotes.push(`公开文件没有完整读取：${manifestError}`);
+      } else if (manifest && files.length === 0) {
+        fileNotes.push("对方当前公开清单中没有动态以外的文件。");
+      }
+      profileFilesNote.textContent = fileNotes.join(" ");
+      profileFilesNote.hidden = fileNotes.length === 0;
+      renderProfileEntryList(profileFileList, files);
+      renderProfilePeerPosts(peerId2);
+    }
+    function renderProfileTabs() {
+      const knownContact = profileIsContact();
+      const contactsKnown = profileContactsKnown();
+      let active = view.contactProfile.tab === "posts" || view.contactProfile.tab === "address" ? view.contactProfile.tab : "interactions";
+      const relationshipSurface = !contactsKnown || knownContact;
+      if (!relationshipSurface) active = "posts";
+      if (contactsKnown) view.contactProfile.tab = active;
+      const filesOpen = profileState.filesOpen === true;
+      if (profileTabsNav) profileTabsNav.hidden = filesOpen;
+      for (const button of profileTabs) {
+        const name = button.dataset.profileTab;
+        button.hidden = !filesOpen && !relationshipSurface && name !== "posts";
+        const selected = !filesOpen && name === active;
+        if (selected) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      }
+      for (const [name, panel] of Object.entries({
+        interactions: $("#contactProfileInteractions"),
+        posts: $("#contactProfilePosts"),
+        address: $("#contactProfileAddress")
+      })) {
+        if (panel) panel.hidden = filesOpen || name !== active;
+      }
+      if (contactProfileFiles) contactProfileFiles.hidden = !filesOpen;
+      if (profileFilesOpen) {
+        profileFilesOpen.hidden = filesOpen;
+        profileFilesOpen.setAttribute("aria-expanded", filesOpen ? "true" : "false");
+      }
+    }
+    const PROFILE_INTEREST_ICONS = [
+      "M12 3.2 13.8 8.7 19.3 10.5 13.8 12.3 12 17.8 10.2 12.3 4.7 10.5 10.2 8.7Z",
+      "M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5ZM5 17.5h14M8.5 7h7",
+      "M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9ZM7.5 9.5h.01M7.5 14.5h.01M12 17h5"
+    ];
+    function profileInterestIcon(index) {
+      const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("class", "rm-profile-tag-icon");
+      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", PROFILE_INTEREST_ICONS[index % PROFILE_INTEREST_ICONS.length]);
+      svg.append(path);
+      return svg;
+    }
+    function renderProfileInterests(card) {
+      if (!profileInterests) return;
+      const items = (Array.isArray(card?.interests) ? card.interests : []).map((value) => String(value ?? "").trim()).filter((value) => value.length > 0).slice(0, 10);
+      profileInterests.replaceChildren();
+      profileInterests.hidden = items.length === 0;
+      items.forEach((label, index) => {
+        const item = element5("li", "rm-profile-tag");
+        const text4 = element5("span", "rm-profile-tag-label");
+        text4.textContent = label;
+        item.append(profileInterestIcon(index), text4);
+        profileInterests.append(item);
+      });
+    }
+    function profileMissingFields(card) {
+      const missing = [];
+      if (!String(card?.description ?? "").trim()) missing.push("简介");
+      if (profileInterestCount(card) === 0) missing.push("兴趣");
+      if (!String(card?.conversationStyle ?? "").trim()) missing.push("公开交流风格");
+      return missing;
+    }
+    function profileInterestCount(card) {
+      return (Array.isArray(card?.interests) ? card.interests : []).filter((value) => String(value ?? "").trim().length > 0).length;
+    }
+    function snapshotCardFor(peerId2) {
+      const snapshot = verifiedContactProfileFor(peerId2);
+      if (!snapshot) return null;
+      return {
+        schemaVersion: 1,
+        displayName: snapshot.displayName,
+        description: snapshot.description || "",
+        interests: Array.isArray(snapshot.interests) ? snapshot.interests : [],
+        conversationStyle: snapshot.conversationStyle || "",
+        updatedAt: "",
+        path: "",
+        sha256: "",
+        avatarPath: "",
+        avatarSha256: "",
+        avatarMime: "",
+        legacyFallback: false,
+        sourceWarning: ""
+      };
+    }
+    function renderPeerAvatar(peerId2, card, manifest, { displayName = "", snapshotUrl = "" } = {}) {
+      if (!profileAvatar) return;
+      const avatarPath = String(card?.avatarPath ?? "");
+      const avatarSha = String(card?.avatarSha256 ?? "").toLowerCase();
+      const avatarMime = String(card?.avatarMime ?? "");
+      const entry = avatarPath && Array.isArray(manifest?.entries) ? manifest.entries.find((item) => item.path === avatarPath) : null;
+      const key2 = avatarKeyForPeer(peerId2, card, manifest);
+      const cached = peerAvatarState.get(peerId2);
+      const cachedMatches = cached && cached.key === key2 && cached.state === "ready" && cached.url;
+      const snapshotMatches = !cachedMatches && snapshotUrl && /^data:image\/(?:png|jpeg);base64,/i.test(snapshotUrl);
+      profileAvatar.replaceChildren();
+      profileAvatar.dataset.kind = cachedMatches || snapshotMatches ? "image" : "initial";
+      if (cachedMatches || snapshotMatches) {
+        const image = element5("img", "rm-profile-avatar-img");
+        image.src = cachedMatches ? cached.url : snapshotUrl;
+        image.alt = "";
+        image.decoding = "async";
+        profileAvatar.append(image);
+        return;
+      }
+      profileAvatar.textContent = contactInitial({ name: displayName, peerId: peerId2 });
+      if (!key2 || !avatarMime || !entry || typeof options.onLoadPeerFileContent !== "function") return;
+      if (cached && cached.key === key2 && (cached.state === "loading" || cached.state === "error")) return;
+      peerAvatarState.set(peerId2, { key: key2, state: "loading", url: "" });
+      void options.onLoadPeerFileContent(peerId2, avatarPath, avatarSha, entry.sizeBytes).then((preview) => {
+        if (destroyed) return;
+        const valid = preview?.status === "ok" && preview.kind === "image" && preview.mime === avatarMime && String(preview.sha256 ?? "").toLowerCase() === avatarSha && Number(preview.sizeBytes) === Number(entry.sizeBytes) && typeof preview.dataUrl === "string" && preview.dataUrl.length > 0;
+        peerAvatarState.set(peerId2, valid ? { key: key2, state: "ready", url: preview.dataUrl } : { key: key2, state: "error", url: "" });
+        if (!profileView.hidden && profileState.peerId === peerId2) rerenderProfileKeepingPosition();
+        refreshContactAvatar(peerId2);
+      }).catch(() => {
+        if (destroyed) return;
+        peerAvatarState.set(peerId2, { key: key2, state: "error", url: "" });
+        if (!profileView.hidden && profileState.peerId === peerId2) rerenderProfileKeepingPosition();
+        refreshContactAvatar(peerId2);
+      });
+    }
     function renderProfile() {
       const peerId2 = profileState.peerId;
       const data = profileState.data;
-      profilePeerId.textContent = peerId2;
-      profileAvatar.textContent = (profileLabel(data, peerId2) || "?").slice(0, 1);
-      profileName.textContent = profileLabel(data, peerId2);
+      const remoteCard = data?.agentCard?.state === "available" ? data.agentCard.card : null;
+      const snapshot = peerId2 ? verifiedContactProfileFor(peerId2) : null;
+      const snapshotCard = snapshotCardFor(peerId2);
+      const preferSnapshot = Boolean(remoteCard && snapshotCard && (data.source === "local-copy" || data.source === "unavailable"));
+      const currentCard = preferSnapshot ? null : remoteCard;
+      const card = currentCard ?? snapshotCard;
+      const fromSnapshot = Boolean(currentCard === null && snapshotCard);
+      const localFriend = peerId2 ? contactFor(peerId2) : null;
+      const publicName = data ? profileLabel(data, peerId2) : "";
+      const fallbackName = localFriend ? contactRowName(localFriend) : "";
+      const agentName = String(card?.displayName ?? "").trim() || publicName || fallbackName || profileLabel(data, peerId2);
+      const isSelf = peerId2.length > 0 && peerId2 === selfPeerId();
+      const snapshotAt = Number(snapshot?.at) > 0 ? Number(snapshot.at) : 0;
+      profilePeerId.textContent = peerId2 || "—";
+      profileName.textContent = agentName || "联系人主页";
+      profileMessage.dataset.focusKey = `profile-message:${peerId2}`;
+      renderPeerAvatar(peerId2, currentCard, data?.manifest, {
+        displayName: agentName,
+        // A local, previously verified snapshot is used only when this read has
+        // no current public card. A current card with no/mismatched avatar must
+        // never borrow older bytes.
+        snapshotUrl: currentCard === null && snapshot ? contactAvatarUrl(peerId2) : ""
+      });
+      const readFailed = Boolean(profileState.error || data?.error);
+      profileAgentBadge.textContent = currentCard ? readFailed || data?.freshness && data.freshness !== "live" ? "上次公开档案" : "Agent" : fromSnapshot ? "上次公开档案" : readFailed ? "公开档案暂不可用" : "Agent 档案未公开";
+      profileAgentBadge.dataset.tone = currentCard && !readFailed ? "" : "unavailable";
+      const bio = String(card?.description ?? "").trim();
+      profileAgentDescriptionShort.textContent = bio;
+      profileAgentDescriptionShort.hidden = bio.length === 0;
+      renderProfileInterests(card);
+      const style = String(card?.conversationStyle ?? "").trim();
+      profileConversationStyle.textContent = style ? `公开交流风格 · ${style}` : "";
+      profileConversationStyle.hidden = style.length === 0;
+      let missingNote = "";
+      if (card) {
+        const missing = profileMissingFields(card);
+        if (missing.length > 0) missingNote = `公开档案未提供${missing.join("、")}。`;
+        else if (fromSnapshot && data === null) missingNote = "当前显示上次成功读取的公开档案；对方最新资料暂未确认。";
+      } else if (data === null && profileState.retrying) {
+        missingNote = "正在读取对方公开档案…";
+      } else if (data === null && profileState.error) {
+        missingNote = "对方公开档案暂时不可用。";
+      } else if (data?.error) {
+        missingNote = "公开档案暂时不可用。";
+      } else if (data?.agentCard?.state === "error") {
+        missingNote = "对方公开 Agent 档案这次没有读取到。";
+      } else if (data) {
+        missingNote = data.found ? "对方没有公开 Agent 卡片。" : "对方没有公开用户档案。";
+      } else {
+        missingNote = "还没有读取到公开档案。";
+      }
+      profileMissingNote.textContent = missingNote;
+      profileMissingNote.hidden = missingNote.length === 0;
+      let freshnessText = "";
+      if (data?.source === "local-copy") {
+        freshnessText = `本机历史副本${snapshotAt > 0 ? ` · 上次成功读取 ${formatDateTime(snapshotAt)}` : ""}`;
+      } else if (fromSnapshot) {
+        freshnessText = `上次成功读取 ${formatDateTime(snapshotAt) || "时间未知"} · 当前未能刷新`;
+      } else if (data?.error) {
+        freshnessText = `本次读取没有完成${data.at ? ` · ${formatDateTime(data.at)}` : ""}`;
+      } else if (data?.freshness && data.freshness !== "live") {
+        freshnessText = `上次读取 ${formatDateTime(data.at) || "时间未知"} · 最新状态未确认`;
+      } else if (data === null && profileState.retrying) {
+        freshnessText = "正在读取公开档案…";
+      }
+      profileFreshness.textContent = freshnessText;
+      profileFreshness.hidden = freshnessText.length === 0;
+      renderProfileTabs();
       profileBody.replaceChildren();
       profileBodyNote.hidden = true;
       profileError.hidden = true;
       profileRetry.hidden = true;
+      profileRetry.disabled = false;
       profileStale.hidden = true;
-      profileAgentSummary.hidden = true;
-      profileAgentNote.hidden = true;
-      profileAgentOpen.onclick = null;
-      const localFriend = profileState.peerId ? contactFor(profileState.peerId) : null;
+      profileStale.textContent = "";
+      profileError.textContent = "";
+      profileReadDetails.hidden = true;
+      profileReadRaw.textContent = "";
+      profileOriginNote.hidden = true;
+      profileOriginNote.textContent = "";
+      profileHumanStrip.hidden = true;
+      profileHumanSummary.hidden = true;
+      profileHumanSummary.textContent = "";
+      profileHumanHeadingLabel.textContent = "公开资料";
+      profileHumanName.textContent = "";
+      profileHumanName.hidden = true;
+      const technicalErrors = [];
+      const addTechnicalError = (label, raw) => {
+        const value = String(raw ?? "").trim();
+        if (value.length === 0) return;
+        technicalErrors.push(label ? `${label}
+${value}` : value);
+      };
+      profileOriginReadAt.textContent = data ? formatDateTime(data.at) || "—" : profileState.retrying ? "读取中" : "—";
+      profileOriginSnapshotAt.textContent = snapshotAt > 0 ? formatDateTime(snapshotAt) || "—" : "—";
+      profileOriginCardPath.textContent = String(card?.path ?? "").trim() || "—";
+      let sourceText = "";
+      if (data?.source === "local-copy") {
+        sourceText = "本机历史副本 · 对方当前资料没有读取成功。这不是当前的远端声明，也不证明对方在线。";
+      } else if (fromSnapshot) {
+        sourceText = "本机已核对的上次公开档案 · 当前未能刷新，不能当作实时资料。";
+      } else if (data?.source === "remote") {
+        sourceText = !data.found ? "对方没有公开用户档案。" : data.error ? "上次读取的公开资料 · 本次刷新没有完成，不能当作实时资料。" : "对方公开资料 · 远端声明，未在本机验证身份。";
+      } else if (data) {
+        sourceText = "本次没有读取到公开资料。";
+      } else if (profileState.retrying) {
+        sourceText = "正在读取对方公开资料…";
+      } else {
+        sourceText = "本次没有读取到公开资料。";
+      }
+      profileSource.textContent = sourceText;
+      const localName = String(localFriend?.name ?? "").trim();
+      const localDescription = String(localFriend?.description ?? "").trim();
+      profileLocalNote.hidden = localName.length === 0 && localDescription.length === 0;
+      const localSummary = [localName, localDescription].filter((value) => value.length > 0).join(" · ").replace(/[。.\s]+$/, "");
+      profileLocalNote.textContent = localSummary.length > 0 ? `本机备注：${localSummary}。仅在本机显示，不修改对方档案。` : "";
+      profileAgentOpen.hidden = !card;
+      profileAgentOpen.onclick = card ? () => openAgentCardDialog(card, peerId2, { snapshotAt: fromSnapshot ? snapshotAt : 0 }) : null;
+      profileMessage.hidden = peerId2.length === 0 || isSelf;
+      profileMessage.onclick = peerId2.length === 0 || isSelf ? null : () => {
+        const target = peerId2;
+        const tab = view.contactProfile.tab;
+        const scroll2 = profileChatEntryScroll(profileMessage, profileView.scrollTop);
+        openConversation(target, {
+          source: "profile",
+          profileTab: tab,
+          profileScroll: scroll2,
+          returnFocus: profileMessage.dataset.focusKey || `profile-message:${target}`
+        });
+      };
       profileEditContact.hidden = !(friendEditCapable && localFriend);
       profileEditContact.onclick = friendEditCapable && localFriend ? () => openEditContact(profileState.peerId, profileEditContact) : null;
-      profileSource.textContent = "远端声明 · 来自对方公开文件与网络读取，未在本机验证身份。";
+      profileAddContact.hidden = !(peerProfileCapable && peerId2 && !isSelf && profileContactsKnown() && !localFriend);
+      profileAddContact.onclick = peerProfileCapable && peerId2 && !isSelf && profileContactsKnown() && !localFriend ? () => {
+        openAddDialog(profileAddContact);
+        addContactInput.value = peerId2;
+      } : null;
+      if (profileFilesOpen) {
+        profileFilesOpen.onclick = data === null ? null : () => {
+          profileState.filesReturnTab = view.contactProfile.tab === "posts" || view.contactProfile.tab === "address" ? view.contactProfile.tab : "interactions";
+          profileState.filesReturnScroll = profileView.scrollTop;
+          profileState.filesOpen = true;
+          profileView.scrollTop = 0;
+          renderProfileTabs();
+          profileFilesClose?.focus?.({ preventScroll: true });
+        };
+      }
+      if (profileFilesClose) {
+        profileFilesClose.onclick = () => {
+          const scroll2 = Math.max(0, Number(profileState.filesReturnScroll) || 0);
+          profileState.filesOpen = false;
+          view.contactProfile.tab = profileState.filesReturnTab || "interactions";
+          renderProfileTabs();
+          profileView.scrollTop = scroll2;
+          profileFilesOpen?.focus?.({ preventScroll: true });
+        };
+      }
+      if (profileFilesRefresh) {
+        profileFilesRefresh.disabled = data === null || profileState.retrying;
+        profileFilesRefresh.onclick = data === null || profileState.retrying ? null : () => {
+          void loadPeerProfile(peerId2, true);
+        };
+      }
+      if (profileAddressRetry) {
+        profileAddressRetry.onclick = peerId2.length === 0 ? null : () => {
+          void loadPeerFriends(peerId2, true);
+        };
+      }
+      renderProfilePublicFiles(peerId2, data);
+      renderProfileFriends();
+      if (profileFilesOpen) profileFilesOpen.hidden = data === null || profileState.filesOpen;
+      renderPeerNodeInfo(data?.node ?? null);
       if (data === null) {
-        profileBodyNote.textContent = profileState.error || "正在读取对方公开资料…";
-        profileBodyNote.hidden = false;
+        profileHumanStrip.hidden = true;
+        profileBodyNote.textContent = profileState.error ? readFailureSummary(profileState.error, "没有读取到对方公开资料。") : fromSnapshot ? "正在重新读取对方公开资料；下面保留上次读取的公开卡片。" : "正在读取对方公开资料…";
+        profileBodyNote.hidden = true;
         if (profileState.error) {
-          profileError.textContent = profileState.error;
+          addTechnicalError("公开资料读取", profileState.error);
+          profileError.textContent = readFailureSummary(profileState.error, "没有读取到对方公开资料。");
           profileError.hidden = false;
+          profileReadRaw.textContent = technicalErrors.join("\n\n");
+          profileReadDetails.hidden = false;
           profileRetry.hidden = !peerProfileCapable;
-          profileRetry.textContent = profileState.retrying ? "正在重试…" : "重试读取对方资料";
+          profileRetry.disabled = profileState.retrying;
+          profileRetry.textContent = profileState.retrying ? "正在重试…" : "重试读取公开档案";
           profileRetry.onclick = () => {
             void loadPeerProfile(peerId2, true);
           };
@@ -6841,77 +17995,131 @@ ${resultDetail}`;
         return;
       }
       if (profileState.error) {
-        profileStale.textContent = `这次读取没有完成：${profileState.error}。下面是上次成功结果或仅有的公开信息。`;
+        addTechnicalError("本次读取", profileState.error);
+        profileStale.textContent = `这次读取没有完成：${readFailureSummary(profileState.error)} ${card ? "下面是上次成功结果或仅有的公开信息。" : "这不代表对方没有公开档案；下面是本机仅有的记录。"}`;
         profileStale.hidden = false;
         profileRetry.hidden = false;
-        profileRetry.textContent = profileState.retrying ? "正在重试…" : "重试读取对方资料";
+        profileRetry.disabled = profileState.retrying;
+        profileRetry.textContent = profileState.retrying ? "正在重试…" : "重试读取公开档案";
+        profileRetry.onclick = () => {
+          void loadPeerProfile(peerId2, true);
+        };
+      } else if (data.error) {
+        addTechnicalError("本次读取", data.error);
+        profileStale.textContent = `这次读取没有完成：${readFailureSummary(data.error)} ${card ? "下面是上次成功结果或仅有的公开信息。" : "这不代表对方没有公开档案；下面是本机仅有的记录。"}`;
+        profileStale.hidden = false;
+        profileRetry.hidden = false;
+        profileRetry.disabled = profileState.retrying;
+        profileRetry.textContent = profileState.retrying ? "正在重试…" : "重试读取公开档案";
+        profileRetry.onclick = () => {
+          void loadPeerProfile(peerId2, true);
+        };
+      } else if (data.manifest?.error) {
+        addTechnicalError("公开清单读取", data.manifest.error);
+        profileStale.textContent = `对方当前公开清单没有读取成功：${readFailureSummary(data.manifest.error)} 下面显示本机已保留的信息。`;
+        profileStale.hidden = false;
+        profileRetry.hidden = false;
+        profileRetry.disabled = profileState.retrying;
+        profileRetry.textContent = profileState.retrying ? "正在刷新…" : "重试读取当前公开清单";
         profileRetry.onclick = () => {
           void loadPeerProfile(peerId2, true);
         };
       }
+      if (data.agentCard?.state === "error") addTechnicalError("公开 Agent 资料", data.agentCard.error);
+      if (technicalErrors.length > 0) {
+        profileReadRaw.textContent = technicalErrors.join("\n\n");
+        profileReadDetails.hidden = false;
+      }
+      const humanName = String(data.remoteName ?? "").trim();
+      const humanSummary = plainSummary(data.text);
+      const humanDistinct = humanName.length > 0 && humanName !== agentName;
+      const sameIntro = humanSummary.length > 0 && bio.length > 0 && (humanSummary === bio || bio.startsWith(humanSummary) || humanSummary.startsWith(bio));
+      const showHumanSummary = humanSummary.length > 0 && !sameIntro;
+      profileHumanHeadingLabel.textContent = humanDistinct ? "关联人类 · " : "公开资料";
+      profileHumanName.textContent = humanDistinct ? humanName : "";
+      profileHumanName.hidden = !humanDistinct;
+      profileHumanSummary.textContent = showHumanSummary ? humanSummary : "";
+      profileHumanSummary.hidden = !showHumanSummary;
+      profileHumanStrip.hidden = !humanDistinct && !showHumanSummary && !data.text;
       if (!data.found) {
-        profileBodyNote.textContent = "对方没有公开用户档案。这里只保留 Peer ID 和本地联系人名称，不生成虚构资料。";
+        profileBodyNote.textContent = "对方没有公开用户档案。";
         profileBodyNote.hidden = false;
       } else if (data.text) {
-        renderMarkdownInto(profileBody, data.text);
+        const bodyText = data.text.replace(/^\s*#\s+[^\n]*(?:\r?\n)+/, "");
+        renderMarkdownInto(profileBody, bodyText.trim() || data.text);
       } else {
         profileBodyNote.textContent = "对方公开档案没有正文。";
         profileBodyNote.hidden = false;
       }
-      const card = data.agentCard;
-      if (card?.state === "available" && card.card) {
-        profileAgentSummary.hidden = false;
-        profileAgentName.textContent = card.card.displayName;
-        profileAgentDescription.textContent = card.card.description || "对方没有填写 Agent 描述。";
-        profileAgentOpen.onclick = () => openAgentCardDialog(card.card, peerId2);
-      } else if (card?.state === "error") {
-        profileAgentNote.textContent = `对方公开 Agent 资料无法读取：${card.error}。不生成虚构档案。`;
-        profileAgentNote.hidden = false;
-      } else {
-        profileAgentNote.textContent = "对方没有公开 Agent 卡片；用户资料与 Agent 资料分开，不因联系人存在就生成 Agent 档案。";
-        profileAgentNote.hidden = false;
+      const activeTab = view.contactProfile.tab === "posts" || view.contactProfile.tab === "address" ? view.contactProfile.tab : "interactions";
+      if (!profileState.filesOpen && activeTab === "interactions" && profileIsContact(peerId2) && profileState.memory.data === null && !profileState.memory.retrying && peerId2) {
+        void loadContactMemory(peerId2, false);
+      }
+      if (!profileState.filesOpen && activeTab === "posts" && profileState.posts.data === null && !profileState.posts.retrying && peerId2) {
+        void loadPeerDiscoveries(peerId2, false);
       }
     }
-    function openAgentCardDialog(card, peerId2) {
-      agentCardSource.textContent = "来源：对方公开的 Agent 档案 · 远端声明，未验证身份";
+    function openAgentCardDialog(card, peerId2, { snapshotAt = 0 } = {}) {
+      const snapshot = Number(snapshotAt) > 0;
+      agentCardSource.textContent = snapshot ? `来源：本机上次成功读取的公开 Agent 档案${formatDateTime(snapshotAt) ? ` · ${formatDateTime(snapshotAt)}` : ""} · 当前未能刷新` : "来源：对方公开的 Agent 档案 · 远端声明，未验证身份";
       agentCardBody.replaceChildren();
-      const facts = element("dl", "rm-facts");
+      const facts = element5("dl", "rm-facts");
       const add = (label, value) => {
         if (!value) return;
-        const row = element("div");
-        const key2 = element("dt");
+        const row = element5("div");
+        const key2 = element5("dt");
         key2.textContent = label;
-        const val = element("dd");
+        const val = element5("dd");
         val.textContent = value;
         row.append(key2, val);
         facts.append(row);
       };
-      add("名称", card.displayName);
-      add("介绍", card.description);
-      add("兴趣", card.interests.join("、"));
-      add("交流偏好", card.conversationStyle);
-      add("更新时间", formatDateTime(card.updatedAt));
+      const interests = (Array.isArray(card?.interests) ? card.interests : []).map((value) => String(value ?? "").trim()).filter((value) => value.length > 0);
+      add("名称", String(card?.displayName ?? "").trim());
+      add("介绍", String(card?.description ?? "").trim());
+      add("兴趣", interests.join("、"));
+      add("交流偏好", String(card?.conversationStyle ?? "").trim());
+      add("更新时间", snapshot ? "" : formatDateTime(card?.updatedAt));
+      if (snapshot) add("上次成功读取", formatDateTime(snapshotAt));
       agentCardBody.append(facts);
       agentCardBody.append(sourceDetails({
         rows: [
-          ["公开文件", card.path],
-          ["内容版本", card.sha256],
-          ["更新时间", formatDateTime(card.updatedAt)],
+          ["公开文件", snapshot ? "" : card?.path],
+          ["内容版本", snapshot ? "" : card?.sha256],
+          ["更新时间", snapshot ? "" : formatDateTime(card?.updatedAt)],
           ["来源节点", peerId2]
         ],
-        note: "这是对方公开的 Agent 自我介绍，不证明 Agent 在线，也不证明某条消息由 Agent 发出。"
-      }));
+        note: snapshot ? "这是本机上次成功读取的公开自我介绍，当前没有刷新成功；不证明 Agent 在线。" : "这是对方公开的 Agent 自我介绍，不证明 Agent 在线，也不证明某条消息由 Agent 发出。"
+      }, { sourceOpen: view.pages.explore.sourceOpen, save: scheduleSave }));
       openDialog(agentCardDialog, profileAgentOpen);
     }
     function ensurePageData(page) {
       if (!hostReady || !profileView.hidden) return;
-      if (page === "explore") ensureDiscoveriesFresh(false);
-      if (page === "mine" && mineCapable && mineState.data === null) {
+      if (page === "post") {
+        if (view.post.source === "mine") {
+          if (mineCapable && mineState.data === null) void loadMine(false);
+        } else if (discoveriesCapable) {
+          ensureDiscoveriesFresh(false);
+        }
+        renderPostDetailPage();
+      }
+      if (page === "explore") {
+        if (view.pages.explore.filter === "mine") {
+          if (mineCapable && mineState.data === null) void loadMine(false);
+          updateMineFeedState();
+        } else {
+          ensureDiscoveriesFresh(false);
+        }
+      }
+      if ((page === "home" || page === "settings") && mineCapable && mineState.data === null) {
         void loadMine(false);
       }
-      if (page === "raminga" && journeyCapable && journeyCacheNeedsRead()) {
+      if ((page === "home" || page === "settings" || page === "journeys" || page === "journey") && journeyCapable && journeyCacheNeedsRead()) {
         void loadJourney(false);
       }
+      if (page === "settings") renderSettingsView();
+      if (page === "journeys") renderJourneysPage();
+      if (page === "journey") renderJourneyDetailPage();
     }
     async function loadMine(force = false) {
       if (destroyed || !mineCapable) {
@@ -6935,47 +18143,20 @@ ${resultDetail}`;
       } finally {
         if (!destroyed && request === mineState.requestSeq) {
           mineState.retrying = false;
+          refreshHomeAvatar();
           renderMine();
+          if (currentPage === "settings") renderSettingsFavorites();
+          if (currentPage === "post") renderPostDetailPage();
         }
       }
     }
     function renderMineIdentity() {
       const phase = nodeState.phase;
-      const status = nodeState.status;
-      const stale = phase !== "ready" && Boolean(status);
       mineIdentity.dataset.phase = phase;
       mineDetails.replaceChildren();
       mineDetails.hidden = true;
       mineIdentityAction.hidden = true;
       mineIdentityAction.onclick = null;
-      if (status) {
-        mineSummary.textContent = `${stale ? "最近一次结果 · " : "本机节点 · "}${shortPeer(status.peerId)}`;
-        mineDetails.hidden = false;
-        mineDetails.append(
-          detailRow("节点标识", shortPeer(status.peerId), false)
-        );
-      } else if (phase === "loading") {
-        mineSummary.textContent = "正在读取本机节点信息…";
-      } else if (phase === "error") {
-        mineSummary.textContent = "本机节点暂时不可用";
-      } else if (phase === "stale" || phase === "closed") {
-        mineSummary.textContent = "实时更新已中断";
-      }
-      if (phase === "error" || phase === "stale" || phase === "closed") {
-        const note = element("p", "rm-inline-note");
-        note.textContent = phase === "error" ? `${stale ? "暂时读不到本机节点信息，上面保留的是最近一次结果。" : "暂时读不到本机节点信息，请稍后重试。"}` : phase === "stale" ? `实时更新已中断，正在重试。上面保留的是 ${refreshedText(nodeState.statusAt)} 的结果。` : "实时更新已暂停，刷新可以重新读取。";
-        mineDetails.hidden = false;
-        mineDetails.append(note);
-        mineIdentityAction.hidden = false;
-        mineIdentityAction.textContent = phase === "error" ? "重试读取" : "刷新节点状态";
-        mineIdentityAction.onclick = () => requestRefresh({ visible: true });
-      } else if (phase === "ready" && !status) {
-        mineSummary.textContent = "本机服务已响应，但没有返回节点信息";
-        mineIdentityAction.hidden = false;
-        mineIdentityAction.textContent = "重新读取";
-        mineIdentityAction.onclick = () => requestRefresh({ visible: true });
-      }
-      mineRefresh.title = typeof options.onRefresh === "function" ? "刷新节点状态" : "刷新暂时不可用";
     }
     function setNodeStatus(next = {}) {
       if (destroyed) return;
@@ -7029,6 +18210,41 @@ ${resultDetail}`;
       nodeState.stats = stats;
       renderStatusDialog();
     }
+    function setActivity(value) {
+      if (destroyed) return;
+      if (value === null || typeof value !== "object") {
+        setActivityError("工具活动读取没有返回结果");
+        return;
+      }
+      const featuredBefore = activityFeaturedSessionId();
+      const nextInstance = typeof value.instanceId === "string" ? value.instanceId : "";
+      if (activityState.instanceId && nextInstance && activityState.instanceId !== nextInstance) {
+        activityState.previousInstanceId = activityState.instanceId;
+        activityState.detail = { id: "", data: null, loading: false, error: "", request: activityState.detail.request + 1 };
+        view.home.activityExpanded = false;
+      }
+      activityState.data = {
+        operations: Array.isArray(value.operations) ? value.operations : [],
+        instanceId: nextInstance,
+        readAt: Number(value.readAt) > 0 ? Number(value.readAt) : 0,
+        truncated: value.truncated === true,
+        badLines: Number.isFinite(Number(value.badLines)) ? Number(value.badLines) : 0,
+        error: typeof value.error === "string" ? value.error : ""
+      };
+      activityState.instanceId = nextInstance;
+      activityState.error = typeof value.error === "string" ? value.error : "";
+      if (activityFeaturedSessionId() !== featuredBefore) renderJourney();
+      else renderHome();
+    }
+    function setActivityError(error) {
+      if (destroyed) return;
+      const featuredBefore = activityFeaturedSessionId();
+      activityState.error = errorText(error) || "Raminga 工具活动读取失败";
+      activityState.detail = { id: "", data: null, loading: false, error: "", request: activityState.detail.request + 1 };
+      view.home.activityExpanded = false;
+      if (activityFeaturedSessionId() !== featuredBefore) renderJourney();
+      else renderHome();
+    }
     function getDraft2(key2) {
       return getDraft(view, key2);
     }
@@ -7048,8 +18264,21 @@ ${resultDetail}`;
         at: Date.now()
       };
     }
+    function rememberProfileChatPress(event) {
+      if (profileView.hidden) return;
+      const trigger = event.target.closest?.("[data-profile-chat-return]");
+      if (!trigger) return;
+      if (profileChatPress && profileChatPress.trigger === trigger && Date.now() - profileChatPress.at <= 1e3) return;
+      profileChatPress = {
+        trigger,
+        scroll: Math.max(0, profileView.scrollTop || 0),
+        at: Date.now()
+      };
+    }
     root.addEventListener("pointerdown", rememberProfilePress, { capture: true, signal: controller.signal });
     root.addEventListener("mousedown", rememberProfilePress, { capture: true, signal: controller.signal });
+    root.addEventListener("pointerdown", rememberProfileChatPress, { capture: true, signal: controller.signal });
+    root.addEventListener("mousedown", rememberProfileChatPress, { capture: true, signal: controller.signal });
     root.addEventListener("click", (event) => {
       const target = event.target.closest?.("[data-profile-peer]");
       if (!target) return;
@@ -7074,7 +18303,300 @@ ${resultDetail}`;
       if (path.includes(contactQuickMenu) || path.includes(quickMenuTrigger)) return;
       closeContactQuickMenu({ restoreFocus: false, quiet: true });
     }, { capture: true, signal: controller.signal });
-    root.querySelectorAll("nav").forEach((nav) => {
+    root.addEventListener("click", (event) => {
+      const trigger = event.target.closest?.("[data-settings-open]");
+      if (trigger) {
+        event.preventDefault();
+        openSettings(trigger.dataset.settingsTab || "");
+        return;
+      }
+      const tab = event.target.closest?.("[data-settings-tab]");
+      if (tab && !tab.disabled) {
+        event.preventDefault();
+        selectSettingsTab(tab.dataset.settingsTab);
+        return;
+      }
+      if (event.target.closest?.("[data-settings-back]")) {
+        event.preventDefault();
+        if (returnToFavoritesFromSource()) return;
+        if (settingsDirectEntry) {
+          closeSettings();
+          return;
+        }
+        clearSettingsFavoriteReturn();
+        view.settings.index = true;
+        renderSettingsView();
+        pageEls.settings.scrollTop = 0;
+        saveNow();
+        return;
+      }
+      if (event.target.closest?.("[data-messages-open]")) {
+        event.preventDefault();
+        openMessagesIndex(currentPage);
+        return;
+      }
+      const profileTab = event.target.closest?.("[data-profile-tab]");
+      if (profileTab) {
+        event.preventDefault();
+        const next = profileTab.dataset.profileTab;
+        if (!["interactions", "posts", "address"].includes(next)) return;
+        if ((next === "interactions" || next === "address") && profileContactsKnown() && !profileIsContact()) return;
+        view.contactProfile.tab = next;
+        profileScrollMemory = { tab: next, scroll: 0, at: 0 };
+        profileState.filesOpen = false;
+        renderProfileTabs();
+        if (next === "address" && profileState.friends.data === null && !profileState.friends.retrying) {
+          void loadPeerFriends(profileState.peerId, false);
+        }
+        if (next === "posts" && profileState.posts.data === null && !profileState.posts.retrying) {
+          void loadPeerDiscoveries(profileState.peerId, false);
+        }
+        if (next === "interactions" && profileState.memory.data === null && !profileState.memory.retrying) {
+          void loadContactMemory(profileState.peerId, false);
+        }
+        saveNow();
+      }
+    }, { signal: controller.signal });
+    settingsTrigger.addEventListener("click", () => {
+      if (currentPage === "settings") closeSettings();
+      else openSettings("");
+    }, { signal: controller.signal });
+    settingsClose.addEventListener("click", closeSettings, { signal: controller.signal });
+    settingsFavoritesMore.addEventListener("click", () => {
+      if (!favoritesState.hasMore || favoritesState.loading || !favoritesState.nextBefore) return;
+      void loadFavorites({ before: favoritesState.nextBefore, append: true });
+    }, { signal: controller.signal });
+    settingsNodeStatus.addEventListener("click", (event) => openDialog(statusDialog, event.currentTarget), { signal: controller.signal });
+    settingsNodeShare.addEventListener("click", (event) => openShareDialog(event.currentTarget), { signal: controller.signal });
+    for (const [field, input] of [["persona", settingsStableInput], ["growth", settingsGrowthInput]]) {
+      input.addEventListener("input", () => {
+        privateEditors[field].dirty = true;
+        privateEditors[field].error = "";
+        renderPrivateEditors();
+        saveNow();
+      }, { signal: controller.signal });
+    }
+    settingsStableSave.addEventListener("click", () => {
+      void savePrivateEditor("persona");
+    }, { signal: controller.signal });
+    settingsGrowthSave.addEventListener("click", () => {
+      void savePrivateEditor("growth");
+    }, { signal: controller.signal });
+    settingsStableReload.addEventListener("click", () => {
+      privateEditors.persona.dirty = false;
+      privateEditors.persona.error = "";
+      void loadJourney(true);
+    }, { signal: controller.signal });
+    settingsGrowthReload.addEventListener("click", () => {
+      privateEditors.growth.dirty = false;
+      privateEditors.growth.error = "";
+      void loadJourney(true);
+    }, { signal: controller.signal });
+    for (const input of [publicAgentName, publicAgentDescription, publicAgentInterests, publicAgentStyle, publicHumanName, publicHumanBio]) {
+      input.addEventListener("input", () => {
+        scheduleProfileSave();
+        if (input === publicHumanBio) renderHumanPreview();
+      }, { signal: controller.signal });
+    }
+    publicDraftSave.addEventListener("click", () => {
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      void saveProfileDraft({ manual: true }).then(() => {
+        if (!destroyed) publicDraftSave.focus?.({ preventScroll: true });
+      });
+    }, { signal: controller.signal });
+    publicDraftReload.addEventListener("click", handleProfileReload, { signal: controller.signal });
+    publicPublishButton.addEventListener("click", () => {
+      void requestProfilePublish();
+    }, { signal: controller.signal });
+    publicPublishCancel.addEventListener("click", () => {
+      if (profileDraftState.publishing) return;
+      profileDraftState.confirm = false;
+      profileDraftState.confirmSnapshot = "";
+      profileDraftState.confirmNotice = "";
+      profileDraftState.reloadArmed = false;
+      publicPublishButton.textContent = "检查发布内容";
+      publicPublishCancel.hidden = true;
+      publicPublishButton.focus?.({ preventScroll: true });
+      renderProfileDraftStatus();
+    }, { signal: controller.signal });
+    publicAvatarInput.addEventListener("change", () => {
+      const file = publicAvatarInput.files?.[0] ?? null;
+      publicAvatarInput.value = "";
+      if (!file || profileDraftState.publishing) return;
+      if (!["image/png", "image/jpeg"].includes(file.type)) {
+        profileDraftState.error = "头像只支持 PNG 或 JPEG。";
+        profileDraftState.avatarError = "头像只支持 PNG 或 JPEG。";
+        renderProfileDraftStatus();
+        return;
+      }
+      if (file.size > 4 * 1024 * 1024) {
+        profileDraftState.error = "头像超过 4 MiB。";
+        profileDraftState.avatarError = "头像超过 4 MiB。";
+        renderProfileDraftStatus();
+        return;
+      }
+      profileDraftState.avatarFile = file;
+      profileDraftState.avatarClear = false;
+      profileDraftState.avatarAssetId = "";
+      profileDraftState.avatarError = "";
+      profileDraftState.avatarLoadingAssetId = "";
+      releaseDraftAssetScope("profile");
+      releaseProfileAvatarPreview();
+      renderProfileAvatar();
+      const Reader = win.FileReader ?? globalThis.FileReader;
+      if (typeof Reader !== "function") {
+        profileDraftState.avatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
+        scheduleProfileSave();
+        return;
+      }
+      const reader = new Reader();
+      reader.onload = () => {
+        if (destroyed || profileDraftState.avatarFile !== file) return;
+        profileDraftState.avatarPreviewUrl = String(reader.result ?? "");
+        profileDraftState.avatarPreviewObject = false;
+        renderProfileAvatar();
+      };
+      reader.onerror = () => {
+        if (destroyed || profileDraftState.avatarFile !== file) return;
+        profileDraftState.avatarError = "读取本地头像预览失败；保存时仍会重试上传。";
+        renderProfileDraftStatus();
+      };
+      reader.readAsDataURL(file);
+      profileDraftState.error = "";
+      scheduleProfileSave();
+    }, { signal: controller.signal });
+    publicAvatarClear.addEventListener("click", () => {
+      if (profileDraftState.publishing) return;
+      profileDraftState.avatarFile = null;
+      profileDraftState.avatarAssetId = "";
+      profileDraftState.avatarClear = true;
+      profileDraftState.avatarError = "";
+      profileDraftState.avatarLoadingAssetId = "";
+      releaseDraftAssetScope("profile");
+      releaseProfileAvatarPreview();
+      renderProfileAvatar();
+      scheduleProfileSave();
+    }, { signal: controller.signal });
+    publicRestorePublished.addEventListener("click", () => {
+      void restorePublishedProfile();
+    }, { signal: controller.signal });
+    composePost.addEventListener("click", () => {
+      void openPostEditor({ trigger: composePost });
+    }, { signal: controller.signal });
+    postEditorClose.addEventListener("click", () => closePostEditor(), { signal: controller.signal });
+    postEditorDismiss.addEventListener("click", () => closePostEditor(), { signal: controller.signal });
+    postWriteAnother.addEventListener("click", startAnotherPost, { signal: controller.signal });
+    postRestoreStash.addEventListener("click", () => {
+      restorePostEditorStash({ focus: true, replace: postEditorHasUnsavedChanges() });
+    }, { signal: controller.signal });
+    postDiscardStash?.addEventListener("click", () => {
+      discardPostEditorStash({ focus: true });
+    }, { signal: controller.signal });
+    postSaveAsNew.addEventListener("click", () => {
+      void savePostAsNewDraft();
+    }, { signal: controller.signal });
+    postDraftSave.addEventListener("click", () => {
+      if (postSaveTimer !== null) {
+        win.clearTimeout(postSaveTimer);
+        postSaveTimer = null;
+      }
+      void savePostDraft();
+    }, { signal: controller.signal });
+    postPublishButton.addEventListener("click", () => {
+      void publishPost();
+    }, { signal: controller.signal });
+    postPublishCancel.addEventListener("click", () => cancelPostConfirm({ focus: true }), { signal: controller.signal });
+    postEditorPanel.addEventListener("click", (event) => {
+      if (event.target === postEditorPanel || event.target.closest?.("#postEditorDismiss")) {
+        closePostEditor();
+      }
+    }, { signal: controller.signal });
+    postEditorPanel.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closePostEditor();
+    }, { signal: controller.signal });
+    postDraftSelect.addEventListener("change", async () => {
+      if (postEditorState.saving || postEditorState.uploading || postEditorState.publishing || postEditorState.loading || postEditorState.validatingImages > 0) return;
+      if (postEditorStashWouldBeReplaced()) {
+        blockPostEditorStashReplacement("切换草稿");
+        return;
+      }
+      const wasConfirming = postEditorState.confirm;
+      const id = postDraftSelect.value;
+      const previousView = postEditorViewSnapshot();
+      const stashed = capturePostEditorStash("切换草稿");
+      if (postSaveTimer !== null) {
+        win.clearTimeout(postSaveTimer);
+        postSaveTimer = null;
+      }
+      invalidatePostConfirm(wasConfirming ? "已切换草稿；旧确认已撤销，请重新检查发布内容。" : "");
+      postEditorState.receipt = null;
+      postEditorState.confirmNotice = wasConfirming ? "已切换草稿；旧确认已撤销，请重新检查发布内容。" : "";
+      clearPendingPostImages();
+      postEditorState.draft = null;
+      setPostForm(null);
+      postEditorState.dirty = false;
+      const seq = ++postEditorState.draftLoadSeq;
+      postEditorState.loading = true;
+      renderPostEditorStatus();
+      if (!id) {
+        postEditorState.loading = false;
+        postEditorState.draftEpoch += 1;
+        postEditorState.formVersion += 1;
+        resetPostEditorForm();
+        postEditorState.confirmNotice = wasConfirming ? "已切换到新建草稿；旧确认已撤销，请重新检查发布内容。" : "";
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = stashed ? "已切换到新建草稿；刚才的未保存内容已保留，可点“恢复未保存内容”找回。" : "已切换到新建草稿。";
+        renderPostEditorStatus();
+        postTitleInput.focus({ preventScroll: true });
+        return;
+      }
+      try {
+        const result = await options.onLoadPublicDraft(id);
+        if (seq !== postEditorState.draftLoadSeq || !postEditorState.open) return;
+        if (!result?.found || !result.draft) throw new Error("草稿不存在");
+        postEditorState.draft = result.draft;
+        postEditorState.draftEpoch += 1;
+        postEditorState.formVersion += 1;
+        setPostForm(result.draft);
+        postEditorState.dirty = false;
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = stashed ? "已载入所选草稿；切换前的未保存输入已保留，可点“恢复未保存内容”找回。" : "已载入所选草稿。";
+      } catch (error) {
+        if (seq !== postEditorState.draftLoadSeq || !postEditorState.open) return;
+        postEditorState.loading = false;
+        if (stashed) restorePostEditorStash();
+        else restorePostEditorView(previousView);
+        postEditorNote.hidden = false;
+        postEditorNote.textContent = `${errorText(error)}；原输入已保留。`;
+      } finally {
+        if (seq === postEditorState.draftLoadSeq) {
+          postEditorState.loading = false;
+          renderPostEditorStatus();
+          renderPostStashControl();
+        }
+      }
+    }, { signal: controller.signal });
+    for (const input of [postTitleInput, postBodyInput, postTagsInput]) {
+      input.addEventListener("input", schedulePostSave, { signal: controller.signal });
+    }
+    postAuthorKind.addEventListener("change", () => {
+      schedulePostSave();
+      renderPostAuthorNote();
+    }, { signal: controller.signal });
+    postImageInput.addEventListener("change", () => {
+      const files = [...postImageInput.files ?? []];
+      postImageInput.value = "";
+      if (files.length > 0) void addPostFiles(files);
+    }, { signal: controller.signal });
+    conversationIndexBack.addEventListener("click", () => {
+      const target = pageElsHas(view.pages.messages.indexReturnPage) && view.pages.messages.indexReturnPage !== "messages" ? view.pages.messages.indexReturnPage : "home";
+      showPage(target);
+    }, { signal: controller.signal });
+    root.querySelectorAll("nav.rm-nav").forEach((nav) => {
       nav.innerHTML = renderPrimaryNav(currentPage);
     });
     root.addEventListener("click", (event) => {
@@ -7097,14 +18619,26 @@ ${resultDetail}`;
       showPage(page);
     }, { signal: controller.signal });
     exploreRefresh.addEventListener("click", () => {
+      if (view.pages.explore.filter === "mine") {
+        void loadMine(true);
+        return;
+      }
       void refreshDiscoveries(true);
     }, { signal: controller.signal });
-    exploreSearchToggle.addEventListener("click", () => {
-      setSearchOpen(exploreSearch.hidden, { focus: true });
-    }, { signal: controller.signal });
     exploreQuery.addEventListener("input", () => {
+      updateExploreSearchState();
       updateExploreState();
       scheduleSave();
+    }, { signal: controller.signal });
+    exploreQuery.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && exploreQuery.value.length > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        clearExploreSearch({ focus: true });
+      }
+    }, { signal: controller.signal });
+    exploreClear?.addEventListener("click", () => {
+      clearExploreSearch({ focus: true });
     }, { signal: controller.signal });
     contactQuery.addEventListener("input", () => {
       updateContactsState();
@@ -7117,6 +18651,15 @@ ${resultDetail}`;
     $$("[data-filter]").forEach((button) => {
       button.addEventListener("click", () => setFilter(button.dataset.filter), { signal: controller.signal });
     });
+    for (const button of contactFilters) {
+      button.addEventListener("click", () => setContactFilter(button.dataset.contactFilter), { signal: controller.signal });
+    }
+    contactsMessages.addEventListener("click", () => {
+      openMessagesIndex("contacts");
+    }, { signal: controller.signal });
+    contactsShare.addEventListener("click", (event) => {
+      openShareDialog(event.currentTarget);
+    }, { signal: controller.signal });
     $("#addContact").addEventListener("click", (event) => {
       openAddDialog(event.currentTarget);
     }, { signal: controller.signal });
@@ -7124,45 +18667,232 @@ ${resultDetail}`;
       openShareDialog(event.currentTarget);
     }, { signal: controller.signal });
     contactList.addEventListener("click", (event) => {
+      const toggle = event.target.closest?.("button[data-toggle-peer]");
+      if (toggle) {
+        const row2 = toggle.closest?.("[data-contact-row]");
+        const peerId2 = row2?.dataset.contactRow ?? "";
+        if (row2 && peerId2) {
+          if (expandedContactIds.has(peerId2)) expandedContactIds.delete(peerId2);
+          else expandedContactIds.add(peerId2);
+          applyContactPeerIdVisibility(row2, peerId2);
+        }
+        return;
+      }
+      const copy = event.target.closest?.("button[data-copy-peer]");
+      if (copy) {
+        copyContactPeerId(copy.dataset.copyPeer, copy);
+        return;
+      }
+      const chatTrigger = event.target.closest?.("button[data-chat-peer]");
+      if (chatTrigger) {
+        openConversation(chatTrigger.dataset.chatPeer, {
+          source: "contacts",
+          returnFocus: chatTrigger.dataset.focusKey || `contact-chat:${chatTrigger.dataset.chatPeer}`
+        });
+        return;
+      }
       const row = event.target.closest?.("button[data-contact-peer]");
       if (!row) return;
-      openConversation(row.dataset.contactPeer, { source: "contacts" });
+      if (!peerProfileCapable) {
+        openConversation(row.dataset.contactPeer, { source: "contacts" });
+        return;
+      }
+      openPeerProfile(row.dataset.contactPeer, {
+        source: "contacts",
+        ref: row.dataset.profileRef || `contacts:${row.dataset.contactPeer}`,
+        trigger: row
+      });
     }, { signal: controller.signal });
+    if (contactClueList) {
+      contactClueList.addEventListener("click", (event) => {
+        const copy = event.target.closest?.("button[data-copy-peer]");
+        if (copy) {
+          copyContactPeerId(copy.dataset.copyPeer, copy);
+          return;
+        }
+        const view2 = event.target.closest?.("button[data-view-clue]");
+        if (!view2) return;
+        const clue = [...directoryClues.values()].find((item) => item.peerId === view2.dataset.viewClue) ?? null;
+        if (clue) openContactClue(clue, view2);
+      }, { signal: controller.signal });
+    }
     conversationList.addEventListener("click", (event) => {
       const row = event.target.closest?.("button[data-conversation-peer]");
       if (!row) return;
       openConversation(row.dataset.conversationPeer, { source: "messages" });
     }, { signal: controller.signal });
     discoveryList.addEventListener("click", (event) => {
-      const expand = event.target.closest?.("[data-expand-post]");
-      if (expand) {
-        togglePost(expand.dataset.expandPost);
-        return;
-      }
+      if (event.target.closest?.("[data-expand-post]")) return;
       const retry = event.target.closest?.("[data-retry-post]");
       if (retry) {
         void ensurePostContent(retry.dataset.retryPost, true);
       }
     }, { signal: controller.signal });
     ramingaSessionList.addEventListener("click", (event) => {
-      const toggle = event.target.closest?.("[data-session-toggle]");
-      if (toggle) {
-        toggleJourneySession(toggle.dataset.sessionToggle);
+      const tile = event.target.closest?.("[data-journey-open]");
+      if (tile) {
+        openJourneyDetail(tile.dataset.journeyOpen, {
+          source: tile.dataset.journeySource || "home",
+          returnFocus: tile.dataset.focusKey || `journey-home:${tile.dataset.journeyOpen}`
+        });
+      }
+    }, { signal: controller.signal });
+    homeJourneysAll.addEventListener("click", () => {
+      openJourneysPage();
+    }, { signal: controller.signal });
+    journeysBack.addEventListener("click", () => {
+      showPage("home");
+      pageEls.home.scrollTop = view.home.scroll;
+      saveNow();
+    }, { signal: controller.signal });
+    journeysRefresh.addEventListener("click", () => {
+      void loadJourney(true);
+    }, { signal: controller.signal });
+    journeyQuery.addEventListener("input", () => {
+      view.pages.journeys.query = journeyQuery.value;
+      view.pages.journeys.focusKey = "";
+      renderJourneysPage();
+      pageEls.journeys.scrollTop = 0;
+      scheduleSave();
+    }, { signal: controller.signal });
+    journeysClear.addEventListener("click", () => {
+      view.pages.journeys.query = "";
+      journeyQuery.value = "";
+      renderJourneysPage();
+      pageEls.journeys.scrollTop = 0;
+      journeyQuery.focus({ preventScroll: true });
+      saveNow();
+    }, { signal: controller.signal });
+    journeyList.addEventListener("click", (event) => {
+      const tile = event.target.closest?.("[data-journey-open]");
+      if (!tile) return;
+      openJourneyDetail(tile.dataset.journeyOpen, {
+        source: "journeys",
+        returnFocus: tile.dataset.focusKey || `journey-list:${tile.dataset.journeyOpen}`
+      });
+    }, { signal: controller.signal });
+    journeyBack.addEventListener("click", () => {
+      const source = view.journey.source;
+      if (source === "journeys") {
+        showPage("journeys");
+        pageEls.journeys.scrollTop = view.pages.journeys.scroll;
+        saveNow();
+        focusJourneyReturnKey(view.journey.returnFocus);
         return;
       }
+      showPage("home");
+      pageEls.home.scrollTop = view.home.scroll;
+      saveNow();
+      focusJourneyReturnKey(view.journey.returnFocus);
+    }, { signal: controller.signal });
+    journeyDetail.addEventListener("click", (event) => {
+      const locate = event.target.closest?.("[data-journey-locate-peer]");
+      if (locate) {
+        event.preventDefault();
+        void locateJourneyMessage(locate.dataset.journeyLocatePeer, locate.dataset.journeyLocateMessage, {
+          source: "journey",
+          journeyId: view.journey.id,
+          eventSeq: Number(locate.dataset.journeyLocateEvent) || 0
+        });
+        return;
+      }
+      const fallbackPeer = event.target.closest?.("[data-journey-fallback-peer]");
+      if (fallbackPeer && peerProfileCapable) {
+        openPeerProfile(fallbackPeer.dataset.journeyFallbackPeer, { source: "journey", ref: `journey-missing:${view.journey.id}` });
+        return;
+      }
+      const fallbackChat = event.target.closest?.("[data-journey-fallback-chat]");
+      if (fallbackChat) {
+        openConversation(fallbackChat.dataset.journeyFallbackChat, { source: "messages" });
+        return;
+      }
+      const fallbackLocate = event.target.closest?.("[data-journey-fallback-locate-peer]");
+      if (fallbackLocate) {
+        void locateJourneyMessage(fallbackLocate.dataset.journeyFallbackLocatePeer, fallbackLocate.dataset.journeyFallbackLocateMessage, {
+          source: "messages"
+        });
+      }
+    }, { signal: controller.signal });
+    homeActivityDetail.addEventListener("click", (event) => {
       const locate = event.target.closest?.("[data-locate-message]");
       if (locate) {
         if (!locate.dataset.locatePeer || !locate.dataset.locateMessage) return;
         void locateJourneyMessage(locate.dataset.locatePeer, locate.dataset.locateMessage);
         return;
       }
+      const activityLocate = event.target.closest?.("[data-activity-locate-peer]");
+      if (activityLocate) {
+        if (!activityLocate.dataset.activityLocatePeer || !activityLocate.dataset.activityLocateMessage) return;
+        void locateJourneyMessage(activityLocate.dataset.activityLocatePeer, activityLocate.dataset.activityLocateMessage);
+        return;
+      }
       const chat2 = event.target.closest?.("[data-open-journey-chat]");
       if (chat2) {
-        openConversation(chat2.dataset.openJourneyChat, { source: "raminga" });
+        openConversation(chat2.dataset.openJourneyChat, { source: "home" });
+        return;
+      }
+      const activityChat = event.target.closest?.("[data-activity-chat]");
+      if (activityChat?.dataset.activityChat) {
+        openConversation(activityChat.dataset.activityChat, { source: "home" });
+        return;
+      }
+      const journey = event.target.closest?.("[data-activity-journey]");
+      if (journey?.dataset.activityJourney) {
+        openJourneyDetail(journey.dataset.activityJourney, {
+          source: "activity",
+          operationId: activityState.detail.id || "",
+          returnFocus: "home-activity-card"
+        });
+        return;
+      }
+      const peer = event.target.closest?.("[data-activity-peer]");
+      if (peer?.dataset.activityPeer && peerProfileCapable) {
+        openPeerProfile(peer.dataset.activityPeer, { source: "home", ref: "activity" });
+        return;
+      }
+      const history = event.target.closest?.("[data-activity-history]");
+      if (history?.dataset.activityHistory) {
+        view.home.activityExpanded = true;
+        ensureActivityDetail(history.dataset.activityHistory);
+        renderHome();
       }
     }, { signal: controller.signal });
     profileBack.addEventListener("click", () => closePeerProfile());
-    profileView.addEventListener("scroll", scheduleSave, { passive: true, signal: controller.signal });
+    postBack?.addEventListener("click", () => closePostDetail(), { signal: controller.signal });
+    postDetail?.addEventListener("click", (event) => {
+      const retry = event.target.closest?.("[data-detail-retry]");
+      if (retry) {
+        const id = retry.dataset.detailRetry || view.post.id;
+        if (id) void ensurePostContent(id, true);
+      }
+    }, { signal: controller.signal });
+    profileView.addEventListener("scroll", () => {
+      const top = Math.max(0, Number(profileView.scrollTop) || 0);
+      if (top > 0) {
+        profileScrollMemory = { tab: view.contactProfile.tab, scroll: top, at: Date.now() };
+      }
+      scheduleSave();
+    }, { passive: true, signal: controller.signal });
+    profileTimeline.addEventListener("click", (event) => {
+      const message = event.target.closest?.("[data-memory-message]");
+      if (message) {
+        event.preventDefault();
+        openMessageFromMemory(message.dataset.memoryPeer, message.dataset.memoryMessage, message);
+        return;
+      }
+      const journey = event.target.closest?.("[data-memory-journey]");
+      if (journey) {
+        event.preventDefault();
+        openJourneyDetail(journey.dataset.memoryJourney, { source: "memory" });
+      }
+    }, { signal: controller.signal });
+    profileMemoryRetry.addEventListener("click", () => {
+      if (profileState.peerId) void loadContactMemory(profileState.peerId, true);
+    }, { signal: controller.signal });
+    impressionForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitImpression();
+    }, { signal: controller.signal });
     $("#conversationBack").addEventListener("click", closeConversation, { signal: controller.signal });
     composer.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -7186,12 +18916,30 @@ ${resultDetail}`;
       event.preventDefault();
       void submitMessage();
     }, { signal: controller.signal });
+    messageJumpLatest.addEventListener("click", jumpToLatestMessages, { signal: controller.signal });
     sendReconcile.addEventListener("click", () => {
       void submitMessage({ reconcile: true });
     }, { signal: controller.signal });
     sendRestore.addEventListener("click", retryFailedSend, { signal: controller.signal });
     composerTech.addEventListener("click", openComposerDetail, { signal: controller.signal });
     messageList.addEventListener("scroll", saveChatScroll, { passive: true, signal: controller.signal });
+    messageList.addEventListener("scroll", () => {
+      updateJumpToLatest();
+      if (isMessageListAtBottom()) scheduleMarkRead();
+      else cancelMarkRead();
+    }, { passive: true, signal: controller.signal });
+    win.addEventListener("resize", updateJumpToLatest, { passive: true, signal: controller.signal });
+    doc.addEventListener("visibilitychange", () => {
+      if (doc.visibilityState === "visible") scheduleMarkRead();
+      else cancelMarkRead();
+    }, { signal: controller.signal });
+    win.addEventListener("blur", cancelMarkRead, { signal: controller.signal });
+    win.addEventListener("focus", () => {
+      scheduleMarkRead();
+    }, { signal: controller.signal });
+    root.addEventListener("focusin", () => {
+      scheduleMarkRead();
+    }, { signal: controller.signal });
     addContactForm.addEventListener("submit", submitAddContact, { signal: controller.signal });
     addContactCheck.addEventListener("click", () => {
       void checkContactAgain();
@@ -7214,6 +18962,36 @@ ${resultDetail}`;
     shareRetry.addEventListener("click", () => {
       void loadShare();
     }, { signal: controller.signal });
+    statusShareNode.addEventListener("click", (event) => {
+      openShareDialog(event.currentTarget);
+    }, { signal: controller.signal });
+    statusBootstrap.addEventListener("toggle", () => {
+      if (statusBootstrap.open && bootstrapState.data === null && bootstrapState.request === null) void loadBootstrap(false);
+    }, { signal: controller.signal });
+    statusBootstrapRefresh.addEventListener("click", () => {
+      void loadBootstrap(true);
+    }, { signal: controller.signal });
+    statusBootstrapCopy.addEventListener("click", () => {
+      const peers = bootstrapState.data?.peers ?? [];
+      void copyTextWithNotice(peers.join("\n"), statusBootstrapNote, "已复制引导节点列表。修改配置请编辑 config.toml。");
+    }, { signal: controller.signal });
+    profileCopyPeer.addEventListener("click", () => {
+      void copyTextWithNotice(profileState.peerId, profileNodeNote, "完整 Peer ID 已复制。");
+    }, { signal: controller.signal });
+    profileCopyPeerInline.addEventListener("click", () => {
+      void copyTextWithNotice(profileState.peerId, profileOriginNote, "完整 Peer ID 已复制。");
+    }, { signal: controller.signal });
+    profileCopyCurrent.addEventListener("click", () => {
+      const text4 = addressesText(profileState.data?.node?.currentAddresses ?? []);
+      void copyTextWithNotice(text4, profileNodeNote, "当前连接地址已复制。");
+    }, { signal: controller.signal });
+    profileCopyAnnounced.addEventListener("click", () => {
+      const text4 = addressesText(profileState.data?.node?.knownAddresses ?? []);
+      void copyTextWithNotice(text4, profileNodeNote, "本机已知地址已复制；它们不是对方公告证据，也不证明当前可达。");
+    }, { signal: controller.signal });
+    profileNodeRefresh.addEventListener("click", () => {
+      void refreshPeerNodeInfo();
+    }, { signal: controller.signal });
     nodeTrigger.addEventListener("click", () => openDialog(statusDialog, nodeTrigger), { signal: controller.signal });
     $("#ramingaStateAction").addEventListener("click", () => openDialog(statusDialog, $("#ramingaStateAction")), { signal: controller.signal });
     ramingaRefresh.addEventListener("click", () => {
@@ -7221,13 +18999,9 @@ ${resultDetail}`;
     }, { signal: controller.signal });
     statusRefresh.addEventListener("click", () => requestRefresh({ visible: true }), { signal: controller.signal });
     mineRefresh.addEventListener("click", () => {
-      requestRefresh({ visible: true });
       if (mineCapable) void loadMine(true);
     }, { signal: controller.signal });
-    shareNode.addEventListener("click", (event) => {
-      openShareDialog(event.currentTarget);
-    }, { signal: controller.signal });
-    for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
+    for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, impressionDialog, shareDialog, technicalDialog, agentCardDialog, favoriteDialog]) {
       dialog.addEventListener("click", (event) => {
         if (event.target === dialog || event.target.closest?.("[data-close-dialog]")) {
           closeDialog(dialog);
@@ -7238,6 +19012,38 @@ ${resultDetail}`;
         closeDialog(dialog);
       }, { signal: controller.signal });
     }
+    favoriteDialog?.addEventListener("close", () => {
+      favoriteReader.requestSeq += 1;
+      favoriteReader.item = null;
+      favoriteReader.preview = null;
+      favoriteReader.loading = false;
+      favoriteReader.error = "";
+      disposePreviewMedia(favoriteDialogBody);
+      favoriteDialogBody?.replaceChildren();
+    }, { signal: controller.signal });
+    imagePreviewDialog?.addEventListener("click", (event) => {
+      if (event.target === imagePreviewDialog || event.target.closest?.("[data-close-dialog]")) {
+        event.preventDefault();
+        closeImagePreview();
+      }
+    }, { signal: controller.signal });
+    imagePreviewDialog?.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeImagePreview();
+    }, { signal: controller.signal });
+    imagePreviewDialog?.addEventListener("close", () => {
+      cleanupImagePreview();
+    }, { signal: controller.signal });
+    impressionDialog.addEventListener("close", () => {
+      impressionEditState.open = false;
+      impressionEditState.saving = false;
+      impressionEditState.peerId = "";
+      impressionEditState.impressionId = "";
+      impressionEditState.expectedSha = "";
+      impressionDialogNote.hidden = true;
+      impressionSave.disabled = false;
+      impressionSave.textContent = "保存印象";
+    }, { signal: controller.signal });
     addContactDialog.addEventListener("close", () => {
       addAttempt += 1;
       checkAttempt += 1;
@@ -7261,31 +19067,55 @@ ${resultDetail}`;
         scheduleSave();
       }, { passive: true, signal: controller.signal });
     }
+    if (favoritesEntry) favoritesEntry.hidden = !favoritesCapable;
+    for (const item of $$('[data-settings-tab="favorites"]')) item.hidden = !favoritesCapable;
     restoreControls();
     showPage(currentPage, { save: false });
     renderNodeMeta();
     renderStatusDialog();
+    renderBootstrap();
     renderMineIdentity();
     renderMine();
     renderJourney();
-    if (view.profile.peerId) {
-      profileReturn.page = view.profile.returnPage;
-      profileReturn.peerId = view.profile.returnPeer;
-      profileTriggerRef = view.profile.triggerId;
-      profileReturn.scroll = pageTracksScroll(view.profile.returnPage) ? Math.max(0, Number(view.pages[view.profile.returnPage]?.scroll) || 0) : Math.max(0, Number(view.pages.messages?.scroll) || 0);
-      profileReturn.open = true;
-      profileState.peerId = view.profile.peerId;
-      pageEls[currentPage].hidden = true;
-      profileView.hidden = false;
-      renderProfile();
-      void loadPeerProfile(view.profile.peerId, false);
+    if (view.contactProfile.peerId) {
+      const chatFromProfile = currentPage === "messages" && contactsState.selectedPeerId === view.contactProfile.peerId && view.pages.messages.returnPage === "profile";
+      profileReturn.page = view.contactProfile.returnPage;
+      profileReturn.peerId = view.contactProfile.returnPeer;
+      profileTriggerRef = view.contactProfile.triggerId;
+      profileReturn.scroll = pageTracksScroll(view.contactProfile.returnPage) ? Math.max(0, Number(pageStateFor(view.contactProfile.returnPage)?.scroll) || 0) : Math.max(0, Number(view.pages.messages?.scroll) || 0);
+      profileReturn.open = !chatFromProfile;
+      profileState.peerId = view.contactProfile.peerId;
+      resetProfileMemoryUi(view.contactProfile.peerId);
+      profileState.data = null;
+      profileState.error = "";
+      profileState.filesOpen = false;
+      profileState.filesReturnTab = "interactions";
+      profileState.filesReturnScroll = 0;
+      profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+      if (!chatFromProfile) {
+        pageEls[currentPage].hidden = true;
+        profileView.hidden = false;
+        renderProfile();
+        void loadPeerProfile(view.contactProfile.peerId, true);
+        if (view.contactProfile.tab === "address") void loadPeerFriends(view.contactProfile.peerId, true);
+      } else {
+        profileView.hidden = true;
+        renderProfile();
+        void loadPeerProfile(view.contactProfile.peerId, true);
+        if (view.contactProfile.tab === "address") void loadPeerFriends(view.contactProfile.peerId, true);
+      }
     } else {
       ensurePageData(currentPage);
     }
+    saveNow();
     return {
       setNodeStatus,
       pushNodeEvent,
       setStats,
+      setActivity,
+      setActivityError,
       setContacts,
       setContactsError,
       setConversations,
@@ -7297,13 +19127,27 @@ ${resultDetail}`;
       onLeaseReady() {
         if (destroyed) return;
         hostReady = true;
+        void loadContactProjection();
         ensurePageData(currentPage);
-        if (!profileView.hidden && profileState.peerId) void loadPeerProfile(profileState.peerId, false);
+        if (favoritesCapable) void loadFavorites({});
+        if (!profileView.hidden && profileState.peerId) void loadPeerProfile(profileState.peerId, true);
       },
       getDraft: getDraft2,
       setDraft: setDraft2,
+      reloadMine() {
+        if (!destroyed && mineCapable) void loadMine(true);
+      },
+      flushDrafts() {
+        if (!destroyed) flushPublicDraftEditors();
+      },
       destroy() {
         if (destroyed) return;
+        flushPublicDraftEditors();
+        cancelMarkRead();
+        if (profileSaveTimer !== null) win.clearTimeout(profileSaveTimer);
+        if (postSaveTimer !== null) win.clearTimeout(postSaveTimer);
+        for (const pending of postEditorState.pending) URL.revokeObjectURL(pending.url);
+        releaseAllDraftAssets();
         if (chat.peerId) saveChatScroll();
         destroyed = true;
         controller.abort();
@@ -7313,12 +19157,27 @@ ${resultDetail}`;
         shareAttempt += 1;
         editAttempt += 1;
         closeContactQuickMenu({ restoreFocus: false, quiet: true });
-        for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, shareDialog, technicalDialog, agentCardDialog]) {
-          if (dialog.open) dialog.close();
+        if (postEditorState.open) closePostEditor({ restoreFocus: false });
+        for (const dialog of [statusDialog, noticeDialog, addContactDialog, editContactDialog, impressionDialog, shareDialog, technicalDialog, agentCardDialog, favoriteDialog, imagePreviewDialog, postEditorPanel]) {
+          if (dialog?.open) dialog.close();
         }
+        cleanupImagePreview();
         dialogTriggers.clear();
         technicalReturn = null;
         statusTech.open = false;
+        statusBootstrap.open = false;
+        disposePreviewMedia(discoveryList);
+        disposePreviewMedia(profileView);
+        disposePreviewMedia(minePostList);
+        disposePreviewMedia(mineFeedList);
+        postContent.clear();
+        postMetaCache.clear();
+        postMetaInflight.clear();
+        postMetaQueue.length = 0;
+        releaseAllPostImages();
+        profilePreviews.clear();
+        minePreviews.clear();
+        revealResults.clear();
         root.replaceChildren();
       }
     };
@@ -7342,6 +19201,12 @@ ${resultDetail}`;
       },
       setStats(stats) {
         if (!destroyed) app.setStats(stats);
+      },
+      setActivity(activity) {
+        if (!destroyed) app.setActivity(activity);
+      },
+      setActivityError(error) {
+        if (!destroyed) app.setActivityError(error);
       },
       setContacts(contacts) {
         if (!destroyed) app.setContacts(contacts);
@@ -7464,6 +19329,7 @@ function createPanelRuntime({
   contactsPollMs = 4000,
   conversationsPollMs = 4000,
   messagesPollMs = 3000,
+  activityPollMs = 1500,
   copyText = defaultCopyText,
 }) {
   let disposed = false;
@@ -7479,6 +19345,11 @@ function createPanelRuntime({
   let conversationsTimer = null;
   let messagesTimer = null;
   let eventRefreshTimer = null;
+  let activityTimer = null;
+  let activityInFlight = false;
+  // A disposed runtime must ignore late activity reads even if a host promise
+  // resolves after its timers were cleared.
+  let activityGeneration = 0;
   let inFlight = false;
   let contactsInFlight = false;
   let contactsQueuedForce = false;
@@ -7803,6 +19674,42 @@ function createPanelRuntime({
     return remoteValue(await rpc.discoveryContent(sessionId, id));
   }
 
+  async function markConversationRead(peerId, messageId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.markRead !== 'function') throw new Error('Raminga read cursor is unavailable');
+    return remoteValue(await rpc.markRead(sessionId, peerId, messageId));
+  }
+
+  async function readFavorites(before, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.favorites !== 'function') throw new Error('Raminga favorites are unavailable');
+    return remoteValue(await rpc.favorites(sessionId, before || '', force === true));
+  }
+
+  async function setFavorite(peerId, filePath, sha256, title, favorite) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.setFavorite !== 'function') throw new Error('Raminga favorites are unavailable');
+    return remoteValue(await rpc.setFavorite(sessionId, peerId, filePath, sha256, title, favorite === true));
+  }
+
+  async function readPeerDiscoveries(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerDiscoveries !== 'function') throw new Error('Raminga peer discoveries are unavailable');
+    return remoteValue(await rpc.peerDiscoveries(sessionId, peerId, force === true));
+  }
+
+  async function readContactMemory(peerId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.contactMemory !== 'function') throw new Error('Raminga contact memory is unavailable');
+    return remoteValue(await rpc.contactMemory(sessionId, peerId));
+  }
+
+  async function saveContactImpression(input) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.saveContactImpression !== 'function') throw new Error('Raminga contact memory editing is unavailable');
+    return remoteValue(await rpc.saveContactImpression(sessionId, input));
+  }
+
   async function readHumanOutbound(force) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.humanOutbound !== 'function') throw new Error('Raminga relations are unavailable');
@@ -7821,10 +19728,130 @@ function createPanelRuntime({
     return remoteValue(await rpc.peerProfile(sessionId, peerId, force === true));
   }
 
+  async function readPeerFriends(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerFriends !== 'function') throw new Error('Raminga peer address book is unavailable');
+    return remoteValue(await rpc.peerFriends(sessionId, peerId, force === true));
+  }
+
+  async function readContactProjection() {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.contactProjection !== 'function') throw new Error('Raminga contact projection is unavailable');
+    return remoteValue(await rpc.contactProjection(sessionId));
+  }
+
+  async function readPeerManifest(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerManifest !== 'function') throw new Error('Raminga peer manifest is unavailable');
+    return remoteValue(await rpc.peerManifest(sessionId, peerId, force === true));
+  }
+
+  async function readPeerFilePreview(peerId, filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerFilePreview !== 'function') throw new Error('Raminga peer content is unavailable');
+    return remoteValue(await rpc.peerFilePreview(sessionId, peerId, filePath, sha256, sizeBytes));
+  }
+
+  async function readPeerPostMeta(peerId, filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerPostMeta !== 'function') throw new Error('Raminga post image metadata is unavailable');
+    return remoteValue(await rpc.peerPostMeta(sessionId, peerId, filePath, sha256, sizeBytes));
+  }
+
+  async function readMineFilePreview(filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.mineFilePreview !== 'function') throw new Error('Raminga local public content is unavailable');
+    return remoteValue(await rpc.mineFilePreview(sessionId, filePath, sha256, sizeBytes));
+  }
+
+  async function readPeerNodeInfo(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerNodeInfo !== 'function') throw new Error('Raminga peer node information is unavailable');
+    return remoteValue(await rpc.peerNodeInfo(sessionId, peerId, force === true));
+  }
+
+  async function revealDiscovery(id) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.revealDiscovery !== 'function') throw new Error('Raminga reveal is unavailable');
+    return remoteValue(await rpc.revealDiscovery(sessionId, id));
+  }
+
+  async function revealFile(subject, peerId, filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.revealFile !== 'function') throw new Error('Raminga file reveal is unavailable');
+    return remoteValue(await rpc.revealFile(sessionId, subject, peerId, filePath, sha256, sizeBytes));
+  }
+
+  async function readBootstrap() {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.bootstrap !== 'function') throw new Error('Raminga bootstrap view is unavailable');
+    return remoteValue(await rpc.bootstrap(sessionId));
+  }
+
   async function readJourney(force) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.journey !== 'function') throw new Error('Raminga journey is unavailable');
     return remoteValue(await rpc.journey(sessionId, force === true));
+  }
+
+  async function readPublicDraft(draftId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publicDraft !== 'function') throw new Error('Raminga public draft read is unavailable');
+    return remoteValue(await rpc.publicDraft(sessionId, draftId));
+  }
+
+  async function readPublicDrafts(kind) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publicDrafts !== 'function') throw new Error('Raminga public draft list is unavailable');
+    return remoteValue(await rpc.publicDrafts(sessionId, kind));
+  }
+
+  async function savePublicDraft(input) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.savePublicDraft !== 'function') throw new Error('Raminga public draft save is unavailable');
+    return remoteValue(await rpc.savePublicDraft(sessionId, input));
+  }
+
+  async function putPublicDraftImage(draftId, role, filename, dataBase64) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.putPublicDraftImage !== 'function') throw new Error('Raminga draft image upload is unavailable');
+    return remoteValue(await rpc.putPublicDraftImage(sessionId, draftId, role, filename, dataBase64));
+  }
+
+  async function readPublicDraftAsset(draftId, assetId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publicDraftAsset !== 'function') throw new Error('Raminga private draft image is unavailable');
+    return remoteValue(await rpc.publicDraftAsset(sessionId, draftId, assetId));
+  }
+
+  async function importPublicPost(filePath) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.importPublicPost !== 'function') throw new Error('Raminga post editing is unavailable');
+    return remoteValue(await rpc.importPublicPost(sessionId, filePath));
+  }
+
+  async function deletePublicDraft(draftId, expectedRevision) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.deletePublicDraft !== 'function') throw new Error('Raminga draft delete is unavailable');
+    return remoteValue(await rpc.deletePublicDraft(sessionId, draftId, expectedRevision));
+  }
+
+  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publishPublicDraft !== 'function') throw new Error('Raminga publication is unavailable');
+    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256));
+    if (result && (result.status === 'published' || result.status === 'already_published' || result.status === 'partial')) {
+      // The daemon already returned the same-snapshot files/digest. Refresh the
+      // local published list only after that response, never before.
+      if (typeof app?.reloadMine === 'function') void app.reloadMine();
+    }
+    return result;
+  }
+
+  async function savePrivateAgent(field, content, expectedSha256) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.savePrivateAgent !== 'function') throw new Error('Raminga private Agent save is unavailable');
+    return remoteValue(await rpc.savePrivateAgent(sessionId, field, content, expectedSha256));
   }
 
   async function readLocatedMessage(peerId, messageId) {
@@ -7843,6 +19870,38 @@ function createPanelRuntime({
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.setFriendDescription !== 'function') throw new Error('Raminga contact editing is unavailable');
     return remoteValue(await rpc.setFriendDescription(sessionId, peerId, description));
+  }
+
+  /**
+   * Passive activity read. This never writes a terminal event; the host store
+   * only records real tool execute calls. A failed read clears stale live
+   * marks in the app instead of leaving the previous "running" card.
+   */
+  async function loadActivity(force = false) {
+    if (disposed || app === null || typeof rpc.activity !== 'function') return null;
+    if (activityInFlight) return null;
+    activityInFlight = true;
+    const generation = activityGeneration;
+    try {
+      const value = remoteValue(await rpc.activity(sessionId, 100));
+      if (disposed || generation !== activityGeneration || app === null) return null;
+      if (typeof app.setActivity === 'function') app.setActivity(value);
+      return value;
+    } catch (error) {
+      if (!disposed && generation === activityGeneration && app !== null && typeof app.setActivityError === 'function') {
+        app.setActivityError(errorText(error));
+      }
+      return null;
+    } finally {
+      activityInFlight = false;
+      void force;
+    }
+  }
+
+  async function readActivityDetail(operationId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.activityDetail !== 'function') throw new Error('Raminga activity detail is unavailable');
+    return remoteValue(await rpc.activityDetail(operationId));
   }
 
   async function open() {
@@ -7878,8 +19937,12 @@ function createPanelRuntime({
           if (peer.length > 0) void loadMessages(peer, { force: false });
         }, messagesPollMs);
       }
+      if (activityTimer === null && typeof rpc.activity === 'function') {
+        activityTimer = timers.setInterval(() => { void loadActivity(false); }, activityPollMs);
+      }
       if (typeof rpc.contacts === 'function') void loadContacts(false);
       void loadConversations(false);
+      if (typeof rpc.activity === 'function') void loadActivity(true);
       const restoredPeer = activeConversationPeer();
       if (restoredPeer.length > 0) void loadMessages(restoredPeer, { force: true });
     } catch (error) {
@@ -7910,6 +19973,7 @@ function createPanelRuntime({
       if (force) {
         if (typeof rpc.contacts === 'function') void loadContacts(true);
         void loadConversations(true);
+        if (typeof rpc.activity === 'function') void loadActivity(true);
         const peer = activeConversationPeer();
         if (peer.length > 0) void loadMessages(peer, { force: true });
       }
@@ -7958,6 +20022,24 @@ function createPanelRuntime({
           token: context?.token,
         });
       }
+      if (typeof rpc.markRead === 'function') {
+        mountOptions.onMarkRead = (peerId, messageId) => markConversationRead(peerId, messageId);
+      }
+      if (typeof rpc.favorites === 'function') {
+        mountOptions.onLoadFavorites = (before, force) => readFavorites(before, force);
+      }
+      if (typeof rpc.setFavorite === 'function') {
+        mountOptions.onSetFavorite = (input) => setFavorite(input.peerId, input.path, input.sha256, input.title, input.favorite);
+      }
+      if (typeof rpc.peerDiscoveries === 'function') {
+        mountOptions.onLoadPeerDiscoveries = (peerId, force) => readPeerDiscoveries(peerId, force);
+      }
+      if (typeof rpc.contactMemory === 'function') {
+        mountOptions.onLoadContactMemory = (peerId) => readContactMemory(peerId);
+      }
+      if (typeof rpc.saveContactImpression === 'function') {
+        mountOptions.onSaveContactImpression = (input) => saveContactImpression(input);
+      }
       if (typeof rpc.send === 'function') mountOptions.onSend = (peerId, text, requestId) => sendMessage(peerId, text, requestId);
       if (typeof rpc.cancelOutbox === 'function') {
         mountOptions.onCancelOutbox = (peerId, messageId) => cancelMessage(peerId, messageId);
@@ -7977,8 +20059,71 @@ function createPanelRuntime({
       if (typeof rpc.peerProfile === 'function') {
         mountOptions.onLoadPeerProfile = (peerId, force) => readPeerProfile(peerId, force);
       }
+      if (typeof rpc.peerFriends === 'function') {
+        mountOptions.onLoadPeerFriends = (peerId, force) => readPeerFriends(peerId, force);
+      }
+      if (typeof rpc.contactProjection === 'function') {
+        mountOptions.onLoadContactProjection = () => readContactProjection();
+      }
+      if (typeof rpc.peerManifest === 'function') {
+        mountOptions.onLoadPeerManifest = (peerId, force) => readPeerManifest(peerId, force);
+      }
+      if (typeof rpc.peerFilePreview === 'function') {
+        mountOptions.onLoadPeerFileContent = (peerId, filePath, sha256, sizeBytes) => readPeerFilePreview(peerId, filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.peerPostMeta === 'function') {
+        mountOptions.onLoadPeerPostMeta = (peerId, filePath, sha256, sizeBytes) => readPeerPostMeta(peerId, filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.mineFilePreview === 'function') {
+        mountOptions.onLoadMineFileContent = (filePath, sha256, sizeBytes) => readMineFilePreview(filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.peerNodeInfo === 'function') {
+        mountOptions.onLoadPeerNodeInfo = (peerId, force) => readPeerNodeInfo(peerId, force);
+      }
+      if (typeof rpc.revealDiscovery === 'function') {
+        mountOptions.onRevealDiscovery = (id) => revealDiscovery(id);
+      }
+      if (typeof rpc.revealFile === 'function') {
+        mountOptions.onRevealFile = (subject, peerId, filePath, sha256, sizeBytes) => revealFile(subject, peerId, filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.bootstrap === 'function') {
+        mountOptions.onLoadBootstrap = () => readBootstrap();
+      }
       if (typeof rpc.journey === 'function') {
         mountOptions.onLoadJourney = (force) => readJourney(force);
+      }
+      if (typeof rpc.activity === 'function') {
+        // Capability flag for the shared UI; polling is owned by this runtime.
+        mountOptions.onLoadActivity = () => loadActivity(true);
+      }
+      if (typeof rpc.activityDetail === 'function') {
+        mountOptions.onLoadActivityDetail = (operationId) => readActivityDetail(operationId);
+      }
+      if (typeof rpc.savePrivateAgent === 'function') {
+        mountOptions.onSavePrivateAgent = (field, content, expectedSha256) => savePrivateAgent(field, content, expectedSha256);
+      }      if (typeof rpc.publicDraft === 'function') {
+        mountOptions.onLoadPublicDraft = (draftId) => readPublicDraft(draftId);
+      }
+      if (typeof rpc.publicDrafts === 'function') {
+        mountOptions.onLoadPublicDrafts = (kind) => readPublicDrafts(kind);
+      }
+      if (typeof rpc.savePublicDraft === 'function') {
+        mountOptions.onSavePublicDraft = (input) => savePublicDraft(input);
+      }
+      if (typeof rpc.putPublicDraftImage === 'function') {
+        mountOptions.onPutPublicDraftImage = (draftId, role, filename, dataBase64) => putPublicDraftImage(draftId, role, filename, dataBase64);
+      }
+      if (typeof rpc.publicDraftAsset === 'function') {
+        mountOptions.onLoadPublicDraftAsset = (draftId, assetId) => readPublicDraftAsset(draftId, assetId);
+      }
+      if (typeof rpc.importPublicPost === 'function') {
+        mountOptions.onImportPublicPost = (filePath) => importPublicPost(filePath);
+      }
+      if (typeof rpc.deletePublicDraft === 'function') {
+        mountOptions.onDeletePublicDraft = (draftId, expectedRevision) => deletePublicDraft(draftId, expectedRevision);
+      }
+      if (typeof rpc.publishPublicDraft === 'function') {
+        mountOptions.onPublishPublicDraft = (draftId, expectedRevision, expectedPublishedSha256) => publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256);
       }
       if (typeof rpc.locateMessage === 'function') {
         mountOptions.onLocateMessage = (peerId, messageId) => readLocatedMessage(peerId, messageId);
@@ -7995,6 +20140,10 @@ function createPanelRuntime({
 
   function dispose() {
     if (disposed) return;
+    // Start a pending draft flush while the host RPC callbacks are still
+    // usable. The UI debounces edits; a panel close inside that window must
+    // still attempt the private save rather than silently dropping it.
+    try { app?.flushDrafts?.(); } catch { /* the panel is being torn down */ }
     disposed = true;
     if (pollTimer !== null) {
       timers.clearInterval(pollTimer);
@@ -8020,6 +20169,12 @@ function createPanelRuntime({
       timers.clearTimeout(eventRefreshTimer);
       eventRefreshTimer = null;
     }
+    if (activityTimer !== null) {
+      timers.clearInterval(activityTimer);
+      activityTimer = null;
+    }
+    activityGeneration += 1;
+    activityInFlight = false;
     // A disposed panel must settle queued older promises. The UI ignores them
     // after destroy, but returning a forever-pending request would leave its
     // busy state behind in any host that outlives this runtime.
@@ -8048,11 +20203,11 @@ function createPanelRuntime({
     /** Diagnostics for focused tests; not used by the renderer. */
     get timers() {
       return {
-        pollTimer, retryTimer, contactsTimer, conversationsTimer, messagesTimer, eventRefreshTimer,
+        pollTimer, retryTimer, contactsTimer, conversationsTimer, messagesTimer, eventRefreshTimer, activityTimer,
         inFlight, contactsInFlight, conversationsInFlight,
         messagesInFlight: [...latestMessageReads.values()].some((state) => state.running !== null)
           || [...olderMessageReads.values()].some((state) => state.running),
-        openAttempted, closeRequested, leaseOpen, leaseClosed,
+        openAttempted, closeRequested, leaseOpen, leaseClosed, activityInFlight, activityGeneration,
       };
     },
   };
@@ -8080,6 +20235,26 @@ function createPanelRuntime({
     const requestIdCodec = passthrough('@raminga/dsh#UiRequestId');
     const messageIdCodec = passthrough('@raminga/dsh#MessageId');
     const contentIdCodec = passthrough('@raminga/dsh#UiContentId');
+    const subjectCodec = passthrough('@raminga/dsh#UiFileSubject');
+    const filePathCodec = passthrough('@raminga/dsh#UiPublicFilePath');
+    const sha256Codec = passthrough('@raminga/dsh#UiSha256');
+    const sizeCodec = passthrough('@raminga/dsh#UiByteSize');
+    const privateFieldCodec = passthrough('@raminga/dsh#UiPrivateField');
+    const privateContentCodec = passthrough('@raminga/dsh#UiPrivateContent');
+    const expectedShaCodec = passthrough('@raminga/dsh#UiExpectedSha256');
+    const titleCodec = passthrough('@raminga/dsh#UiFavoriteTitle');
+    const contactInputCodec = passthrough('@raminga/dsh#UiContactImpressionSave');
+    const operationIdCodec = passthrough('@raminga/dsh#UiOperationId');
+    const activityLimitCodec = passthrough('@raminga/dsh#UiActivityLimit');
+    const draftIdCodec = passthrough('@raminga/dsh#UiDraftId');
+    const assetIdCodec = passthrough('@raminga/dsh#UiDraftAssetId');
+    const draftKindCodec = passthrough('@raminga/dsh#UiDraftKind');
+    const draftInputCodec = passthrough('@raminga/dsh#UiPublicDraftSave');
+    const draftRoleCodec = passthrough('@raminga/dsh#UiDraftImageRole');
+    const filenameCodec = passthrough('@raminga/dsh#UiFileName');
+    const imageDataCodec = passthrough('@raminga/dsh#UiImageBase64');
+    const revisionCodec = passthrough('@raminga/dsh#UiDraftRevision');
+    const publishedShaCodec = passthrough('@raminga/dsh#UiPublishedSha256');
     const sessionParam = { name: 'sessionId', wire: 'sessionId', source: 'json', codec: sessionIdCodec };
     const param = {
       force: { name: 'force', wire: 'force', source: 'json', codec: booleanCodec },
@@ -8093,6 +20268,27 @@ function createPanelRuntime({
       messageId: { name: 'messageId', wire: 'messageId', source: 'json', codec: messageIdCodec },
       familiar: { name: 'familiar', wire: 'familiar', source: 'json', codec: booleanCodec },
       contentId: { name: 'id', wire: 'id', source: 'json', codec: contentIdCodec },
+      subject: { name: 'subject', wire: 'subject', source: 'json', codec: subjectCodec },
+      filePath: { name: 'path', wire: 'path', source: 'json', codec: filePathCodec },
+      sha256: { name: 'sha256', wire: 'sha256', source: 'json', codec: sha256Codec },
+      size: { name: 'size', wire: 'size', source: 'json', codec: sizeCodec },
+      privateField: { name: 'field', wire: 'field', source: 'json', codec: privateFieldCodec },
+      privateContent: { name: 'content', wire: 'content', source: 'json', codec: privateContentCodec },
+      expectedSha: { name: 'expectedSha256', wire: 'expectedSha256', source: 'json', codec: expectedShaCodec },
+      title: { name: 'title', wire: 'title', source: 'json', codec: titleCodec },
+      favorite: { name: 'favorite', wire: 'favorite', source: 'json', codec: booleanCodec },
+      contactInput: { name: 'input', wire: 'input', source: 'json', codec: contactInputCodec },
+      operationId: { name: 'operationId', wire: 'operationId', source: 'json', codec: operationIdCodec },
+      limit: { name: 'limit', wire: 'limit', source: 'json', codec: activityLimitCodec },
+      draftId: { name: 'draftId', wire: 'draftId', source: 'json', codec: draftIdCodec },
+      assetId: { name: 'assetId', wire: 'assetId', source: 'json', codec: assetIdCodec },
+      draftKind: { name: 'kind', wire: 'kind', source: 'json', codec: draftKindCodec },
+      draftInput: { name: 'input', wire: 'input', source: 'json', codec: draftInputCodec },
+      draftRole: { name: 'role', wire: 'role', source: 'json', codec: draftRoleCodec },
+      filename: { name: 'filename', wire: 'filename', source: 'json', codec: filenameCodec },
+      imageData: { name: 'dataBase64', wire: 'dataBase64', source: 'json', codec: imageDataCodec },
+      revision: { name: 'expectedRevision', wire: 'expectedRevision', source: 'json', codec: revisionCodec },
+      publishedSha: { name: 'expectedPublishedSha256', wire: 'expectedPublishedSha256', source: 'json', codec: publishedShaCodec },
     };
     const descriptors = [
       ['open', 'UiSnapshot', [sessionParam]],
@@ -8107,14 +20303,41 @@ function createPanelRuntime({
       ['share', 'UiShareInfo', [sessionParam]],
       ['conversations', 'UiConversations', [sessionParam, param.force]],
       ['messages', 'UiMessagePage', [sessionParam, param.peerId, param.before, param.force]],
+      ['markRead', 'UiMarkRead', [sessionParam, param.peerId, param.messageId]],
+      ['favorites', 'UiFavorites', [sessionParam, param.before, param.force]],
+      ['setFavorite', 'UiFavoriteResult', [sessionParam, param.peerId, param.filePath, param.sha256, param.title, param.favorite]],
+      ['peerDiscoveries', 'UiPeerDiscoveries', [sessionParam, param.peerId, param.force]],
+      ['contactMemory', 'UiContactMemory', [sessionParam, param.peerId]],
+      ['saveContactImpression', 'UiContactImpressionSave', [sessionParam, param.contactInput]],
       ['send', 'UiSendResult', [sessionParam, param.peerId, param.text, param.requestId]],
       ['cancelOutbox', 'UiCancelResult', [sessionParam, param.messageId]],
       ['discoveries', 'UiDiscoveries', [sessionParam, param.familiar, param.force]],
       ['discoveryContent', 'UiDiscoveryContent', [sessionParam, param.contentId]],
       ['humanOutbound', 'UiHumanOutbound', [sessionParam, param.force]],
       ['mine', 'UiMine', [sessionParam, param.force]],
+      ['mineFilePreview', 'UiFilePreview', [sessionParam, param.filePath, param.sha256, param.size]],
       ['peerProfile', 'UiPeerProfile', [sessionParam, param.peerId, param.force]],
+      ['peerFriends', 'UiPeerFriends', [sessionParam, param.peerId, param.force]],
+      ['contactProjection', 'UiContactProjection', [sessionParam]],
+      ['peerManifest', 'UiPeerManifest', [sessionParam, param.peerId, param.force]],
+      ['peerFilePreview', 'UiFilePreview', [sessionParam, param.peerId, param.filePath, param.sha256, param.size]],
+      ['peerPostMeta', 'UiPostMeta', [sessionParam, param.peerId, param.filePath, param.sha256, param.size]],
+      ['peerNodeInfo', 'UiPeerNodeInfo', [sessionParam, param.peerId, param.force]],
+      ['revealDiscovery', 'UiRevealResult', [sessionParam, param.contentId]],
+      ['revealFile', 'UiRevealResult', [sessionParam, param.subject, param.peerId, param.filePath, param.sha256, param.size]],
+      ['bootstrap', 'UiBootstrapInfo', [sessionParam]],
       ['journey', 'UiJourney', [sessionParam, param.force]],
+      ['activity', 'UiActivity', [sessionParam, param.limit]],
+      ['activityDetail', 'UiActivityDetail', [param.operationId]],
+      ['savePrivateAgent', 'UiPrivateAgentSave', [sessionParam, param.privateField, param.privateContent, param.expectedSha]],
+      ['publicDraft', 'UiPublicDraftRead', [sessionParam, param.draftId]],
+      ['publicDrafts', 'UiPublicDraftList', [sessionParam, param.draftKind]],
+      ['savePublicDraft', 'UiPublicDraftSaveResult', [sessionParam, param.draftInput]],
+      ['putPublicDraftImage', 'UiPublicDraftImageResult', [sessionParam, param.draftId, param.draftRole, param.filename, param.imageData]],
+      ['publicDraftAsset', 'UiPublicDraftAssetRead', [sessionParam, param.draftId, param.assetId]],
+      ['importPublicPost', 'UiPublicDraftImportResult', [sessionParam, param.filePath]],
+      ['deletePublicDraft', 'UiPublicDraftDelete', [sessionParam, param.draftId, param.revision]],
+      ['publishPublicDraft', 'UiPublishResult', [sessionParam, param.draftId, param.revision, param.publishedSha]],
       ['locateMessage', 'UiLocatedMessage', [sessionParam, param.peerId, param.messageId]],
     ].map(([method, resultType, parameters]) => ({
       id: `${REMOTE_PACKAGE}#ramingaUi/${method}`,

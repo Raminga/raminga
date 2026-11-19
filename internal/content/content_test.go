@@ -94,8 +94,36 @@ func TestScanRules(t *testing.T) {
 			t.Fatalf("skip not recorded with a reason: %s (all=%v)", p, snap.Skipped)
 		}
 	}
-	if !strings.Contains(skipped["posts/b.txt"], "directory total") {
-		t.Fatalf("directory-limit skip reason = %q", skipped["posts/b.txt"])
+	if !strings.Contains(skipped["posts/b.txt"], "public total") {
+		t.Fatalf("public-limit skip reason = %q", skipped["posts/b.txt"])
+	}
+}
+
+func TestScanPublishesFilesPlacedDirectlyInPublic(t *testing.T) {
+	s, dir := newStore(t, Limits{MaxFileBytes: 1 << 20, MaxPostsBytes: 1 << 20, MaxProfileBytes: 1 << 20})
+	public := filepath.Join(dir, "public")
+	for rel, data := range map[string]string{
+		"hello.md":              "# Hello\n",
+		"media/photo.png":       "not-a-real-png",
+		"posts/legacy.json":     `{"schema_version":1}`,
+		"notes/deep/readme.txt": "text",
+	} {
+		p := filepath.Join(public, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snap, err := s.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{"hello.md", "media/photo.png", "posts/legacy.json", "notes/deep/readme.txt"} {
+		if !hasEntry(snap, rel) {
+			t.Fatalf("direct public file %q missing from manifest: %+v", rel, snap.Entries)
+		}
 	}
 }
 

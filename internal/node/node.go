@@ -31,6 +31,7 @@ import (
 	"github.com/Raminga/raminga/internal/p2phttp"
 	"github.com/Raminga/raminga/internal/peerarg"
 	"github.com/Raminga/raminga/internal/protocol"
+	"github.com/Raminga/raminga/internal/publication"
 	"github.com/Raminga/raminga/internal/storage"
 )
 
@@ -55,17 +56,18 @@ type Options struct {
 
 // Node is the running node orchestration.
 type Node struct {
-	dataDir    string
-	version    string
-	cfg        config.Config
-	identity   *identity.Identity
-	store      *storage.Store
-	net        *network.Network
-	proto      *protocol.Service
-	content    *content.Store
-	logger     *slog.Logger
-	testAPI    bool
-	supervised bool
+	dataDir     string
+	version     string
+	cfg         config.Config
+	identity    *identity.Identity
+	store       *storage.Store
+	net         *network.Network
+	proto       *protocol.Service
+	content     *content.Store
+	publication *publication.Coordinator
+	logger      *slog.Logger
+	testAPI     bool
+	supervised  bool
 
 	allowUnknownPeers bool
 	allowedPeers      map[string]struct{}
@@ -150,6 +152,19 @@ func New(opts Options) (*Node, error) {
 		return nil, fmt.Errorf("node: open content store: %w", err)
 	}
 	n.content = contentStore
+	n.publication = publication.NewCoordinator(opts.DataDir, opts.Identity.PeerID().String(), opts.Store, contentStore)
+	// Recovery must finish before the API is ready: abandoned staging files are
+	// removed, and incomplete v2 metadata is quarantined rather than served.
+	recoverCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if warnings, recErr := n.publication.Recover(recoverCtx); recErr != nil {
+		_ = contentStore.Close()
+		return nil, fmt.Errorf("node: recover public publication: %w", recErr)
+	} else {
+		for _, warning := range warnings {
+			logger.Warn("publication recovery", "warning", warning)
+		}
+	}
 	return n, nil
 }
 
@@ -782,22 +797,32 @@ func (n *Node) ListConversations(ctx context.Context, before string, limit int) 
 	if err != nil {
 		return ConversationPage{}, err
 	}
+	totalUnread, err := n.store.TotalUnread(ctx)
+	if err != nil {
+		return ConversationPage{}, err
+	}
 	page := ConversationPage{
 		Conversations: make([]Conversation, 0, len(rows)),
 		HasMore:       hasMore,
 		Retention:     toMessageRetention(retention),
+		TotalUnread:   totalUnread,
 	}
 	for _, row := range rows {
 		page.Conversations = append(page.Conversations, Conversation{
-			PeerID:         row.PeerID,
-			LastMessageID:  row.LastMessageID,
-			Direction:      row.Direction,
-			Preview:        row.Preview,
-			LastAt:         time.UnixMilli(row.LastAtMS),
-			DeliveryStatus: row.DeliveryStatus,
-			Origin:         row.Origin,
-			MessageCount:   row.MessageCount,
+			PeerID:            row.PeerID,
+			LastMessageID:     row.LastMessageID,
+			Direction:         row.Direction,
+			Preview:           row.Preview,
+			LastAt:            time.UnixMilli(row.LastAtMS),
+			DeliveryStatus:    row.DeliveryStatus,
+			Origin:            row.Origin,
+			MessageCount:      row.MessageCount,
+			UnreadCount:       row.UnreadCount,
+			LastReadMessageID: row.LastReadMessageID,
 		})
+		if row.LastReadAtMS > 0 {
+			page.Conversations[len(page.Conversations)-1].LastReadAt = time.UnixMilli(row.LastReadAtMS)
+		}
 	}
 	if hasMore && len(rows) > 0 {
 		last := rows[len(rows)-1]

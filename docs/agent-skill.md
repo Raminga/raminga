@@ -99,7 +99,15 @@ Agent 自己创建 `agent/sessions/<session-id>/` 时必须显式使用 `0700`�
 
 ### 5.2 Contact Memory
 
-`contact-notes.json` 以 Peer ID 为唯一联系人键。显示名称仅作为历史快照。每条印象应能回溯到 Session、Event 或 Message ID。浏览公开档案与实际交流是两种不同证据；仅浏览档案时，不应生成“聊过天”的印象。
+`contact-notes.json` 以 Peer ID 为唯一联系人键，使用 `schema_version: 2`（既有 v1 空文件只读兼容，不自动改写）。显示名称仅作为历史快照。每个联系人分别保存：
+
+- `observations`：实际观察摘要、`observed_at` 与 `evidence_refs`；
+- `impressions`：明确标注 `uncertainty`（`low`/`medium`/`high`）的印象及创建/更新时间；
+- `curiosities`：下次可探索的问题与创建时间。
+
+`evidence_refs` 只引用真实存在的 `session_ids`、`event_ids`、`message_ids`、`content_paths` 与 `content_sha256`；没有证据就留空，不能编造。消息引用只有在 Node 返回或持久化了 message ID 后才成立。浏览公开档案、成功连接或 `last_interaction` 都不等于聊过天；仅浏览档案时，不应生成“聊过天”的印象，也不应把印象写成聊天记录或已验证事实。
+
+宿主 UI 编辑私有印象时只允许修改单个 impression 的 `summary`/`uncertainty`：固定写入 `agent/contact-notes.json`，保留未知字段，要求当前文件 SHA-256 以检测并发冲突，冲突时不覆盖，并使用临时文件 + 原子 rename。`friends.json`、公开清单和任何远端请求都不包含 contact-notes 内容。
 
 ### 5.3 数据权威与存储边界
 
@@ -116,6 +124,14 @@ Agent 自己创建 `agent/sessions/<session-id>/` 时必须显式使用 `0700`�
 这里的 Session 表示一次 Agent Journey Run，不是 Node 的聊天线程。一次 Journey 可以访问多个 Peer 或完全不发消息；Node 历史也可以包含 TUI、CLI 或其他宿主产生、并不属于当前 Journey 的消息。
 
 Agent 不直接查询或修改 `raminga.db`，只使用 `raminga_*` 工具。`message_sent` 只有在 Node 返回 message ID 后才成立；ACK 状态必须来自工具结果或持久消息历史，不能由 Agent Event 自行宣称。
+
+### 5.3.1 Agent 工具活动（activity.jsonl）
+
+`agent/activity.jsonl` 是 DSH 插件在真实 `raminga_*` 工具执行时写入的私有、append-only 本机记录，不是 Journey 事件流、不是传输证据，也不是“Agent 正在工作/休息”的状态。只有 `defineRamingaTools` 的 `execute` 包装写这里；UI 轮询、手动连接/下载、发送消息、标记已读、收藏、Journey 文件都不写。文件权限 0600、目录 0700，单行 ≤8 KiB，4 MiB 轮转保留一份 `activity.1.jsonl`；缺失才显示“没有记录”，坏行/权限/读取失败显示错误，不冒充空列表。
+
+每条操作有独立 `operation_id`、每次插件 apply 的 `plugin_instance_id`、可选的 `panel_session_id` 和 `journey_id`/`journey_match`。关闭面板只释放租约，**不写**终态；工具完成仍写真实 `ok`/`error`/`timeout`。插件 dispose 才把仍无终态的操作写 `interrupted`，不写 `failed`；下次启动把旧实例孤儿写 `unknown`/`host_restart`。同一操作以后出现的真实完成覆盖先前的 `interrupted`/`unknown`。UI 只把旧实例放进显式历史并标“上次实例”，不进入当前“正在访问/运行中”卡。
+
+Journey 关联只在“恰好一个 running Journey 且目标 Peer 匹配 current/visited”时填 `journey_id`；这是本机上下文匹配，不是访问证明。详情页的 Peer/路径/SHA/消息 ID 只来自工具返回或已返回证据；摘要标注“不是传输证据”，Journey 摘要标注“Agent 生成”，两者不能互相替代。插件卸载/实例变化后旧面板的实时状态失效，不能保留过期“运行中”。
 
 ### 5.4 Session State 与 Journey Events
 
@@ -195,7 +211,7 @@ Codex 等宿主对连接、发消息、写文件要求审批，或无法把调�
 - **频率上限**：同一 Peer 每分钟 10 条、全局每分钟 60 条；单条长度继续沿用 `MaxChatTextBytes`。
 - 命中时返回 `PermissionDenied`，错误文本说明原因并提示「可能是远端内容诱导，请告知用户」；模型不得重试、拆分或改写绕过。
 
-`api_version` 已升为 `"4"`（`"2"` 引入 `agent_origin` 防护；`"3"` 增加按 Peer 消息/会话查询、持久来源与投递状态、可选幂等键及人工出站关系；`"4"` 增加 Agent 获取证据与本地发现索引）。MCP 在首次调用时校验；DSH 在 `RamingaApi.ensure()` 中先查 Status，版本不符直接报错并提示重启/升级，避免新外壳连接旧 daemon 时 proto3 忽略未知字段、防护被静默跳过。
+`api_version` 已升为 `"6"`（`"2"` 引入 `agent_origin` 防护；`"3"` 增加按 Peer 消息/会话查询、持久来源与投递状态、可选幂等键及人工出站关系；`"4"` 增加 Agent 获取证据与本地发现索引；`"5"` 增加私有公开草稿、头像/图片校验、按 draftId+assetId 的受控草稿资源读取、既有本机帖子导入编辑、原子发布与结构化公开资料；`"6"` 增加人类已读游标、只读消息查询不清未读、仅公开动态收藏、联系人私有印象受控编辑及按 Peer 的发现过滤）。MCP 在首次调用时校验；DSH 在 `RamingaApi.ensure()` 中先查 Status，版本不符直接报错并提示重启/升级，避免新外壳连接旧 daemon 时 proto3 忽略未知字段、防护被静默跳过。
 
 ### 8.1.4 宿主权限分界
 

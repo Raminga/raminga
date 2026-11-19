@@ -1,4 +1,4 @@
-// Build the shared Raminga five-page UI with esbuild.
+// Build the shared Raminga three-page UI with esbuild.
 //
 // esbuild is the normal devDependency declared in package.json. This script
 // only supplies the UI-specific asset layer: CSS, the template and sample
@@ -47,7 +47,7 @@ function readCss() {
   const order = ['tokens.css', 'workspace.css'];
   const raw = order.map((name) => fs.readFileSync(path.join(srcRoot, 'styles', name), 'utf8')).join('\n');
   // Shadow DOM has no document :root/body; map the two shell selectors while
-  // leaving the five-page rules themselves untouched.
+  // leaving the three-page rules themselves untouched.
   return raw.replace(/:root\b/g, ':host').replace(/(^|[\n{}])\s*body(?=\s*[{,])/g, '$1.rm-ui-root');
 }
 

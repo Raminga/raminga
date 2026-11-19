@@ -25,7 +25,24 @@ test('bundle builds without imports, host packages, timers or a second network s
   assert.match(bundle, /发送结果未知/);
   assert.match(bundle, /公开动态/);
   assert.match(bundle, /本人公开内容/);
-  assert.match(bundle, /Journey 活动/);
+  assert.match(bundle, /近期记录/);
+  assert.match(bundle, /漫游日志/);
+  assert.match(bundle, /最近记录/);
+  assert.match(bundle, /他的通讯录/);
+  assert.match(bundle, /onLoadPeerFriends/);
+  // P4 adds a real-tool "正在访问" card; "正在漫游" remains forbidden.
+  assert.match(bundle, /正在访问：/);
+  assert.doesNotMatch(bundle, /正在漫游/);
+  assert.doesNotMatch(bundle, /P[1-4] 编辑|P[1-4] 尚未|不会假装保存|不能冒充|公开资料（P[1-4]/);
+  assert.match(bundle, /home-agent-hero/);
+  assert.match(bundle, /settings-private/);
+  assert.match(bundle, /id: "explore"/);
+  assert.match(bundle, /id: "home"/);
+  assert.match(bundle, /id: "contacts"/);
+  assert.match(bundle, /label: "动态"/);
+  assert.match(bundle, /label: "主页"/);
+  assert.match(bundle, /label: "联系人"/);
+  assert.doesNotMatch(bundle, /id="page-mine"|id="page-raminga"/);
   assert.match(bundle, /远端声明/);
   assert.match(bundle, /节点状态/);
   assert.match(bundle, /dsh-frame-leading-clearance/);
@@ -35,7 +52,9 @@ test('bundle builds without imports, host packages, timers or a second network s
   assert.doesNotMatch(bundle, /@connectrpc|raminga\.db|api\.token|@deepseek-ai/);
   assert.doesNotMatch(bundle, /<script/i);
   assert.doesNotMatch(bundle, /查看空状态|填入示例|预览状态|示例联系人|Alice|Nova|Momo/);
-  // Page state survives unmounts in the adapter; the UI itself must not keep a
-  // polling/streaming timer alive while hidden.
-  assert.doesNotMatch(bundle, /setInterval|setTimeout/);
+  // Page state survives unmounts in the adapter; the UI must not keep a
+  // polling/streaming interval alive while hidden. P2's draft autosave uses one
+  // bounded 600ms debounce, never a background poll.
+  assert.doesNotMatch(bundle, /setInterval/);
+  assert.match(bundle, /draft-save-debounce/);
 });

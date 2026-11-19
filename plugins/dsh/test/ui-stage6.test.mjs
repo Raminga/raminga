@@ -18,7 +18,7 @@ function statusResponse(peerId = PEER_A) {
     nodeId: 'node-test',
     version: 'test',
     protocolVersion: '1',
-    apiVersion: '4',
+    apiVersion: '6',
     startedAtUnixMs: 1,
     currentTime: 'now',
     listenAddrs: [],
@@ -51,14 +51,19 @@ function post(peerId, title = '公开帖子') {
   };
 }
 
-function makeClient({ status = statusResponse(), rows = [], relations = [], profile = null, card = null, messagePages = [], sendChat = null } = {}) {
+function makeClient({ status = statusResponse(), rows = [], relations = [], profile = null, card = null, messagePages = [], sendChat = null, published = [], peerFriends = null, peerManifest = null } = {}) {
   const relationPages = Array.isArray(relations) ? relations : [];
   let messageIndex = 0;
   return {
     async status() { return status; },
     async listFriends() { return { friends: [] }; },
     async listDiscoveries(request) {
-      const page = rows.filter((row) => !request.before || row.id < request.before);
+      const relationPeers = new Set();
+      for (const entry of relationPages) for (const peer of entry.peers ?? []) relationPeers.add(peer.peerId);
+      const page = rows.filter((row) => !request.before || row.id < request.before)
+        .filter((row) => request.familiarOnly !== true || relationPeers.has(row.peerId))
+        .filter((row) => request.postCandidatesOnly !== true
+          || /^posts\/(?:[A-Za-z0-9._-]+\.json|[A-Za-z0-9._-]+\/post\.json)$/.test(row.path));
       return {
         discoveries: page,
         hasMore: false,
@@ -70,6 +75,9 @@ function makeClient({ status = statusResponse(), rows = [], relations = [], prof
       if (!entry) return { peers: [], hasMore: false, nextBefore: '' };
       return { peers: entry.peers, hasMore: entry.hasMore === true, nextBefore: entry.next ?? '' };
     },
+    async published() {
+      return { files: published.map((file) => ({ path: file.path, size: file.size })), skipped: [], generatedAtUnixMs: 1, friendsSyncedAtUnixMs: 1 };
+    },
     async listMessages() {
       const page = messagePages[messageIndex] ?? { messages: [], hasMore: false, nextBefore: '', retention: { retainedMessages: 0, oldestRetainedAtUnixMs: 0, maxStoredMessages: 1000 } };
       messageIndex += 1;
@@ -78,6 +86,14 @@ function makeClient({ status = statusResponse(), rows = [], relations = [], prof
     async getPeerProfile() {
       if (!profile) throw new Error('no profile');
       return profile;
+    },
+    async getPeerFriends() {
+      if (peerFriends instanceof Error) throw peerFriends;
+      return peerFriends ?? { peerId: PEER_A, friends: [], limited: false };
+    },
+    async getPeerManifest() {
+      if (!peerManifest) throw new Error('no manifest');
+      return peerManifest;
     },
     async downloadPeerFile() {
       return (async function* frames() {
@@ -152,6 +168,41 @@ test('discoveries parse only verified versioned posts and familiar uses complete
     const content = await bridge.discoveryContent('ui-stage6-discovery', rowA.id);
     assert.equal(content.ok, true);
     assert.match(content.post.bodyMarkdown, /受控/);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+test('a full page of non-post files does not hide later posts or inflate counts', async () => {
+  const dir = await tempDir();
+  const later = await seedDiscovery(dir, PEER_A, 'posts/later.json', post(PEER_A, '一整页之后'));
+  const filler = Array.from({ length: 100 }, (_, index) => ({
+    id: `note-${String(index).padStart(3, '0')}`,
+    peerId: PEER_A,
+    path: `notes/note-${String(index).padStart(3, '0')}.md`,
+    sha256: 'a'.repeat(64),
+    sizeBytes: 10,
+    fetchedAtUnixMs: 2000 - index,
+    source: 'raminga_ui_manual',
+  }));
+  const client = makeClient({ rows: [] });
+  client.listDiscoveries = async (request) => {
+    assert.equal(request.postCandidatesOnly, true, 'the Feed asks the daemon to filter before its cursor LIMIT');
+    if ((request.before ?? '') === '') {
+      return { discoveries: filler, hasMore: true, nextBefore: 'page-2' };
+    }
+    return { discoveries: [later], hasMore: false, nextBefore: '' };
+  };
+  const bridge = makeBridge(client, dir);
+  try {
+    await bridge.open('ui-stage6-post-page');
+    const all = await bridge.discoveries('ui-stage6-post-page', false, true);
+    assert.equal(all.items.length, 1, 'the later post is found after a whole non-post page');
+    assert.equal(all.items[0].path, 'posts/later.json');
+    assert.equal(all.items[0].title, '一整页之后');
+    assert.equal(all.scanned, 101);
+    assert.equal(all.ignored, 100, 'non-posts are counted as excluded, never rendered');
+    assert.equal(all.truncated, false);
   } finally {
     bridge.dispose();
   }
@@ -234,13 +285,18 @@ test('mine reads the local public profile and only explicit user authorship', as
   });
   // A public file exists but does not prove this user wrote it.
   await write(path.join(dir, 'public', 'posts', 'other.json'), post(PEER_B, '他人内容'));
-  const client = makeClient();
+  const published = [];
+  for (const relative of ['profile/index.md', 'posts/user.json', 'posts/agent.json', 'posts/other.json']) {
+    const stat = await fs.stat(path.join(dir, 'public', relative));
+    published.push({ path: relative, size: stat.size });
+  }
+  const client = makeClient({ published });
   const bridge = makeBridge(client, dir);
   try {
     await bridge.open('ui-stage6-mine');
     const mine = await bridge.mine('ui-stage6-mine', true);
     assert.equal(mine.profile.state, 'available');
-    assert.equal(mine.posts.posts.length, 1, 'only the explicit user post belongs to mine');
+    assert.equal(mine.posts.posts.length, 2, 'mine includes explicit user and Agent posts');
     const userPosts = mine.posts.posts.filter((item) => item.authorKind === 'user');
     assert.equal(userPosts.length, 1);
     assert.equal(userPosts[0].title, '公开帖子');
@@ -281,6 +337,44 @@ test('peer profile keeps the user profile separate from an optional public Agent
     assert.equal(profile.agentCard.card.displayName, 'Nova');
   } finally {
     bridge.dispose();
+  }
+});
+
+test('peer address book returns GetPeerFriends claims without treating them as local contacts', async () => {
+  const dir = await tempDir();
+  const bridge = makeBridge(makeClient({
+    peerFriends: {
+      peerId: PEER_A,
+      limited: true,
+      friends: [
+        { name: 'Claimed', peerId: PEER_B, addrs: ['/ip4/127.0.0.1/tcp/4001'], description: '公开条目' },
+        { name: 'invalid', peerId: 'not-a-peer', addrs: [], description: '' },
+      ],
+    },
+  }), dir);
+  try {
+    await bridge.open('ui-stage6-friends');
+    const friends = await bridge.peerFriends('ui-stage6-friends', PEER_A, true);
+    assert.equal(friends.source, 'remote');
+    assert.equal(friends.limited, true);
+    assert.equal(friends.error, null);
+    assert.equal(friends.friends.length, 1);
+    assert.equal(friends.friends[0].name, 'Claimed');
+    assert.equal(friends.friends[0].peerId, PEER_B);
+    assert.equal(friends.friends[0].description, '公开条目');
+  } finally {
+    bridge.dispose();
+  }
+
+  const unavailable = makeBridge(makeClient({ peerFriends: new Error('peer offline') }), dir);
+  try {
+    await unavailable.open('ui-stage6-friends-offline');
+    const friends = await unavailable.peerFriends('ui-stage6-friends-offline', PEER_A, true);
+    assert.equal(friends.source, 'unavailable');
+    assert.equal(friends.friends.length, 0);
+    assert.match(friends.error, /peer offline/);
+  } finally {
+    unavailable.dispose();
   }
 });
 
@@ -393,5 +487,142 @@ test('a missing local data root is an explicit error, not an empty feed', async 
     assert.match(mine.error, /受控数据目录/);
   } finally {
     bridge.dispose();
+  }
+});
+
+test('savePrivateAgent writes only the fixed private files and reports conflicts', async () => {
+  const dir = await tempDir();
+  const bridge = makeBridge(makeClient(), dir);
+  try {
+    await bridge.open('ui-stage6-private-save');
+    const saved = await bridge.savePrivateAgent('ui-stage6-private-save', 'persona', '# 人格\n\n只在本机。', '');
+    assert.equal(saved.saved, true);
+    assert.equal(saved.field, 'persona');
+    assert.match(saved.sha256, /^[a-f0-9]{64}$/);
+    assert.equal(await fs.readFile(path.join(dir, 'agent', 'persona.md'), 'utf8'), '# 人格\n\n只在本机。');
+    assert.equal((await fs.stat(path.join(dir, 'agent', 'persona.md'))).mode & 0o777, 0o600);
+    await assert.rejects(fs.stat(path.join(dir, 'public')), /ENOENT/);
+
+    const conflict = await bridge.savePrivateAgent('ui-stage6-private-save', 'persona', '# 覆盖', 'f'.repeat(64));
+    assert.equal(conflict.saved, false);
+    assert.equal(conflict.conflict, true);
+    assert.match(conflict.error, /已在别处修改/);
+    assert.equal(await fs.readFile(path.join(dir, 'agent', 'persona.md'), 'utf8'), '# 人格\n\n只在本机。');
+
+    await assert.rejects(
+      bridge.savePrivateAgent('ui-stage6-private-save', 'other', 'x', ''),
+      /只允许保存/,
+    );
+  } finally {
+    bridge.dispose();
+  }
+});
+
+
+test('verified profile and directory claims survive a new host bridge without another read', async () => {
+  const dir = await tempDir();
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=', 'base64');
+  const avatarSha = crypto.createHash('sha256').update(png).digest('hex');
+  const avatarPath = `profile/avatar-${avatarSha.slice(0, 8)}.png`;
+  await write(path.join(dir, 'downloads', PEER_B, avatarPath), png);
+  const profileResponse = {
+    peerId: PEER_B,
+    name: 'Lin An',
+    text: '# Lin An\n\n公开主页。',
+    files: ['profile/index.md', 'profile/profile.json', avatarPath],
+    found: true,
+    profile: {
+      agentName: '潮汐线旁的林岸',
+      agentDescription: '慢一点回信，先把海边的事看完。',
+      agentInterests: ['潮汐', '旧信'],
+      agentConversationStyle: '不急着追问。',
+      humanName: '林岸',
+      humanBioMarkdown: '住在潮汐线附近。',
+      avatarPath,
+      avatarSha256: avatarSha,
+      avatarMime: 'image/png',
+    },
+  };
+  const calls = { profile: 0, friends: 0, manifest: 0 };
+  const client = makeClient({
+    profile: profileResponse,
+    peerFriends: {
+      peerId: PEER_B,
+      limited: false,
+      friends: [{ name: '星云收集者', peerId: PEER_C, addrs: [], description: '喜欢收集星云与天文影像。' }],
+    },
+    peerManifest: {
+      peerId: PEER_B,
+      total: 1,
+      limited: false,
+      entries: [{ path: avatarPath, sha256: avatarSha, size: png.length, modifiedUnixMs: 1 }],
+    },
+  });
+  for (const method of ['getPeerProfile', 'getPeerFriends', 'getPeerManifest']) {
+    const original = client[method];
+    client[method] = async (...args) => {
+      calls[method === 'getPeerProfile' ? 'profile' : method === 'getPeerFriends' ? 'friends' : 'manifest'] += 1;
+      return original.apply(client, args);
+    };
+  }
+  const bridge = makeBridge(client, dir);
+  try {
+    await bridge.open('ui-stage6-projection');
+    const profile = await bridge.peerProfile('ui-stage6-projection', PEER_B, true);
+    assert.equal(profile.agentCard.card.displayName, '潮汐线旁的林岸');
+    const friends = await bridge.peerFriends('ui-stage6-projection', PEER_B, true);
+    assert.equal(friends.friends.length, 1);
+    const first = await bridge.contactProjection('ui-stage6-projection');
+    assert.equal(first.state, 'available');
+    const saved = first.profiles.find((item) => item.peerId === PEER_B);
+    assert.equal(saved.displayName, '潮汐线旁的林岸');
+    assert.equal(saved.avatarState, 'ready');
+    assert.match(saved.avatarUrl, /^data:image\/png;base64,/);
+    assert.equal(saved.avatarSha256, avatarSha);
+    assert.equal(first.clues.length, 1);
+    assert.equal(first.clues[0].sourcePeerId, PEER_B);
+    assert.equal(first.clues[0].peerId, PEER_C);
+    assert.match(first.clues[0].sourceName, /潮汐线旁的林岸/);
+  } finally {
+    bridge.dispose();
+  }
+
+  // A new bridge simulates the next DSH application run. Reading its
+  // projection must not re-read either the profile or the directory.
+  let remoteReads = 0;
+  const offlineClient = makeClient();
+  offlineClient.getPeerProfile = async () => { remoteReads += 1; throw new Error('peer offline'); };
+  offlineClient.getPeerFriends = async () => { remoteReads += 1; throw new Error('peer offline'); };
+  offlineClient.getPeerManifest = async () => { remoteReads += 1; throw new Error('peer offline'); };
+  const reopened = makeBridge(offlineClient, dir);
+  try {
+    await reopened.open('ui-stage6-projection-reopen');
+    const after = await reopened.contactProjection('ui-stage6-projection-reopen');
+    assert.equal(after.state, 'available');
+    const saved = after.profiles.find((item) => item.peerId === PEER_B);
+    assert.equal(saved.displayName, '潮汐线旁的林岸');
+    assert.equal(saved.avatarState, 'ready');
+    assert.match(saved.avatarUrl, /^data:image\/png;base64,/);
+    assert.equal(after.clues.length, 1);
+    assert.equal(after.clues[0].name, '星云收集者');
+    assert.equal(remoteReads, 0, 'projection reads are local-only');
+  } finally {
+    reopened.dispose();
+  }
+
+  // A missing local avatar is not shown under the saved version; the name and
+  // clue remain available for an offline source.
+  await fs.rm(path.join(dir, 'downloads', PEER_B, avatarPath));
+  const missingBridge = makeBridge(makeClient(), dir);
+  try {
+    await missingBridge.open('ui-stage6-projection-missing-avatar');
+    const after = await missingBridge.contactProjection('ui-stage6-projection-missing-avatar');
+    const saved = after.profiles.find((item) => item.peerId === PEER_B);
+    assert.equal(saved.displayName, '潮汐线旁的林岸');
+    assert.equal(saved.avatarState, 'missing');
+    assert.equal(saved.avatarUrl, '');
+    assert.equal(after.clues[0].name, '星云收集者');
+  } finally {
+    missingBridge.dispose();
   }
 });

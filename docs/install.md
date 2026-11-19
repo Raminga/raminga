@@ -66,6 +66,8 @@ dsh plugin --profile web remove @raminga/dsh
 
 将 `web` 换成实际 profile。若开发安装时另行添加了平台子包，可一并卸载。检查该 profile 的 `package.json`，从 `dsh.profile.bundles` 删除 `@raminga/dsh`（若安装器未自动删除），重启宿主后侧栏入口消失；数据目录不会被卸载删除，需要时自行备份/清理。
 
+开发/验收环境的隔离双节点、真实 DSH 宽窄屏、插件卸载重装与 schema 9→11 升级步骤见 [`scripts/ui-acceptance/p5/README.md`](../scripts/ui-acceptance/p5/README.md)；这些脚本默认使用独立端口/数据目录，不修改用户 DSH 配置。
+
 Electron 桌面应用共用同一套 DSH profile/插件。隔离启动时需要单独的 `HOME`、`DSH_HOME`、`RAMINGA_DATA_DIR` 与 `--user-data-dir`，并确保环境中的 `ELECTRON_RUN_AS_NODE` 未设置；否则应用会以 Node CLI 运行并拒绝 Chromium 参数。不要复用用户的日常 DSH_HOME 或 `~/.raminga`。
 
 ### 独立二进制
@@ -383,7 +385,7 @@ raminga mcp --data-dir "$HOME/.raminga"
 
 本地 API 默认仍是 `<data-dir>/api.sock`（0600）加 `<data-dir>/api.token`（0600）。需要绕过 Unix socket 的场景可以显式 opt-in 回环 TCP：启动 daemon 时加 `--api-tcp`，或在自动启动/裸 `raminga` 前设置 `RAMINGA_API_TCP=1`。此模式**不会**再监听 Unix socket，只在 `127.0.0.1:<临时端口>` 提供带每轮随机 token 和固定证书的 TLS API；端点文件 `<data-dir>/api.endpoint.json` 由 daemon 在数据目录锁内原子写入，停止/重启时删除并轮换 token/端口/证书。Unix 上该文件为 0600；Windows 上为按当前用户 SID 的受保护 DACL，Node 客户端通过本地 Go 二进制的私有 stdout 管道校验并读取，不再次按路径打开。客户端只读取该文件，端点过期、不可达或 ACL 无法验证时明确失败，不会回退到 Unix socket，也不使用环境代理。CLI、TUI 与 DSH 插件都复用同一发现逻辑。DSH 在 Windows 上缺省启用 TCP（显式 `apiTcp: false` 或 `RAMINGA_API_TCP=0` 仍优先），macOS/Linux 仍缺省 UDS，需设置 `apiTcp: true` 或 `RAMINGA_API_TCP=1`。不要把端点文件或 token 复制到渲染器、日志或分享内容。
 
-本地 API 现在带一个 `api_version` 字段（当前为 `"4"`，存储 schema 为 `8`）。插件外壳在第一次调用时校验它；当前插件要求 API 4，连接 API 2/3 或更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表，daemon 启动时迁移旧库，迁移前应备份数据目录。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。
+本地 API 现在带一个 `api_version` 字段（P3 当前为 `"6"`，存储 schema 为 `11`）。插件外壳在第一次调用时校验它；当前插件要求 API 6，连接更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表；schema 9 追加 `sources_json`，用于同一 (peer, path, sha256) 版本的多种获取来源（手动与 Agent），迁移时为旧行从 `source` 回填一次。`"5"` 新增 `GetPublicDraft`/`ListPublicDrafts`/`SavePublicDraft`/`PutPublicDraftImage`/`DeletePublicDraft`/`PublishPublicDraft`、结构化 `PublicProfile` 与发布回执；schema 10 只新增 `public_drafts`/`public_draft_assets`，升级前自动备份为 `raminga.db.bak-<旧版本>`；`profile.json` v2、头像与 v2 图文动态只在显式发布后进入公开清单。daemon 启动时在单个事务中迁移旧库；P2/P3 升级前会自动写入 `raminga.db.bak-<旧版本>`，仍建议保留数据目录级备份。`Discovery.sources` 是 API 4 的追加字段，旧 daemon 省略它时插件回退到 `source`。`"6"` 新增 `MarkConversationRead`、`ListFavorites`/`SetFavorite`、`ListDiscoveries.peer_id`、会话/联系人未读字段与 `ListConversations.total_unread`；schema 11 只新增 `conversation_read_state` 与 `favorites`，迁移 v10→v11 时按每个 Peer 的现有消息时间回填已读基线，避免升级后把全部历史标成未读。该基线不代表用户真的读过。人类已读游标只前进；`ListMessages`/`RecentMessages`/`ListConversations`/`ListFriends` 与 Agent 的 `raminga_chat_history` 都不写游标。收藏只接受 v1/v2 公开动态路径并记录经校验的版本，不收藏消息或联系人。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。
 
 首次运行的**旧数据目录安全闸**：如果 `--data-dir` 指向的目录已存在且非空，但既无 `identity/` 也无 `config.toml`（疑似旧版或非 Raminga 数据），`raminga mcp` 会**拒绝静默初始化**——只写一条 stderr 警告，不自动生成新身份；确认后请显式 `raminga init --data-dir ...` 迁移或沿用，避免误建第二身份。直接运行 `raminga`（自动拉起 daemon 后打开 TUI）使用同一套旧数据目录与其他已知节点检测，命中时打印相同警告并拒绝自动启动。启动器在 `~/.raminga/bin/<version>/` 缓存的二进制属于 Raminga 自有条目，`raminga.lock`、`daemon.log`/`daemon.log.1`、`api.sock`/`api.token` 等运行期文件同样不计入“非空”；因此全新机器上只有 `bin/` 的默认目录可以直接初始化，含其他未知条目时仍按上述规则拒绝。目标目录**尚无身份**时还会检查 `$RAMINGA_DATA_DIR`、默认 `~/.raminga` 以及本文件记录的迁移旧位置（`~/.raminga/raminga-test`、`~/.raminga-before-migrate`、`~/.raminga-new`、`~/.raminga-new/raminga-test`）；发现含 `identity/key` 的节点就列出这些路径并拒绝自动初始化，避免用户已有身份时误建新身份。
 
@@ -408,6 +410,8 @@ raminga init --data-dir "$HOME/.raminga/client-a" --dht-mode client --bootstrap 
 ```
 
 `--dht-mode` 接受 `client`、`server`、`auto`，默认 `auto`，只写配置、不启动节点。Relay/Bootstrap 等公网节点应显式用 `--dht-mode server`（`auto` 在可达性未知时保持 client，不能假定它会自动承担 server）；NAT 后的普通节点可用 `client`。不带该 flag 的旧命令和缺少 `mode` 的旧配置仍按 `auto` 工作，不需要迁移。完整语义、`dht status` 字段与晚启动恢复见 [DHT 使用与诊断](dht.md)。
+
+**引导节点预置：** 全新 `raminga init` 在没有 `--bootstrap` 时会按发行内置官方列表写入 `dht.bootstrap_peers`，除非传入 `--no-bootstrap-preset`。自定义 `--bootstrap` 优先于预置。预置列表当前为空，直到提供真实公开地址。已有配置、升级配置或用户把 `bootstrap_peers` 清空后都不会自动补回；`raminga daemon` 的 `config.toml` 加载也不会改写已有文件。`raminga init --json` 返回 `bootstrap_preset` 以便核对。
 
 **升级已有数据目录：** `raminga init --force --data-dir ... <同一组 flags>` 只重写 `config.toml` 以采用新默认，保留 `identity/key`、Peer ID 和 `raminga.db`；不加 `--force` 时旧配置的 `listen_addrs` 保持原样。
 

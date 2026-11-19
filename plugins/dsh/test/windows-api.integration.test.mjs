@@ -228,7 +228,7 @@ test('Windows default starts TCP; Status, real event and same-client restart rec
   const statusA = await clientA.status(new StatusRequest(), { timeoutMs: 5_000 });
   const statusB = await clientB.status(new StatusRequest(), { timeoutMs: 5_000 });
   assert.ok(statusA.peerId.length > 0);
-  assert.equal(statusA.apiVersion, '4');
+  assert.equal(statusA.apiVersion, '6');
   assert.notEqual(statusA.peerId, statusB.peerId);
   assert.equal(fs.existsSync(path.join(dirA, 'api.endpoint.json')), true);
   assert.equal(fs.existsSync(path.join(dirA, 'api.sock')), false);

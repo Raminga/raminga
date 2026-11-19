@@ -134,6 +134,25 @@ type Relay struct {
 	ReservationDurationLimit string `toml:"reservation_duration_limit"`
 }
 
+// OfficialBootstrapPeers is the release-owned Raminga bootstrap preset. It is
+// intentionally empty until real public node addresses are supplied; no
+// documentation or test address is ever treated as a live peer.
+var OfficialBootstrapPeers []string
+
+// ResolveBootstrapPeers applies the first-initialization priority: an explicit
+// custom list wins over the built-in preset, and a nil/false preset never adds
+// peers. It is called only while writing a new config, never by Load for an
+// existing config.
+func ResolveBootstrapPeers(custom []string, preset *bool, official []string) []string {
+	if len(custom) > 0 {
+		return append([]string(nil), custom...)
+	}
+	if preset == nil || !*preset {
+		return nil
+	}
+	return append([]string(nil), official...)
+}
+
 // DHT configures the independent Raminga Kademlia DHT.
 type DHT struct {
 	Enabled bool `toml:"enabled"`
@@ -145,6 +164,10 @@ type DHT struct {
 	// BootstrapPeers are explicit Raminga bootstrap multiaddrs. Empty means no
 	// bootstrap peers; the libp2p public IPFS defaults are never used.
 	BootstrapPeers []string `toml:"bootstrap_peers"`
+	// BootstrapPreset records whether the built-in official preset was enabled
+	// when this config was created. nil means the config predates presets;
+	// loading it never adds peers. Existing files are never rewritten on load.
+	BootstrapPreset *bool `toml:"bootstrap_preset,omitempty"`
 	// RefreshInterval controls routing-table refresh and relay discovery.
 	RefreshInterval string `toml:"refresh_interval"`
 	// QueryTimeout bounds one FindPeer call.
@@ -273,7 +296,16 @@ func Load(dataDir string) (Config, error) {
 		if err := os.MkdirAll(dataDir, 0o700); err != nil {
 			return Config{}, fmt.Errorf("create data directory: %w", err)
 		}
-		raw = []byte(DefaultTOML)
+		// Only first initialization seeds the release preset. Existing configs
+		// (including a user-cleared bootstrap_peers) are never rewritten here.
+		initial := Default()
+		enabled := true
+		initial.DHT.BootstrapPreset = &enabled
+		initial.DHT.BootstrapPeers = ResolveBootstrapPeers(nil, &enabled, OfficialBootstrapPeers)
+		raw, err = RenderTOML(initial)
+		if err != nil {
+			return Config{}, fmt.Errorf("render default config: %w", err)
+		}
 		if err := os.WriteFile(path, raw, 0o600); err != nil {
 			return Config{}, fmt.Errorf("write default config %q: %w", path, err)
 		}
@@ -623,7 +655,7 @@ func walkKeys(prefix string, m map[string]any) error {
 			}
 		case "dht":
 			switch key {
-			case "enabled", "mode", "protocol_prefix", "bootstrap_peers", "refresh_interval", "query_timeout":
+			case "enabled", "mode", "protocol_prefix", "bootstrap_peers", "bootstrap_preset", "refresh_interval", "query_timeout":
 				allowed = true
 			}
 		case "autonat":
@@ -714,8 +746,12 @@ reservation_duration_limit = "2m"
 enabled = true
 mode = "auto"
 protocol_prefix = "/raminga"
-# Explicit Raminga bootstrap peers only. Empty = no bootstrap.
+# Explicit Raminga bootstrap peers only. Empty = no bootstrap. A custom list
+# wins over the built-in official preset; existing configs are never rewritten.
 bootstrap_peers = []
+# Seed the built-in official preset on first initialization when no custom list
+# is supplied. Set false before init to opt out.
+bootstrap_preset = true
 refresh_interval = "30s"
 query_timeout = "20s"
 
@@ -777,6 +813,9 @@ type InitOptions struct {
 	AnnounceAddrs  []string
 	KnownRelays    []string
 	BootstrapPeers []string
+	// DisableBootstrapPreset records an explicit opt-out from the release
+	// preset on this new config. It is ignored when BootstrapPeers is set.
+	DisableBootstrapPreset bool
 	// DHTMode is client, server or auto. Empty preserves the default auto.
 	DHTMode string
 }
@@ -811,7 +850,13 @@ func Init(dataDir string, opts InitOptions) (Config, error) {
 	cfg.Network.AnnounceAddrs = append([]string(nil), opts.AnnounceAddrs...)
 	cfg.Relay.Provider = opts.RelayProvider
 	cfg.Relay.KnownRelays = append([]string(nil), opts.KnownRelays...)
-	cfg.DHT.BootstrapPeers = append([]string(nil), opts.BootstrapPeers...)
+	presetEnabled := !opts.DisableBootstrapPreset
+	if len(opts.BootstrapPeers) > 0 {
+		// A custom list has higher priority than the release preset.
+		presetEnabled = false
+	}
+	cfg.DHT.BootstrapPreset = &presetEnabled
+	cfg.DHT.BootstrapPeers = ResolveBootstrapPeers(opts.BootstrapPeers, &presetEnabled, OfficialBootstrapPeers)
 	if opts.DHTMode != "" {
 		cfg.DHT.Mode = opts.DHTMode
 	}

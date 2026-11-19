@@ -273,3 +273,79 @@ func TestContentLimitsDefaultsAndValidation(t *testing.T) {
 		t.Fatal("zero content limit accepted")
 	}
 }
+
+func TestBootstrapPresetInitPriorityAndExistingPreservation(t *testing.T) {
+	const official = "/ip4/127.0.0.1/tcp/14001/p2p/12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6"
+	const custom = "/ip4/127.0.0.1/tcp/14002/p2p/12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6"
+	previous := OfficialBootstrapPeers
+	OfficialBootstrapPeers = []string{official}
+	t.Cleanup(func() { OfficialBootstrapPeers = previous })
+
+	t.Run("release preset seeds a new init", func(t *testing.T) {
+		cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.DHT.BootstrapPeers) != 1 || cfg.DHT.BootstrapPeers[0] != official {
+			t.Fatalf("bootstrap peers = %v, want official preset", cfg.DHT.BootstrapPeers)
+		}
+		if cfg.DHT.BootstrapPreset == nil || !*cfg.DHT.BootstrapPreset {
+			t.Fatalf("bootstrap preset = %v, want true", cfg.DHT.BootstrapPreset)
+		}
+	})
+	t.Run("custom list wins over preset", func(t *testing.T) {
+		cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, BootstrapPeers: []string{custom}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.DHT.BootstrapPeers) != 1 || cfg.DHT.BootstrapPeers[0] != custom {
+			t.Fatalf("bootstrap peers = %v, want custom", cfg.DHT.BootstrapPeers)
+		}
+		if cfg.DHT.BootstrapPreset == nil || *cfg.DHT.BootstrapPreset {
+			t.Fatalf("bootstrap preset = %v, want false when custom wins", cfg.DHT.BootstrapPreset)
+		}
+	})
+	t.Run("explicit opt out", func(t *testing.T) {
+		cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, DisableBootstrapPreset: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.DHT.BootstrapPeers) != 0 {
+			t.Fatalf("bootstrap peers = %v, want empty", cfg.DHT.BootstrapPeers)
+		}
+		if cfg.DHT.BootstrapPreset == nil || *cfg.DHT.BootstrapPreset {
+			t.Fatalf("bootstrap preset = %v, want false", cfg.DHT.BootstrapPreset)
+		}
+	})
+	t.Run("existing empty config is not refilled", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, FileName)
+		raw := []byte("[dht]\nbootstrap_peers = []\n")
+		if err := os.WriteFile(path, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.DHT.BootstrapPeers) != 0 || cfg.DHT.BootstrapPreset != nil {
+			t.Fatalf("existing config changed: peers=%v preset=%v", cfg.DHT.BootstrapPeers, cfg.DHT.BootstrapPreset)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != string(raw) {
+			t.Fatalf("Load rewrote existing config: %q", after)
+		}
+	})
+	t.Run("new load writes preset", func(t *testing.T) {
+		cfg, err := Load(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.DHT.BootstrapPeers) != 1 || cfg.DHT.BootstrapPeers[0] != official {
+			t.Fatalf("bootstrap peers = %v, want official preset", cfg.DHT.BootstrapPeers)
+		}
+	})
+}

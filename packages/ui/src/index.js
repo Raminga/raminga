@@ -1,4 +1,4 @@
-// Public entry of the shared Raminga five-page workspace.
+// Public entry of the shared Raminga three-page workspace.
 // This module is host-agnostic: it renders NodeStatus and NodeEvent values it
 // is handed, but never opens a socket, reads a token, or knows about DSH.
 import { CSS, TEMPLATE } from './generated-assets.js';
@@ -21,11 +21,26 @@ let mountCount = 0;
  *   onLoadOlder?: (peerId: string, before: string) => Promise<object>,
  *   onSend?: (peerId: string, text: string, requestId: string) => Promise<object>,
  *   onCancelOutbox?: (peerId: string, messageId: string) => Promise<object>,
+ *   onLoadPeerFriends?: (peerId: string, force: boolean) => Promise<object>,
+ *   onLoadContactProjection?: () => Promise<object>,
+ *   onLoadJourney?: (force: boolean) => Promise<object>,
+ *   onLoadActivity?: (limit: number) => Promise<object>,
+ *   onLoadActivityDetail?: (operationId: string) => Promise<object>,
+ *   onSavePrivateAgent?: (field: 'persona'|'growth', content: string, expectedSha256: string) => Promise<object>,
+ *   onLoadPublicDraft?: (draftId: string) => Promise<object>,
+ *   onLoadPublicDrafts?: (kind: string) => Promise<object>,
+ *   onSavePublicDraft?: (input: object) => Promise<object>,
+ *   onPutPublicDraftImage?: (draftId: string, role: string, filename: string, dataBase64: string) => Promise<object>,
+ *   onLoadPublicDraftAsset?: (draftId: string, assetId: string) => Promise<{image: object, dataBase64: string}>,
+ *   onImportPublicPost?: (path: string) => Promise<{draft: object}>,
+ *   onPublishPublicDraft?: (draftId: string, revision: number, expectedPublishedSha256: string) => Promise<object>,
  *   onCopyText?: (text: string) => Promise<boolean>, viewState?: object}} [options]
  * @returns {{
  *   setNodeStatus: Function,
  *   pushNodeEvent: Function,
  *   setStats: Function,
+ *   setActivity: Function,
+ *   setActivityError: Function,
  *   setContacts: Function,
  *   setContactsError: Function,
  *   setConversations: Function,
@@ -55,6 +70,12 @@ export function mountRamingaApp(host, options = {}) {
     },
     setStats(stats) {
       if (!destroyed) app.setStats(stats);
+    },
+    setActivity(activity) {
+      if (!destroyed) app.setActivity(activity);
+    },
+    setActivityError(error) {
+      if (!destroyed) app.setActivityError(error);
     },
     setContacts(contacts) {
       if (!destroyed) app.setContacts(contacts);

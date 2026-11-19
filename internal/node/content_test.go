@@ -85,6 +85,11 @@ func TestContentRoutesAndVisitor(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(public, "profile", "index.md"), []byte("# hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Files placed directly in public/ are published without a new metadata
+	// file or user-maintained index.
+	if err := os.WriteFile(filepath.Join(public, "hello.md"), []byte("# Hello from public root\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cl, visitor := rawClientToNode(t, b)
 	pid, _ := peer.Decode(b.status(t).PeerID)
 	res, body := doContent(t, cl, pid, http.MethodGet, "/manifest", nil)
@@ -98,16 +103,18 @@ func TestContentRoutesAndVisitor(t *testing.T) {
 	if err := json.Unmarshal(body, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	foundProfile, foundFriends := false, false
+	foundProfile, foundFriends, foundRoot := false, false, false
 	for _, e := range manifest.Entries {
-		if e.Path == "profile/index.md" {
+		switch e.Path {
+		case "profile/index.md":
 			foundProfile = true
-		}
-		if e.Path == "friends.json" {
+		case "friends.json":
 			foundFriends = true
+		case "hello.md":
+			foundRoot = true
 		}
 	}
-	if !foundProfile || !foundFriends {
+	if !foundProfile || !foundFriends || !foundRoot {
 		t.Fatalf("manifest entries=%+v", manifest.Entries)
 	}
 	// The visitor is recorded only after a successful content request.
@@ -131,6 +138,10 @@ func TestContentRoutesAndVisitor(t *testing.T) {
 	res, _ = doContent(t, cl, pid, http.MethodGet, "/files/profile/index.md", map[string]string{"If-None-Match": etag})
 	if res.Response.StatusCode != http.StatusNotModified {
 		t.Fatalf("etag status=%d", res.Response.StatusCode)
+	}
+	res, body = doContent(t, cl, pid, http.MethodGet, "/files/hello.md", nil)
+	if res.Response.StatusCode != 200 || !strings.Contains(string(body), "Hello from public root") {
+		t.Fatalf("root public file status=%d body=%q", res.Response.StatusCode, body)
 	}
 	if res, _ := doContent(t, cl, pid, http.MethodGet, "/files/profile/nope", nil); res.Response.StatusCode != 404 {
 		t.Fatalf("unknown status=%d", res.Response.StatusCode)

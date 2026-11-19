@@ -1,0 +1,4 @@
+- insert:
+    - id: b2-contacts-control
+      name: 'b2-contacts-control'
+      inject: ['tools']

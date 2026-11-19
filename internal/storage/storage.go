@@ -24,7 +24,7 @@ import (
 const (
 	// FileName is the SQLite database inside the data directory.
 	FileName            = "raminga.db"
-	schemaVersion       = 8
+	schemaVersion       = 11
 	defaultCacheEntries = 512
 	defaultMaxFriends   = 10000
 )
@@ -69,14 +69,17 @@ type Message struct {
 
 // ConversationSummary is one Peer's latest retained message.
 type ConversationSummary struct {
-	PeerID         string
-	LastMessageID  string
-	Direction      string
-	Preview        string
-	LastAtMS       int64
-	DeliveryStatus string
-	Origin         string
-	MessageCount   int
+	PeerID            string
+	LastMessageID     string
+	Direction         string
+	Preview           string
+	LastAtMS          int64
+	DeliveryStatus    string
+	Origin            string
+	MessageCount      int
+	UnreadCount       int
+	LastReadMessageID string
+	LastReadAtMS      int64
 }
 
 // HumanOutboundPeer is a stage-6 "has human outbound" relation. It is updated
@@ -295,10 +298,39 @@ func Open(ctx context.Context, dataDir string) (*Store, error) {
 			return closeOnErr(fmt.Errorf("apply %s: %w", pragma, err))
 		}
 	}
+	if err := backupBeforeMigration(ctx, db, path); err != nil {
+		return closeOnErr(fmt.Errorf("backup sqlite before migration: %w", err))
+	}
 	if err := migrate(ctx, db); err != nil {
 		return closeOnErr(fmt.Errorf("migrate sqlite: %w", err))
 	}
 	return &Store{db: db, path: path, maxFriends: defaultMaxFriends, now: time.Now}, nil
+}
+
+// backupBeforeMigration writes a one-time SQLite backup before the current
+// schema version. The version check is read-only; a fresh database has no rows
+// to preserve.
+func backupBeforeMigration(ctx context.Context, db *sql.DB, path string) error {
+	var applied int
+	err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&applied)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return nil
+		}
+		return err
+	}
+	if applied <= 0 || applied >= schemaVersion {
+		return nil
+	}
+	backup := fmt.Sprintf("%s.bak-%d", path, applied)
+	if _, statErr := os.Stat(backup); statErr == nil {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, backup); err != nil {
+		return fmt.Errorf("write %s: %w", backup, err)
+	}
+	return nil
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
@@ -344,6 +376,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			size_bytes INTEGER NOT NULL,
 			fetched_at_ms INTEGER NOT NULL,
 			source TEXT NOT NULL,
+			sources_json TEXT NOT NULL DEFAULT '[]',
 			UNIQUE(peer_id, path, sha256)
 		)`,
 		`CREATE INDEX IF NOT EXISTS public_discoveries_fetched_idx ON public_discoveries (fetched_at_ms DESC, id DESC)`,
@@ -387,6 +420,58 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			peer_id TEXT PRIMARY KEY,
 			paused_at_ms INTEGER NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS public_drafts (
+			draft_id TEXT PRIMARY KEY,
+			kind TEXT NOT NULL CHECK (kind IN ('profile','post')),
+			author_kind TEXT NOT NULL DEFAULT 'agent' CHECK (author_kind IN ('user','agent')),
+			revision INTEGER NOT NULL DEFAULT 0,
+			agent_name TEXT NOT NULL DEFAULT '',
+			agent_description TEXT NOT NULL DEFAULT '',
+			agent_interests_json TEXT NOT NULL DEFAULT '[]',
+			agent_conversation_style TEXT NOT NULL DEFAULT '',
+			human_name TEXT NOT NULL DEFAULT '',
+			human_bio_markdown TEXT NOT NULL DEFAULT '',
+			avatar_asset_id TEXT NOT NULL DEFAULT '',
+			title TEXT NOT NULL DEFAULT '',
+			body_markdown TEXT NOT NULL DEFAULT '',
+			tags_json TEXT NOT NULL DEFAULT '[]',
+			image_asset_ids_json TEXT NOT NULL DEFAULT '[]',
+			published_path TEXT NOT NULL DEFAULT '',
+			published_sha256 TEXT NOT NULL DEFAULT '',
+			published_revision INTEGER NOT NULL DEFAULT 0,
+			created_at_ms INTEGER NOT NULL,
+			updated_at_ms INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS public_draft_assets (
+			asset_id TEXT PRIMARY KEY,
+			draft_id TEXT NOT NULL,
+			role TEXT NOT NULL CHECK (role IN ('avatar','image')),
+			sha256 TEXT NOT NULL,
+			mime TEXT NOT NULL,
+			width INTEGER NOT NULL,
+			height INTEGER NOT NULL,
+			size_bytes INTEGER NOT NULL,
+			bytes BLOB NOT NULL,
+			created_at_ms INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS public_drafts_kind_updated_idx ON public_drafts (kind, updated_at_ms DESC, draft_id DESC)`,
+		`CREATE INDEX IF NOT EXISTS public_draft_assets_draft_idx ON public_draft_assets (draft_id)`,
+		`CREATE TABLE IF NOT EXISTS conversation_read_state (
+			peer_id TEXT PRIMARY KEY,
+			last_read_at_ms INTEGER NOT NULL DEFAULT 0,
+			last_read_message_id TEXT NOT NULL DEFAULT '',
+			updated_at_ms INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS favorites (
+			id TEXT PRIMARY KEY,
+			peer_id TEXT NOT NULL,
+			path TEXT NOT NULL,
+			sha256 TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			created_at_ms INTEGER NOT NULL,
+			UNIQUE (peer_id, path, sha256)
+		)`,
+		`CREATE INDEX IF NOT EXISTS favorites_created_idx ON favorites (created_at_ms DESC, id DESC)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
@@ -404,6 +489,13 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	}
 	if err := ensureColumn(ctx, tx, "friends", "dht_capable", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
+	}
+	if err := ensureColumn(ctx, tx, "public_discoveries", "sources_json", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE public_discoveries SET sources_json = json_array(source) WHERE sources_json IS NULL OR sources_json = '[]'`); err != nil {
+		return fmt.Errorf("backfill public discovery sources: %w", err)
 	}
 	for _, column := range []struct{ name, decl string }{
 		{"origin", "TEXT NOT NULL DEFAULT 'unknown'"},
@@ -456,6 +548,18 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				origin = 'unknown'
 			WHERE origin = 'unknown' AND delivery_status = 'unknown'`); err != nil {
 			return fmt.Errorf("backfill message provenance/delivery: %w", err)
+		}
+	}
+	if applied < 11 {
+		// v10→v11 read baseline. This is a migration default, not a claim that
+		// the user read history: every existing conversation starts counting
+		// unread messages from its currently retained newest row.
+		if _, err := tx.ExecContext(ctx, `
+			INSERT OR IGNORE INTO conversation_read_state
+				(peer_id, last_read_at_ms, last_read_message_id, updated_at_ms)
+			SELECT peer_id, MAX(created_at_ms), '', ?
+			FROM messages GROUP BY peer_id`, time.Now().UnixMilli()); err != nil {
+			return fmt.Errorf("backfill conversation read baseline: %w", err)
 		}
 	}
 	if _, err := tx.ExecContext(ctx,
@@ -785,20 +889,26 @@ func (s *Store) ListConversations(ctx context.Context, before ConversationCursor
 			return nil, false, 0, fmt.Errorf("snapshot conversations: %w", err)
 		}
 	}
-	query := `WITH ranked AS (
+	query := `WITH ` + unreadCountsCTE + `,
+	ranked AS (
 		SELECT message_id, peer_id, direction, text, created_at_ms, delivery_status, origin,
 		       ROW_NUMBER() OVER (PARTITION BY peer_id ORDER BY created_at_ms DESC, message_id DESC) AS rn,
 		       COUNT(*) OVER (PARTITION BY peer_id) AS message_count
 		FROM messages WHERE rowid <= ?
 	)
-	SELECT peer_id, message_id, direction, text, created_at_ms, delivery_status, origin, message_count
-	FROM ranked WHERE rn = 1`
+	SELECT r.peer_id, r.message_id, r.direction, r.text, r.created_at_ms, r.delivery_status, r.origin,
+	       r.message_count, COALESCE(u.unread_count,0) AS unread_count,
+	       COALESCE(rs.last_read_message_id,''), COALESCE(rs.last_read_at_ms,0)
+	FROM ranked r
+	LEFT JOIN unread_counts u ON u.peer_id = r.peer_id
+	LEFT JOIN conversation_read_state rs ON rs.peer_id = r.peer_id
+	WHERE r.rn = 1`
 	args := []any{snapshot}
 	if before.PeerID != "" {
-		query += ` AND (created_at_ms < ? OR (created_at_ms = ? AND peer_id < ?))`
+		query += ` AND (r.created_at_ms < ? OR (r.created_at_ms = ? AND r.peer_id < ?))`
 		args = append(args, before.LastAtMS, before.LastAtMS, before.PeerID)
 	}
-	query += ` ORDER BY created_at_ms DESC, peer_id DESC LIMIT ?`
+	query += ` ORDER BY r.created_at_ms DESC, r.peer_id DESC LIMIT ?`
 	args = append(args, limit+1)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -809,7 +919,8 @@ func (s *Store) ListConversations(ctx context.Context, before ConversationCursor
 	for rows.Next() {
 		var c ConversationSummary
 		if err := rows.Scan(&c.PeerID, &c.LastMessageID, &c.Direction, &c.Preview, &c.LastAtMS,
-			&c.DeliveryStatus, &c.Origin, &c.MessageCount); err != nil {
+			&c.DeliveryStatus, &c.Origin, &c.MessageCount, &c.UnreadCount,
+			&c.LastReadMessageID, &c.LastReadAtMS); err != nil {
 			return nil, false, 0, fmt.Errorf("scan conversation: %w", err)
 		}
 		c.Preview = truncatePreview(c.Preview, 240)
@@ -823,6 +934,18 @@ func (s *Store) ListConversations(ctx context.Context, before ConversationCursor
 		out = out[:limit]
 	}
 	return out, hasMore, snapshot, nil
+}
+
+// TotalUnread returns the sum of the same unread definition used by
+// ListConversations and ListFriends. It counts every retained Peer, not only
+// the current page.
+func (s *Store) TotalUnread(ctx context.Context) (int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `WITH `+unreadCountsCTE+`
+		SELECT COALESCE(SUM(unread_count),0) FROM unread_counts`).Scan(&total); err != nil {
+		return 0, fmt.Errorf("total unread messages: %w", err)
+	}
+	return total, nil
 }
 
 // ListHumanOutboundPeers returns the durable stage-6 relation as a stable

@@ -167,14 +167,17 @@ type MessageRetention struct {
 
 // Conversation is one Peer's latest retained message.
 type Conversation struct {
-	PeerID         string
-	LastMessageID  string
-	Direction      string
-	Preview        string
-	LastAt         time.Time
-	DeliveryStatus string
-	Origin         string
-	MessageCount   int
+	PeerID            string
+	LastMessageID     string
+	Direction         string
+	Preview           string
+	LastAt            time.Time
+	DeliveryStatus    string
+	Origin            string
+	MessageCount      int
+	UnreadCount       int
+	LastReadMessageID string
+	LastReadAt        time.Time
 }
 
 // HumanOutboundPeer is one durable human-outbound relation.
@@ -198,6 +201,34 @@ type PublicDiscovery struct {
 	SizeBytes int64
 	FetchedAt time.Time
 	Source    string
+	Sources   []string
+}
+
+// Favorite is one private public-post bookmark. There is deliberately no
+// kind/message/contact field.
+type Favorite struct {
+	ID        string
+	PeerID    string
+	Path      string
+	SHA256    string
+	Title     string
+	CreatedAt time.Time
+	Available bool
+}
+
+// FavoritePage is one keyset page of favorites.
+type FavoritePage struct {
+	Favorites  []Favorite
+	NextBefore string
+	HasMore    bool
+}
+
+// MarkReadResult is one monotonic human read-cursor update.
+type MarkReadResult struct {
+	PeerID            string
+	LastReadMessageID string
+	LastReadAt        time.Time
+	UnreadCount       int
 }
 
 // PublicDiscoveryPage is one keyset page of discovery evidence.
@@ -221,6 +252,7 @@ type ConversationPage struct {
 	NextBefore    string
 	HasMore       bool
 	Retention     MessageRetention
+	TotalUnread   int
 }
 
 // HumanOutboundPage is one keyset page of durable human-outbound relations.

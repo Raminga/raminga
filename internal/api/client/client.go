@@ -532,8 +532,61 @@ func (c *Client) Published(ctx context.Context) (*apiv1.PublishedResponse, error
 
 // ListDiscoveries reads the private acquisition index with its opaque cursor.
 func (c *Client) ListDiscoveries(ctx context.Context, before string, limit int32, familiarOnly bool) (*apiv1.ListDiscoveriesResponse, error) {
+	return c.ListDiscoveriesForPeer(ctx, before, limit, familiarOnly, "")
+}
+
+// ListDiscoveriesForPeer narrows the acquisition index to one author. An empty
+// peerID preserves the unfiltered behavior used by older callers.
+func (c *Client) ListDiscoveriesForPeer(ctx context.Context, before string, limit int32, familiarOnly bool, peerID string) (*apiv1.ListDiscoveriesResponse, error) {
 	resp, err := c.svc.ListDiscoveries(ctx, connect.NewRequest(&apiv1.ListDiscoveriesRequest{
-		Before: before, Limit: uint32(limit), FamiliarOnly: familiarOnly,
+		Before: before, Limit: uint32(limit), FamiliarOnly: familiarOnly, PeerId: peerID,
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// ListPostCandidateDiscoveries asks the daemon to apply its versioned-post
+// path prefilter before the keyset LIMIT. It is additive: ListDiscoveries keeps
+// the legacy mixed-file contract for old callers.
+func (c *Client) ListPostCandidateDiscoveries(ctx context.Context, before string, limit int32, familiarOnly bool, peerID string) (*apiv1.ListDiscoveriesResponse, error) {
+	resp, err := c.svc.ListDiscoveries(ctx, connect.NewRequest(&apiv1.ListDiscoveriesRequest{
+		Before: before, Limit: uint32(limit), FamiliarOnly: familiarOnly, PeerId: peerID,
+		PostCandidatesOnly: true,
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// MarkConversationRead advances the human cursor through one retained message.
+func (c *Client) MarkConversationRead(ctx context.Context, peerID, throughMessageID string) (*apiv1.MarkConversationReadResponse, error) {
+	resp, err := c.svc.MarkConversationRead(ctx, connect.NewRequest(&apiv1.MarkConversationReadRequest{
+		PeerId: peerID, ThroughMessageId: throughMessageID,
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// ListFavorites reads private public-post bookmarks with a stable cursor.
+func (c *Client) ListFavorites(ctx context.Context, before string, limit int32) (*apiv1.ListFavoritesResponse, error) {
+	resp, err := c.svc.ListFavorites(ctx, connect.NewRequest(&apiv1.ListFavoritesRequest{
+		Before: before, Limit: uint32(limit),
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// SetFavorite idempotently adds or removes one public-post bookmark.
+func (c *Client) SetFavorite(ctx context.Context, peerID, publicPath, sha256, title string, favorite bool) (*apiv1.SetFavoriteResponse, error) {
+	resp, err := c.svc.SetFavorite(ctx, connect.NewRequest(&apiv1.SetFavoriteRequest{
+		PeerId: peerID, Path: publicPath, Sha256: sha256, Title: title, Favorite: favorite,
 	}))
 	if err != nil {
 		return nil, err

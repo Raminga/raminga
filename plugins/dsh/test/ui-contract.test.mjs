@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { TYPERT, UI_INVOCATIONS } from '../lib/ui-typert.js';
 import { RamingaUiBridge, mapDaemonEvent } from '../lib/ui-bridge.js';
 import { subscribeEvents } from '../lib/events.js';
+import { createViewState, normalizeViewState } from '../../../packages/ui/src/view-state.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -31,7 +32,7 @@ function statusResponse() {
     nodeId: 'node-test',
     version: 'test',
     protocolVersion: '1',
-    apiVersion: '4',
+    apiVersion: '6',
     startedAtUnixMs: 1,
     currentTime: 'now',
     listenAddrs: [],
@@ -64,13 +65,17 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.equal(TYPERT.face, 'host');
   assert.deepEqual(UI_INVOCATIONS.map((entry) => entry.method), [
     'open', 'poll', 'refresh', 'close', 'contacts', 'setFriendName', 'setFriendDescription', 'connect', 'checkContact', 'share',
-    'conversations', 'messages', 'send', 'cancelOutbox', 'discoveries', 'discoveryContent',
-    'humanOutbound', 'mine', 'peerProfile', 'journey', 'locateMessage',
+    'conversations', 'messages', 'markRead', 'favorites', 'setFavorite', 'peerDiscoveries', 'contactMemory', 'saveContactImpression',
+    'send', 'cancelOutbox', 'discoveries', 'discoveryContent',
+    'humanOutbound', 'mine', 'mineFilePreview', 'peerProfile', 'peerFriends', 'contactProjection', 'peerManifest', 'peerFilePreview', 'peerPostMeta', 'peerNodeInfo',
+    'revealDiscovery', 'revealFile', 'bootstrap', 'journey', 'activity', 'activityDetail', 'savePrivateAgent',
+    'publicDraft', 'publicDrafts', 'savePublicDraft', 'putPublicDraftImage', 'publicDraftAsset', 'importPublicPost',
+    'deletePublicDraft', 'publishPublicDraft', 'locateMessage',
   ]);
   for (const entry of UI_INVOCATIONS) {
     assert.equal(entry.service, 'ramingaUi');
     assert.equal(entry.namespace, 'ramingaUi');
-    assert.equal(entry.parameters[0].name, 'sessionId');
+    assert.equal(entry.parameters[0].name, entry.method === 'activityDetail' ? 'operationId' : 'sessionId');
     assert.equal(entry.parameters[0].codec.mode, 'strict');
     assert.equal(entry.result.mode, 'strict');
   }
@@ -89,8 +94,29 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.deepEqual(byMethod.discoveryContent.parameters.map((item) => item.name), ['sessionId', 'id']);
   assert.deepEqual(byMethod.humanOutbound.parameters.map((item) => item.name), ['sessionId', 'force']);
   assert.deepEqual(byMethod.mine.parameters.map((item) => item.name), ['sessionId', 'force']);
+  assert.deepEqual(byMethod.mineFilePreview.parameters.map((item) => item.name), ['sessionId', 'path', 'sha256', 'size']);
   assert.deepEqual(byMethod.peerProfile.parameters.map((item) => item.name), ['sessionId', 'peerId', 'force']);
+  assert.deepEqual(byMethod.peerFriends.parameters.map((item) => item.name), ['sessionId', 'peerId', 'force']);
+  assert.deepEqual(byMethod.contactProjection.parameters.map((item) => item.name), ['sessionId']);
+  assert.deepEqual(byMethod.peerManifest.parameters.map((item) => item.name), ['sessionId', 'peerId', 'force']);
+  assert.deepEqual(byMethod.peerFilePreview.parameters.map((item) => item.name), ['sessionId', 'peerId', 'path', 'sha256', 'size']);
+  assert.deepEqual(byMethod.peerPostMeta.parameters.map((item) => item.name), ['sessionId', 'peerId', 'path', 'sha256', 'size']);
+  assert.deepEqual(byMethod.peerNodeInfo.parameters.map((item) => item.name), ['sessionId', 'peerId', 'force']);
+  assert.deepEqual(byMethod.revealDiscovery.parameters.map((item) => item.name), ['sessionId', 'id']);
+  assert.deepEqual(byMethod.revealFile.parameters.map((item) => item.name), ['sessionId', 'subject', 'peerId', 'path', 'sha256', 'size']);
+  assert.deepEqual(byMethod.bootstrap.parameters.map((item) => item.name), ['sessionId']);
   assert.deepEqual(byMethod.journey.parameters.map((item) => item.name), ['sessionId', 'force']);
+  assert.deepEqual(byMethod.activity.parameters.map((item) => item.name), ['sessionId', 'limit']);
+  assert.deepEqual(byMethod.activityDetail.parameters.map((item) => item.name), ['operationId']);
+  assert.deepEqual(byMethod.savePrivateAgent.parameters.map((item) => item.name), ['sessionId', 'field', 'content', 'expectedSha256']);
+  assert.deepEqual(byMethod.publicDraft.parameters.map((item) => item.name), ['sessionId', 'draftId']);
+  assert.deepEqual(byMethod.publicDrafts.parameters.map((item) => item.name), ['sessionId', 'kind']);
+  assert.deepEqual(byMethod.savePublicDraft.parameters.map((item) => item.name), ['sessionId', 'input']);
+  assert.deepEqual(byMethod.putPublicDraftImage.parameters.map((item) => item.name), ['sessionId', 'draftId', 'role', 'filename', 'dataBase64']);
+  assert.deepEqual(byMethod.publicDraftAsset.parameters.map((item) => item.name), ['sessionId', 'draftId', 'assetId']);
+  assert.deepEqual(byMethod.importPublicPost.parameters.map((item) => item.name), ['sessionId', 'path']);
+  assert.deepEqual(byMethod.deletePublicDraft.parameters.map((item) => item.name), ['sessionId', 'draftId', 'expectedRevision']);
+  assert.deepEqual(byMethod.publishPublicDraft.parameters.map((item) => item.name), ['sessionId', 'draftId', 'expectedRevision', 'expectedPublishedSha256']);
   assert.deepEqual(byMethod.locateMessage.parameters.map((item) => item.name), ['sessionId', 'peerId', 'messageId']);
 });
 
@@ -487,4 +513,63 @@ test('a clean Events stream end is a disconnect and resubscribes', async () => {
     stop();
   }
   await waitFor(() => phases.at(-1) === 'closed', 'closed after stop');
+});
+
+test('host view state migrates legacy pages and restores messages/settings sub-pages', () => {
+  const fresh = createViewState();
+  assert.equal(fresh.version, 2);
+  assert.equal(fresh.page, 'home');
+
+  const legacy = normalizeViewState({
+    version: 1,
+    page: 'mine',
+    pages: {
+      mine: { scroll: 6 },
+      raminga: { scroll: 9, expandedSessions: { s1: true } },
+      messages: { peerId: '12D3KooWPeerA', returnPage: 'raminga', returnPeer: '12D3KooWPeerA' },
+    },
+    drafts: { 'chat:12D3KooWPeerA': '保留草稿' },
+  });
+  assert.equal(legacy.page, 'home');
+  assert.equal(legacy.home.scroll, 9);
+  assert.deepEqual(legacy.home.expandedJourneys, { s1: true });
+  assert.equal(legacy.pages.messages.returnPage, 'home');
+  assert.equal(legacy.drafts['chat:12D3KooWPeerA'], '保留草稿');
+
+  const settings = normalizeViewState({
+    page: 'settings',
+    settings: { tab: 'private', index: false, scroll: 12, returnPage: 'home' },
+    drafts: { 'chat:12D3KooWPeerA': '草稿仍在' },
+  });
+  assert.equal(settings.page, 'settings');
+  assert.equal(settings.settings.tab, 'private');
+  assert.equal(settings.settings.index, false);
+  assert.equal(settings.settings.scroll, 12);
+  assert.equal(settings.drafts['chat:12D3KooWPeerA'], '草稿仍在');
+
+  const messages = normalizeViewState({
+    page: 'messages',
+    pages: {
+      messages: {
+        peerId: '12D3KooWPeerA', returnPage: 'contacts', returnPeer: '12D3KooWPeerA',
+        indexReturnPage: 'home', scroll: 24,
+      },
+    },
+    drafts: { 'chat:12D3KooWPeerA': '继续写' },
+  });
+  assert.equal(messages.page, 'messages');
+  assert.equal(messages.pages.messages.peerId, '12D3KooWPeerA');
+  assert.equal(messages.pages.messages.indexReturnPage, 'home');
+  assert.equal(messages.drafts['chat:12D3KooWPeerA'], '继续写');
+});
+
+test('every declared Remote invocation exists on the host bridge service', () => {
+  const bridge = new RamingaUiBridge({ async ensure() { return {}; }, async call(fn) { return fn({}); } });
+  try {
+    for (const entry of UI_INVOCATIONS) {
+      assert.equal(typeof bridge.service[entry.method], 'function', `missing service method ${entry.method}`);
+    }
+  } finally {
+    bridge.dispose();
+  }
 });

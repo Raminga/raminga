@@ -11,6 +11,50 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 
 /**
+ * @generated from enum raminga.api.v1.PublicPublishStatus
+ */
+export enum PublicPublishStatus {
+  /**
+   * @generated from enum value: PUBLIC_PUBLISH_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: PUBLIC_PUBLISH_STATUS_PUBLISHED = 1;
+   */
+  PUBLISHED = 1,
+
+  /**
+   * @generated from enum value: PUBLIC_PUBLISH_STATUS_ALREADY_PUBLISHED = 2;
+   */
+  ALREADY_PUBLISHED = 2,
+
+  /**
+   * @generated from enum value: PUBLIC_PUBLISH_STATUS_CONFLICT = 3;
+   */
+  CONFLICT = 3,
+
+  /**
+   * @generated from enum value: PUBLIC_PUBLISH_STATUS_INVALID = 4;
+   */
+  INVALID = 4,
+
+  /**
+   * @generated from enum value: PUBLIC_PUBLISH_STATUS_PARTIAL = 5;
+   */
+  PARTIAL = 5,
+}
+// Retrieve enum metadata with: proto3.getEnumType(PublicPublishStatus)
+proto3.util.setEnumType(PublicPublishStatus, "raminga.api.v1.PublicPublishStatus", [
+  { no: 0, name: "PUBLIC_PUBLISH_STATUS_UNSPECIFIED" },
+  { no: 1, name: "PUBLIC_PUBLISH_STATUS_PUBLISHED" },
+  { no: 2, name: "PUBLIC_PUBLISH_STATUS_ALREADY_PUBLISHED" },
+  { no: 3, name: "PUBLIC_PUBLISH_STATUS_CONFLICT" },
+  { no: 4, name: "PUBLIC_PUBLISH_STATUS_INVALID" },
+  { no: 5, name: "PUBLIC_PUBLISH_STATUS_PARTIAL" },
+]);
+
+/**
  * StatusRequest has no fields.
  *
  * @generated from message raminga.api.v1.StatusRequest
@@ -1224,6 +1268,30 @@ export class ConversationSummary extends Message<ConversationSummary> {
    */
   messageCount = 0;
 
+  /**
+   * unread_count counts retained inbound rows newer than the human cursor.
+   * It is a read-only view, never a stored friend/message field.
+   *
+   * @generated from field: uint32 unread_count = 9;
+   */
+  unreadCount = 0;
+
+  /**
+   * last_read_message_id is the human-facing cursor position, or empty when
+   * the Peer has never been marked read. Same-millisecond messages share one
+   * read batch.
+   *
+   * @generated from field: string last_read_message_id = 10;
+   */
+  lastReadMessageId = "";
+
+  /**
+   * last_read_at_unix_ms is the cursor boundary in Unix milliseconds.
+   *
+   * @generated from field: int64 last_read_at_unix_ms = 11;
+   */
+  lastReadAtUnixMs = protoInt64.zero;
+
   constructor(data?: PartialMessage<ConversationSummary>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1240,6 +1308,9 @@ export class ConversationSummary extends Message<ConversationSummary> {
     { no: 6, name: "delivery_status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "origin", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "message_count", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 9, name: "unread_count", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 10, name: "last_read_message_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "last_read_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConversationSummary {
@@ -1332,6 +1403,14 @@ export class ListConversationsResponse extends Message<ListConversationsResponse
    */
   retention?: MessageRetention;
 
+  /**
+   * total_unread is the sum of the same unread definition used for every
+   * ConversationSummary and Friend.unread_count.
+   *
+   * @generated from field: uint32 total_unread = 5;
+   */
+  totalUnread = 0;
+
   constructor(data?: PartialMessage<ListConversationsResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1344,6 +1423,7 @@ export class ListConversationsResponse extends Message<ListConversationsResponse
     { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 4, name: "retention", kind: "message", T: MessageRetention },
+    { no: 5, name: "total_unread", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListConversationsResponse {
@@ -1472,6 +1552,388 @@ export class ListMessagesResponse extends Message<ListMessagesResponse> {
 
   static equals(a: ListMessagesResponse | PlainMessage<ListMessagesResponse> | undefined, b: ListMessagesResponse | PlainMessage<ListMessagesResponse> | undefined): boolean {
     return proto3.util.equals(ListMessagesResponse, a, b);
+  }
+}
+
+/**
+ * MarkConversationReadRequest names the newest message the human actually saw.
+ *
+ * @generated from message raminga.api.v1.MarkConversationReadRequest
+ */
+export class MarkConversationReadRequest extends Message<MarkConversationReadRequest> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * through_message_id must belong to peer_id. The server uses that row's
+   * created_at_ms, never a caller-supplied timestamp.
+   *
+   * @generated from field: string through_message_id = 2;
+   */
+  throughMessageId = "";
+
+  constructor(data?: PartialMessage<MarkConversationReadRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.MarkConversationReadRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "through_message_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): MarkConversationReadRequest {
+    return new MarkConversationReadRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): MarkConversationReadRequest {
+    return new MarkConversationReadRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): MarkConversationReadRequest {
+    return new MarkConversationReadRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: MarkConversationReadRequest | PlainMessage<MarkConversationReadRequest> | undefined, b: MarkConversationReadRequest | PlainMessage<MarkConversationReadRequest> | undefined): boolean {
+    return proto3.util.equals(MarkConversationReadRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.MarkConversationReadResponse
+ */
+export class MarkConversationReadResponse extends Message<MarkConversationReadResponse> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string last_read_message_id = 2;
+   */
+  lastReadMessageId = "";
+
+  /**
+   * @generated from field: int64 last_read_at_unix_ms = 3;
+   */
+  lastReadAtUnixMs = protoInt64.zero;
+
+  /**
+   * @generated from field: uint32 unread_count = 4;
+   */
+  unreadCount = 0;
+
+  constructor(data?: PartialMessage<MarkConversationReadResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.MarkConversationReadResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "last_read_message_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "last_read_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "unread_count", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): MarkConversationReadResponse {
+    return new MarkConversationReadResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): MarkConversationReadResponse {
+    return new MarkConversationReadResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): MarkConversationReadResponse {
+    return new MarkConversationReadResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: MarkConversationReadResponse | PlainMessage<MarkConversationReadResponse> | undefined, b: MarkConversationReadResponse | PlainMessage<MarkConversationReadResponse> | undefined): boolean {
+    return proto3.util.equals(MarkConversationReadResponse, a, b);
+  }
+}
+
+/**
+ * Favorite is one privately retained public-post bookmark. There is
+ * intentionally no kind/message_id/contact field.
+ *
+ * @generated from message raminga.api.v1.Favorite
+ */
+export class Favorite extends Message<Favorite> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string peer_id = 2;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string path = 3;
+   */
+  path = "";
+
+  /**
+   * @generated from field: string sha256 = 4;
+   */
+  sha256 = "";
+
+  /**
+   * @generated from field: string title = 5;
+   */
+  title = "";
+
+  /**
+   * @generated from field: int64 created_at_unix_ms = 6;
+   */
+  createdAtUnixMs = protoInt64.zero;
+
+  /**
+   * available is evaluated when querying: the target version is still in the
+   * local discovery/public range or a verified downloaded copy.
+   *
+   * @generated from field: bool available = 7;
+   */
+  available = false;
+
+  constructor(data?: PartialMessage<Favorite>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.Favorite";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "created_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "available", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Favorite {
+    return new Favorite().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Favorite {
+    return new Favorite().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Favorite {
+    return new Favorite().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Favorite | PlainMessage<Favorite> | undefined, b: Favorite | PlainMessage<Favorite> | undefined): boolean {
+    return proto3.util.equals(Favorite, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListFavoritesRequest
+ */
+export class ListFavoritesRequest extends Message<ListFavoritesRequest> {
+  /**
+   * limit is 1..100 (default 50).
+   *
+   * @generated from field: uint32 limit = 1;
+   */
+  limit = 0;
+
+  /**
+   * before is an opaque cursor from next_before.
+   *
+   * @generated from field: string before = 2;
+   */
+  before = "";
+
+  constructor(data?: PartialMessage<ListFavoritesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListFavoritesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListFavoritesRequest {
+    return new ListFavoritesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListFavoritesRequest {
+    return new ListFavoritesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListFavoritesRequest {
+    return new ListFavoritesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListFavoritesRequest | PlainMessage<ListFavoritesRequest> | undefined, b: ListFavoritesRequest | PlainMessage<ListFavoritesRequest> | undefined): boolean {
+    return proto3.util.equals(ListFavoritesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListFavoritesResponse
+ */
+export class ListFavoritesResponse extends Message<ListFavoritesResponse> {
+  /**
+   * @generated from field: repeated raminga.api.v1.Favorite favorites = 1;
+   */
+  favorites: Favorite[] = [];
+
+  /**
+   * @generated from field: string next_before = 2;
+   */
+  nextBefore = "";
+
+  /**
+   * @generated from field: bool has_more = 3;
+   */
+  hasMore = false;
+
+  constructor(data?: PartialMessage<ListFavoritesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListFavoritesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "favorites", kind: "message", T: Favorite, repeated: true },
+    { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListFavoritesResponse {
+    return new ListFavoritesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListFavoritesResponse {
+    return new ListFavoritesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListFavoritesResponse {
+    return new ListFavoritesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListFavoritesResponse | PlainMessage<ListFavoritesResponse> | undefined, b: ListFavoritesResponse | PlainMessage<ListFavoritesResponse> | undefined): boolean {
+    return proto3.util.equals(ListFavoritesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.SetFavoriteRequest
+ */
+export class SetFavoriteRequest extends Message<SetFavoriteRequest> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * @generated from field: string sha256 = 3;
+   */
+  sha256 = "";
+
+  /**
+   * @generated from field: string title = 4;
+   */
+  title = "";
+
+  /**
+   * @generated from field: bool favorite = 5;
+   */
+  favorite = false;
+
+  constructor(data?: PartialMessage<SetFavoriteRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.SetFavoriteRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "favorite", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetFavoriteRequest {
+    return new SetFavoriteRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetFavoriteRequest {
+    return new SetFavoriteRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetFavoriteRequest {
+    return new SetFavoriteRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetFavoriteRequest | PlainMessage<SetFavoriteRequest> | undefined, b: SetFavoriteRequest | PlainMessage<SetFavoriteRequest> | undefined): boolean {
+    return proto3.util.equals(SetFavoriteRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.SetFavoriteResponse
+ */
+export class SetFavoriteResponse extends Message<SetFavoriteResponse> {
+  /**
+   * @generated from field: bool favorite = 1;
+   */
+  favorite = false;
+
+  /**
+   * @generated from field: raminga.api.v1.Favorite item = 2;
+   */
+  item?: Favorite;
+
+  constructor(data?: PartialMessage<SetFavoriteResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.SetFavoriteResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "favorite", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "item", kind: "message", T: Favorite },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetFavoriteResponse {
+    return new SetFavoriteResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetFavoriteResponse {
+    return new SetFavoriteResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetFavoriteResponse {
+    return new SetFavoriteResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetFavoriteResponse | PlainMessage<SetFavoriteResponse> | undefined, b: SetFavoriteResponse | PlainMessage<SetFavoriteResponse> | undefined): boolean {
+    return proto3.util.equals(SetFavoriteResponse, a, b);
   }
 }
 
@@ -4264,6 +4726,14 @@ export class Friend extends Message<Friend> {
    */
   dhtCapable = false;
 
+  /**
+   * unread_count is a read-only view from the same human cursor used by
+   * ConversationSummary. It is not stored on the friend row.
+   *
+   * @generated from field: uint32 unread_count = 11;
+   */
+  unreadCount = 0;
+
   constructor(data?: PartialMessage<Friend>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4282,6 +4752,7 @@ export class Friend extends Message<Friend> {
     { no: 8, name: "paused", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 9, name: "relay_capable", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 10, name: "dht_capable", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 11, name: "unread_count", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Friend {
@@ -4890,6 +5361,26 @@ export class ListDiscoveriesRequest extends Message<ListDiscoveriesRequest> {
    */
   familiarOnly = false;
 
+  /**
+   * peer_id optionally restricts the page to one author. Empty preserves the
+   * legacy unfiltered behavior.
+   *
+   * @generated from field: string peer_id = 4;
+   */
+  peerId = "";
+
+  /**
+   * post_candidates_only applies the versioned-post path prefilter inside the
+   * keyset query, before limit/cursor are applied. Ordinary files then never
+   * consume a post page's budget or hide later posts. This is only a candidate
+   * filter: callers still verify each downloaded copy and version through the
+   * controlled reader. Older clients that omit this field keep receiving every
+   * file in the legacy mixed pages.
+   *
+   * @generated from field: bool post_candidates_only = 5;
+   */
+  postCandidatesOnly = false;
+
   constructor(data?: PartialMessage<ListDiscoveriesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4901,6 +5392,8 @@ export class ListDiscoveriesRequest extends Message<ListDiscoveriesRequest> {
     { no: 1, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 2, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "familiar_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "post_candidates_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDiscoveriesRequest {
@@ -4955,12 +5448,22 @@ export class Discovery extends Message<Discovery> {
   fetchedAtUnixMs = protoInt64.zero;
 
   /**
-   * source records the local Agent tool that fetched the file, for example
-   * "raminga_content_get". It is local provenance, not a remote signature.
+   * source records the most recent local acquisition path, for example
+   * "raminga_content_get" or "raminga_ui_manual". It is local provenance, not
+   * a remote signature.
    *
    * @generated from field: string source = 7;
    */
   source = "";
+
+  /**
+   * sources lists every local acquisition path that fetched this exact
+   * (peer, path, sha256) version, deduplicated in first-seen order. It is
+   * additive: older daemons omit it, so clients fall back to source.
+   *
+   * @generated from field: repeated string sources = 8;
+   */
+  sources: string[] = [];
 
   constructor(data?: PartialMessage<Discovery>) {
     super();
@@ -4977,6 +5480,7 @@ export class Discovery extends Message<Discovery> {
     { no: 5, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 6, name: "fetched_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 7, name: "source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "sources", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Discovery {
@@ -5603,6 +6107,14 @@ export class GetPeerProfileResponse extends Message<GetPeerProfileResponse> {
    */
   found = false;
 
+  /**
+   * profile is the structured canonical public profile. Older clients keep
+   * using name/text/files/found; those fields are derived for compatibility.
+   *
+   * @generated from field: raminga.api.v1.PublicProfile profile = 6;
+   */
+  profile?: PublicProfile;
+
   constructor(data?: PartialMessage<GetPeerProfileResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -5616,6 +6128,7 @@ export class GetPeerProfileResponse extends Message<GetPeerProfileResponse> {
     { no: 3, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "files", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "found", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "profile", kind: "message", T: PublicProfile },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPeerProfileResponse {
@@ -5632,6 +6145,1234 @@ export class GetPeerProfileResponse extends Message<GetPeerProfileResponse> {
 
   static equals(a: GetPeerProfileResponse | PlainMessage<GetPeerProfileResponse> | undefined, b: GetPeerProfileResponse | PlainMessage<GetPeerProfileResponse> | undefined): boolean {
     return proto3.util.equals(GetPeerProfileResponse, a, b);
+  }
+}
+
+/**
+ * PublicProfile is the structured public profile read from
+ * profile/profile.json v2, or a legacy agent-card.json/index.md fallback.
+ *
+ * @generated from message raminga.api.v1.PublicProfile
+ */
+export class PublicProfile extends Message<PublicProfile> {
+  /**
+   * @generated from field: string agent_name = 1;
+   */
+  agentName = "";
+
+  /**
+   * @generated from field: string agent_description = 2;
+   */
+  agentDescription = "";
+
+  /**
+   * @generated from field: repeated string agent_interests = 3;
+   */
+  agentInterests: string[] = [];
+
+  /**
+   * @generated from field: string agent_conversation_style = 4;
+   */
+  agentConversationStyle = "";
+
+  /**
+   * @generated from field: string human_name = 5;
+   */
+  humanName = "";
+
+  /**
+   * @generated from field: string human_bio_markdown = 6;
+   */
+  humanBioMarkdown = "";
+
+  /**
+   * @generated from field: string avatar_path = 7;
+   */
+  avatarPath = "";
+
+  /**
+   * @generated from field: string avatar_sha256 = 8;
+   */
+  avatarSha256 = "";
+
+  /**
+   * @generated from field: string avatar_mime = 9;
+   */
+  avatarMime = "";
+
+  /**
+   * source_path is the actual public file that provided the structured data.
+   *
+   * @generated from field: string source_path = 10;
+   */
+  sourcePath = "";
+
+  /**
+   * @generated from field: bool legacy_fallback = 11;
+   */
+  legacyFallback = false;
+
+  /**
+   * warning is bounded; it never contains a local absolute path.
+   *
+   * @generated from field: string warning = 12;
+   */
+  warning = "";
+
+  constructor(data?: PartialMessage<PublicProfile>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PublicProfile";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "agent_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "agent_description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "agent_interests", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "agent_conversation_style", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "human_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "human_bio_markdown", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "avatar_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "avatar_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "avatar_mime", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "source_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "legacy_fallback", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 12, name: "warning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublicProfile {
+    return new PublicProfile().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PublicProfile {
+    return new PublicProfile().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PublicProfile {
+    return new PublicProfile().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PublicProfile | PlainMessage<PublicProfile> | undefined, b: PublicProfile | PlainMessage<PublicProfile> | undefined): boolean {
+    return proto3.util.equals(PublicProfile, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PublicDraftImage
+ */
+export class PublicDraftImage extends Message<PublicDraftImage> {
+  /**
+   * @generated from field: string asset_id = 1;
+   */
+  assetId = "";
+
+  /**
+   * @generated from field: string sha256 = 2;
+   */
+  sha256 = "";
+
+  /**
+   * @generated from field: string mime = 3;
+   */
+  mime = "";
+
+  /**
+   * @generated from field: uint32 width = 4;
+   */
+  width = 0;
+
+  /**
+   * @generated from field: uint32 height = 5;
+   */
+  height = 0;
+
+  /**
+   * @generated from field: int64 size_bytes = 6;
+   */
+  sizeBytes = protoInt64.zero;
+
+  constructor(data?: PartialMessage<PublicDraftImage>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PublicDraftImage";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "mime", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "width", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 5, name: "height", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 6, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublicDraftImage {
+    return new PublicDraftImage().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PublicDraftImage {
+    return new PublicDraftImage().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PublicDraftImage {
+    return new PublicDraftImage().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PublicDraftImage | PlainMessage<PublicDraftImage> | undefined, b: PublicDraftImage | PlainMessage<PublicDraftImage> | undefined): boolean {
+    return proto3.util.equals(PublicDraftImage, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PublicDraft
+ */
+export class PublicDraft extends Message<PublicDraft> {
+  /**
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  /**
+   * "profile" | "post"
+   *
+   * @generated from field: string kind = 2;
+   */
+  kind = "";
+
+  /**
+   * @generated from field: uint64 revision = 3;
+   */
+  revision = protoInt64.zero;
+
+  /**
+   * @generated from field: string agent_name = 4;
+   */
+  agentName = "";
+
+  /**
+   * @generated from field: string agent_description = 5;
+   */
+  agentDescription = "";
+
+  /**
+   * @generated from field: repeated string agent_interests = 6;
+   */
+  agentInterests: string[] = [];
+
+  /**
+   * @generated from field: string agent_conversation_style = 7;
+   */
+  agentConversationStyle = "";
+
+  /**
+   * @generated from field: string human_name = 8;
+   */
+  humanName = "";
+
+  /**
+   * @generated from field: string human_bio_markdown = 9;
+   */
+  humanBioMarkdown = "";
+
+  /**
+   * @generated from field: raminga.api.v1.PublicDraftImage avatar = 10;
+   */
+  avatar?: PublicDraftImage;
+
+  /**
+   * @generated from field: string title = 11;
+   */
+  title = "";
+
+  /**
+   * @generated from field: string body_markdown = 12;
+   */
+  bodyMarkdown = "";
+
+  /**
+   * @generated from field: repeated string tags = 13;
+   */
+  tags: string[] = [];
+
+  /**
+   * @generated from field: repeated raminga.api.v1.PublicDraftImage images = 14;
+   */
+  images: PublicDraftImage[] = [];
+
+  /**
+   * @generated from field: string published_path = 15;
+   */
+  publishedPath = "";
+
+  /**
+   * @generated from field: string published_sha256 = 16;
+   */
+  publishedSha256 = "";
+
+  /**
+   * @generated from field: uint64 published_revision = 17;
+   */
+  publishedRevision = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 created_at_unix_ms = 18;
+   */
+  createdAtUnixMs = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 updated_at_unix_ms = 19;
+   */
+  updatedAtUnixMs = protoInt64.zero;
+
+  /**
+   * "user" | "agent"；profile 忽略
+   *
+   * @generated from field: string author_kind = 20;
+   */
+  authorKind = "";
+
+  constructor(data?: PartialMessage<PublicDraft>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PublicDraft";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 4, name: "agent_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "agent_description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "agent_interests", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 7, name: "agent_conversation_style", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "human_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "human_bio_markdown", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "avatar", kind: "message", T: PublicDraftImage },
+    { no: 11, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "body_markdown", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 14, name: "images", kind: "message", T: PublicDraftImage, repeated: true },
+    { no: 15, name: "published_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 16, name: "published_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 17, name: "published_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 18, name: "created_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 19, name: "updated_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 20, name: "author_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublicDraft {
+    return new PublicDraft().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PublicDraft {
+    return new PublicDraft().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PublicDraft {
+    return new PublicDraft().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PublicDraft | PlainMessage<PublicDraft> | undefined, b: PublicDraft | PlainMessage<PublicDraft> | undefined): boolean {
+    return proto3.util.equals(PublicDraft, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.GetPublicDraftRequest
+ */
+export class GetPublicDraftRequest extends Message<GetPublicDraftRequest> {
+  /**
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  constructor(data?: PartialMessage<GetPublicDraftRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.GetPublicDraftRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPublicDraftRequest {
+    return new GetPublicDraftRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPublicDraftRequest {
+    return new GetPublicDraftRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPublicDraftRequest {
+    return new GetPublicDraftRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPublicDraftRequest | PlainMessage<GetPublicDraftRequest> | undefined, b: GetPublicDraftRequest | PlainMessage<GetPublicDraftRequest> | undefined): boolean {
+    return proto3.util.equals(GetPublicDraftRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.GetPublicDraftResponse
+ */
+export class GetPublicDraftResponse extends Message<GetPublicDraftResponse> {
+  /**
+   * @generated from field: bool found = 1;
+   */
+  found = false;
+
+  /**
+   * @generated from field: raminga.api.v1.PublicDraft draft = 2;
+   */
+  draft?: PublicDraft;
+
+  constructor(data?: PartialMessage<GetPublicDraftResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.GetPublicDraftResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "found", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "draft", kind: "message", T: PublicDraft },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPublicDraftResponse {
+    return new GetPublicDraftResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPublicDraftResponse {
+    return new GetPublicDraftResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPublicDraftResponse {
+    return new GetPublicDraftResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPublicDraftResponse | PlainMessage<GetPublicDraftResponse> | undefined, b: GetPublicDraftResponse | PlainMessage<GetPublicDraftResponse> | undefined): boolean {
+    return proto3.util.equals(GetPublicDraftResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListPublicDraftsRequest
+ */
+export class ListPublicDraftsRequest extends Message<ListPublicDraftsRequest> {
+  /**
+   * "profile" | "post"；空表示全部
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind = "";
+
+  /**
+   * @generated from field: uint32 limit = 2;
+   */
+  limit = 0;
+
+  /**
+   * @generated from field: string before = 3;
+   */
+  before = "";
+
+  constructor(data?: PartialMessage<ListPublicDraftsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListPublicDraftsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 3, name: "before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPublicDraftsRequest {
+    return new ListPublicDraftsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListPublicDraftsRequest {
+    return new ListPublicDraftsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListPublicDraftsRequest {
+    return new ListPublicDraftsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListPublicDraftsRequest | PlainMessage<ListPublicDraftsRequest> | undefined, b: ListPublicDraftsRequest | PlainMessage<ListPublicDraftsRequest> | undefined): boolean {
+    return proto3.util.equals(ListPublicDraftsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListPublicDraftsResponse
+ */
+export class ListPublicDraftsResponse extends Message<ListPublicDraftsResponse> {
+  /**
+   * @generated from field: repeated raminga.api.v1.PublicDraft drafts = 1;
+   */
+  drafts: PublicDraft[] = [];
+
+  /**
+   * @generated from field: string next_before = 2;
+   */
+  nextBefore = "";
+
+  /**
+   * @generated from field: bool has_more = 3;
+   */
+  hasMore = false;
+
+  constructor(data?: PartialMessage<ListPublicDraftsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListPublicDraftsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "drafts", kind: "message", T: PublicDraft, repeated: true },
+    { no: 2, name: "next_before", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPublicDraftsResponse {
+    return new ListPublicDraftsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListPublicDraftsResponse {
+    return new ListPublicDraftsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListPublicDraftsResponse {
+    return new ListPublicDraftsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListPublicDraftsResponse | PlainMessage<ListPublicDraftsResponse> | undefined, b: ListPublicDraftsResponse | PlainMessage<ListPublicDraftsResponse> | undefined): boolean {
+    return proto3.util.equals(ListPublicDraftsResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.SavePublicDraftRequest
+ */
+export class SavePublicDraftRequest extends Message<SavePublicDraftRequest> {
+  /**
+   * 空表示创建；profile 固定为 "profile"
+   *
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  /**
+   * 创建时必填；已有草稿必须一致
+   *
+   * @generated from field: string kind = 2;
+   */
+  kind = "";
+
+  /**
+   * 创建为 0；更新必须精确匹配
+   *
+   * @generated from field: uint64 expected_revision = 3;
+   */
+  expectedRevision = protoInt64.zero;
+
+  /**
+   * @generated from field: optional string agent_name = 4;
+   */
+  agentName?: string;
+
+  /**
+   * @generated from field: optional string agent_description = 5;
+   */
+  agentDescription?: string;
+
+  /**
+   * @generated from field: repeated string agent_interests = 6;
+   */
+  agentInterests: string[] = [];
+
+  /**
+   * @generated from field: optional string agent_conversation_style = 7;
+   */
+  agentConversationStyle?: string;
+
+  /**
+   * @generated from field: optional string human_name = 8;
+   */
+  humanName?: string;
+
+  /**
+   * @generated from field: optional string human_bio_markdown = 9;
+   */
+  humanBioMarkdown?: string;
+
+  /**
+   * 空表示保留；配合 clear_avatar
+   *
+   * @generated from field: string avatar_asset_id = 10;
+   */
+  avatarAssetId = "";
+
+  /**
+   * @generated from field: optional string title = 11;
+   */
+  title?: string;
+
+  /**
+   * @generated from field: optional string body_markdown = 12;
+   */
+  bodyMarkdown?: string;
+
+  /**
+   * @generated from field: repeated string tags = 13;
+   */
+  tags: string[] = [];
+
+  /**
+   * 整体替换；空表示清空
+   *
+   * @generated from field: repeated string image_asset_ids = 14;
+   */
+  imageAssetIds: string[] = [];
+
+  /**
+   * @generated from field: bool clear_avatar = 15;
+   */
+  clearAvatar = false;
+
+  /**
+   * post 必填；"user" | "agent"；profile 忽略
+   *
+   * @generated from field: optional string author_kind = 16;
+   */
+  authorKind?: string;
+
+  constructor(data?: PartialMessage<SavePublicDraftRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.SavePublicDraftRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "expected_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 4, name: "agent_name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "agent_description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "agent_interests", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 7, name: "agent_conversation_style", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 8, name: "human_name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 9, name: "human_bio_markdown", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 10, name: "avatar_asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 12, name: "body_markdown", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 13, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 14, name: "image_asset_ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 15, name: "clear_avatar", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 16, name: "author_kind", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SavePublicDraftRequest {
+    return new SavePublicDraftRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SavePublicDraftRequest {
+    return new SavePublicDraftRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SavePublicDraftRequest {
+    return new SavePublicDraftRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SavePublicDraftRequest | PlainMessage<SavePublicDraftRequest> | undefined, b: SavePublicDraftRequest | PlainMessage<SavePublicDraftRequest> | undefined): boolean {
+    return proto3.util.equals(SavePublicDraftRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.SavePublicDraftResponse
+ */
+export class SavePublicDraftResponse extends Message<SavePublicDraftResponse> {
+  /**
+   * @generated from field: raminga.api.v1.PublicDraft draft = 1;
+   */
+  draft?: PublicDraft;
+
+  constructor(data?: PartialMessage<SavePublicDraftResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.SavePublicDraftResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft", kind: "message", T: PublicDraft },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SavePublicDraftResponse {
+    return new SavePublicDraftResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SavePublicDraftResponse {
+    return new SavePublicDraftResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SavePublicDraftResponse {
+    return new SavePublicDraftResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SavePublicDraftResponse | PlainMessage<SavePublicDraftResponse> | undefined, b: SavePublicDraftResponse | PlainMessage<SavePublicDraftResponse> | undefined): boolean {
+    return proto3.util.equals(SavePublicDraftResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PutPublicDraftImageRequest
+ */
+export class PutPublicDraftImageRequest extends Message<PutPublicDraftImageRequest> {
+  /**
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  /**
+   * "avatar" | "image"
+   *
+   * @generated from field: string role = 2;
+   */
+  role = "";
+
+  /**
+   * 仅用于诊断/格式提示，不决定路径
+   *
+   * @generated from field: string filename = 3;
+   */
+  filename = "";
+
+  /**
+   * @generated from field: bytes data = 4;
+   */
+  data = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<PutPublicDraftImageRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PutPublicDraftImageRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "role", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "filename", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PutPublicDraftImageRequest {
+    return new PutPublicDraftImageRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PutPublicDraftImageRequest {
+    return new PutPublicDraftImageRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PutPublicDraftImageRequest {
+    return new PutPublicDraftImageRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PutPublicDraftImageRequest | PlainMessage<PutPublicDraftImageRequest> | undefined, b: PutPublicDraftImageRequest | PlainMessage<PutPublicDraftImageRequest> | undefined): boolean {
+    return proto3.util.equals(PutPublicDraftImageRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PutPublicDraftImageResponse
+ */
+export class PutPublicDraftImageResponse extends Message<PutPublicDraftImageResponse> {
+  /**
+   * @generated from field: raminga.api.v1.PublicDraftImage image = 1;
+   */
+  image?: PublicDraftImage;
+
+  constructor(data?: PartialMessage<PutPublicDraftImageResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PutPublicDraftImageResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "image", kind: "message", T: PublicDraftImage },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PutPublicDraftImageResponse {
+    return new PutPublicDraftImageResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PutPublicDraftImageResponse {
+    return new PutPublicDraftImageResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PutPublicDraftImageResponse {
+    return new PutPublicDraftImageResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PutPublicDraftImageResponse | PlainMessage<PutPublicDraftImageResponse> | undefined, b: PutPublicDraftImageResponse | PlainMessage<PutPublicDraftImageResponse> | undefined): boolean {
+    return proto3.util.equals(PutPublicDraftImageResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.GetPublicDraftAssetRequest
+ */
+export class GetPublicDraftAssetRequest extends Message<GetPublicDraftAssetRequest> {
+  /**
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  /**
+   * @generated from field: string asset_id = 2;
+   */
+  assetId = "";
+
+  constructor(data?: PartialMessage<GetPublicDraftAssetRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.GetPublicDraftAssetRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPublicDraftAssetRequest {
+    return new GetPublicDraftAssetRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPublicDraftAssetRequest {
+    return new GetPublicDraftAssetRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPublicDraftAssetRequest {
+    return new GetPublicDraftAssetRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPublicDraftAssetRequest | PlainMessage<GetPublicDraftAssetRequest> | undefined, b: GetPublicDraftAssetRequest | PlainMessage<GetPublicDraftAssetRequest> | undefined): boolean {
+    return proto3.util.equals(GetPublicDraftAssetRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.GetPublicDraftAssetResponse
+ */
+export class GetPublicDraftAssetResponse extends Message<GetPublicDraftAssetResponse> {
+  /**
+   * @generated from field: raminga.api.v1.PublicDraftImage image = 1;
+   */
+  image?: PublicDraftImage;
+
+  /**
+   * data is the exact private draft asset bytes. The local bridge converts it
+   * to a short-lived object URL; it is never written to public/ by this RPC.
+   *
+   * @generated from field: bytes data = 2;
+   */
+  data = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<GetPublicDraftAssetResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.GetPublicDraftAssetResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "image", kind: "message", T: PublicDraftImage },
+    { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPublicDraftAssetResponse {
+    return new GetPublicDraftAssetResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPublicDraftAssetResponse {
+    return new GetPublicDraftAssetResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPublicDraftAssetResponse {
+    return new GetPublicDraftAssetResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPublicDraftAssetResponse | PlainMessage<GetPublicDraftAssetResponse> | undefined, b: GetPublicDraftAssetResponse | PlainMessage<GetPublicDraftAssetResponse> | undefined): boolean {
+    return proto3.util.equals(GetPublicDraftAssetResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ImportPublicPostRequest
+ */
+export class ImportPublicPostRequest extends Message<ImportPublicPostRequest> {
+  /**
+   * path must be an existing posts/*.json or posts/*\/post.json whose author
+   * peer_id is this node. Remote or unowned paths are rejected.
+   *
+   * @generated from field: string path = 1;
+   */
+  path = "";
+
+  constructor(data?: PartialMessage<ImportPublicPostRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ImportPublicPostRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ImportPublicPostRequest {
+    return new ImportPublicPostRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ImportPublicPostRequest {
+    return new ImportPublicPostRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ImportPublicPostRequest {
+    return new ImportPublicPostRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ImportPublicPostRequest | PlainMessage<ImportPublicPostRequest> | undefined, b: ImportPublicPostRequest | PlainMessage<ImportPublicPostRequest> | undefined): boolean {
+    return proto3.util.equals(ImportPublicPostRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ImportPublicPostResponse
+ */
+export class ImportPublicPostResponse extends Message<ImportPublicPostResponse> {
+  /**
+   * @generated from field: raminga.api.v1.PublicDraft draft = 1;
+   */
+  draft?: PublicDraft;
+
+  constructor(data?: PartialMessage<ImportPublicPostResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ImportPublicPostResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft", kind: "message", T: PublicDraft },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ImportPublicPostResponse {
+    return new ImportPublicPostResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ImportPublicPostResponse {
+    return new ImportPublicPostResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ImportPublicPostResponse {
+    return new ImportPublicPostResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ImportPublicPostResponse | PlainMessage<ImportPublicPostResponse> | undefined, b: ImportPublicPostResponse | PlainMessage<ImportPublicPostResponse> | undefined): boolean {
+    return proto3.util.equals(ImportPublicPostResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.DeletePublicDraftRequest
+ */
+export class DeletePublicDraftRequest extends Message<DeletePublicDraftRequest> {
+  /**
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision = protoInt64.zero;
+
+  constructor(data?: PartialMessage<DeletePublicDraftRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.DeletePublicDraftRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expected_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeletePublicDraftRequest {
+    return new DeletePublicDraftRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeletePublicDraftRequest {
+    return new DeletePublicDraftRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeletePublicDraftRequest {
+    return new DeletePublicDraftRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeletePublicDraftRequest | PlainMessage<DeletePublicDraftRequest> | undefined, b: DeletePublicDraftRequest | PlainMessage<DeletePublicDraftRequest> | undefined): boolean {
+    return proto3.util.equals(DeletePublicDraftRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.DeletePublicDraftResponse
+ */
+export class DeletePublicDraftResponse extends Message<DeletePublicDraftResponse> {
+  /**
+   * @generated from field: bool deleted = 1;
+   */
+  deleted = false;
+
+  constructor(data?: PartialMessage<DeletePublicDraftResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.DeletePublicDraftResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "deleted", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeletePublicDraftResponse {
+    return new DeletePublicDraftResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeletePublicDraftResponse {
+    return new DeletePublicDraftResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeletePublicDraftResponse {
+    return new DeletePublicDraftResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeletePublicDraftResponse | PlainMessage<DeletePublicDraftResponse> | undefined, b: DeletePublicDraftResponse | PlainMessage<DeletePublicDraftResponse> | undefined): boolean {
+    return proto3.util.equals(DeletePublicDraftResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PublishFile
+ */
+export class PublishFile extends Message<PublishFile> {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path = "";
+
+  /**
+   * @generated from field: int64 size_bytes = 2;
+   */
+  sizeBytes = protoInt64.zero;
+
+  /**
+   * @generated from field: string sha256 = 3;
+   */
+  sha256 = "";
+
+  constructor(data?: PartialMessage<PublishFile>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PublishFile";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublishFile {
+    return new PublishFile().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PublishFile {
+    return new PublishFile().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PublishFile {
+    return new PublishFile().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PublishFile | PlainMessage<PublishFile> | undefined, b: PublishFile | PlainMessage<PublishFile> | undefined): boolean {
+    return proto3.util.equals(PublishFile, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PublishPublicDraftRequest
+ */
+export class PublishPublicDraftRequest extends Message<PublishPublicDraftRequest> {
+  /**
+   * @generated from field: string draft_id = 1;
+   */
+  draftId = "";
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision = protoInt64.zero;
+
+  /**
+   * An empty value is allowed only for a first publish. A draft that already
+   * has published_sha256 must pass the exact current value.
+   *
+   * @generated from field: string expected_published_sha256 = 3;
+   */
+  expectedPublishedSha256 = "";
+
+  constructor(data?: PartialMessage<PublishPublicDraftRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PublishPublicDraftRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expected_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 3, name: "expected_published_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublishPublicDraftRequest {
+    return new PublishPublicDraftRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PublishPublicDraftRequest {
+    return new PublishPublicDraftRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PublishPublicDraftRequest {
+    return new PublishPublicDraftRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PublishPublicDraftRequest | PlainMessage<PublishPublicDraftRequest> | undefined, b: PublishPublicDraftRequest | PlainMessage<PublishPublicDraftRequest> | undefined): boolean {
+    return proto3.util.equals(PublishPublicDraftRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PublishPublicDraftResponse
+ */
+export class PublishPublicDraftResponse extends Message<PublishPublicDraftResponse> {
+  /**
+   * @generated from field: raminga.api.v1.PublicPublishStatus status = 1;
+   */
+  status = PublicPublishStatus.UNSPECIFIED;
+
+  /**
+   * @generated from field: string error = 2;
+   */
+  error = "";
+
+  /**
+   * @generated from field: uint64 current_revision = 3;
+   */
+  currentRevision = protoInt64.zero;
+
+  /**
+   * @generated from field: string current_published_sha256 = 4;
+   */
+  currentPublishedSha256 = "";
+
+  /**
+   * @generated from field: repeated raminga.api.v1.PublishFile files = 5;
+   */
+  files: PublishFile[] = [];
+
+  /**
+   * @generated from field: int32 manifest_version = 6;
+   */
+  manifestVersion = 0;
+
+  /**
+   * @generated from field: int64 manifest_generated_at_unix_ms = 7;
+   */
+  manifestGeneratedAtUnixMs = protoInt64.zero;
+
+  /**
+   * @generated from field: string post_path = 8;
+   */
+  postPath = "";
+
+  /**
+   * @generated from field: string profile_path = 9;
+   */
+  profilePath = "";
+
+  /**
+   * @generated from field: repeated string warnings = 10;
+   */
+  warnings: string[] = [];
+
+  /**
+   * @generated from field: string manifest_sha256 = 11;
+   */
+  manifestSha256 = "";
+
+  constructor(data?: PartialMessage<PublishPublicDraftResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PublishPublicDraftResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "status", kind: "enum", T: proto3.getEnumType(PublicPublishStatus) },
+    { no: 2, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "current_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 4, name: "current_published_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "files", kind: "message", T: PublishFile, repeated: true },
+    { no: 6, name: "manifest_version", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 7, name: "manifest_generated_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 8, name: "post_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "profile_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "warnings", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 11, name: "manifest_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublishPublicDraftResponse {
+    return new PublishPublicDraftResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PublishPublicDraftResponse {
+    return new PublishPublicDraftResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PublishPublicDraftResponse {
+    return new PublishPublicDraftResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PublishPublicDraftResponse | PlainMessage<PublishPublicDraftResponse> | undefined, b: PublishPublicDraftResponse | PlainMessage<PublishPublicDraftResponse> | undefined): boolean {
+    return proto3.util.equals(PublishPublicDraftResponse, a, b);
   }
 }
 

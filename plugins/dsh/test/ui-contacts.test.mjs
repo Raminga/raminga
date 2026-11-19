@@ -49,7 +49,7 @@ function statusResponse({
     nodeId: 'node-a',
     version: 'test',
     protocolVersion: '1',
-    apiVersion: '4',
+    apiVersion: '6',
     startedAtUnixMs,
     currentTime: 'now',
     listenAddrs: ['/ip4/127.0.0.1/tcp/4001'],

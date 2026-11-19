@@ -241,7 +241,9 @@ test('a contact entry returns to its search, scroll and trigger; tab switches ke
     assert.equal(page.scrollTop, 140, 'contact scroll survives the tab switch');
     assert.equal(ui.app.getDraft(`chat:${PEER_A}`), 'Alice 未发送草稿');
 
-    ui.shadow.querySelector('button[data-nav="messages"]').click();
+    ui.shadow.querySelector('button[data-nav="home"]').click();
+    await frame();
+    ui.shadow.querySelector('[data-messages-open]').click();
     await frame();
     assert.equal(ui.conversationView.hidden, false);
     assert.equal(ui.messageInput.value, 'Alice 未发送草稿', 'the chat reopens with the same draft');
@@ -273,7 +275,9 @@ test('a conversation-index entry returns to the index position and row focus', a
   try {
     ui.app.setContacts(contacts([friend(PEER_A, { name: 'Alice' })]));
     ui.app.setConversations(conversations([row]));
-    ui.shadow.querySelector('button[data-nav="messages"]').click();
+    ui.shadow.querySelector('button[data-nav="home"]').click();
+    await frame();
+    ui.shadow.querySelector('[data-messages-open]').click();
     await settle();
     const page = ui.shadow.querySelector('#page-messages');
     page.scrollTop = 3;
@@ -579,7 +583,7 @@ test('conversation index distinguishes loading, empty, error and search-empty wi
   }
 });
 
-test('node live region announces the same connection count as the visible pill', () => {
+test('node pill stays a short readable label while the status dialog keeps connection counts', async () => {
   const ui = mountUi();
   try {
     const live = ui.shadow.querySelector('#nodeLive');
@@ -593,8 +597,9 @@ test('node live region announces the same connection count as the visible pill',
       stream: { phase: 'open' },
       stats: { subscriptions: 1, openSessions: 1, streamActive: true, streamPhase: 'open' },
     });
-    assert.match(label.textContent, /0 条连接/);
-    assert.match(live.textContent, /0 条连接/);
+    assert.equal(label.textContent, '节点在线');
+    assert.doesNotMatch(label.textContent, /条连接/);
+    assert.match(live.textContent, /节点在线/);
 
     ui.app.setNodeStatus({
       phase: 'ready',
@@ -608,8 +613,12 @@ test('node live region announces the same connection count as the visible pill',
       stream: { phase: 'open' },
       stats: { subscriptions: 1, openSessions: 1, streamActive: true, streamPhase: 'open' },
     });
-    assert.match(label.textContent, /1 条连接/);
-    assert.match(live.textContent, /1 条连接/, 'live region follows the visible count, not only phase changes');
+    assert.equal(label.textContent, '节点在线');
+    assert.match(live.textContent, /节点在线/, 'live region follows the short visible status');
+    ui.shadow.querySelector('#nodeTrigger').click();
+    await settle();
+    assert.match(ui.shadow.querySelector('#statusConnections').textContent, /1 条连接/);
+    assert.equal(ui.shadow.querySelector('#nodeTrigger').getAttribute('aria-label'), '节点状态：节点在线。打开节点状态详情');
   } finally {
     ui.close();
   }

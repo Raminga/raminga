@@ -7,7 +7,7 @@
 // It is served as Connect-RPC only on a Unix domain socket in the data dir,
 // never on a TCP or UDP network listener.
 
-import { ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveFriendRequest, RemoveFriendResponse, SendChatRequest, SendChatResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
+import { ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DeletePublicDraftRequest, DeletePublicDraftResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, GetPublicDraftAssetRequest, GetPublicDraftAssetResponse, GetPublicDraftRequest, GetPublicDraftResponse, ImportPublicPostRequest, ImportPublicPostResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListFavoritesRequest, ListFavoritesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, ListPublicDraftsRequest, ListPublicDraftsResponse, MarkConversationReadRequest, MarkConversationReadResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, PublishPublicDraftRequest, PublishPublicDraftResponse, PutPublicDraftImageRequest, PutPublicDraftImageResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveFriendRequest, RemoveFriendResponse, SavePublicDraftRequest, SavePublicDraftResponse, SendChatRequest, SendChatResponse, SetFavoriteRequest, SetFavoriteResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -90,6 +90,41 @@ export const RamingaService = {
       name: "ListMessages",
       I: ListMessagesRequest,
       O: ListMessagesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * MarkConversationRead advances the human read cursor through one retained
+     * message. Reads never write this cursor; only this RPC does.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.MarkConversationRead
+     */
+    markConversationRead: {
+      name: "MarkConversationRead",
+      I: MarkConversationReadRequest,
+      O: MarkConversationReadResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListFavorites returns only privately bookmarked public posts. Messages and
+     * contacts are not representable as favorites.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.ListFavorites
+     */
+    listFavorites: {
+      name: "ListFavorites",
+      I: ListFavoritesRequest,
+      O: ListFavoritesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * SetFavorite idempotently saves or clears one public-post bookmark.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.SetFavorite
+     */
+    setFavorite: {
+      name: "SetFavorite",
+      I: SetFavoriteRequest,
+      O: SetFavoriteResponse,
       kind: MethodKind.Unary,
     },
     /**
@@ -277,6 +312,87 @@ export const RamingaService = {
       name: "ListDiscoveries",
       I: ListDiscoveriesRequest,
       O: ListDiscoveriesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Public drafts are private SQLite rows; they are never published until an
+     * explicit PublishPublicDraft call.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.GetPublicDraft
+     */
+    getPublicDraft: {
+      name: "GetPublicDraft",
+      I: GetPublicDraftRequest,
+      O: GetPublicDraftResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc raminga.api.v1.RamingaService.ListPublicDrafts
+     */
+    listPublicDrafts: {
+      name: "ListPublicDrafts",
+      I: ListPublicDraftsRequest,
+      O: ListPublicDraftsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc raminga.api.v1.RamingaService.SavePublicDraft
+     */
+    savePublicDraft: {
+      name: "SavePublicDraft",
+      I: SavePublicDraftRequest,
+      O: SavePublicDraftResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc raminga.api.v1.RamingaService.PutPublicDraftImage
+     */
+    putPublicDraftImage: {
+      name: "PutPublicDraftImage",
+      I: PutPublicDraftImageRequest,
+      O: PutPublicDraftImageResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * GetPublicDraftAsset returns one private draft image/avatar by draft+asset
+     * id. It is local-only, never serves a public URL, and enforces draft scoping.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.GetPublicDraftAsset
+     */
+    getPublicDraftAsset: {
+      name: "GetPublicDraftAsset",
+      I: GetPublicDraftAssetRequest,
+      O: GetPublicDraftAssetResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ImportPublicPost copies one already-published local post into a private
+     * draft that updates the original path instead of publishing a second copy.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.ImportPublicPost
+     */
+    importPublicPost: {
+      name: "ImportPublicPost",
+      I: ImportPublicPostRequest,
+      O: ImportPublicPostResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc raminga.api.v1.RamingaService.DeletePublicDraft
+     */
+    deletePublicDraft: {
+      name: "DeletePublicDraft",
+      I: DeletePublicDraftRequest,
+      O: DeletePublicDraftResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc raminga.api.v1.RamingaService.PublishPublicDraft
+     */
+    publishPublicDraft: {
+      name: "PublishPublicDraft",
+      I: PublishPublicDraftRequest,
+      O: PublishPublicDraftResponse,
       kind: MethodKind.Unary,
     },
     /**

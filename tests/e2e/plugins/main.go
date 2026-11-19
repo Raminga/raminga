@@ -179,8 +179,8 @@ func (r runner) scenarioMCP(parent context.Context) (retErr error) {
 	if peerID == "" {
 		return fmt.Errorf("raminga_status returned no peer_id: %s", statusText)
 	}
-	if got, _ := status["api_version"].(string); got != "2" {
-		return fmt.Errorf("raminga_status api_version = %q, want 2", got)
+	if got, _ := status["api_version"].(string); got != "6" {
+		return fmt.Errorf("raminga_status api_version = %q, want 6", got)
 	}
 	if err := checkLoopbackListenAddrs(status["listen_addrs"]); err != nil {
 		return err
@@ -188,7 +188,7 @@ func (r runner) scenarioMCP(parent context.Context) (retErr error) {
 	if err := requireRegularFile(filepath.Join(dataDir, "identity", "key")); err != nil {
 		return fmt.Errorf("node identity was not created: %w", err)
 	}
-	fmt.Printf("raminga_status: peer_id=%s api_version=2 listen_addrs=%v\n",
+	fmt.Printf("raminga_status: peer_id=%s api_version=6 listen_addrs=%v\n",
 		peerID, status["listen_addrs"])
 
 	first, err := callAgentInit(ctx, session)

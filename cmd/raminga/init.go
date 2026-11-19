@@ -21,6 +21,7 @@ func newInitCmd() *cobra.Command {
 		announce      []string
 		knownRelays   []string
 		bootstrap     []string
+		noPreset      bool
 		dhtMode       string
 	)
 	cmd := &cobra.Command{
@@ -36,15 +37,16 @@ func newInitCmd() *cobra.Command {
 			}
 			dir := dataDirFrom(cmd)
 			cfg, err := config.Init(dir, config.InitOptions{
-				ListenAddrs:    listen,
-				TCPPort:        tcpPort,
-				QUICPort:       quicPort,
-				Force:          force,
-				RelayProvider:  relayProvider,
-				AnnounceAddrs:  announce,
-				KnownRelays:    knownRelays,
-				BootstrapPeers: bootstrap,
-				DHTMode:        dhtMode,
+				ListenAddrs:            listen,
+				TCPPort:                tcpPort,
+				QUICPort:               quicPort,
+				Force:                  force,
+				RelayProvider:          relayProvider,
+				AnnounceAddrs:          announce,
+				KnownRelays:            knownRelays,
+				BootstrapPeers:         bootstrap,
+				DisableBootstrapPreset: noPreset,
+				DHTMode:                dhtMode,
 			})
 			if err != nil {
 				return err
@@ -55,14 +57,15 @@ func newInitCmd() *cobra.Command {
 			w := cmd.OutOrStdout()
 			if jsonOut {
 				return json.NewEncoder(w).Encode(map[string]any{
-					"data_dir":       dir,
-					"config":         config.Path(dir),
-					"listen_addrs":   cfg.Network.ListenAddrs,
-					"announce_addrs": cfg.Network.AnnounceAddrs,
-					"known_relays":   cfg.Relay.KnownRelays,
-					"bootstrap":      cfg.DHT.BootstrapPeers,
-					"dht_mode":       cfg.DHT.Mode,
-					"relay_provider": cfg.Relay.Provider,
+					"data_dir":         dir,
+					"config":           config.Path(dir),
+					"listen_addrs":     cfg.Network.ListenAddrs,
+					"announce_addrs":   cfg.Network.AnnounceAddrs,
+					"known_relays":     cfg.Relay.KnownRelays,
+					"bootstrap":        cfg.DHT.BootstrapPeers,
+					"bootstrap_preset": cfg.DHT.BootstrapPreset != nil && *cfg.DHT.BootstrapPreset,
+					"dht_mode":         cfg.DHT.Mode,
+					"relay_provider":   cfg.Relay.Provider,
 				})
 			}
 			_, _ = fmt.Fprintf(w, "data_dir: %s\nconfig: %s\nlisten_addrs:\n", dir, config.Path(dir))
@@ -83,6 +86,7 @@ func newInitCmd() *cobra.Command {
 				}
 			}
 			_, _ = fmt.Fprintf(w, "dht_mode: %s\n", cfg.DHT.Mode)
+			_, _ = fmt.Fprintf(w, "bootstrap_preset: %t\n", cfg.DHT.BootstrapPreset != nil && *cfg.DHT.BootstrapPreset)
 			if len(cfg.DHT.BootstrapPeers) > 0 {
 				_, _ = fmt.Fprintln(w, "bootstrap_peers:")
 				for _, addr := range cfg.DHT.BootstrapPeers {
@@ -101,7 +105,8 @@ func newInitCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&relayProvider, "relay-provider", false, "enable the Circuit Relay v2 provider (off by default; safe quotas are always applied)")
 	cmd.Flags().StringArrayVar(&announce, "announce", nil, "advertised multiaddr without /p2p or /p2p-circuit (repeatable)")
 	cmd.Flags().StringArrayVar(&knownRelays, "known-relay", nil, "Raminga relay multiaddr including /p2p/<peer-id> (repeatable)")
-	cmd.Flags().StringArrayVar(&bootstrap, "bootstrap", nil, "Raminga bootstrap multiaddr including /p2p/<peer-id> (repeatable)")
+	cmd.Flags().StringArrayVar(&bootstrap, "bootstrap", nil, "Raminga bootstrap multiaddr including /p2p/<peer-id> (repeatable; custom list wins over the release preset)")
+	cmd.Flags().BoolVar(&noPreset, "no-bootstrap-preset", false, "do not seed the built-in official bootstrap preset on this new config")
 	cmd.Flags().StringVar(&dhtMode, "dht-mode", "auto", "DHT mode written to config.toml: client, server or auto")
 	return cmd
 }

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "title": "来源未注明的旧动态",
+  "format": "markdown",
+  "author": { "peer_id": "__PEER_ID__", "display_name": "旧记录" },
+  "published_at": "2026-11-07T08:00:00Z",
+  "tags": ["历史"],
+  "summary": "旧记录没有作者类型声明，界面不能猜测。",
+  "body": "# 来源未注明的旧动态\n\n没有 kind 字段时保持「来源未注明」。"
+}

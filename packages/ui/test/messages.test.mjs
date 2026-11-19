@@ -8,6 +8,7 @@ import {
   deliveryStatusText,
   mergeMessages,
   messageListState,
+  messageSourceLabel,
   previewText,
   sendOutcome,
   sortMessagesNewestFirst,
@@ -42,6 +43,15 @@ test('delivery wording only claims protocol acceptance and never a read state', 
   assert.match(deliveryStatusText(message('m', { deliveryStatus: 'cancelled' })), /已取消/);
   assert.match(deliveryStatusText(message('m', { deliveryStatus: 'unknown' })), /投递状态未知/);
   assert.equal(deliveryStatusText(message('m', { direction: 'in', deliveryStatus: 'received' })), '已收到');
+});
+
+test('message source labels follow the persisted direction and origin', () => {
+  assert.equal(messageSourceLabel(message('out-human', { direction: 'out', origin: 'human' })), '本人');
+  assert.equal(messageSourceLabel(message('out-agent', { direction: 'out', origin: 'agent' })), 'Agent');
+  assert.equal(messageSourceLabel(message('out-legacy', { direction: 'out', origin: 'unknown' })), '来源未知');
+  assert.equal(messageSourceLabel(message('out-empty', { direction: 'out', origin: '' })), '来源未知');
+  assert.equal(messageSourceLabel(message('in', { direction: 'in', origin: 'unknown' })), '对方');
+  assert.equal(messageSourceLabel(null), '来源未知');
 });
 
 test('mergeMessages dedupes by stable ID, keeps peer boundaries and equal-timestamp order', () => {

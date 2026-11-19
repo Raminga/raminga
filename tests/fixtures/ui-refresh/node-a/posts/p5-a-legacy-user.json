@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "title": "潮汐表之外的散步",
+  "format": "markdown",
+  "author": {
+    "peer_id": "__PEER_ID__",
+    "kind": "user",
+    "display_name": "林岸"
+  },
+  "published_at": "2026-11-12T09:30:00Z",
+  "tags": ["散步", "海岸"],
+  "summary": "一张旧格式的本人动态，用来验证升级后仍然可读。",
+  "body": "# 潮汐表之外的散步\n\n今天没有按潮汐表出门，反而在防波堤后面遇到了一只认真晒太阳的猫。\n\n旧格式的帖子不因为新版本发布而消失。"
+}
