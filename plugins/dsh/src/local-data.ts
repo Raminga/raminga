@@ -226,6 +226,7 @@ export interface JourneySessionState {
   updatedAt: string;
   completedAt: string;
   completionReason: string;
+  summary: string;
   currentPeerId: string;
   visitedPeerIds: string[];
   discoverySources: string[];
@@ -301,9 +302,8 @@ export interface ContactNote {
 
 export interface LocalContactNotes {
   state: 'available' | 'missing' | 'error';
-  /** v1 is read-only and only valid with an empty contacts array. */
-  schemaVersion: 1 | 2 | 0;
-  contacts: ContactNote[];
+  schemaVersion: 2 | 0;
+  contact: ContactNote | null;
   sha256: string;
   error: string;
   at: number;
@@ -322,7 +322,6 @@ export interface ContactImpressionSave {
   sha256: string;
   savedAt: number;
   contact: ContactNote;
-  notes: LocalContactNotes;
 }
 
 export interface OwnPublicData {
@@ -976,12 +975,31 @@ function parseSessionState(raw: unknown): JourneySessionState {
     updatedAt: rfc3339(raw.updated_at),
     completedAt: rfc3339(raw.completed_at),
     completionReason: text(raw.completion_reason, 1000),
+    summary: text(raw.summary, 1000),
     currentPeerId: canonicalPeer(raw.current_peer_id),
     visitedPeerIds: Array.isArray(raw.visited_peer_ids)
       ? raw.visited_peer_ids.map(canonicalPeer).filter((value: string) => value.length > 0).slice(0, 200)
       : [],
     discoverySources: collectStringList(raw.discovery_sources, 50, 256),
   };
+}
+
+/** The host supplies the file name. Only the selected session is readable. */
+export async function readJourneyReportFile(
+  dataDir: string,
+  sessionId: string,
+  relative: string,
+  maxBytes: number,
+): Promise<Buffer> {
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(sessionId) || ['.', '..', '__proto__'].includes(sessionId)) {
+    throw new LocalDataError('invalid', '漫游会话 ID 无效');
+  }
+  const file = safeRelative(relative).split(path.sep).join('/');
+  if (file !== 'report.html' && !file.startsWith('assets/')) {
+    throw new LocalDataError('invalid', '漫游报告只能加载会话的 assets/ 素材');
+  }
+  const agent = await realRoot(dataDir, 'agent');
+  return (await safeReadUnder(agent, `sessions/${sessionId}/${file}`, maxBytes)).data;
 }
 
 async function readJourneySession(base: string, id: string, dirModifiedAt: number): Promise<JourneySession> {
@@ -1157,8 +1175,8 @@ export async function readJourney(dataDir: string): Promise<JourneyData> {
 
 // --- Private contact memory ------------------------------------------------
 //
-// contact-notes.json is private Agent data. Reads and writes are fixed to
-// agent/contact-notes.json, bounded by 1 MiB, reject symlinks/traversal, and
+// Each memory.json is private Agent data under agent/contacts/<Peer ID>/.
+// Reads and writes are bounded by 1 MiB, reject symlinks/traversal, and
 // never expose a browser-supplied filesystem path. Saves preserve every
 // unknown field and use optimistic SHA-256 concurrency plus atomic rename.
 
@@ -1188,8 +1206,9 @@ function contactRecordId(value: unknown, label: string): string {
 
 function parseContactObservation(raw: unknown): ContactObservation {
   if (!isRecord(raw)) throw new LocalDataError('invalid', '联系人观察必须是对象');
-  const observedAt = rfc3339(raw.observed_at);
-  if (observedAt === '') throw new LocalDataError('invalid', '联系人观察缺少有效 observed_at');
+  const hasObservedAt = raw.observed_at !== undefined && raw.observed_at !== null;
+  const observedAt = hasObservedAt ? rfc3339(raw.observed_at) : '';
+  if (hasObservedAt && observedAt === '') throw new LocalDataError('invalid', '联系人观察缺少有效 observed_at');
   const summary = text(raw.summary, 2000);
   if (summary === '') throw new LocalDataError('invalid', '联系人观察缺少摘要');
   return {
@@ -1249,48 +1268,34 @@ function parseContactNote(raw: unknown): ContactNote {
   };
 }
 
-function parseContactNotesBytes(data: Buffer, digest: string): LocalContactNotes {
+function parseContactMemoryObject(data: Buffer, peerId: string): Record<string, unknown> {
   let value: unknown;
   try {
-    value = JSON.parse(data.toString('utf8'));
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(data));
   } catch {
-    throw new LocalDataError('invalid', 'contact-notes.json 不是有效 JSON');
+    throw new LocalDataError('invalid', 'memory.json 不是有效的 UTF-8 JSON');
   }
-  if (!isRecord(value)) throw new LocalDataError('invalid', 'contact-notes.json 必须是 JSON 对象');
-  const schemaVersion = value.schema_version === 1 ? 1 : value.schema_version === 2 ? 2 : 0;
-  if (schemaVersion === 0) throw new LocalDataError('invalid', 'contact-notes.json schema_version 必须为 1 或 2');
-  const rawContacts = value.contacts;
-  if (!Array.isArray(rawContacts)) throw new LocalDataError('invalid', 'contact-notes.json contacts 必须是数组');
-  if (schemaVersion === 1 && rawContacts.length > 0) {
-    throw new LocalDataError('invalid', 'contact-notes.json v1 只读兼容，且只允许空 contacts');
+  if (!isRecord(value) || value.schema_version !== 2) {
+    throw new LocalDataError('invalid', 'memory.json 必须是 schema_version 为 2 的对象');
   }
-  if (rawContacts.length > 2000) throw new LocalDataError('too_large', 'contact-notes.json 联系人数超过 2000');
-  const contacts: ContactNote[] = [];
-  const seen = new Set<string>();
-  for (const item of rawContacts) {
-    const contact = parseContactNote(item);
-    if (seen.has(contact.peerId)) throw new LocalDataError('invalid', 'contact-notes.json 联系人重复');
-    seen.add(contact.peerId);
-    contacts.push(contact);
+  if (canonicalPeer(value.peer_id) !== peerId) {
+    throw new LocalDataError('invalid', 'memory.json 的 peer_id 与联系人不一致');
   }
-  return { state: 'available', schemaVersion, contacts, sha256: digest, error: '', at: Date.now() };
+  return value;
 }
 
-/** Read agent/contact-notes.json without creating or rewriting it. */
-export async function readContactNotes(dataDir: string): Promise<LocalContactNotes> {
+/** Read only the selected contact's private file. */
+export async function readContactNotes(dataDir: string, inputPeerId: string): Promise<LocalContactNotes> {
+  const peerId = canonicalPeer(inputPeerId);
+  if (peerId === '') throw new LocalDataError('invalid', 'Peer ID 格式无效');
   const missing: LocalContactNotes = {
-    state: 'missing', schemaVersion: 0, contacts: [], sha256: '', error: 'agent/contact-notes.json 不存在', at: Date.now(),
+    state: 'missing', schemaVersion: 0, contact: null, sha256: '', error: '', at: Date.now(),
   };
-  let agentRoot: string;
   try {
-    agentRoot = await realRoot(dataDir, 'agent');
-  } catch (error) {
-    if (error instanceof LocalDataError && error.code === 'missing') return missing;
-    return { ...missing, state: 'error', error: error instanceof Error ? error.message : String(error) };
-  }
-  try {
-    const { data } = await safeReadUnder(agentRoot, 'contact-notes.json', MAX_CONTACT_NOTES_BYTES);
-    return parseContactNotesBytes(data, sha256(data));
+    const agentRoot = await realRoot(dataDir, 'agent');
+    const { data } = await safeReadUnder(agentRoot, `contacts/${peerId}/memory.json`, MAX_CONTACT_NOTES_BYTES);
+    const contact = parseContactNote(parseContactMemoryObject(data, peerId));
+    return { ...missing, state: 'available', schemaVersion: 2, contact, sha256: sha256(data) };
   } catch (error) {
     if (error instanceof LocalDataError && error.code === 'missing') return missing;
     return { ...missing, state: 'error', error: error instanceof Error ? error.message : String(error) };
@@ -1327,57 +1332,33 @@ async function performContactImpressionSave(
   if (expected !== '' && !/^[a-f0-9]{64}$/.test(expected)) {
     throw new LocalDataError('invalid', '版本哈希格式无效，未保存');
   }
-  const root = await privateAgentRoot(dataDir);
-  const target = path.join(root, 'contact-notes.json');
-  const current = await readPrivateBytes(target, 'contact-notes.json', MAX_CONTACT_NOTES_BYTES);
+  const agent = await privateAgentRoot(dataDir);
+  const contacts = await ensurePrivateChild(agent, 'contacts');
+  const root = await ensurePrivateChild(contacts, peerId);
+  const target = path.join(root, 'memory.json');
+  const current = await readPrivateBytes(target, 'memory.json', MAX_CONTACT_NOTES_BYTES);
   const currentSha = current === null ? '' : sha256(current);
   if (expected !== currentSha) {
-    throw new LocalDataError('conflict', 'contact-notes.json 已在别处修改，未覆盖；请重新读取后再保存');
+    throw new LocalDataError('conflict', 'memory.json 已在别处修改，未覆盖；请重新读取后再保存');
   }
-  let value: Record<string, unknown>;
-  if (current === null) {
-    value = { schema_version: 2, contacts: [] };
-  } else {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(current.toString('utf8'));
-    } catch {
-      throw new LocalDataError('invalid', 'contact-notes.json 不是有效 JSON，未保存');
-    }
-    if (!isRecord(parsed)) throw new LocalDataError('invalid', 'contact-notes.json 必须是 JSON 对象');
-    if (parsed.schema_version === 1) {
-      throw new LocalDataError('invalid', '旧版 contact-notes.json 只读兼容，不会自动改写；请由 Agent 初始化 v2 后再编辑');
-    }
-    if (parsed.schema_version !== 2) throw new LocalDataError('invalid', 'contact-notes.json schema_version 必须为 2');
-    value = parsed;
-  }
-  const contacts = value.contacts;
-  if (!Array.isArray(contacts)) throw new LocalDataError('invalid', 'contact-notes.json contacts 必须是数组');
   const now = new Date();
   const nowIso = now.toISOString();
-  let contact: Record<string, unknown> | null = null;
-  for (const candidate of contacts) {
-    if (isRecord(candidate) && canonicalPeer(candidate.peer_id) === peerId) {
-      contact = candidate;
-      break;
-    }
+  if (current === null && wantedId !== '') {
+    throw new LocalDataError('missing', '联系人没有可编辑的私有印象');
   }
-  if (contact === null) {
-    if (wantedId !== '') throw new LocalDataError('invalid', '联系人不存在，不能编辑指定印象');
-    contact = {
-      peer_id: peerId,
-      display_name_snapshot: '',
-      updated_at: nowIso,
-      observations: [],
-      impressions: [],
-      curiosities: [],
-    };
-    contacts.push(contact);
-  }
-  if (!Array.isArray(contact.impressions)) {
+  const contact = current === null ? {
+    schema_version: 2,
+    peer_id: peerId,
+    display_name_snapshot: '',
+    observations: [],
+    impressions: [],
+    curiosities: [],
+  } : parseContactMemoryObject(current, peerId);
+  const impressions = contact.impressions ?? [];
+  if (!Array.isArray(impressions)) {
     throw new LocalDataError('invalid', '联系人 impressions 必须是数组');
   }
-  const impressions = contact.impressions;
+  contact.impressions = impressions;
   let targetImpression: Record<string, unknown> | null = null;
   if (wantedId !== '') {
     for (const candidate of impressions) {
@@ -1386,7 +1367,7 @@ async function performContactImpressionSave(
         break;
       }
     }
-    if (targetImpression === null) throw new LocalDataError('missing', '要编辑的私有印象不在 contact-notes.json 中');
+    if (targetImpression === null) throw new LocalDataError('missing', '要编辑的私有印象不在 memory.json 中');
   }
   if (targetImpression === null) {
     if (impressions.length >= 200) throw new LocalDataError('too_large', '单个联系人的印象超过 200 条');
@@ -1396,7 +1377,7 @@ async function performContactImpressionSave(
       uncertainty,
       created_at: nowIso,
       updated_at: nowIso,
-      evidence_refs: emptyEvidenceRefs(),
+      evidence_refs: { session_ids: [], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
     };
     impressions.push(targetImpression);
   } else {
@@ -1405,26 +1386,23 @@ async function performContactImpressionSave(
     targetImpression.updated_at = nowIso;
   }
   contact.updated_at = nowIso;
-  value.schema_version = 2;
-  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  const bytes = Buffer.from(`${JSON.stringify(contact, null, 2)}\n`, 'utf8');
   if (bytes.length > MAX_CONTACT_NOTES_BYTES) {
-    throw new LocalDataError('too_large', `contact-notes.json ${bytes.length} 字节，超过 ${MAX_CONTACT_NOTES_BYTES} 字节上限`);
+    throw new LocalDataError('too_large', `memory.json 超过 ${MAX_CONTACT_NOTES_BYTES} 字节上限`);
   }
-  const parsedAfter = parseContactNotesBytes(bytes, sha256(bytes));
-  const savedContact = parsedAfter.contacts.find((item) => item.peerId === peerId);
-  if (!savedContact) throw new LocalDataError('invalid', '保存后没有找到该联系人的私有印象');
+  const savedContact = parseContactNote(contact);
+  const digest = sha256(bytes);
 
   const stamp = nowIso.replace(/[-:.TZ]/g, '');
-  let backupName = '';
   if (current !== null) {
-    backupName = `contact-notes.json.bak-${stamp}-${crypto.randomBytes(3).toString('hex')}`;
+    const backupName = `memory.json.bak-${stamp}-${crypto.randomBytes(3).toString('hex')}`;
     try {
       await fsp.writeFile(path.join(root, backupName), current, { flag: 'wx', mode: 0o600 });
     } catch (error) {
-      throw fsFailure(error, 'contact-notes.json 备份');
+      throw fsFailure(error, 'memory.json 备份');
     }
   }
-  const temp = path.join(root, `.contact-notes.json.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`);
+  const temp = path.join(root, `.memory.json.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`);
   let handle: fsp.FileHandle | null = null;
   try {
     handle = await fsp.open(temp, 'wx', 0o600);
@@ -1433,10 +1411,10 @@ async function performContactImpressionSave(
     await handle.close();
     handle = null;
     await fsp.chmod(temp, 0o600);
-    const commitCurrent = await readPrivateBytes(target, 'contact-notes.json', MAX_CONTACT_NOTES_BYTES);
+    const commitCurrent = await readPrivateBytes(target, 'memory.json', MAX_CONTACT_NOTES_BYTES);
     const commitSha = commitCurrent === null ? '' : sha256(commitCurrent);
     if (commitSha !== currentSha) {
-      throw new LocalDataError('conflict', 'contact-notes.json 在准备写入期间被别处修改，未覆盖；请重新读取后再保存');
+      throw new LocalDataError('conflict', 'memory.json 在准备写入期间被别处修改，未覆盖；请重新读取后再保存');
     }
     await fsp.rename(temp, target);
     let directory: fsp.FileHandle | null = null;
@@ -1452,24 +1430,25 @@ async function performContactImpressionSave(
     await handle?.close().catch(() => {});
     await fsp.rm(temp, { force: true }).catch(() => {});
     if (error instanceof LocalDataError) throw error;
-    throw fsFailure(error, 'contact-notes.json 保存');
+    throw fsFailure(error, 'memory.json 保存');
   }
   return {
     saved: true,
-    sha256: sha256(bytes),
+    sha256: digest,
     savedAt: Date.now(),
     contact: savedContact,
-    notes: parsedAfter,
   };
 }
 
 /** Save one private contact impression with optimistic hash conflict checks.
- * Saves for the same data directory are serialized in-process. */
+ * Saves for the same contact are serialized in-process. */
 export async function saveContactImpression(
   dataDir: string,
   input: ContactImpressionSaveInput,
 ): Promise<ContactImpressionSave> {
-  const key = path.resolve(dataDir);
+  const peerId = canonicalPeer(input.peerId);
+  if (peerId === '') throw new LocalDataError('invalid', 'Peer ID 格式无效');
+  const key = path.resolve(dataDir, 'agent', 'contacts', peerId);
   const previous = contactNoteSaveQueues.get(key) ?? Promise.resolve();
   const run = previous.catch(() => {}).then(() => performContactImpressionSave(dataDir, input));
   contactNoteSaveQueues.set(key, run);
@@ -2122,7 +2101,7 @@ async function privateAgentRoot(dataDir: string): Promise<string> {
     try {
       await fsp.mkdir(agent, { mode: 0o700 });
     } catch (error) {
-      throw fsFailure(error, 'agent 目录');
+      if (fsErrorCode(error) !== 'EEXIST') throw fsFailure(error, 'agent 目录');
     }
     stat = await lstatOrNull(agent, 'agent');
   }

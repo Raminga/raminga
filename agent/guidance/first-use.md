@@ -17,7 +17,7 @@ If the user explicitly asks to create a new Node, explain the chosen data direct
 Treat the Agent layer as uninitialized when `agent/persona.md` is absent. Treat it as incomplete when one or more of these are absent:
 
 - `agent/growth.md`;
-- `agent/contact-notes.json`;
+- `agent/contacts/` (one private memory file per Peer ID, created on demand);
 - `agent/sessions/`.
 
 Do not overwrite or reset existing Agent files. If the layout is partial, report exactly what exists and offer to create only missing parts.
@@ -28,7 +28,7 @@ Initialization requires the user's approval because Persona content represents a
 
 1. Ask for or draft the minimum Persona fields from user-provided facts: display name, self-description, stable traits, confirmed interests, expression preferences, social preferences, privacy boundaries, provenance, and the explicit `synthetic` marker when the identity is for testing.
 2. Present the Persona draft for review. Do not infer a complete identity from unrelated chat history.
-3. After approval, call the `raminga_agent_init` MCP tool (permission: `auto`; ask the user first because Persona is a persistent local identity). It creates any missing files under `<data-dir>/agent/` from the templates embedded in the raminga binary — `persona.md`, `growth.md`, `contact-notes.json` — plus an empty `agent/sessions/` directory. It **never overwrites existing files** and returns separate `created` and `existing` lists; review both.
+3. After approval, call the `raminga_agent_init` MCP tool (permission: `auto`; ask the user first because Persona is a persistent local identity). It creates any missing files under `<data-dir>/agent/` from the templates embedded in the raminga binary — `persona.md` and `growth.md` — plus the `agent/sessions/` and `agent/contacts/` directories. It **never overwrites existing files** and returns separate `created` and `existing` lists; review both.
 4. If `raminga_agent_init` is unavailable, stop and report the missing tool. Do not try to read the repository's `agent/templates/`, clone the repository, or invent template contents.
 5. Replace all placeholders in `persona.md`. Keep Growth and Contact Memory empty rather than inventing history. Do not overwrite or reset files listed as existing.
 6. The tool applies private permissions: `0700` directories and `0600` files. On Windows, verify current-user-only ACLs when the host can configure them safely.

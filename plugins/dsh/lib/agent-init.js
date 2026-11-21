@@ -116,9 +116,11 @@ export function initAgentData(dataDir, templates) {
         else
             created.push(rel);
     }
-    const sessionsDir = safeAgentPath(root, path.join('agent', 'sessions'));
-    if (ensurePrivateDir(sessionsDir))
-        directoriesCreated.push('agent/sessions/');
+    for (const name of ['sessions', 'contacts']) {
+        const dir = safeAgentPath(root, path.join('agent', name));
+        if (ensurePrivateDir(dir))
+            directoriesCreated.push(`agent/${name}/`);
+    }
     return {
         data_dir: root,
         agent_dir: agentDir,

@@ -232,14 +232,14 @@ func TestInitAgentDataCreatesMissingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("initAgentData: %v", err)
 	}
-	wantCreated := []string{"agent/persona.md", "agent/growth.md", "agent/contact-notes.json"}
+	wantCreated := []string{"agent/persona.md", "agent/growth.md"}
 	if strings.Join(result.Created, ",") != strings.Join(wantCreated, ",") {
 		t.Fatalf("created = %v, want %v", result.Created, wantCreated)
 	}
 	if len(result.Existing) != 0 {
 		t.Fatalf("existing = %v, want none", result.Existing)
 	}
-	if strings.Join(result.DirectoriesCreated, ",") != "agent/,agent/sessions/" {
+	if strings.Join(result.DirectoriesCreated, ",") != "agent/,agent/sessions/,agent/contacts/" {
 		t.Fatalf("directories_created = %v", result.DirectoriesCreated)
 	}
 	for _, rel := range wantCreated {
@@ -284,8 +284,8 @@ func TestInitAgentDataIsIdempotentAndNeverOverwrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first init: %v", err)
 	}
-	if len(first.Created) != 2 {
-		t.Fatalf("first created = %v, want growth+contact-notes", first.Created)
+	if len(first.Created) != 1 {
+		t.Fatalf("first created = %v, want growth", first.Created)
 	}
 	if strings.Join(first.Existing, ",") != "agent/persona.md" {
 		t.Fatalf("first existing = %v", first.Existing)
@@ -305,8 +305,8 @@ func TestInitAgentDataIsIdempotentAndNeverOverwrites(t *testing.T) {
 	if len(second.Created) != 0 {
 		t.Fatalf("second created = %v, want none", second.Created)
 	}
-	if len(second.Existing) != 3 {
-		t.Fatalf("second existing = %v, want all three", second.Existing)
+	if len(second.Existing) != 2 {
+		t.Fatalf("second existing = %v, want both files", second.Existing)
 	}
 	content, err = os.ReadFile(filepath.Join(dataDir, "agent", "persona.md"))
 	if err != nil {
@@ -411,14 +411,14 @@ func TestAgentInitToolThroughMCP(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &result); err != nil {
 		t.Fatalf("decode result: %v\n%s", err, text)
 	}
-	if len(result.Created) != 3 {
-		t.Fatalf("created = %v, want three files", result.Created)
+	if len(result.Created) != 2 {
+		t.Fatalf("created = %v, want two files", result.Created)
 	}
 	if _, err := os.Stat(filepath.Join(dataDir, "agent", "persona.md")); err != nil {
 		t.Fatalf("persona.md not created: %v", err)
 	}
 	if runtime.GOOS != "windows" {
-		for _, rel := range []string{"agent", filepath.Join("agent", "sessions")} {
+		for _, rel := range []string{"agent", filepath.Join("agent", "sessions"), filepath.Join("agent", "contacts")} {
 			info, err := os.Stat(filepath.Join(dataDir, rel))
 			if err != nil {
 				t.Fatal(err)
@@ -427,7 +427,7 @@ func TestAgentInitToolThroughMCP(t *testing.T) {
 				t.Errorf("%s mode = %o, want 700", rel, info.Mode().Perm())
 			}
 		}
-		for _, rel := range []string{"agent/persona.md", "agent/growth.md", "agent/contact-notes.json"} {
+		for _, rel := range []string{"agent/persona.md", "agent/growth.md"} {
 			info, err := os.Stat(filepath.Join(dataDir, filepath.FromSlash(rel)))
 			if err != nil {
 				t.Fatal(err)
@@ -449,7 +449,7 @@ func TestAgentInitToolThroughMCP(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &result); err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Created) != 0 || len(result.Existing) != 3 {
+	if len(result.Created) != 0 || len(result.Existing) != 2 {
 		t.Fatalf("second result = created %v existing %v", result.Created, result.Existing)
 	}
 	content, err := os.ReadFile(filepath.Join(dataDir, "agent", "persona.md"))

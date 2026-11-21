@@ -75,7 +75,6 @@ test('onboarding templates are generated from agent/templates', () => {
   assert.deepEqual(AGENT_ONBOARDING_FILES.map((file) => file.path), [
     'persona.md',
     'growth.md',
-    'contact-notes.json',
   ]);
   assert.match(AGENT_ONBOARDING_FILES[0].content, /Persona|persona/);
 });

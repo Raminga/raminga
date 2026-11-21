@@ -148,13 +148,11 @@ test('real daemon: only public post versions are favoritable; private notes stay
 
     const notes = {
       schema_version: 2,
-      contacts: [{
-        peer_id: status.peerId, display_name_snapshot: 'self', updated_at: '2026-11-18T10:00:00Z',
+      peer_id: status.peerId, display_name_snapshot: 'self', updated_at: '2026-11-18T10:00:00Z',
         observations: [], curiosities: [],
         impressions: [{ id: 'imp-1', summary: '本机私密字符串', uncertainty: 'low', created_at: '2026-11-18T10:00:00Z', updated_at: '2026-11-18T10:00:00Z', evidence_refs: { session_ids: [], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] } }],
-      }],
     };
-    write(path.join(dir, 'agent', 'contact-notes.json'), notes);
+    write(path.join(dir, 'agent', 'contacts', status.peerId, 'memory.json'), notes);
     const memory = await bridge.contactMemory(sid, status.peerId);
     assert.equal(memory.state, 'available');
     assert.equal(memory.timeline.some((item) => item.id === 'impression:imp-1'), true);

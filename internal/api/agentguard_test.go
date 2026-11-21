@@ -164,6 +164,26 @@ func TestPrivateDataLeakReasonOtherFiles(t *testing.T) {
 	}
 }
 
+func TestPrivateDataLeakReasonChecksPerContactMemory(t *testing.T) {
+	dataDir := t.TempDir()
+	peerID := "12D3KooWCU5mTmYUM99MTejrAGiGhKQDQxLq6M26RnAmXKH9XoSR"
+	dir := filepath.Join(dataDir, "agent", "contacts", peerID)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	prose := "This private impression records a conversation the contact asked us to keep to ourselves."
+	memory := fmt.Sprintf(`{"schema_version":2,"peer_id":%q,"impressions":[{"summary":%q}]}`, peerID, prose)
+	if err := os.WriteFile(filepath.Join(dir, "memory.json"), []byte(memory), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if reason := privateDataLeakReason(dataDir, prose); !strings.Contains(reason, "memory.json") {
+		t.Fatalf("reason = %q, want memory.json leak", reason)
+	}
+	if reason := privateDataLeakReason(dataDir, strings.Repeat("Normal message. ", 5)); reason != "" {
+		t.Fatalf("normal message flagged: %q", reason)
+	}
+}
+
 func TestPrivateDataLeakReasonSecretsAndPaths(t *testing.T) {
 	dataDir := t.TempDir()
 	cases := []string{

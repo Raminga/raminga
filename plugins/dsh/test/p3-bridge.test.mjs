@@ -82,34 +82,32 @@ function notesV2() {
   return {
     schema_version: 2,
     unknown_top: 'keep',
-    contacts: [{
-      peer_id: PEER_A,
-      display_name_snapshot: 'Alice',
-      updated_at: '2026-11-18T10:00:00Z',
-      unknown_contact: 'keep-contact',
-      observations: [{
-        id: 'obs-1', summary: '读过一份公开散步记录。', observed_at: '2026-11-18T09:50:00Z',
-        unknown_observation: 'keep-observation',
-        evidence_refs: { session_ids: ['s1'], event_ids: ['evt-1'], message_ids: [], content_paths: ['posts/p1/post.json'], content_sha256: ['a'.repeat(64)] },
-      }],
-      impressions: [{
-        id: 'imp-1', summary: '表达克制。', uncertainty: 'medium',
-        created_at: '2026-11-18T09:55:00Z', updated_at: '2026-11-18T09:55:00Z',
-        unknown_impression: 'keep-impression',
-        evidence_refs: { session_ids: ['s1'], event_ids: ['evt-2'], message_ids: [], content_paths: [], content_sha256: [] },
-      }],
-      curiosities: [{
-        id: 'cur-1', question: '下次问问城市声音。', created_at: '2026-11-18T09:56:00Z',
-        unknown_curiosity: 'keep-curiosity',
-        evidence_refs: { session_ids: ['s1'], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
-      }],
+    peer_id: PEER_A,
+    display_name_snapshot: 'Alice',
+    updated_at: '2026-11-18T10:00:00Z',
+    unknown_contact: 'keep-contact',
+    observations: [{
+      id: 'obs-1', summary: '读过一份公开散步记录。', observed_at: '2026-11-18T09:50:00Z',
+      unknown_observation: 'keep-observation',
+      evidence_refs: { session_ids: ['s1'], event_ids: ['evt-1'], message_ids: [], content_paths: ['posts/p1/post.json'], content_sha256: ['a'.repeat(64)] },
+    }],
+    impressions: [{
+      id: 'imp-1', summary: '表达克制。', uncertainty: 'medium',
+      created_at: '2026-11-18T09:55:00Z', updated_at: '2026-11-18T09:55:00Z',
+      unknown_impression: 'keep-impression',
+      evidence_refs: { session_ids: ['s1'], event_ids: ['evt-2'], message_ids: [], content_paths: [], content_sha256: [] },
+    }],
+    curiosities: [{
+      id: 'cur-1', question: '下次问问城市声音。', created_at: '2026-11-18T09:56:00Z',
+      unknown_curiosity: 'keep-curiosity',
+      evidence_refs: { session_ids: ['s1'], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
     }],
   };
 }
 
 async function makeMemoryDir() {
   const dir = await tempDir();
-  await write(path.join(dir, 'agent', 'contact-notes.json'), JSON.stringify(notesV2()));
+  await write(path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json'), JSON.stringify(notesV2()));
   const session = path.join(dir, 'agent', 'sessions', 's1');
   await write(path.join(session, 'state.json'), {
     schema_version: 1, session_id: 's1', status: 'completed', mode: 'exploration', intent: 'x',
@@ -176,6 +174,57 @@ test('contact memory merges persisted messages, related Journey events and notes
     const read = await bridge.markRead(sid, PEER_A, 'm-agent');
     assert.equal(read.unreadCount, 0);
     assert.equal(calls.markRead, before + 1);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+test('contact memory keeps undated private entries at time zero without inferring dates', async () => {
+  const dir = await makeMemoryDir();
+  const notes = notesV2();
+  notes.observations = [
+    { id: 'obs-omitted', summary: '没有日期的旧观察。', evidence_refs: {} },
+    { id: 'obs-null', summary: '时间为空的旧观察。', observed_at: null, evidence_refs: {} },
+    {
+      id: 'obs-dated', summary: '有明确日期的观察。', observed_at: '2026-11-18T09:50:00Z',
+      evidence_refs: { session_ids: ['s1'], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
+    },
+  ];
+  notes.impressions = [{
+    id: 'imp-undated', summary: '没有日期的旧印象。', uncertainty: 'low', evidence_refs: {},
+  }];
+  notes.curiosities = [{
+    id: 'cur-undated', question: '没有日期的旧好奇。', evidence_refs: {},
+  }];
+  await write(path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json'), notes);
+  const calls = { messages: 0, markRead: 0, favorites: 0, setFavorite: 0 };
+  const api = fakeApi({ dataDir: dir, messages: [], calls });
+  const bridge = new RamingaUiBridge(api, { dataDir: dir, subscribe: fakeStream().subscribe });
+  const sid = 'p3-memory-undated-0001';
+  try {
+    await bridge.open(sid);
+    const memory = await bridge.contactMemory(sid, PEER_A);
+    const undated = [
+      memory.timeline.find((item) => item.id === 'observation:obs-omitted'),
+      memory.timeline.find((item) => item.id === 'observation:obs-null'),
+      memory.timeline.find((item) => item.id === 'impression:imp-undated'),
+      memory.timeline.find((item) => item.id === 'curiosity:cur-undated'),
+    ];
+    for (const item of undated) {
+      assert.ok(item, 'undated private entry must stay in the timeline');
+      assert.equal(item.at, 0);
+      assert.equal(item.private, true);
+      assert.ok(item.body.length > 0);
+    }
+    assert.match(undated[0].source, /私有观察/);
+    assert.match(undated[1].source, /私有观察/);
+    assert.match(undated[2].source, /私有印象/);
+    assert.match(undated[3].source, /私有好奇/);
+
+    const dated = memory.timeline.find((item) => item.id === 'observation:obs-dated');
+    assert.equal(dated.at, Date.parse('2026-11-18T09:50:00Z'));
+    assert.equal(memory.timeline.filter((item) => item.kind === 'message').length, 0);
+    assert.equal(memory.timeline.filter((item) => item.kind === 'journey').length, 2);
   } finally {
     bridge.dispose();
   }
@@ -263,13 +312,13 @@ test('private impression save preserves unknown fields and surfaces stale hash c
     assert.equal(saved.saved, true);
     assert.equal(saved.conflict, false);
     assert.equal(saved.memory.contact.impressions[0].summary, '仍然克制，但更愿意交流。');
-    const raw = JSON.parse(await fs.readFile(path.join(dir, 'agent', 'contact-notes.json'), 'utf8'));
+    const raw = JSON.parse(await fs.readFile(path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json'), 'utf8'));
     assert.equal(raw.unknown_top, 'keep');
-    assert.equal(raw.contacts[0].unknown_contact, 'keep-contact');
-    assert.equal(raw.contacts[0].observations[0].unknown_observation, 'keep-observation');
-    assert.equal(raw.contacts[0].impressions[0].unknown_impression, 'keep-impression');
-    assert.equal(raw.contacts[0].curiosities[0].unknown_curiosity, 'keep-curiosity');
-    assert.deepEqual(raw.contacts[0].impressions[0].evidence_refs.event_ids, ['evt-2']);
+    assert.equal(raw.unknown_contact, 'keep-contact');
+    assert.equal(raw.observations[0].unknown_observation, 'keep-observation');
+    assert.equal(raw.impressions[0].unknown_impression, 'keep-impression');
+    assert.equal(raw.curiosities[0].unknown_curiosity, 'keep-curiosity');
+    assert.deepEqual(raw.impressions[0].evidence_refs.event_ids, ['evt-2']);
 
     const conflict = await bridge.saveContactImpression(sid, {
       peerId: PEER_A, impressionId: 'imp-1', summary: '并发覆盖', uncertainty: 'high', expectedSha256: memory.sha256,
@@ -330,6 +379,54 @@ test('contact memory carries full message bodies, Journey reports and public-clu
     assert.match(clue.source, /公开线索/);
     assert.match(clue.source, /未自动访问或联系/);
     assert.doesNotMatch(clue.source, /已联系|已访问/);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+test('one corrupt memory leaves persisted messages and the HTML report summary available', async () => {
+  const dir = await makeMemoryDir();
+  const statePath = path.join(dir, 'agent', 'sessions', 's1', 'state.json');
+  const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
+  state.summary = '可以检索的 HTML 报告摘要';
+  await write(statePath, state);
+  await write(path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json'), '{broken');
+  const bridge = new RamingaUiBridge(fakeApi({ dataDir: dir, messages: [], calls: {} }), { dataDir: dir, subscribe: fakeStream().subscribe });
+  const sid = 'per-peer-memory-regression';
+  try {
+    await bridge.open(sid);
+    const first = await bridge.contactMemory(sid, PEER_A);
+    assert.equal(first.sources.memory.state, 'error');
+    assert.equal(first.sources.messages.state, 'available');
+    assert.equal(first.sources.journey.state, 'available');
+    assert.ok(first.timeline.some((item) => item.kind === 'journey'));
+    assert.ok(first.timeline.some((item) => item.summary === state.summary));
+    assert.equal((await bridge.contactMemory(sid, PEER_B)).sources.memory.state, 'missing');
+    assert.equal((await bridge.saveContactImpression(sid, {
+      peerId: PEER_B, impressionId: '', summary: '另一位联系人的印象', uncertainty: 'low', expectedSha256: '',
+    })).saved, true);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+test('Journey HTML is loaded by session with offline assets and sandbox restrictions', async () => {
+  const dir = await makeMemoryDir();
+  const reportDir = path.join(dir, 'agent', 'sessions', 's1');
+  await write(path.join(reportDir, 'report.html'), '<html><head><title>自由日志</title><link rel="stylesheet" href="assets/style.css"></head><body><p>正文</p><script>alert(1)</script><img src="../../persona.md"><img src="https://example.invalid/a.png"></body></html>');
+  await write(path.join(reportDir, 'assets', 'style.css'), 'body { color: teal; }');
+  const bridge = new RamingaUiBridge(fakeApi({ dataDir: dir, messages: [], calls: {} }), { dataDir: dir, subscribe: fakeStream().subscribe });
+  const sid = 'journey-html-regression';
+  try {
+    await bridge.open(sid);
+    const report = await bridge.journeyReport(sid, 's1');
+    assert.equal(report.state, 'available');
+    assert.equal(report.title, '自由日志');
+    assert.match(report.html, /color:\s*teal/);
+    assert.match(report.html, /Content-Security-Policy/i);
+    assert.doesNotMatch(report.html, /<script|example\.invalid|persona\.md/);
+    assert.equal((await bridge.journeyReport(sid, '../s1')).state, 'error');
+    assert.equal((await bridge.journeyReport(sid, 'missing')).state, 'missing');
   } finally {
     bridge.dispose();
   }

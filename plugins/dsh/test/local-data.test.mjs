@@ -540,76 +540,111 @@ function contactNotesV2(overrides = {}) {
   return {
     schema_version: 2,
     unknown_top: { keep: true },
-    contacts: [{
-      peer_id: PEER_A,
-      display_name_snapshot: 'Alice',
-      updated_at: '2026-11-18T10:00:00Z',
-      unknown_contact: 'keep-contact',
-      observations: [{
-        id: 'obs-1', summary: '读过公开散步记录。', observed_at: '2026-11-18T09:50:00Z',
-        unknown_observation: 'keep-observation',
-        evidence_refs: {
-          session_ids: ['s1'], event_ids: ['evt-1'], message_ids: [],
-          content_paths: ['posts/p1/post.json'],
-          content_sha256: ['a'.repeat(64)],
-        },
-      }],
-      impressions: [{
-        id: 'imp-1', summary: '表达克制。', uncertainty: 'medium',
-        created_at: '2026-11-18T09:55:00Z', updated_at: '2026-11-18T09:55:00Z',
-        unknown_impression: 'keep-impression',
-        evidence_refs: { session_ids: ['s1'], event_ids: ['evt-2'], message_ids: [], content_paths: [], content_sha256: [] },
-      }],
-      curiosities: [{
-        id: 'cur-1', question: '下次问问城市声音。', created_at: '2026-11-18T09:56:00Z',
-        unknown_curiosity: 'keep-curiosity',
-        evidence_refs: { session_ids: ['s1'], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
-      }],
+    peer_id: PEER_A,
+    display_name_snapshot: 'Alice',
+    updated_at: '2026-11-18T10:00:00Z',
+    unknown_contact: 'keep-contact',
+    observations: [{
+      id: 'obs-1', summary: '读过公开散步记录。', observed_at: '2026-11-18T09:50:00Z',
+      unknown_observation: 'keep-observation',
+      evidence_refs: {
+        session_ids: ['s1'], event_ids: ['evt-1'], message_ids: [],
+        content_paths: ['posts/p1/post.json'],
+        content_sha256: ['a'.repeat(64)],
+      },
+    }],
+    impressions: [{
+      id: 'imp-1', summary: '表达克制。', uncertainty: 'medium',
+      created_at: '2026-11-18T09:55:00Z', updated_at: '2026-11-18T09:55:00Z',
+      unknown_impression: 'keep-impression',
+      evidence_refs: { session_ids: ['s1'], event_ids: ['evt-2'], message_ids: [], content_paths: [], content_sha256: [] },
+    }],
+    curiosities: [{
+      id: 'cur-1', question: '下次问问城市声音。', created_at: '2026-11-18T09:56:00Z',
+      unknown_curiosity: 'keep-curiosity',
+      evidence_refs: { session_ids: ['s1'], event_ids: [], message_ids: [], content_paths: [], content_sha256: [] },
     }],
     ...overrides,
   };
 }
 
-test('contact-notes reads v2, keeps v1 empty read-only and never invents missing data', async () => {
+test('contact memory is read per peer and the legacy file is left alone', async () => {
   const dir = await tempDir();
-  const missing = await readContactNotes(dir);
-  assert.equal(missing.state, 'missing');
-  assert.deepEqual(missing.contacts, []);
-
-  const v1 = path.join(dir, 'agent', 'contact-notes.json');
-  await write(v1, '{"schema_version":1,"contacts":[]}\n');
-  const legacy = await readContactNotes(dir);
-  assert.equal(legacy.state, 'available');
-  assert.equal(legacy.schemaVersion, 1);
-  assert.deepEqual(legacy.contacts, []);
-  await assert.rejects(() => saveContactImpression(dir, {
-    peerId: PEER_A, impressionId: '', summary: '不能自动改写', uncertainty: 'low', expectedSha256: legacy.sha256,
-  }), /只读/);
-
-  const v2 = contactNotesV2();
-  const body = JSON.stringify(v2);
-  await write(v1, body);
-  const notes = await readContactNotes(dir);
+  const legacy = path.join(dir, 'agent', 'contact-notes.json');
+  const file = path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json');
+  const old = '{"schema_version":1,"contacts":["legacy data"]}';
+  await write(legacy, old);
+  assert.equal((await readContactNotes(dir, PEER_A)).state, 'missing');
+  await write(file, JSON.stringify(contactNotesV2()));
+  const notes = await readContactNotes(dir, PEER_A);
   assert.equal(notes.state, 'available');
   assert.equal(notes.schemaVersion, 2);
-  assert.equal(notes.contacts[0].impressions[0].summary, '表达克制。');
+  assert.equal(notes.contact.impressions[0].summary, '表达克制。');
   assert.match(notes.sha256, /^[a-f0-9]{64}$/);
+  await write(file, '{not json');
+  assert.equal((await readContactNotes(dir, PEER_A)).state, 'error');
+  const saved = await saveContactImpression(dir, {
+    peerId: PEER_B, impressionId: '', summary: '另一位联系人的记录', uncertainty: 'low', expectedSha256: '',
+  });
+  assert.equal(saved.contact.peerId, PEER_B);
+  assert.equal((await readContactNotes(dir, PEER_B)).state, 'available');
+  assert.equal(await fs.readFile(legacy, 'utf8'), old);
+  await write(file, JSON.stringify({ ...contactNotesV2(), peer_id: PEER_B }));
+  assert.equal((await readContactNotes(dir, PEER_A)).state, 'error');
+  await write(file, Buffer.alloc(MAX_CONTACT_NOTES_BYTES + 1, 0x20));
+  assert.match((await readContactNotes(dir, PEER_A)).error, /超过/);
+  const freshDir = await tempDir();
+  await Promise.all([PEER_A, PEER_B].map((peerId) => saveContactImpression(freshDir, {
+    peerId, impressionId: '', summary: '独立创建', uncertainty: 'low', expectedSha256: '',
+  })));
+  for (const peerId of [PEER_A, PEER_B]) {
+    assert.equal((await readContactNotes(freshDir, peerId)).state, 'available');
+    const file = JSON.parse(await fs.readFile(path.join(freshDir, 'agent', 'contacts', peerId, 'memory.json'), 'utf8'));
+    assert.deepEqual(file.impressions[0].evidence_refs.message_ids, []);
+  }
+});
 
-  await write(v1, '{not json');
-  assert.equal((await readContactNotes(dir)).state, 'error');
-  await write(v1, JSON.stringify({ schema_version: 99, contacts: [] }));
-  assert.equal((await readContactNotes(dir)).state, 'error');
-  await write(v1, Buffer.alloc(MAX_CONTACT_NOTES_BYTES + 1, 0x20));
-  const tooLarge = await readContactNotes(dir);
-  assert.equal(tooLarge.state, 'error');
-  assert.match(tooLarge.error, /超过|1 MiB|1048576/i);
+test('contact memory accepts absent observation time but rejects malformed supplied time', async () => {
+  const dir = await tempDir();
+  const file = path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json');
+  const observations = [
+    { id: 'obs-omitted', summary: '较早的观察，时间未知。', evidence_refs: {} },
+    { id: 'obs-null', summary: '另一条历史观察，时间为空。', observed_at: null, evidence_refs: {} },
+    { id: 'obs-dated', summary: '有明确日期的观察。', observed_at: '2026-11-18T09:50:00Z', evidence_refs: {} },
+  ];
+  await write(file, JSON.stringify(contactNotesV2({ observations })));
+  const notes = await readContactNotes(dir, PEER_A);
+  assert.equal(notes.state, 'available');
+  assert.deepEqual(
+    notes.contact.observations.map((observation) => observation.observedAt),
+    ['', '', '2026-11-18T09:50:00Z'],
+  );
+
+  // Editing an impression must not reject the same legacy observations.
+  const saved = await saveContactImpression(dir, {
+    peerId: PEER_A, impressionId: '', summary: '新增一条私有印象。', uncertainty: 'low', expectedSha256: notes.sha256,
+  });
+  assert.equal(saved.saved, true);
+  assert.deepEqual(
+    saved.contact.observations.map((observation) => observation.observedAt),
+    ['', '', '2026-11-18T09:50:00Z'],
+  );
+
+  for (const observedAt of ['', 'not-a-date', 1760000000, {}]) {
+    await write(file, JSON.stringify(contactNotesV2({
+      observations: [{ ...observations[2], observed_at: observedAt }],
+    })));
+    const invalid = await readContactNotes(dir, PEER_A);
+    assert.equal(invalid.state, 'error', `supplied ${JSON.stringify(observedAt)} must be rejected`);
+    assert.match(invalid.error, /observed_at/);
+  }
 });
 
 test('contact impression edits preserve unknown fields, evidence and detect SHA-256 conflicts', async () => {
   const dir = await tempDir();
-  const file = path.join(dir, 'agent', 'contact-notes.json');
+  const file = path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json');
   await write(file, JSON.stringify(contactNotesV2()));
-  const before = await readContactNotes(dir);
+  const before = await readContactNotes(dir, PEER_A);
 
   const saved = await saveContactImpression(dir, {
     peerId: PEER_A,
@@ -620,8 +655,8 @@ test('contact impression edits preserve unknown fields, evidence and detect SHA-
   });
   assert.equal(saved.saved, true);
   assert.notEqual(saved.sha256, before.sha256);
-  const after = await readContactNotes(dir);
-  const contact = after.contacts.find((item) => item.peerId === PEER_A);
+  const after = await readContactNotes(dir, PEER_A);
+  const contact = after.contact;
   assert.equal(contact.impressions[0].id, 'imp-1');
   assert.equal(contact.impressions[0].summary, '更新后的私有印象。');
   assert.equal(contact.impressions[0].uncertainty, 'high');
@@ -630,10 +665,10 @@ test('contact impression edits preserve unknown fields, evidence and detect SHA-
 
   const raw = JSON.parse(await fs.readFile(file, 'utf8'));
   assert.deepEqual(raw.unknown_top, { keep: true });
-  assert.equal(raw.contacts[0].unknown_contact, 'keep-contact');
-  assert.equal(raw.contacts[0].observations[0].unknown_observation, 'keep-observation');
-  assert.equal(raw.contacts[0].impressions[0].unknown_impression, 'keep-impression');
-  assert.equal(raw.contacts[0].curiosities[0].unknown_curiosity, 'keep-curiosity');
+  assert.equal(raw.unknown_contact, 'keep-contact');
+  assert.equal(raw.observations[0].unknown_observation, 'keep-observation');
+  assert.equal(raw.impressions[0].unknown_impression, 'keep-impression');
+  assert.equal(raw.curiosities[0].unknown_curiosity, 'keep-curiosity');
 
   // A stale expected hash must not overwrite the file.
   const stale = await fs.readFile(file, 'utf8');
@@ -669,16 +704,16 @@ test('contact impression edits preserve unknown fields, evidence and detect SHA-
     expectedSha256: '',
   });
   assert.equal(created.saved, true);
-  const fresh = await readContactNotes(freshDir);
+  const fresh = await readContactNotes(freshDir, PEER_A);
   assert.equal(fresh.schemaVersion, 2);
-  assert.equal(fresh.contacts[0].impressions.length, 1);
+  assert.equal(fresh.contact.impressions.length, 1);
 });
 
 test('contact-notes save rejects malformed input and symlinked private storage', async () => {
   const dir = await tempDir();
-  const file = path.join(dir, 'agent', 'contact-notes.json');
+  const file = path.join(dir, 'agent', 'contacts', PEER_A, 'memory.json');
   await write(file, JSON.stringify(contactNotesV2()));
-  const notes = await readContactNotes(dir);
+  const notes = await readContactNotes(dir, PEER_A);
   for (const input of [
     { peerId: 'not-a-peer', impressionId: '', summary: 'x', uncertainty: 'low', expectedSha256: notes.sha256 },
     { peerId: PEER_A, impressionId: '', summary: '', uncertainty: 'low', expectedSha256: notes.sha256 },
@@ -693,9 +728,9 @@ test('contact-notes save rejects malformed input and symlinked private storage',
   const linkDir = await tempDir();
   const outside = path.join(linkDir, 'outside.json');
   await write(outside, JSON.stringify(contactNotesV2()));
-  await fs.mkdir(path.join(linkDir, 'agent'), { recursive: true });
-  await fs.symlink(outside, path.join(linkDir, 'agent', 'contact-notes.json'));
-  const linked = await readContactNotes(linkDir);
+  await fs.mkdir(path.join(linkDir, 'agent', 'contacts', PEER_A), { recursive: true });
+  await fs.symlink(outside, path.join(linkDir, 'agent', 'contacts', PEER_A, 'memory.json'));
+  const linked = await readContactNotes(linkDir, PEER_A);
   assert.equal(linked.state, 'error');
   assert.match(linked.error, /符号链接/);
 });

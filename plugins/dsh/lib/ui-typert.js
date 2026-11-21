@@ -54,6 +54,7 @@ const publishedShaCodec = codec('@raminga/dsh#UiPublishedSha256');
 const bootstrapMultiaddrCodec = codec('@raminga/dsh#UiBootstrapMultiaddr');
 const titleCodec = codec('@raminga/dsh#UiFavoriteTitle');
 const contactInputCodec = codec('@raminga/dsh#UiContactImpressionSave');
+const journeyIdCodec = codec('@raminga/dsh#UiJourneyId');
 const operationIdCodec = codec('@raminga/dsh#UiOperationId');
 const activityLimitCodec = codec('@raminga/dsh#UiActivityLimit');
 export const UI_JSON_CODEC = codec('@raminga/dsh#UiJson');
@@ -90,6 +91,7 @@ const PARAMS = {
     title: { name: 'title', wire: 'title', codec: titleCodec },
     favorite: { name: 'favorite', wire: 'favorite', codec: booleanCodec },
     contactInput: { name: 'input', wire: 'input', codec: contactInputCodec },
+    journeyId: { name: 'journeyId', wire: 'journeyId', codec: journeyIdCodec },
     operationId: { name: 'operationId', wire: 'operationId', codec: operationIdCodec },
     limit: { name: 'limit', wire: 'limit', codec: activityLimitCodec },
 };
@@ -143,6 +145,7 @@ export const UI_INVOCATIONS = [
     invocation('addBootstrap', ['session', 'bootstrapMultiaddr'], 'UiBootstrapEdit'),
     invocation('removeBootstrap', ['session', 'peerId'], 'UiBootstrapEdit'),
     invocation('journey', ['session', 'boolean'], 'UiJourney'),
+    invocation('journeyReport', ['session', 'journeyId'], 'UiJourneyReport'),
     invocation('activity', ['session', 'limit'], 'UiActivity'),
     invocation('activityDetail', ['operationId'], 'UiActivityDetail'),
     invocation('savePrivateAgent', ['session', 'privateField', 'privateContent', 'expectedSha'], 'UiPrivateAgentSave'),
@@ -197,6 +200,7 @@ export const TYPERT = {
                     { kind: 'method', name: 'peerProfile', signature: 'peerProfile(sessionId: string, peerId: string, force?: boolean): Promise<UiPeerProfile>', summary: 'Read a remote user profile and separately sourced public Agent card.' },
                     { kind: 'method', name: 'peerFriends', signature: 'peerFriends(sessionId: string, peerId: string, force?: boolean): Promise<UiPeerFriends>', summary: 'Read a remote friends.json as untrusted public address-book claims; never replaces local contacts.' },
                     { kind: 'method', name: 'journey', signature: 'journey(sessionId: string, force?: boolean): Promise<UiJourney>', summary: 'Read controlled private Persona/Growth and existing Journey session schemas.' },
+                    { kind: 'method', name: 'journeyReport', signature: 'journeyReport(sessionId: string, journeyId: string): Promise<UiJourneyReport>', summary: 'Build an offline preview of the selected private Journey report.' },
                     { kind: 'method', name: 'activity', signature: 'activity(sessionId: string, limit?: number): Promise<UiActivity>', summary: 'Read the private raminga_* tool-call log with instance id, truncation and bad-line diagnostics.' },
                     { kind: 'method', name: 'activityDetail', signature: 'activityDetail(operationId: string): Promise<UiActivityDetail>', summary: 'Return one sanitized tool operation plus a bounded Journey state summary and missing-evidence reason.' },
                     { kind: 'method', name: 'savePrivateAgent', signature: 'savePrivateAgent(sessionId: string, field: \'persona\' | \'growth\', content: string, expectedSha256: string): Promise<UiPrivateAgentSave>', summary: 'Atomically save one fixed private Markdown file with optimistic SHA-256 conflict detection.' },

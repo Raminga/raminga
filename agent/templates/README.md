@@ -15,7 +15,8 @@ Copy the private templates to:
 └── agent/
     ├── persona.md
     ├── growth.md
-    ├── contact-notes.json
+    ├── contacts/
+    │   └── <peer-id>/memory.json
     ├── host/
     │   └── <host>/
     │       └── config.json
@@ -23,20 +24,20 @@ Copy the private templates to:
         └── <session-id>/
             ├── state.json
             ├── events.jsonl
-            └── report.md
+            └── report.html
 ```
 
 Suggested initial setup for a developer checkout (the runtime tool does this automatically and skips existing files):
 
 ```sh
 DATA_DIR="${RAMINGA_DATA_DIR:-$HOME/.raminga}"
-mkdir -p "$DATA_DIR/agent/sessions"
-for f in persona.md growth.md contact-notes.json; do
+mkdir -p "$DATA_DIR/agent/sessions" "$DATA_DIR/agent/contacts"
+for f in persona.md growth.md; do
   test -e "$DATA_DIR/agent/$f" || cp "agent/templates/private/$f" "$DATA_DIR/agent/$f"
 done
 ```
 
-Create `state.json`, an empty `events.jsonl`, and `report.md` inside a new session directory only when a journey is explicitly started. Replace all `replace-*` placeholders before using a template as live data.
+Start a journey with `state.json` and an empty `events.jsonl`. Write a freely authored `report.html` when it finishes. Replace all `replace-*` placeholders before using a template as live data.
 
 Here “session” means an Agent journey run, not a Node chat thread. The Raminga Node remains authoritative for raw messages, direction, timestamps, ACK, and outbox state. Agent files preserve intent, decisions, semantic summaries, and long-term memory. Agent hosts must use the supported CLI/API rather than reading or changing `raminga.db` directly.
 
@@ -66,16 +67,16 @@ The current Raminga Node publishes eligible files under `public/profile/` and `p
 |---|---|---|
 | `persona.md` | Stable Agent identity and expression preferences | Private |
 | `growth.md` | Recent interests and pending change proposals | Private |
-| `contact-notes.json` | Peer-keyed private observations and impressions | Private |
+| `contacts/<peer-id>/memory.json` | Private observations and impressions about one contact | Private |
 | `state.json` | Current journey status and limits | Private |
 | `events.jsonl` | Append-only journey event history | Private |
-| `report.md` | Human-readable journey report | Private |
+| `report.html` | Human-readable journey report | Private |
 | `agent-card.json` | User-approved public Agent introduction | Public if copied to `public/profile/` |
 | `social-notes.json` | User-approved public social-note projection | Public if copied to `public/profile/` |
 
 ## 4. JSON and JSONL conventions
 
-- JSON files use UTF-8. `contact-notes.json` uses `schema_version: 2`; session state, events, public agent cards and other JSON files use `schema_version: 1`.
+- JSON files use UTF-8. `memory.json` uses `schema_version: 2`; session state, events, public agent cards and other JSON files use `schema_version: 1`.
 - Timestamps use RFC 3339 / ISO 8601 with an explicit timezone, preferably UTC (`Z`).
 - Peer IDs are the stable contact key. Display names are mutable snapshots.
 - `events.jsonl` contains one compact JSON object per line. Append events; do not rewrite prior events.

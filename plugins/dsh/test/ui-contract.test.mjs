@@ -68,7 +68,7 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
     'conversations', 'messages', 'markRead', 'favorites', 'setFavorite', 'peerDiscoveries', 'contactMemory', 'saveContactImpression',
     'send', 'cancelOutbox', 'discoveries', 'discoveryContent',
     'humanOutbound', 'mine', 'mineFilePreview', 'peerProfile', 'peerFriends', 'contactProjection', 'peerManifest', 'peerFilePreview', 'peerPostMeta', 'peerNodeInfo',
-    'revealDiscovery', 'revealFile', 'bootstrap', 'addBootstrap', 'removeBootstrap', 'journey', 'activity', 'activityDetail', 'savePrivateAgent',
+    'revealDiscovery', 'revealFile', 'bootstrap', 'addBootstrap', 'removeBootstrap', 'journey', 'journeyReport', 'activity', 'activityDetail', 'savePrivateAgent',
     'publicDraft', 'publicDrafts', 'savePublicDraft', 'putPublicDraftImage', 'publicDraftAsset', 'importPublicPost',
     'deletePublicDraft', 'publishPublicDraft', 'locateMessage',
   ]);

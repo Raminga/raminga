@@ -854,6 +854,12 @@ export function createPanelRuntime({
       if (typeof rpc.journey === 'function') {
         mountOptions.onLoadJourney = (force) => readJourney(force);
       }
+      if (typeof rpc.journeyReport === 'function') {
+        mountOptions.onLoadJourneyReport = async (journeyId) => {
+          if (disposed) throw new Error('Raminga panel is closed');
+          return remoteValue(await rpc.journeyReport(sessionId, journeyId));
+        };
+      }
       if (typeof rpc.activity === 'function') {
         // Capability flag for the shared UI; polling is owned by this runtime.
         mountOptions.onLoadActivity = () => loadActivity(true);

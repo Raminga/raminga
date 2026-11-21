@@ -18,8 +18,8 @@ import path from 'node:path';
 import { multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
 import { AddBootstrapPeerRequest, ConnectRequest, DhtStatusRequest, ListBootstrapPeersRequest, RemoveBootstrapPeerRequest, DeletePublicDraftRequest, DownloadPeerFileRequest, GetPublicDraftAssetRequest, GetPublicDraftRequest, GetPeerManifestRequest, GetPeerFriendsRequest, ListPublicDraftsRequest, PublishedRequest, GetPeerProfileRequest, ImportPublicPostRequest, PublishPublicDraftRequest, PutPublicDraftImageRequest, SavePublicDraftRequest, ListConversationsRequest, ListDiscoveriesRequest, ListFavoritesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, MarkConversationReadRequest, OutboxCancelRequest, PublicPublishStatus, SendChatRequest, SetFavoriteRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
-import { MAX_CONTACT_PROJECTION_AVATAR_BYTES, MAX_CONTACT_PROJECTION_CLUES, MAX_CONTACT_PROJECTION_PROFILES, MAX_MINE_FILES, MAX_MINE_HASH_BYTES, MAX_POST_BYTES, downloadedFileInfo, hashDownloadedFile, hashPublicFile, isVersionedPostPath, isV2PostPath, isPostImagePublicPath, parsePublicPost, postImagePublicPath, readDiscoveryFile, readDiscoveryPost, readDownloadedAgentCard, readDownloadedFile, readDownloadedProfile, readContactProjection, readContactNotes, readDownloadedProfileName, readJourney, readOwnPublic, saveContactImpression, savePrivateAgentFile, writeContactProjection, readPublicFile, LocalDataError, } from './local-data.js';
-import { MAX_HTML_SOURCE, MAX_MEDIA_PREVIEW, MAX_ZIP_ARCHIVE, PublicFileError, buildFilePreview, buildHtmlFilePreview, buildZipFilePreview, fileTypeOf, firstMarkdownHeading, titleFallback, } from './public-files.js';
+import { MAX_CONTACT_PROJECTION_AVATAR_BYTES, MAX_CONTACT_PROJECTION_CLUES, MAX_CONTACT_PROJECTION_PROFILES, MAX_MINE_FILES, MAX_MINE_HASH_BYTES, MAX_POST_BYTES, downloadedFileInfo, hashDownloadedFile, hashPublicFile, isVersionedPostPath, isPostImagePublicPath, parsePublicPost, postImagePublicPath, readDiscoveryFile, readDiscoveryPost, readDownloadedAgentCard, readDownloadedFile, readDownloadedProfile, readContactProjection, readContactNotes, readDownloadedProfileName, readJourney, readJourneyReportFile, readOwnPublic, saveContactImpression, savePrivateAgentFile, writeContactProjection, readPublicFile, LocalDataError, } from './local-data.js';
+import { MAX_HTML_SOURCE, MAX_MEDIA_PREVIEW, MAX_ZIP_ARCHIVE, PublicFileError, buildFilePreview, buildHtmlFilePreview, buildSandboxedHtml, buildZipFilePreview, fileTypeOf, firstMarkdownHeading, titleFallback, } from './public-files.js';
 import { subscribeEvents, } from './events.js';
 import { UI_INVOCATIONS, UI_SERVICE_KEY } from './ui-typert.js';
 import { readJourneySummary, } from './activity.js';
@@ -884,6 +884,7 @@ export class RamingaUiBridge {
             addBootstrap: (sessionId, multiaddr) => this.addBootstrap(sessionId, multiaddr),
             removeBootstrap: (sessionId, peerId) => this.removeBootstrap(sessionId, peerId),
             journey: (sessionId, force) => this.journey(sessionId, force === true),
+            journeyReport: (sessionId, journeyId) => this.journeyReport(sessionId, journeyId),
             activity: (sessionId, limit) => this.activity(sessionId, limit),
             activityDetail: (operationId) => this.activityDetail(operationId),
             savePrivateAgent: (sessionId, field, content, expectedSha256) => this.savePrivateAgent(sessionId, field, content, expectedSha256),
@@ -1616,16 +1617,19 @@ export class RamingaUiBridge {
         const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
         if (canonical === null)
             throw new Error('Peer ID 格式不正确。');
-        return this.buildContactMemory(session, canonical);
+        return this.buildContactMemory(canonical);
     }
-    async buildContactMemory(session, peerId) {
+    async buildContactMemory(peerId) {
         const at = this.now();
         const items = [];
         let truncated = false;
         let notes = null;
         let notesError = '';
+        let messagesError = '';
+        let journeyError = '';
+        let journeyMissing = false;
         try {
-            notes = await readContactNotes(this.dataDir);
+            notes = await readContactNotes(this.dataDir, peerId);
             if (notes.state === 'error')
                 notesError = notes.error;
         }
@@ -1661,10 +1665,13 @@ export class RamingaUiBridge {
             }
         }
         catch (error) {
-            notesError = notesError || errorMessage(error);
+            messagesError = errorMessage(error);
         }
         try {
             const journey = await readJourney(this.dataDir);
+            journeyMissing = journey.sessionsState === 'missing';
+            if (journey.sessionsState === 'error')
+                journeyError = journey.sessionsError;
             if (journey.sessionsTruncated)
                 truncated = true;
             for (const sessionData of journey.sessions) {
@@ -1709,16 +1716,20 @@ export class RamingaUiBridge {
                 const current = sessionData.state?.currentPeerId === peerId;
                 if (!sessionRelated && !visited && !current)
                     continue;
-                if (sessionData.reportRead !== 'available' || sessionData.reportMarkdown.trim().length === 0)
+                journeyError ||= sessionData.stateError && sessionData.stateRead === 'error' ? sessionData.stateError : '';
+                journeyError ||= sessionData.eventsRead === 'error' ? sessionData.eventsError : '';
+                journeyError ||= sessionData.reportRead === 'error' ? sessionData.reportError : '';
+                const legacyReport = sessionData.reportRead === 'available' && sessionData.reportMarkdown.trim().length > 0;
+                const summary = sessionData.state?.summary || (legacyReport ? journeyReportLine(sessionData.reportMarkdown) : '');
+                if (!summary && !legacyReport)
                     continue;
                 const reportAt = Date.parse(sessionData.state?.completedAt || sessionData.state?.updatedAt || sessionData.state?.startedAt || '');
                 const at = Number.isFinite(reportAt) && reportAt > 0 ? reportAt : 0;
-                const line = journeyReportLine(sessionData.reportMarkdown);
                 items.push({
                     id: `journey-report:${sessionData.id}`,
                     kind: 'journey',
                     at,
-                    summary: line || '本次漫游报告（摘要）',
+                    summary: summary || '本次漫游报告（摘要）',
                     body: '',
                     source: 'Journey 报告 · 摘要（原文在漫游详情）',
                     sourceKind: 'journeyReport',
@@ -1734,18 +1745,16 @@ export class RamingaUiBridge {
             }
         }
         catch (error) {
-            notesError = notesError || errorMessage(error);
+            journeyError = errorMessage(error);
         }
-        const contact = notes?.contacts.find((item) => item.peerId === peerId) ?? null;
+        const contact = notes?.contact ?? null;
         if (contact) {
             for (const observation of contact.observations) {
                 const observed = Date.parse(observation.observedAt);
-                if (!Number.isFinite(observed) || observed <= 0)
-                    continue;
                 items.push({
                     id: `observation:${observation.id}`,
                     kind: 'observation',
-                    at: observed,
+                    at: Number.isFinite(observed) && observed > 0 ? observed : 0,
                     summary: observation.summary,
                     body: observation.summary,
                     source: '私有观察 · contact-notes',
@@ -1758,12 +1767,10 @@ export class RamingaUiBridge {
             }
             for (const impression of contact.impressions) {
                 const stamped = Date.parse(impression.updatedAt || impression.createdAt);
-                if (!Number.isFinite(stamped) || stamped <= 0)
-                    continue;
                 items.push({
                     id: `impression:${impression.id}`,
                     kind: 'impression',
-                    at: stamped,
+                    at: Number.isFinite(stamped) && stamped > 0 ? stamped : 0,
                     summary: impression.summary,
                     body: impression.summary,
                     source: `私有印象${impression.uncertainty ? ` · 确定性 ${uncertaintyLabel(impression.uncertainty) || impression.uncertainty}` : ''}`,
@@ -1776,12 +1783,10 @@ export class RamingaUiBridge {
             }
             for (const curiosity of contact.curiosities) {
                 const stamped = Date.parse(curiosity.createdAt);
-                if (!Number.isFinite(stamped) || stamped <= 0)
-                    continue;
                 items.push({
                     id: `curiosity:${curiosity.id}`,
                     kind: 'curiosity',
-                    at: stamped,
+                    at: Number.isFinite(stamped) && stamped > 0 ? stamped : 0,
                     summary: curiosity.question,
                     body: curiosity.question,
                     source: '私有好奇 · contact-notes',
@@ -1807,7 +1812,12 @@ export class RamingaUiBridge {
             contact,
             timeline: items,
             timelineTruncated: truncated,
-            error: notesError,
+            sources: {
+                messages: { state: messagesError ? 'error' : 'available', error: messagesError },
+                journey: { state: journeyError ? 'error' : journeyMissing ? 'missing' : 'available', error: journeyError },
+                memory: { state, error: notesError },
+            },
+            error: notesError || messagesError || journeyError,
             at,
         };
     }
@@ -1818,7 +1828,7 @@ export class RamingaUiBridge {
         session.lastPollAt = this.now();
         try {
             const saved = await saveContactImpression(this.dataDir, input);
-            const memory = await this.buildContactMemory(session, saved.contact.peerId);
+            const memory = await this.buildContactMemory(saved.contact.peerId);
             return {
                 saved: true,
                 conflict: false,
@@ -3049,7 +3059,7 @@ export class RamingaUiBridge {
         }
     }
     /**
-     * Read the bounded v2 post metadata needed to paint card images before the
+     * Read the bounded post metadata needed to render a post card before the
      * reader expands the post. It reuses the exact controlled copy/preview path:
      * a verified local download is preferred, and a current remote manifest may
      * authorize one metadata download. It never records a discovery row for the
@@ -3067,8 +3077,8 @@ export class RamingaUiBridge {
         const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
         if (canonical === null)
             return empty('Peer ID 格式不正确。');
-        if (!isV2PostPath(wanted))
-            return empty('只有 posts/<id>/post.json 的 v2 图文动态包含配图。');
+        if (!isVersionedPostPath(wanted))
+            return empty('该路径不是版本化动态。');
         await this.ensureReady();
         const manifest = session.peerManifests.get(canonical)?.data;
         const entry = manifest?.entries.find((item) => item.path === wanted);
@@ -4256,7 +4266,7 @@ export class RamingaUiBridge {
         return '';
     }
     async downloadPeerFile(peerId, relative, options, operation) {
-        const frames = await this.api.call(async (client) => {
+        const fetch = () => this.api.call(async (client) => {
             const stream = await client.downloadPeerFile(new DownloadPeerFileRequest({
                 peerId,
                 path: relative,
@@ -4278,6 +4288,18 @@ export class RamingaUiBridge {
             }
             return collected;
         }, operation);
+        let frames;
+        try {
+            frames = await fetch();
+        }
+        catch (error) {
+            if (!/\bdownload status 429\b/.test(errorMessage(error)))
+                throw error;
+            // A manifest/metadata burst can briefly exhaust the peer's rate window.
+            await new Promise((resolve) => setTimeout(resolve, 1100));
+            this.assertOpen();
+            frames = await fetch();
+        }
         return frames.length > 0 ? frames[frames.length - 1] : null;
     }
     async downloadForProfile(peerId, relative) {
@@ -4488,6 +4510,25 @@ export class RamingaUiBridge {
         }
     }
     /** Read private Agent persona/growth and existing Journey schemas. */
+    async journeyReport(sessionId, journeyId) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        try {
+            const bytes = await readJourneyReportFile(this.dataDir, journeyId, 'report.html', MAX_HTML_SOURCE);
+            const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            if (!source.trim())
+                throw new LocalDataError('invalid', 'report.html 为空');
+            const report = await buildSandboxedHtml(source, '', {
+                readResource: (relative, limit) => readJourneyReportFile(this.dataDir, journeyId, relative, limit),
+            });
+            return { state: 'available', html: report.html, title: report.title, error: '' };
+        }
+        catch (error) {
+            const missing = error instanceof LocalDataError && error.code === 'missing';
+            return { state: missing ? 'missing' : 'error', html: '', title: '', error: missing ? '' : errorMessage(error) };
+        }
+    }
     async journey(sessionId, force = false) {
         this.assertOpen();
         const session = this.sessionFor(sessionId);

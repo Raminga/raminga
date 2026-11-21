@@ -49,6 +49,7 @@ window.__ModuleLoader__.load({
     const expectedShaCodec = passthrough('@raminga/dsh#UiExpectedSha256');
     const titleCodec = passthrough('@raminga/dsh#UiFavoriteTitle');
     const contactInputCodec = passthrough('@raminga/dsh#UiContactImpressionSave');
+    const journeyIdCodec = passthrough('@raminga/dsh#UiJourneyId');
     const operationIdCodec = passthrough('@raminga/dsh#UiOperationId');
     const activityLimitCodec = passthrough('@raminga/dsh#UiActivityLimit');
     const draftIdCodec = passthrough('@raminga/dsh#UiDraftId');
@@ -84,6 +85,7 @@ window.__ModuleLoader__.load({
       title: { name: 'title', wire: 'title', source: 'json', codec: titleCodec },
       favorite: { name: 'favorite', wire: 'favorite', source: 'json', codec: booleanCodec },
       contactInput: { name: 'input', wire: 'input', source: 'json', codec: contactInputCodec },
+      journeyId: { name: 'journeyId', wire: 'journeyId', source: 'json', codec: journeyIdCodec },
       operationId: { name: 'operationId', wire: 'operationId', source: 'json', codec: operationIdCodec },
       limit: { name: 'limit', wire: 'limit', source: 'json', codec: activityLimitCodec },
       draftId: { name: 'draftId', wire: 'draftId', source: 'json', codec: draftIdCodec },
@@ -136,6 +138,7 @@ window.__ModuleLoader__.load({
       ['addBootstrap', 'UiBootstrapEdit', [sessionParam, param.bootstrapMultiaddr]],
       ['removeBootstrap', 'UiBootstrapEdit', [sessionParam, param.peerId]],
       ['journey', 'UiJourney', [sessionParam, param.force]],
+      ['journeyReport', 'UiJourneyReport', [sessionParam, param.journeyId]],
       ['activity', 'UiActivity', [sessionParam, param.limit]],
       ['activityDetail', 'UiActivityDetail', [param.operationId]],
       ['savePrivateAgent', 'UiPrivateAgentSave', [sessionParam, param.privateField, param.privateContent, param.expectedSha]],

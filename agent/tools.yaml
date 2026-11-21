@@ -244,8 +244,8 @@ tools:
     summary: "Create missing private Agent files under an initialized node's data directory."
     description: >
       Creates the private Agent onboarding layout under <data-dir>/agent/ from
-      the templates embedded in the raminga binary: persona.md, growth.md,
-      contact-notes.json, and an empty sessions/ directory. The node must
+      the templates embedded in the raminga binary: persona.md and growth.md,
+      plus sessions/ and contacts/ directories. The node must
       already have an identity: if <data-dir>/identity/key is missing the tool
       refuses to run, creates no files or directories, and asks you to confirm
       the node with raminga_status and finish node initialization first.
