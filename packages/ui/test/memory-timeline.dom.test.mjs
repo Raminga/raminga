@@ -289,12 +289,64 @@ test('out-of-range timestamps stay in the unknown bucket without breaking the in
     assert.ok(headers.some((value) => value === '日期未知'), headers);
     assert.match(ui.text('#profileMemorySummary'), /本轮读取到 3 条/);
     assert.match(ui.text('#profileMemoryKinds'), /时间未记录 2/);
+    assert.equal(ui.shadow.querySelector('#profileMemoryTimelineNote').dataset.tone, '');
     assert.match(timeline.textContent, /仍然可见的有效消息/);
     assert.match(timeline.textContent, /超出 Date 范围的消息/);
     assert.match(timeline.textContent, /无法解析时间的漫游事件/);
     const unknownTime = timeline.querySelector('.rm-memory-event[data-memory-item-id="message:m-huge"] time');
     assert.equal(unknownTime.textContent, '时间未知');
     assert.equal(unknownTime.hasAttribute('datetime'), false);
+  } finally {
+    ui.close();
+  }
+});
+
+test('undated private memory renders in the unknown-date private group', async () => {
+  const evidence = { sessionIds: [], eventIds: [], messageIds: [], contentPaths: [], contentSha256: [] };
+  const items = [
+    {
+      id: 'observation:obs-undated', kind: 'observation', at: 0, summary: '没有日期的旧观察。', body: '没有日期的旧观察。',
+      source: '私有观察 · contact-notes', eventType: 'observation', private: true, evidence, direction: '', origin: '',
+    },
+    {
+      id: 'impression:imp-undated', kind: 'impression', at: 0, summary: '没有日期的旧印象。', body: '没有日期的旧印象。',
+      source: '私有印象 · 确定性 低', eventType: 'impression', private: true, evidence, direction: '', origin: '',
+    },
+    {
+      id: 'curiosity:cur-undated', kind: 'curiosity', at: 0, summary: '没有日期的旧好奇。', body: '没有日期的旧好奇。',
+      source: '私有好奇 · contact-notes', eventType: 'curiosity', private: true, evidence, direction: '', origin: '',
+    },
+  ];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([friend()]),
+    onLoadConversations: async () => conversations([]),
+    onLoadPeerProfile: async () => profile(),
+    onLoadContactMemory: async () => memoryPayload(items, { contact: null }),
+  });
+  try {
+    await openProfile(ui);
+    const day = ui.shadow.querySelector('#profileTimeline .rm-memory-day[data-memory-day="unknown"]');
+    assert.ok(day);
+    assert.equal(day.querySelector('.rm-memory-day-head h3').textContent, '日期未知');
+    const group = day.querySelector('details[data-memory-group^="private:"]');
+    assert.ok(group);
+    assert.equal(group.open, false);
+    group.querySelector('summary').click();
+    await settle();
+    assert.equal(group.open, true);
+    assert.match(group.textContent, /私有记忆/);
+    for (const text of ['没有日期的旧观察。', '没有日期的旧印象。', '没有日期的旧好奇。']) {
+      assert.match(group.textContent, new RegExp(text));
+    }
+    assert.match(ui.text('#profileMemoryKinds'), /私有记忆 3/);
+    assert.match(ui.text('#profileMemoryKinds'), /时间未记录 3/);
+    assert.match(ui.text('#profileMemorySummary'), /本轮读取到 3 条/);
+    const times = [...day.querySelectorAll('.rm-memory-event time')];
+    assert.equal(times.length, 3);
+    for (const time of times) {
+      assert.equal(time.textContent, '时间未知');
+      assert.equal(time.hasAttribute('datetime'), false);
+    }
   } finally {
     ui.close();
   }

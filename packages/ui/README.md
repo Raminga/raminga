@@ -55,12 +55,11 @@ open a dismissible explanation instead of pretending to work. Message bodies
 are rendered as plain text. Conversation and message pages merge by stable
 `(Peer ID, direction, message ID)`; ACK wording never claims a human read.
 Discovery cards keep public paths, hashes, byte counts and acquisition tool
-names inside a closeable "来源详情" disclosure. Own-dynamics cards show only
-the persisted author declaration (`本人` / `Agent` / `来源未注明`); there is no
-manual identity switcher. A contact's "他的通讯录" reads the peer's public
-`friends.json` through `GetPeerFriends` as untrusted claims and keeps loading,
-failure and empty states distinct; non-post public files live behind the
-separate "公开文件" entry, never inside the address book.
+names inside a closeable "来源详情" disclosure. "我的动态" and "他的动态" list
+published files under `public/posts/`, with full cards for structured posts
+and verified preview or acquisition for standalone files. A contact’s
+"他的通讯录" reads the peer’s public `friends.json` through `GetPeerFriends`
+and keeps loading, failure and empty states distinct.
 
 Discovery reads are explicit page/filter/refresh actions, not a poll. A cached
 filter is revalidated after 15 seconds or by the visible refresh action; a

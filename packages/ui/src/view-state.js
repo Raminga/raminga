@@ -116,7 +116,7 @@ function defaults() {
     contactProfile: { peerId: '', tab: 'interactions', returnPage: '', returnPeer: '', triggerId: '' },
     post: {
       id: '', peerId: '', path: '', sha256: '', sizeBytes: 0,
-      source: 'explore', filter: 'all', query: '', scroll: 0, returnFocus: '',
+      source: 'explore', filter: 'all', query: '', scroll: 0, profileScroll: 0, returnFocus: '',
     },
     journey: {
       id: '', source: 'journeys', scroll: 0, highlightSeq: 0,
@@ -283,7 +283,7 @@ export function normalizeViewState(input) {
   // recognizable post identity is restored after a host remount.
   if (record(input.post)) {
     const raw = input.post;
-    const source = raw.source === 'mine' ? 'mine' : 'explore';
+    const source = raw.source === 'mine' ? 'mine' : raw.source === 'peer' ? 'peer' : 'explore';
     const postPath = key(raw.path, 256);
     const postSha = /^[a-f0-9]{64}$/i.test(String(raw.sha256 ?? '')) ? String(raw.sha256).toLowerCase() : '';
     const postId = key(raw.id, 160);
@@ -298,7 +298,10 @@ export function normalizeViewState(input) {
         filter: EXPLORE_FILTERS.has(raw.filter) ? raw.filter : next.pages.explore.filter,
         query: text(raw.query, MAX_QUERY),
         scroll: scroll(raw.scroll),
-        returnFocus: key(raw.returnFocus, 160),
+        // The contact profile is an overlay; this is its own posts-tab scroll,
+        // not the hidden source page's list position.
+        profileScroll: scroll(raw.profileScroll),
+        returnFocus: key(raw.returnFocus, 512),
       };
     }
   }
@@ -355,6 +358,12 @@ export function normalizeViewState(input) {
   if (next.page === 'post'
     && next.post.id.length === 0
     && (next.post.path.length === 0 || next.post.peerId.length === 0)) {
+    next.page = 'explore';
+  }
+  // A peer-post route needs its exact Peer and the profile return context; a
+  // stale mismatch must not reopen a detail with no trustworthy way back.
+  if (next.page === 'post' && next.post.source === 'peer'
+    && (next.post.peerId.length === 0 || next.contactProfile.peerId !== next.post.peerId)) {
     next.page = 'explore';
   }
   if (next.page === 'journey' && next.journey.id.length === 0) {

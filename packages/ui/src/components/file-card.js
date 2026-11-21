@@ -218,6 +218,7 @@ export function renderPublicFileCard(rawItem, {
   focusKey = '',
   onOpenProfile = null,
   onOpenPost = null,
+  onRetry = null,
   edit = null,
   favorite = null,
   onFavorite = null,
@@ -299,7 +300,7 @@ export function renderPublicFileCard(rawItem, {
     const open = element('button', 'rm-post-open');
     open.type = 'button';
     open.dataset.openPost = String(item.id || item.path || '');
-    open.setAttribute('aria-label', `阅读动态：${titleText}`);
+    open.setAttribute('aria-label', `查看动态：${titleText}`);
     if (focusKey) open.dataset.focusKey = `${focusKey}:open`;
     const title = element('span', 'rm-post-title');
     title.textContent = titleText;
@@ -309,6 +310,12 @@ export function renderPublicFileCard(rawItem, {
       summary.textContent = summaryText;
       open.append(summary);
     }
+    // One reading entry per card. The title, excerpt and visible CTA share the
+    // same button, so keyboard users do not get two identical tab stops.
+    const cta = element('span', 'rm-post-cta');
+    cta.textContent = '查看动态';
+    cta.setAttribute('aria-hidden', 'true');
+    open.append(cta);
     open.onclick = () => onOpenPost(item, open);
     copyBlock.append(open);
   } else {
@@ -453,10 +460,13 @@ export function renderPublicFileCard(rawItem, {
         body.append(detailMedia);
       }
       body.append(previewFeedback(preview, item, { renderMarkdown }));
-      if (subject === 'explore' && preview?.state === 'error') {
+      const retryable = preview?.state === 'error'
+        || ['error', 'resource-error', 'copy-missing'].includes(previewData?.status) && previewData?.localCopy !== 'available';
+      if (retryable && (subject === 'explore' || onRetry)) {
         const retry = element('button', 'rm-list-retry');
         retry.type = 'button';
-        retry.dataset.retryPost = item.id;
+        if (onRetry) retry.onclick = onRetry;
+        else retry.dataset.retryPost = item.id;
         retry.textContent = '重试读取内容';
         body.append(retry);
       }
@@ -488,6 +498,8 @@ export function renderPostDetail(rawItem, {
   imageStateFor = () => ({ state: 'idle' }),
   onImageAction = null,
   retainImage = null,
+  fetch = null,
+  onFetch = null,
   focusKey = '',
 } = {}) {
   const previewData = preview?.state === 'available' ? preview.data : null;
@@ -511,6 +523,9 @@ export function renderPostDetail(rawItem, {
 
   const article = element('article', 'rm-post-detail rm-post');
   article.dataset.postDetail = String(item.id || item.path || '');
+  // A stable focus anchor when an async preview/fetch replaces its own button.
+  article.tabIndex = -1;
+  article.dataset.detailFocus = 'post-detail';
   const header = element('header', 'rm-post-head');
   const avatar = element(onOpenProfile ? 'button' : 'span', 'rm-contact-avatar rm-post-avatar');
   if (onOpenProfile) {
@@ -585,10 +600,45 @@ export function renderPostDetail(rawItem, {
     const problem = element('p', 'rm-list-note rm-post-content-state');
     problem.textContent = localProblem;
     body.append(problem);
-    if (subject === 'explore') {
+    if (fetch) {
+      const box = element('div', 'rm-post-fetch');
+      const note = element('p');
+      note.append('远端原件尚未获取。读取时将按 ');
+      const pathCode = element('code');
+      pathCode.textContent = item.path || fetch.path || '（路径未记录）';
+      note.append(pathCode, ' · SHA-256 ');
+      const shaCode = element('code');
+      shaCode.textContent = item.sha256 || fetch.sha256 || '（版本未记录）';
+      note.append(shaCode, ' · ');
+      const size = formatBytes(item.sizeBytes > 0 ? item.sizeBytes : fetch.sizeBytes);
+      note.append(size || '大小未记录', ' 核对；不会自动打开其他文件或目录。');
+      box.append(note);
+      if (fetch.error) {
+        const error = element('p', 'rm-list-note');
+        error.dataset.tone = 'error';
+        error.textContent = fetch.error;
+        box.append(error);
+      }
+      const action = element('button', 'rm-primary rm-post-fetch-action');
+      action.type = 'button';
+      action.dataset.detailFetch = '';
+      action.dataset.busy = fetch.busy === true ? 'true' : 'false';
+      if (fetch.busy === true) action.setAttribute('aria-busy', 'true');
+      action.textContent = fetch.busy === true
+        ? '正在获取原件…'
+        : fetch.error ? '重试获取原件' : '获取原件';
+      if (focusKey) action.dataset.focusKey = `${focusKey}:fetch`;
+      action.onclick = () => {
+        if (fetch.busy === true) return;
+        void onFetch?.(item, action);
+      };
+      box.append(action);
+      body.append(box);
+    } else if (subject === 'explore') {
       const retry = element('button', 'rm-list-retry');
       retry.type = 'button';
       retry.dataset.detailRetry = item.id || '';
+      retry.dataset.detailFocus = 'retry';
       retry.textContent = '重试读取内容';
       body.append(retry);
     }
@@ -604,6 +654,7 @@ export function renderPostDetail(rawItem, {
       const retry = element('button', 'rm-list-retry');
       retry.type = 'button';
       retry.dataset.detailRetry = item.id || '';
+      retry.dataset.detailFocus = 'retry';
       retry.textContent = '重试读取内容';
       body.append(retry);
     }

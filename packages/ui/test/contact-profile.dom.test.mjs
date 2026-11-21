@@ -382,11 +382,12 @@ test('a current card without a verified avatar never borrows an older projection
   }
 });
 
-test('public files open as a secondary surface and close back to the same tab, scroll and trigger', async () => {
+test('public post files use the contact dynamics tab without a separate file panel', async () => {
   const manifest = {
     source: 'remote', error: '', truncated: false,
     entries: [
-      { path: 'notes/tide.txt', sha256: 'b'.repeat(64), sizeBytes: 12, mime: 'text/plain' },
+      { path: 'posts/tide.md', sha256: 'b'.repeat(64), sizeBytes: 12, kind: 'markdown', mime: 'text/markdown', previewable: true, contentState: 'not-downloaded', title: '公开潮汐笔记' },
+      { path: 'notes/outside.txt', sha256: 'c'.repeat(64), sizeBytes: 19, mime: 'text/plain', title: '目录外文件' },
       { path: 'posts/tide/post.json', sha256: 'd'.repeat(64), sizeBytes: 20, mime: 'application/json' },
     ],
   };
@@ -396,27 +397,29 @@ test('public files open as a secondary surface and close back to the same tab, s
     onLoadMessages: async (peerId) => messagePage(peerId),
     onLoadContactMemory: async () => ({ peerId: PEER_A, state: 'missing', sha256: '', schemaVersion: 2, contact: null, timeline: [], timelineTruncated: false, error: '', at: Date.now() }),
     onLoadPeerProfile: async () => profile(PEER_A, { manifest }),
+    onLoadPeerManifest: async (peerId, force) => {
+      assert.equal(peerId, PEER_A);
+      assert.equal(force, true);
+      return {
+        ...manifest,
+        entries: [...manifest.entries, { path: 'posts/fresh.md', sha256: 'e'.repeat(64), sizeBytes: 13, kind: 'markdown', title: '刷新后可见的文件' }],
+      };
+    },
     onLoadPeerDiscoveries: async () => ({ peerId: PEER_A, items: [], at: Date.now(), error: null, freshness: 'live', truncated: false }),
   });
   try {
     await openProfile(ui);
     ui.click('[data-profile-tab="posts"]');
     await settle();
-    const view = ui.shadow.querySelector('#profileView');
-    view.scrollTop = 180;
-    ui.click('#profileFilesOpen');
-    await settle();
-    assert.equal(ui.shadow.querySelector('#contactProfileFiles').hidden, false);
-    assert.equal(ui.shadow.querySelector('#profileTabsNav').hidden, true);
-    assert.equal(ui.shadow.querySelector('#profileFilesClose').textContent, '收起');
-    assert.equal(view.scrollTop, 0, 'opening the file surface starts at its own top');
-    ui.click('#profileFilesClose');
-    await settle();
-    assert.equal(ui.shadow.querySelector('#contactProfileFiles').hidden, true);
+    assert.equal(ui.shadow.querySelector('#contactProfileFiles'), null);
+    assert.equal(ui.shadow.querySelector('#profileFilesOpen'), null);
     assert.equal(ui.shadow.querySelector('#profileTabsNav').hidden, false);
     assert.equal(ui.shadow.querySelector('[data-profile-tab="posts"]').getAttribute('aria-current'), 'page');
-    assert.equal(view.scrollTop, 180, 'closing files restores the source section scroll');
-    assert.equal(ui.active(), ui.shadow.querySelector('#profileFilesOpen'), 'closing files restores its trigger');
+    assert.match(ui.text('#profilePostList'), /公开潮汐笔记/);
+    assert.doesNotMatch(ui.text('#profilePostList'), /目录外文件/);
+    ui.click('#profilePostsRefresh');
+    await settle();
+    assert.match(ui.text('#profilePostList'), /刷新后可见的文件/);
   } finally {
     ui.close();
   }
@@ -483,6 +486,7 @@ test('a failed directory read keeps the same source history until a newer succes
     assert.match(historyNote, /本机历史|上次读取/);
     assert.match(historyNote, /部分/);
     assert.match(historyNote, /不是.*完整/);
+    assert.equal(ui.shadow.querySelector('#profileAddressNote').dataset.tone, 'warning');
     assert.equal(ui.shadow.querySelector('#profileAddressEmpty').hidden, true);
     assert.equal(ui.shadow.querySelector('#profileAddressRetry').hidden, false);
 
@@ -497,6 +501,7 @@ test('a failed directory read keeps the same source history until a newer succes
     assert.equal(ui.shadow.querySelectorAll('#profileFriendList [data-friend-history]').length, 0);
     assert.equal(ui.text('#profileAddressStatus'), '1 位');
     assert.doesNotMatch(ui.text('#profileAddressNote'), /本机历史|上次读取|部分历史/);
+    assert.equal(ui.shadow.querySelector('#profileAddressNote').dataset.tone, '');
     assert.equal(ui.shadow.querySelector('#profileAddressRetry').hidden, true);
   } finally {
     ui.close();
@@ -569,11 +574,150 @@ test('a true empty response clears persisted directory history, while failure wi
     assert.equal(empty.shadow.querySelector('#profileAddressRetry').hidden, false);
     assert.match(empty.text('#profileAddressStatus'), /读取失败/);
     assert.match(empty.text('#profileAddressNote'), /不可达|读取失败/);
+    assert.equal(empty.shadow.querySelector('#profileAddressNote').dataset.tone, 'error');
   } finally {
     empty.close();
   }
 });
 
+
+test('merged 来源与标识 reads node addresses locally even when the public profile is offline', async () => {
+  const reads = [];
+  const copied = [];
+  let connects = 0;
+  const nodeFor = (peerId, force) => ({
+    peerId,
+    connectionState: 'connected',
+    directConnections: 1,
+    relayConnections: 0,
+    currentAddresses: [{
+      multiaddr: `/ip4/127.0.0.1/tcp/4101/p2p/${peerId}`,
+      source: 'connection', sourceDetail: 'direct', reachability: 'verified', observedAt: Date.now(),
+    }],
+    knownAddresses: [
+      {
+        multiaddr: `/ip4/10.0.0.8/tcp/4102/p2p/${peerId}`,
+        source: 'peerstore', sourceDetail: 'peerstore', reachability: 'unverified', observedAt: Date.now() - 60_000,
+      },
+      ...(force ? [{
+        multiaddr: `/ip4/10.0.0.9/tcp/4103/p2p/${peerId}`,
+        source: 'cache', sourceDetail: 'refreshed', reachability: 'unverified', observedAt: Date.now(),
+      }] : []),
+    ],
+    statusAt: Date.now(), freshness: 'live', error: null,
+  });
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([contact(PEER_A, { name: 'lin-an' })]),
+    onLoadConversations: async () => conversations(),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onLoadPeerProfile: async (peerId) => profile(peerId, {
+      remoteName: '', found: false, text: '', source: 'unavailable', at: null, freshness: 'unavailable',
+      error: '读取对方公开资料没有完成：dial tcp4 127.0.0.1:1: connect: connection refused',
+      agentCard: { state: 'missing', card: null, error: '没有读取到公开 Agent 资料' },
+      manifest: { source: 'unavailable', entries: [], error: '对方当前不可达', truncated: false },
+      node: null,
+    }),
+    onLoadPeerNodeInfo: async (peerId, force) => {
+      reads.push([peerId, force]);
+      return nodeFor(peerId, force);
+    },
+    onConnect: async () => { connects += 1; return { ok: true }; },
+    onCopyText: async (text) => { copied.push(text); return true; },
+  });
+  try {
+    await openProfile(ui);
+    const origin = ui.shadow.querySelector('#profileOriginDetails');
+    assert.equal(ui.shadow.querySelector('#profileNodeInfo'), null, 'the bottom node panel is gone');
+    assert.equal(origin.querySelector('#profileNodePeerId'), null, 'the merged area does not repeat the Peer ID element');
+    assert.equal(origin.querySelectorAll('#profilePeerId').length, 1, 'the existing Peer ID stays the only identifier');
+    assert.match(origin.textContent, /当前连接地址/);
+    assert.match(origin.textContent, /本机已知地址/);
+    assert.equal(reads.length, 0, 'address info waits for an explicit open');
+    origin.open = true;
+    await settle(25);
+    assert.deepEqual(reads, [[PEER_A, false]], 'opening the disclosure uses the host-local node read');
+    assert.equal(origin.open, true);
+    assert.match(ui.text('#profileCurrentAddrs'), /tcp\/4101/);
+    assert.match(ui.text('#profileCurrentAddrs'), /当前连接已验证/);
+    assert.match(ui.text('#profileAnnouncedAddrs'), /tcp\/4102/);
+    assert.match(ui.text('#profileAnnouncedAddrs'), /本机 Peerstore/);
+    assert.match(ui.text('#profileAnnouncedAddrs'), /未验证可达/);
+    assert.equal(connects, 0, 'reading address info never starts a dial');
+    assert.equal(ui.shadow.querySelector('#profileRetry').hidden, false, 'the public-profile failure remains independent');
+
+    ui.click('#profileNodeRefresh');
+    await settle(25);
+    assert.deepEqual(reads, [[PEER_A, false], [PEER_A, true]], 'refresh re-reads the local snapshot');
+    assert.match(ui.text('#profileAnnouncedAddrs'), /tcp\/4103/);
+    ui.click('#profileCopyAnnounced');
+    await settle(10);
+    assert.match(copied.at(-1), /tcp\/4102/);
+    assert.match(copied.at(-1), /tcp\/4103/);
+    assert.equal(connects, 0, 'refresh and copy remain local-only');
+  } finally {
+    ui.close();
+  }
+});
+
+test('a late node-info read from the previous contact cannot paint the next profile', async () => {
+  let resolveA;
+  const pendingA = new Promise((resolve) => { resolveA = resolve; });
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([contact(PEER_A, { name: 'a' }), contact(PEER_B, { name: 'b' })]),
+    onLoadConversations: async () => conversations(),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onLoadPeerProfile: async (peerId) => profile(peerId, {
+      found: false, text: '', remoteName: '', node: null,
+      agentCard: { state: 'missing', card: null, error: '' },
+      manifest: { source: 'remote', entries: [], error: '', truncated: false },
+    }),
+    onLoadPeerNodeInfo: async (peerId) => {
+      if (peerId === PEER_A) return pendingA;
+      return {
+        peerId, connectionState: 'disconnected', directConnections: 0, relayConnections: 0,
+        currentAddresses: [],
+        knownAddresses: [{
+          multiaddr: `/ip4/10.0.0.20/tcp/4202/p2p/${peerId}`,
+          source: 'cache', sourceDetail: 'b', reachability: 'unverified', observedAt: Date.now(),
+        }],
+        statusAt: Date.now(), freshness: 'stale', error: '',
+      };
+    },
+  });
+  try {
+    ui.app.setContacts(contacts([contact(PEER_A, { name: 'a' }), contact(PEER_B, { name: 'b' })]));
+    ui.app.setConversations(conversations());
+    await settle(10);
+    ui.click(`[data-contact-row="${PEER_A}"] button[data-contact-peer]`);
+    await settle(10);
+    const originA = ui.shadow.querySelector('#profileOriginDetails');
+    originA.open = true;
+    await settle(10);
+    ui.click('#profileBack');
+    await settle(10);
+    ui.click(`[data-contact-row="${PEER_B}"] button[data-contact-peer]`);
+    await settle(10);
+    const originB = ui.shadow.querySelector('#profileOriginDetails');
+    originB.open = true;
+    await settle(25);
+    assert.match(ui.text('#profileAnnouncedAddrs'), /tcp\/4202/);
+    resolveA({
+      peerId: PEER_A, connectionState: 'connected', directConnections: 1, relayConnections: 0,
+      currentAddresses: [{
+        multiaddr: `/ip4/10.0.0.10/tcp/4201/p2p/${PEER_A}`,
+        source: 'connection', sourceDetail: 'a', reachability: 'verified', observedAt: Date.now(),
+      }],
+      knownAddresses: [], statusAt: Date.now(), freshness: 'live', error: '',
+    });
+    await settle(25);
+    assert.equal(ui.text('#profilePeerId'), PEER_B);
+    assert.match(ui.text('#profileAnnouncedAddrs'), /tcp\/4202/);
+    assert.doesNotMatch(ui.text('#profileAnnouncedAddrs'), /tcp\/4201/);
+    assert.doesNotMatch(ui.text('#profileCurrentAddrs'), /tcp\/4201/);
+  } finally {
+    ui.close();
+  }
+});
 
 test('profileLabel never presents a Peer ID as a public display name', () => {
   assert.equal(profileLabel({ remoteName: PEER_A, localName: 'lin-an' }, PEER_A), 'lin-an');

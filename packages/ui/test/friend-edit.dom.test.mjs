@@ -97,7 +97,7 @@ test('one form edits and independently clears name and description from contacts
   try {
     ui.app.setContacts(contacts([friend()]));
     const row = ui.list.querySelector('[data-contact-row]');
-    assert.equal(row.querySelectorAll('button').length, 6, 'avatar, entry, chat, quick menu, Peer ID toggle and copy stay separate');
+    assert.equal(row.querySelectorAll('button').length, 7, 'avatar, entry, connect, chat, quick menu, Peer ID toggle and copy stay separate');
     assert.ok(row.querySelector('button[data-profile-peer]'));
     assert.ok(row.querySelector('button[data-contact-peer]'));
     assert.ok(row.querySelector('button[data-chat-peer]'));

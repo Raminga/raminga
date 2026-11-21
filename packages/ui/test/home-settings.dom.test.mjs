@@ -1157,22 +1157,17 @@ test('contact home is Agent-led and has interactions, posts and address regions'
     ui.click('[data-profile-tab="address"]');
     await settle();
     assert.equal(ui.shadow.querySelector('#contactProfileAddress').hidden, false);
-    assert.equal(ui.shadow.querySelector('#contactProfileFiles').hidden, true);
+    assert.equal(ui.shadow.querySelector('#contactProfileFiles'), null);
     assert.match(ui.text('#profileFriendList'), /Bob/);
     assert.match(ui.text('#profileFriendList'), /已有联系/);
     assert.match(ui.text('#profileFriendList'), /Carol/);
     assert.match(ui.text('#profileFriendList'), /公开线索/);
     assert.doesNotMatch(ui.text('#profileAddressNote'), /公开文件|P[1-4]/);
 
-    ui.click('#profileFilesOpen');
-    assert.equal(ui.shadow.querySelector('#contactProfileFiles').hidden, false);
-    assert.equal(ui.shadow.querySelector('#contactProfileAddress').hidden, true);
-    assert.equal(ui.shadow.querySelector('#profileTabsNav').hidden, true);
-    assert.match(ui.text('#profileFilesNote'), /没有动态以外的文件/);
-    ui.click('#profileFilesClose');
-    assert.equal(ui.shadow.querySelector('#contactProfileFiles').hidden, true);
+    assert.equal(ui.shadow.querySelector('#profileFilesOpen'), null);
     assert.equal(ui.shadow.querySelector('#profileTabsNav').hidden, false);
-    assert.ok(ui.shadow.querySelector('#profileCopyPeer'));
+    assert.equal(ui.shadow.querySelector('#profileNodeInfo'), null);
+    assert.ok(ui.shadow.querySelector('#profileOriginDetails #profileCopyPeerInline'));
   } finally {
     ui.close();
   }

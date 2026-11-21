@@ -1314,6 +1314,17 @@
 .rm-post-open:hover .rm-post-title { color: var(--rm-action); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .rm-post-open:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 3px; }
 .rm-post-open .rm-post-summary { margin-bottom: 8px; }
+.rm-post-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+  color: var(--rm-action);
+  font-size: 12px;
+  font-weight: 650;
+}
+.rm-post-cta::after { content: "→"; }
+.rm-post-open:hover .rm-post-cta { text-decoration: underline; text-underline-offset: 3px; }
 .rm-post-main {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
@@ -1506,6 +1517,21 @@
 }
 .rm-post-detail > .rm-source-details { margin-top: 12px; }
 .rm-post-detail .rm-post-head { align-items: center; }
+.rm-post-detail:focus { outline: none; }
+.rm-post-detail:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 4px; }
+/* Explicit remote-original authorization stays inside the detail reading
+   surface, with the exact path/version/size that will be fetched. */
+.rm-post-fetch {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed #d8cdf0;
+  border-radius: 10px;
+  background: #faf7ff;
+}
+.rm-post-fetch p { margin: 0 0 9px; color: var(--rm-muted); font-size: 11.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.rm-post-fetch code { font: 10.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; word-break: break-word; }
+.rm-post-fetch .rm-list-note { margin: 0 0 8px; }
+.rm-post-fetch .rm-list-note[data-tone="error"] { color: #a23d2e; }
 
 /* Safe Markdown */
 .rm-rich-text { min-width: 0; color: var(--rm-ink); font-size: 12.5px; line-height: 1.75; overflow-wrap: anywhere; }
@@ -1860,6 +1886,7 @@
   border-radius: 10px;
   background: #fff;
 }
+.rm-journey-report-frame { height: clamp(380px, 75vh, 960px); }
 .rm-file-warnings { margin: 10px 0 0; padding-left: 18px; color: #8a5a00; font-size: 12px; }
 .rm-file-warnings li { margin: 2px 0; overflow-wrap: anywhere; }
 .rm-file-preview { display: grid; gap: 8px; }
@@ -2348,6 +2375,12 @@
 .rm-profile-origin-facts > div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; font-size: 11.5px; line-height: 1.6; }
 .rm-profile-origin-facts dt { color: var(--rm-subtle); }
 .rm-profile-origin-facts dd { margin: 0; color: var(--rm-muted); overflow-wrap: anywhere; }
+.rm-profile-origin-node { padding-top: 9px; border-top: 1px dashed var(--rm-line); }
+.rm-profile-node-label { margin: 0; color: var(--rm-subtle); letter-spacing: .08em; }
+.rm-profile-node-facts { display: grid; gap: 4px; margin: 0; }
+.rm-profile-node-facts > div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; font-size: 11.5px; line-height: 1.6; }
+.rm-profile-node-facts dt { color: var(--rm-subtle); }
+.rm-profile-node-facts dd { margin: 0; color: var(--rm-muted); overflow-wrap: anywhere; }
 .rm-profile-local-note { margin: 0; padding: 7px 9px; border-color: #e9e3f4; background: #f7f4fb; color: #7a6b95; font-size: 11.5px; line-height: 1.65; }
 .rm-contact-hero-actions { display: flex; flex: none; flex-direction: column; gap: 8px; width: 168px; }
 .rm-contact-hero-actions .rm-primary { width: 100%; justify-content: center; }
@@ -2359,6 +2392,21 @@
 .rm-contact-tab { padding: 0 6px 13px; color: var(--rm-muted); font-size: 13px; }
 .rm-contact-tab[aria-current="page"] { color: var(--rm-action); font-weight: 650; box-shadow: inset 0 -3px 0 var(--rm-purple); }
 .rm-contact-panel .rm-panel { padding: 20px 22px; border: 1px solid var(--rm-line); border-radius: 20px; background: #ffffffbf; }
+/* Contact profile tab notes are neutral by default; amber marks cached/limited reads, red marks real read failures. */
+.rm-contact-panel .rm-list-note {
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--rm-muted);
+}
+.rm-contact-panel .rm-list-note:is([data-tone="warning"], [data-tone="error"]) {
+  padding: 7px 10px;
+  border: 1px solid;
+  border-radius: 8px;
+}
+.rm-contact-panel .rm-list-note[data-tone="warning"] { border-color: #e7d9b7; background: #fffaf0; color: #7a5b18; }
+.rm-contact-panel .rm-list-note[data-tone="error"] { border-color: #efcec7; background: #fff6f4; color: #8d2c28; }
 .rm-friend-list { display: flex; flex-direction: column; }
 .rm-friend-row { display: flex; align-items: flex-start; gap: 13px; padding: 15px 0; border-bottom: 1px solid var(--rm-line); }
 .rm-friend-row:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -2497,8 +2545,11 @@
 /* P1 explore/contacts page heads and contact row metadata. */
 #page-explore .rm-page-inner,
 #page-contacts .rm-page-inner { max-width: 1056px; padding-inline: 32px; }
-#page-explore .rm-page-head,
-#page-contacts .rm-page-head { padding-top: 38px; }
+/* The Explore and Contacts feeds intentionally start with their filters or
+   search controls. Keep a compact top inset scoped to those two feeds so the
+   other pages that still use .rm-page-head are untouched. */
+#page-explore .rm-explore-bar,
+#page-contacts .rm-contacts-toolbar { padding-top: 18px; }
 .rm-page-head h1 { font-size: 34px; letter-spacing: -1px; }
 .rm-page-head .rm-eyebrow { margin-bottom: 6px; }
 .rm-explore-bar { height: auto; padding-bottom: 20px; border-bottom: 0; align-items: center; flex-wrap: wrap; row-gap: 10px; }
@@ -3212,7 +3263,8 @@
   grid-template-columns: 52px minmax(0, 1fr) auto;
   grid-template-areas:
     "avatar main actions"
-    ". ident ident";
+    ". ident ident"
+    "connect connect connect";
   align-items: start;
   gap: 4px 14px;
   padding: 15px 16px;
@@ -3240,6 +3292,41 @@
   min-width: 76px;
 }
 .rm-contact-action-row { display: flex; align-items: center; gap: 5px; }
+.rm-contact-connect {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #d9cdf0;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--rm-action-deep, #5c3f8f);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.rm-contact-connect:hover { border-color: #bfa9e8; background: #fbf8ff; }
+.rm-contact-connect:focus-visible { outline: 2px solid var(--rm-purple); outline-offset: 2px; }
+.rm-contact-connect[data-state="pending"] { background: #f5f0fc; color: #8065a3; }
+.rm-contact-connect[data-state="success"] { border-color: #b7e2d3; background: #eefbf6; color: #13795c; }
+.rm-contact-connect[data-state="error"] { border-color: #edc4c1; background: #fff5f4; color: #8d2c28; }
+.rm-contact-connect[aria-disabled="true"] { cursor: default; opacity: .62; }
+.rm-contact-connect-note {
+  grid-area: connect;
+  margin: 2px 0 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #f7f4fb;
+  color: var(--rm-muted);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rm-contact-connect-note[data-tone="success"] { background: #eefbf6; color: #13795c; }
+.rm-contact-connect-note[data-tone="error"],
+.rm-contact-connect-note[data-tone="invalid"] { background: #fff5f4; color: #8d2c28; }
+.rm-contact-connect-note[data-tone="partial"] { background: #fff8e9; color: #7c5a18; }
 .rm-contact-row .rm-contact-time {
   display: block;
   margin: 0;
@@ -3362,8 +3449,10 @@
   .rm-contact-row > .rm-contact-avatar { width: 48px; height: 48px; border-radius: 13px; font-size: 17px; }
   .rm-contact-row .rm-contact-time { display: block; font-size: 9.5px; }
   .rm-contact-name b { font-size: 14px; }
-  .rm-contact-row > .rm-contact-actions { min-width: 48px; }
+  .rm-contact-row > .rm-contact-actions { min-width: 52px; }
   .rm-contact-action-row { flex-direction: column-reverse; gap: 2px; }
+  .rm-contact-connect { min-height: 28px; padding: 0 7px; font-size: 10.5px; }
+  .rm-contact-connect-note { padding: 6px 8px; font-size: 10.5px; }
   .rm-contact-ident { gap: 1px 5px; }
   .rm-contact-id-label { display: none; }
   .rm-contact-ident .rm-peer-id { font-size: 9.5px; }
@@ -3380,6 +3469,8 @@
    refresh and publish stay visible text buttons. This block follows the base
    button sizing so it wins without relying on source order between sections. */
 @media (max-width: 700px) {
+  #page-explore .rm-explore-bar,
+  #page-contacts .rm-contacts-toolbar { padding-top: 12px; }
   .rm-explore-bar { align-items: stretch; flex-direction: column; gap: 10px; }
   .rm-explore-tools { width: 100%; margin-left: 0; flex-wrap: nowrap; gap: 7px; }
   .rm-explore-tools .rm-explore-search { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; height: 40px; }

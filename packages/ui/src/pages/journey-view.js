@@ -71,7 +71,7 @@ export function journeyHasLongIntent(session) {
 
 /** Prefer an existing report excerpt, then real event summaries. */
 export function journeySummary(session, limit = 132) {
-  const report = plain(session?.reportMarkdown).slice(0, limit);
+  const report = plain(session?.state?.summary || session?.reportMarkdown).slice(0, limit);
   if (report.length > 0) return report;
   const events = Array.isArray(session?.events) ? session.events : [];
   for (let index = events.length - 1; index >= 0; index -= 1) {
@@ -147,6 +147,7 @@ export function journeyMatches(session, rawQuery, peerLabel = shortPeerText) {
     session?.state?.mode,
     journeyModeText(session?.state?.mode),
     session?.state?.completionReason,
+    session?.state?.summary || plain(session?.reportMarkdown).slice(0, 1000),
     ...(Array.isArray(session?.state?.discoverySources) ? session.state.discoverySources : []),
     ...journeySearchPeers(session).flatMap((peerId) => [peerId, peerLabel(peerId)]),
     ...(Array.isArray(session?.events) ? session.events.flatMap((event) => [event?.summary, event?.peerId]) : []),
@@ -318,7 +319,7 @@ export function renderJourneyDetail(doc, node, session, {
   // labelled as an Agent summary rather than transport evidence.
   const summaryCard = element('section', 'rm-journey-summary');
   const summaryLabel = element('p', 'rm-journey-summary-label');
-  summaryLabel.textContent = session.reportRead === 'available'
+  summaryLabel.textContent = session.state?.summary || session.reportRead === 'available'
     ? '摘要 · Agent 生成的报告内容，不是传输证据'
     : '摘要 · 来自状态与事件记录';
   const summaryText = element('p', 'rm-journey-summary-text');

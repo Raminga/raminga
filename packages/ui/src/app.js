@@ -326,6 +326,8 @@ export function createRamingaApp(root, options = {}) {
     const friendNameEditCapable = typeof options.onSetFriendName === "function";
     const friendDescriptionEditCapable = typeof options.onSetFriendDescription === "function";
     const friendEditCapable = friendNameEditCapable || friendDescriptionEditCapable;
+    const connectCapable = typeof options.onConnect === "function";
+    const contactConnectState = /* @__PURE__ */ new Map();
     const emptyDiscoveries = (familiar = false) => ({
       items: [],
       at: null,
@@ -426,6 +428,7 @@ export function createRamingaApp(root, options = {}) {
       retrying: false,
       request: null
     };
+    let journeyReport = { id: "", original: false, preview: null };
     const activityState = {
       data: null,
       error: "",
@@ -439,12 +442,10 @@ export function createRamingaApp(root, options = {}) {
       error: "",
       requestSeq: 0,
       retrying: false,
-      filesOpen: false,
-      filesReturnTab: "interactions",
-      filesReturnScroll: 0,
       friends: { data: null, error: "", requestSeq: 0, retrying: false },
       posts: { data: null, error: "", requestSeq: 0, retrying: false },
-      memory: { data: null, error: "", requestSeq: 0, retrying: false }
+      memory: { data: null, error: "", requestSeq: 0, retrying: false },
+      node: { data: null, error: "", requestSeq: 0, retrying: false }
     };
     const favoriteReader = {
       item: null,
@@ -513,6 +514,8 @@ export function createRamingaApp(root, options = {}) {
     let profileChatPress = null;
     let profileScrollMemory = { tab: "", scroll: 0, at: 0 };
     const postContent = /* @__PURE__ */ new Map();
+    const postContentRequests = /* @__PURE__ */ new Map();
+    let postContentGeneration = 0;
     const peerPostMetaCapable = typeof options.onLoadPeerPostMeta === "function";
     const postMetaCache = /* @__PURE__ */ new Map();
     const postMetaInflight = /* @__PURE__ */ new Map();
@@ -925,9 +928,6 @@ export function createRamingaApp(root, options = {}) {
     const profileAgentOpen = $("#profileAgentOpen");
     const profileMessage = $("#profileMessage");
     const profileTabsNav = $("#profileTabsNav");
-    const profileFilesOpen = $("#profileFilesOpen");
-    const profileFilesRefresh = $("#profileFilesRefresh");
-    const profileFilesClose = $("#profileFilesClose");
     const profileAddressStatus = $("#profileAddressStatus");
     const profileAddressNote = $("#profileAddressNote");
     const profileAddressDetails = $("#profileAddressDetails");
@@ -938,7 +938,6 @@ export function createRamingaApp(root, options = {}) {
     const profileAddressEmptyText = $("#profileAddressEmptyText");
     const profileAddressRetry = $("#profileAddressRetry");
     const profileHumanSummary = $("#profileHumanSummary");
-    const contactProfileFiles = $("#contactProfileFiles");
     const profileTimelineStatus = $("#profileTimelineStatus");
     const profileTimeline = $("#profileTimeline");
     const profileTimelineEmpty = $("#profileTimelineEmpty");
@@ -965,14 +964,9 @@ export function createRamingaApp(root, options = {}) {
     const profileImpressionStatus = $("#profileImpressionStatus");
     const profileImpressionEdit = $("#profileImpressionEdit");
     const profilePostsStatus = $("#profilePostsStatus");
+    const profilePostsRefresh = $("#profilePostsRefresh");
     const profilePostsNote = $("#profilePostsNote");
     const profilePostList = $("#profilePostList");
-    const profileFilesStatus = $("#profileFilesStatus");
-    const profileFilesNote = $("#profileFilesNote");
-    const profileFileList = $("#profileFileList");
-    const profileNodeInfo = $("#profileNodeInfo");
-    const profileNodePeerId = $("#profileNodePeerId");
-    const profileCopyPeer = $("#profileCopyPeer");
     const profileNodeConnection = $("#profileNodeConnection");
     const profileNodeRoutes = $("#profileNodeRoutes");
     const profileNodeStatusAt = $("#profileNodeStatusAt");
@@ -1099,6 +1093,7 @@ export function createRamingaApp(root, options = {}) {
         const live = visiblePageScroll(currentPage);
         if (live !== null && pageTracksScroll(currentPage)) pageStateFor(currentPage).scroll = live;
       }
+      if (currentPage === "post" && next !== "post") clearPostDetail();
       currentPage = next;
       view.page = next;
       for (const [name, page] of Object.entries(pageEls)) {
@@ -1116,6 +1111,7 @@ export function createRamingaApp(root, options = {}) {
       if (next === "post") renderPostDetailPage();
       if (next === "journeys") renderJourneysPage();
       if (next === "journey") renderJourneyDetailPage();
+      else $("#journeyReportFrame").replaceChildren();
       if (next === "contacts") updateContactsState();
       ensurePageData(next);
       if (save) scheduleSave();
@@ -1207,7 +1203,7 @@ export function createRamingaApp(root, options = {}) {
       const scanned = Math.max(0, Number(data.scanned) || 0);
       const ignored = Math.max(0, Number(data.ignored) || 0);
       if (ignored > 0) {
-        notes.push(`本次读取了 ${scanned} 条获取记录；其中 ${ignored} 条不是可识别的公开帖子，已排除在动态、搜索和计数之外，可在对应联系人的公开文件中查看。`);
+        notes.push(`本次读取了 ${scanned} 条获取记录；其中 ${ignored} 条不是可识别的公开帖子，已排除在动态、搜索和计数之外，可在对应联系人的动态中查看 posts/ 下的公开文件。`);
       } else {
         notes.push(`本次读取了 ${scanned} 条帖子候选；普通文件不会占用动态、搜索或计数名额。`);
       }
@@ -1269,9 +1265,6 @@ export function createRamingaApp(root, options = {}) {
         contentError: ""
       };
     }
-    function isV2PostPathForUi(value) {
-      return /^posts\/[A-Za-z0-9._-]+\/post\.json$/.test(String(value ?? ""));
-    }
     function pumpPostMetaQueue() {
       while (postMetaActive < 3 && postMetaQueue.length > 0) {
         const task = postMetaQueue.shift();
@@ -1284,7 +1277,7 @@ export function createRamingaApp(root, options = {}) {
       }
     }
     function ensurePostMeta(item) {
-      if (!peerPostMetaCapable || !item || !isV2PostPathForUi(item.path)) return;
+      if (!peerPostMetaCapable || !item || !isPostPath(item.path)) return;
       if (Array.isArray(item.images) && item.images.length > 0) return;
       const key2 = postMetaKeyFor(item);
       if (postMetaCache.has(key2) || postMetaInflight.has(key2)) return;
@@ -1300,7 +1293,7 @@ export function createRamingaApp(root, options = {}) {
         postMetaInflight.delete(key2);
         if (destroyed) return;
         postMetaCache.set(key2, result && typeof result === "object" ? result : { found: false, images: [], error: "动态配图信息没有返回结果" });
-        if (result?.found && Array.isArray(result.images) && result.images.length > 0) {
+        if (result?.found) {
           if (currentPage === "explore" && view.pages.explore.filter !== "mine") updateExploreState();
           else if (!profileView.hidden) rerenderProfileKeepingPosition();
         }
@@ -1308,7 +1301,7 @@ export function createRamingaApp(root, options = {}) {
       pumpPostMetaQueue();
     }
     function observePostMetaCard(card, item) {
-      if (!peerPostMetaCapable || !card || !isV2PostPathForUi(item?.path)) return;
+      if (!peerPostMetaCapable || !card || !isPostPath(item?.path)) return;
       if (Array.isArray(item.images) && item.images.length > 0) return;
       const key2 = postMetaKeyFor(item);
       if (postMetaCache.has(key2)) return;
@@ -1644,28 +1637,20 @@ export function createRamingaApp(root, options = {}) {
       disposePreviewMedia(discoveryList);
       discoveryList.replaceChildren();
       for (const item of items) {
-        const expanded = view.pages.explore.expanded[item.id] === true;
         const reveal = revealResults.get(revealResultKey("explore", item)) ?? null;
         const displayItem = itemWithPostMeta(item);
         const card = renderFileCard(displayItem, {
           subject: "explore",
-          expanded,
-          onToggle: (next) => togglePost(item.id, next),
-          preview: postContent.get(item.id) ?? null,
+          expanded: false,
+          preview: postContent.get(postContentKey(item)) ?? null,
           showReveal: revealCapable,
           reveal,
           onReveal: revealDiscoveryItem,
           focusKey: `post:${item.id}`,
           onOpenProfile: true,
-          // Only a recognized versioned post has an independent detail. Any
-          // defensive non-post row keeps the inline file preview path instead of
-          // rendering a title that would silently do nothing.
-          onOpenPost: isPostPath(item.path) ? (target, trigger) => openPostDetail(target, "explore", trigger) : null,
+          onOpenPost: (target, trigger) => openPostDetail(target, "explore", trigger),
           ...favoriteCardOptions(item, `post:${item.id}`)
         });
-        if (expanded && item.contentState === "available" && !postContent.has(item.id)) {
-          void ensurePostContent(item.id);
-        }
         discoveryList.append(card);
         observePostMetaCard(card, item);
       }
@@ -1677,6 +1662,28 @@ export function createRamingaApp(root, options = {}) {
       }
       if (pageEls.explore.scrollTop !== pageScroll) pageEls.explore.scrollTop = pageScroll;
       tryPostEditorReturnFocus();
+    }
+    function publicVersionKey(item) {
+      return [item.path, String(item.sha256 || "").toLowerCase()].join("\0");
+    }
+    function publicPostEntries(entries) {
+      const versions = new Map();
+      const attachments = new Set();
+      for (const item of entries) {
+        if (!item?.path?.startsWith("posts/")) continue;
+        const shown = itemWithPostMeta(item);
+        const key = publicVersionKey(shown);
+        const previous = versions.get(key);
+        if (!previous || (previous.kind === "json" && shown.kind === "markdown")) versions.set(key, shown);
+        if (isPostPath(shown.path) && shown.kind === "markdown") {
+          for (const image of shown.images || []) {
+            if (image.publicPath && image.sha256) {
+              attachments.add(publicVersionKey({ path: image.publicPath, sha256: image.sha256 }));
+            }
+          }
+        }
+      }
+      return [...versions.values()].filter((item) => !attachments.has(publicVersionKey(item)));
     }
     function mineFeedItems(data) {
       if (!data) return [];
@@ -1708,16 +1715,14 @@ export function createRamingaApp(root, options = {}) {
           contentError: ""
         }));
       }
-      return files.filter((item) => isPostPath(item.path) && item.kind === "markdown");
+      return publicPostEntries(files);
     }
     function mineFeedCard(item, query) {
       if (!postMatchesQuery(item, query)) return null;
       const key2 = previewKeyFor("mine", item);
-      const expanded = mineExpanded.has(key2);
       const card = renderFileCard(itemWithPostMeta(item), {
         subject: "mine",
-        expanded,
-        onToggle: (next) => toggleMineFile(item, next),
+        expanded: false,
         preview: minePreviews.get(key2) ?? null,
         showReveal: fileRevealCapable,
         reveal: revealResults.get(revealResultKey("mine", item)) ?? null,
@@ -1727,14 +1732,11 @@ export function createRamingaApp(root, options = {}) {
         focusKey: `mine-feed:${item.path}:${item.sha256}`,
         onOpenProfile: null,
         onOpenPost: (target, trigger) => openPostDetail(target, "mine", trigger),
-        edit: publicDraftImportCapable && isPostPath(item.path) ? (target, trigger) => {
+        edit: publicDraftImportCapable && isPostPath(item.path) && item.kind === "markdown" ? (target, trigger) => {
           void openExistingPostForEdit(item, trigger ?? target);
         } : null,
         ...favoriteCardOptions(item, `mine-feed:${item.path}:${item.sha256}`)
       });
-      if (expanded && item.contentState === "available" && !minePreviews.has(key2)) {
-        void ensureMinePreview(item);
-      }
       return card;
     }
     function updateMineFeedState() {
@@ -1900,7 +1902,7 @@ export function createRamingaApp(root, options = {}) {
         stateCard(title, body, action2, {
           tone: "unavailable",
           title: familiar ? "有过交流的节点还没有公开帖子" : "还没有获取到公开帖子",
-          body: Number(data?.ignored) > 0 ? `本机获取记录里有 ${Number(data.ignored)} 个文件不是可识别的公开帖子，不算动态，也不会进入搜索或计数；普通文件请到对应联系人的「公开文件」查看。` : familiar ? "这里只显示本人或 Agent 实际发过消息的节点所带回的可识别公开帖子。仅建立联系、浏览档案或 last_interaction 不算有过交流。" : "当你在对方主页手动获取帖子，或 Agent 获取并核对公开帖子后，会出现在这里；两种来源会分别标注。",
+          body: Number(data?.ignored) > 0 ? `本机获取记录里有 ${Number(data.ignored)} 个文件不是可识别的公开帖子，不算动态，也不会进入搜索或计数；posts/ 下的普通文件可到对应联系人的「他的动态」查看。` : familiar ? "这里只显示本人或 Agent 实际发过消息的节点所带回的可识别公开帖子。仅建立联系、浏览档案或 last_interaction 不算有过交流。" : "当你在对方主页手动获取帖子，或 Agent 获取并核对公开帖子后，会出现在这里；两种来源会分别标注。",
           action: {
             label: familiar ? "返回发现" : "刷新动态",
             run: familiar ? () => setFilter("all") : () => {
@@ -1925,8 +1927,45 @@ export function createRamingaApp(root, options = {}) {
         filter: "all",
         query: "",
         scroll: 0,
+        profileScroll: 0,
         returnFocus: ""
       };
+    }
+    function postContentKey(item) {
+      return [String(item?.id ?? ""), String(item?.sha256 ?? "").toLowerCase()].join("\0");
+    }
+    function resetPostContentCache() {
+      postContentGeneration += 1;
+      postContent.clear();
+      postContentRequests.clear();
+    }
+    /** A feed card opens the detail for every published entry, not only a
+     * versioned post.json. The host still revalidates the exact path/version. */
+    function feedEntryCanOpenDetail(item, source) {
+      if (!item) return false;
+      const path = String(item.path ?? "");
+      const id = String(item.id ?? "");
+      if (source === "mine" || source === "peer") return path.startsWith("posts/") && path.length > 0;
+      return path.startsWith("posts/") || id.length > 0;
+    }
+    function needsExplicitPeerFetch(item) {
+      return ["not-downloaded", "copy-missing"].includes(String(item?.contentState ?? ""));
+    }
+    function profileFeedState() {
+      const data = profileState.posts.data;
+      const localItems = Array.isArray(data?.items) ? data.items : [];
+      const profileManifest = profileState.data?.manifest;
+      const refreshedManifest = profileState.posts.manifest;
+      const manifest = refreshedManifest && (!profileManifest || (refreshedManifest.at ?? 0) >= (profileManifest.at ?? 0))
+        ? refreshedManifest : profileManifest;
+      const manifestEntries = Array.isArray(manifest?.entries) ? manifest.entries : [];
+      const currentEntries = manifest?.source === "remote" ? publicPostEntries(manifestEntries) : [];
+      const items = publicPostEntries([...localItems, ...manifestEntries]);
+      const candidateParents = new Set(manifestEntries
+        .filter((entry) => isPostImagePath(entry.path))
+        .map((entry) => entry.path.slice(0, entry.path.lastIndexOf("/images/")) + "/post.json"));
+      const discoveryKeys = new Set(localItems.map(publicVersionKey));
+      return { data, localItems, manifest, currentEntries, items, candidateParents, discoveryKeys };
     }
     function postDetailItem() {
       const post = view.post;
@@ -1934,9 +1973,22 @@ export function createRamingaApp(root, options = {}) {
       if (post.source === "mine") {
         return mineFeedItems(mineState.data).find((item) => item.path === post.path && (post.sha256 === "" || String(item.sha256 ?? "").toLowerCase() === post.sha256)) ?? null;
       }
+      if (post.source === "peer") {
+        const item = profileFeedState().items.find((entry) => entry.path === post.path
+          && (post.peerId === "" || entry.peerId === "" || entry.peerId === post.peerId)
+          && (post.sha256 === "" || String(entry.sha256 ?? "").toLowerCase() === post.sha256)) ?? null;
+        return item && !item.peerId && post.peerId ? { ...item, peerId: post.peerId } : item;
+      }
       const data = discoveryDataFor(post.filter === "familiar");
       const items = Array.isArray(data?.items) ? data.items : [];
-      return items.find((item) => post.id.length > 0 && item.id === post.id || item.path === post.path && (post.sha256 === "" || String(item.sha256 ?? "").toLowerCase() === post.sha256)) ?? null;
+      return items.find((item) => (post.path ? item.path === post.path : post.id && item.id === post.id)
+        && (!post.peerId || item.peerId === post.peerId)
+        && (!post.sha256 || String(item.sha256 ?? "").toLowerCase() === post.sha256)) ?? null;
+    }
+    function clearPostDetail() {
+      disposePreviewMedia(postDetail);
+      postDetail.replaceChildren();
+      postDetail.hidden = true;
     }
     function showPostDetailState({ title, body, tone = "unavailable", action: action2 = null }) {
       postDetail.replaceChildren();
@@ -1947,11 +1999,18 @@ export function createRamingaApp(root, options = {}) {
     function renderPostDetailPage() {
       if (destroyed || currentPage !== "post" || postDetailRendering) return;
       if (!postDetail || !postDetailState) return;
+      const page = pageEls.post;
+      const savedScroll = Math.max(0, Number(page?.scrollTop) || 0);
+      const active = root.activeElement;
+      const activeInDetail = Boolean(active && (postDetail.contains(active) || postDetailState.contains(active) || active === postBack));
+      const detailFocusKey = activeInDetail ? active.dataset.focusKey || active.dataset.detailFocus || "" : "";
+      let pendingPreview = null;
       postDetailRendering = true;
       try {
         const post = view.post;
-        postDetail.replaceChildren();
-        postDetail.hidden = true;
+        postBack.textContent = post?.source === "peer" ? "← 返回他的动态"
+          : post?.source === "mine" ? "← 返回我的动态" : "← 返回动态";
+        clearPostDetail();
         postDetailState.hidden = true;
         if (!post || post.id.length === 0 && post.path.length === 0) {
           showPostDetailState({
@@ -1986,6 +2045,31 @@ export function createRamingaApp(root, options = {}) {
             });
             return;
           }
+        } else if (post.source === "peer") {
+          const peer = post.peerId || view.contactProfile.peerId;
+          if (!peer) {
+            showPostDetailState({
+              title: "这条动态缺少发布节点",
+              body: "返回联系人动态后可以重新打开。",
+              action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
+            });
+            return;
+          }
+          if (!peerProfileCapable && !peerDiscoveriesCapable) {
+            showPostDetailState({
+              title: "联系人动态读取暂不可用",
+              body: "当前宿主没有提供对方公开动态读取。",
+              action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
+            });
+            return;
+          }
+          preparePeerPostContext(peer);
+          if (profileState.data === null && peerProfileCapable && !profileState.retrying && !profileState.error) {
+            void loadPeerProfile(peer, false);
+          }
+          if (profileState.posts.data === null && peerDiscoveriesCapable && !profileState.posts.retrying && !profileState.posts.error) {
+            void loadPeerDiscoveries(peer, false);
+          }
         } else {
           if (!discoveriesCapable) {
             showPostDetailState({
@@ -2018,32 +2102,79 @@ export function createRamingaApp(root, options = {}) {
         }
         const item = postDetailItem();
         if (item === null) {
+          if (post.source === "peer") {
+            const peerError = profileState.posts.error || (profileState.data === null ? profileState.error : "");
+            const peerLoading = profileState.posts.retrying || profileState.retrying
+              || (profileState.posts.data === null && !peerError);
+            if (peerLoading) {
+              showPostDetailState({
+                title: "正在打开这条动态",
+                body: "正在读取对方公开动态并核对文件路径与版本。"
+              });
+              return;
+            }
+            if (peerError) {
+              showPostDetailState({
+                title: "这次没有读到这条动态",
+                body: peerError,
+                tone: "error",
+                action: { label: "重试读取", run: () => {
+                  const peer = post.peerId || view.contactProfile.peerId;
+                  if (peer) void loadPeerDiscoveries(peer, true);
+                } }
+              });
+              return;
+            }
+          }
           showPostDetailState({
             title: "这条动态已不在当前列表中",
-            body: post.source === "mine" ? "本机公开目录或当前发布清单中已经没有这条帖子。" : "可能是本机获取记录已变化，或这条动态已不在当前筛选的缓存里。",
+            body: post.source === "mine" ? "本机公开目录或当前发布清单中已经没有这条帖子。"
+              : post.source === "peer" ? "对方当前公开清单或本机历史副本中已经没有这个版本。"
+                : "可能是本机获取记录已变化，或这条动态已不在当前筛选的缓存里。",
             action: { label: "返回动态", run: () => closePostDetail({ restoreFocus: false }) }
           });
           return;
         }
-        const source = post.source === "mine" ? "mine" : "explore";
+        const source = post.source === "mine" ? "mine" : post.source === "peer" ? "peer" : "explore";
         const display = itemWithPostMeta(item);
-        const preview = source === "mine" ? minePreviews.get(previewKeyFor("mine", item)) ?? null : postContent.get(item.id) ?? null;
-        const reveal = source === "explore" ? revealResults.get(`explore:${item.id}`) ?? null : revealResults.get(revealResultKey("mine", item)) ?? null;
-        const favoriteOptions = favoriteCardOptions(display, `post-detail:${item.id || item.path}`);
+        const preview = source === "mine"
+          ? minePreviews.get(previewKeyFor("mine", item)) ?? null
+          : source === "peer"
+            ? profilePreviews.get(previewKeyFor("peer", item)) ?? null
+            : postContent.get(postContentKey(item)) ?? null;
+        const reveal = source === "explore"
+          ? revealResults.get(`explore:${item.id}`) ?? null
+          : revealResults.get(revealResultKey(source, item)) ?? null;
+        const profileEvidence = source === "peer" ? profileFeedState().discoveryKeys : null;
+        const localEvidence = source !== "peer"
+          || item.contentState === "available"
+          || profileEvidence.has(publicVersionKey(item));
+        const favoriteOptions = favoriteCardOptions(display, `post-detail:${item.id || item.path}`, localEvidence);
+        const fetchState = source === "peer" && needsExplicitPeerFetch(item) ? {
+          path: item.path,
+          sha256: item.sha256,
+          sizeBytes: item.sizeBytes,
+          busy: preview?.state === "loading",
+          error: preview?.state === "error" ? preview.error : ""
+        } : null;
         const article = renderPostDetail(display, {
           subject: source,
           preview,
           onOpenProfile: source === "explore",
-          edit: source === "mine" && publicDraftImportCapable ? (target) => {
+          edit: source === "mine" && publicDraftImportCapable && isPostPath(item.path) && display.kind === "markdown" ? (target) => {
             void editPostFromDetail(target, `mine-feed:${target.path}:${target.sha256}:edit`);
           } : null,
           showReveal: source === "explore" ? revealCapable : fileRevealCapable,
           onReveal: source === "explore" ? (target) => {
             void revealDiscoveryItem(target);
           } : (target) => {
-            void revealFileItem("mine", target);
+            void revealFileItem(source, target);
           },
           reveal,
+          fetch: fetchState,
+          onFetch: source === "peer" ? (target) => {
+            void ensureProfilePreview(target);
+          } : null,
           sourceOpen: view.pages.explore.sourceOpen,
           save: scheduleSave,
           renderMarkdown: renderMarkdownInto,
@@ -2059,29 +2190,60 @@ export function createRamingaApp(root, options = {}) {
         postDetailState.hidden = true;
         observePostImages(postDetail);
         if (preview === null && (item.contentState === "available" || item.contentState === "downloaded-unverified")) {
-          if (source === "mine") void ensureMinePreview(item);
-          else void ensurePostContent(item.id);
+          pendingPreview = () => {
+            if (destroyed || currentPage !== "post") return;
+            if (view.post.path !== post.path || view.post.sha256 !== post.sha256) return;
+            if (source === "mine") void ensureMinePreview(item);
+            else if (source === "peer") void ensureProfilePreview(item);
+            else void ensurePostContent(item);
+          };
         }
       } finally {
         postDetailRendering = false;
+        if (page && Math.abs(Number(page.scrollTop) - savedScroll) >= 1) page.scrollTop = savedScroll;
+        if (detailFocusKey) {
+          const target = [...postDetail.querySelectorAll("[data-focus-key], [data-detail-focus]")]
+            .find((node) => node.dataset.focusKey === detailFocusKey || node.dataset.detailFocus === detailFocusKey)
+            ?? postDetail.querySelector('[data-detail-focus="post-detail"]')
+            ?? postBack;
+          target?.focus?.({ preventScroll: true });
+          if (page && Math.abs(Number(page.scrollTop) - savedScroll) >= 1) page.scrollTop = savedScroll;
+        }
+        pendingPreview?.();
       }
     }
     function openPostDetail(item, source = "explore", trigger = null) {
-      if (!isPostPath(item?.path)) return;
-      view.pages.explore.query = exploreQuery.value;
+      const kind = source === "mine" ? "mine" : source === "peer" ? "peer" : "explore";
+      if (!feedEntryCanOpenDetail(item, kind)) return;
+      const peerId2 = kind === "peer" ? String(item.peerId || profileState.peerId || "") : String(item.peerId ?? "");
+      if (kind === "peer" && (!peerId2 || (item.peerId && item.peerId !== peerId2))) return;
+      if (kind !== "peer") view.pages.explore.query = exploreQuery.value;
+      const profileScroll = kind === "peer" ? Math.max(0, Number(profileView.scrollTop) || 0) : 0;
       view.post = {
         id: String(item.id ?? ""),
-        peerId: String(item.peerId ?? ""),
+        peerId: peerId2,
         path: String(item.path ?? ""),
         sha256: String(item.sha256 ?? "").toLowerCase(),
         sizeBytes: Number(item.sizeBytes) || 0,
-        source: source === "mine" ? "mine" : "explore",
-        filter: source === "mine" ? "mine" : view.pages.explore.filter,
-        query: exploreQuery.value,
+        source: kind,
+        filter: kind === "mine" ? "mine" : kind === "peer" ? "all" : view.pages.explore.filter,
+        query: kind === "peer" ? "" : exploreQuery.value,
         scroll: 0,
-        returnFocus: trigger?.dataset?.focusKey || (source === "mine" ? `mine-feed:${item.path}:${item.sha256}` : `post:${item.id}`)
+        profileScroll,
+        returnFocus: trigger?.dataset?.focusKey
+          || (kind === "mine" ? `mine-feed:${item.path}:${item.sha256}`
+            : kind === "peer" ? `profile-post:${item.path}:${item.sha256}:open`
+              : `post:${item.id}`)
       };
-      showPage("post");
+      if (kind === "peer") {
+        // The contact profile is an overlay over its source page. Hide it for
+        // the detail route without clearing its loaded state or return target.
+        profileView.hidden = true;
+        showPage("post");
+        updatePrimaryNav(root, pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts");
+      } else {
+        showPage("post");
+      }
       if (typeof win.requestAnimationFrame === "function") {
         win.requestAnimationFrame(() => {
           if (currentPage === "post" && !destroyed) postBack?.focus({ preventScroll: true });
@@ -2094,12 +2256,41 @@ export function createRamingaApp(root, options = {}) {
         ...emptyPostView(),
         ...view.post || {}
       };
+      view.post = emptyPostView();
+      if (saved.source === "peer") {
+        clearPostDetail();
+        const sourcePage = pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts";
+        for (const page of Object.values(pageEls)) page.hidden = true;
+        currentPage = sourcePage;
+        view.page = sourcePage;
+        updatePrimaryNav(root, sourcePage);
+        view.contactProfile.tab = "posts";
+        profileView.hidden = false;
+        renderProfile();
+        profileView.scrollTop = Math.max(0, Number(saved.profileScroll) || 0);
+        profileScrollMemory = { tab: "posts", scroll: profileView.scrollTop, at: Date.now() };
+        saveNow();
+        if (!restoreFocus) return;
+        const restore = () => {
+          if (destroyed || currentPage !== sourcePage || profileView.hidden) return;
+          const target = saved.returnFocus
+            ? [...profileView.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === saved.returnFocus)
+            : null;
+          (target ?? profileBack)?.focus?.({ preventScroll: true });
+          const expected = Math.max(0, Number(saved.profileScroll) || 0);
+          if (profileView.scrollTop === 0 || profileView.scrollTop === expected) {
+            profileView.scrollTop = expected;
+          }
+        };
+        if (typeof win.requestAnimationFrame === "function") win.requestAnimationFrame(restore);
+        else restore();
+        return;
+      }
       if (saved.source === "mine" || saved.filter === "mine") view.pages.explore.filter = "mine";
       else if (saved.filter === "familiar") view.pages.explore.filter = "familiar";
       else view.pages.explore.filter = "all";
       view.pages.explore.query = saved.query;
       exploreQuery.value = saved.query;
-      view.post = emptyPostView();
       const sourceScroll = Math.max(0, Number(view.pages.explore.scroll) || 0);
       showPage("explore", { save: false });
       updateExploreState();
@@ -2108,10 +2299,15 @@ export function createRamingaApp(root, options = {}) {
       if (typeof win.requestAnimationFrame !== "function") return;
       win.requestAnimationFrame(() => {
         if (destroyed || currentPage !== "explore") return;
-        const target = saved.returnFocus ? [...pageEls.explore.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === saved.returnFocus) : null;
+        const page = pageEls.explore;
+        const target = saved.returnFocus ? [...page.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === saved.returnFocus) : null;
         if (target) {
           target.focus({ preventScroll: true });
-          restorePageScrollAfterFocus("explore", sourceScroll);
+          // Do not clobber a reading position the user changed after Back but
+          // before this focus frame. Only finish the route's own restore.
+          if (page.scrollTop === 0 || Math.abs(Number(page.scrollTop) - sourceScroll) < 1) {
+            restorePageScrollAfterFocus("explore", sourceScroll);
+          }
         } else {
           (exploreQuery ?? composePost ?? exploreRefresh)?.focus?.({ preventScroll: true });
         }
@@ -2122,26 +2318,39 @@ export function createRamingaApp(root, options = {}) {
       closePostDetail({ restoreFocus: false });
       await openExistingPostForEdit(item, null, returnFocusKey);
     }
-    async function ensurePostContent(id, force = false) {
-      const existing = postContent.get(id);
+    async function ensurePostContent(item, force = false) {
+      const id = String(item?.id ?? "");
+      if (!id) return;
+      const key = postContentKey(item);
+      const expectedSha = String(item?.sha256 ?? "").toLowerCase();
+      const generation = postContentGeneration;
+      const existing = postContent.get(key);
       if (!force && existing && existing.state === "available") return;
       if (!discoveryContentCapable) {
-        postContent.set(id, { state: "error", error: "当前宿主没有提供受控内容读取。" });
+        postContent.set(key, { state: "error", error: "当前宿主没有提供受控内容读取。" });
         updateExploreState();
         return;
       }
-      postContent.set(id, { state: "loading" });
+      const request = (postContentRequests.get(key) ?? 0) + 1;
+      postContentRequests.set(key, request);
+      postContent.set(key, { state: "loading" });
       updateExploreState();
       try {
         const value = await options.onLoadDiscoveryContent(id);
-        if (destroyed) return;
+        if (destroyed || generation !== postContentGeneration || postContentRequests.get(key) !== request) return;
         if (value && typeof value === "object") {
-          postContent.set(id, { state: "available", data: value });
+          const returnedSha = String(value.sha256 ?? "").toLowerCase();
+          if (expectedSha && returnedSha && returnedSha !== expectedSha) {
+            throw new Error("公开内容返回的版本与当前卡片不一致，已停止显示。");
+          }
+          postContent.set(key, { state: "available", data: value });
         } else {
-          postContent.set(id, { state: "error", error: "公开内容读取没有返回结果" });
+          postContent.set(key, { state: "error", error: "公开内容读取没有返回结果" });
         }
       } catch (error) {
-        if (!destroyed) postContent.set(id, { state: "error", error: errorText(error) || "公开内容读取失败" });
+        if (!destroyed && generation === postContentGeneration && postContentRequests.get(key) === request) {
+          postContent.set(key, { state: "error", error: errorText(error) || "公开内容读取失败" });
+        }
       }
       if (!destroyed) updateExploreState();
     }
@@ -2173,12 +2382,16 @@ export function createRamingaApp(root, options = {}) {
       }
       if (!destroyed) updateExploreState();
     }
+    function renderDetailForFileSubject(subject) {
+      if (currentPage === "post" && view.post.source === subject) renderPostDetailPage();
+    }
     async function revealFileItem(subject, item) {
       if (!fileRevealCapable) return;
       const key2 = revealResultKey(subject, item);
       revealResults.set(key2, { state: "loading" });
       if (subject === "mine") renderMine();
       else if (subject === "peer") rerenderProfileKeepingPosition();
+      if (subject === "mine") renderDetailForFileSubject(subject);
       try {
         const result = await options.onRevealFile(
           subject === "peer" ? "peer" : "mine",
@@ -2198,6 +2411,7 @@ export function createRamingaApp(root, options = {}) {
       if (destroyed) return;
       if (subject === "mine") renderMine();
       else if (subject === "peer") rerenderProfileKeepingPosition();
+      if (subject === "mine") renderDetailForFileSubject(subject);
     }
     function refreshDiscoveries(force = false) {
       if (destroyed || !discoveriesCapable) {
@@ -2234,7 +2448,7 @@ export function createRamingaApp(root, options = {}) {
           familiar,
           relationComplete: familiar ? value.relationComplete === true : true
         });
-        postContent.clear();
+        resetPostContentCache();
         discoveryStale.delete(key2);
         if (discoveryKeyFor(view.pages.explore.filter === "familiar") === key2) updateExploreState();
       }).catch((error) => {
@@ -3036,6 +3250,107 @@ export function createRamingaApp(root, options = {}) {
         contactProjectionLoaded = true;
       }
     }
+    function contactConnectFeedback(state) {
+      if (!state) return "";
+      if (state.status === "pending") return "正在连接…";
+      if (state.status === "success") {
+        return [state.title, state.body, state.contactNote, state.statusNote].filter((part) => typeof part === "string" && part.length > 0).join(" ");
+      }
+      if (state.status === "error") {
+        if (state.tone === "invalid") return [state.title, state.body].filter(Boolean).join(" ");
+        const reason = state.detail ? readFailureSummary(state.detail, "请稍后重试。") : "";
+        return `${state.title}${reason ? `：${reason}` : "。"} 可以重试连接。`;
+      }
+      return "";
+    }
+    function renderContactConnect(row, peerId2, displayName) {
+      const actions = row.querySelector(":scope > .rm-contact-actions");
+      const actionRow = actions?.querySelector(":scope > .rm-contact-action-row");
+      if (!actionRow) return;
+      const state = contactConnectState.get(peerId2) ?? null;
+      const pending = state?.status === "pending";
+      let button = actionRow.querySelector(":scope > button[data-connect-peer]");
+      if (!button) {
+        button = element("button", "rm-contact-connect");
+        button.type = "button";
+        actionRow.prepend(button);
+      }
+      button.dataset.connectPeer = peerId2;
+      button.dataset.focusKey = `contact-connect:${peerId2}`;
+      button.dataset.state = state?.status || "idle";
+      button.textContent = pending ? "连接中…" : state?.status === "error" ? "重试连接" : "连接";
+      button.setAttribute("aria-label", `${pending ? "正在连接" : state?.status === "error" ? "重试连接" : "连接"} ${displayName}`);
+      button.setAttribute("aria-busy", pending ? "true" : "false");
+      button.setAttribute("aria-disabled", !connectCapable || pending ? "true" : "false");
+      button.title = connectCapable ? `连接到完整 Peer ID：${peerId2}` : "当前宿主没有提供连接能力。";
+      let note = row.querySelector(":scope > .rm-contact-connect-note");
+      if (!note && (state || !connectCapable)) {
+        note = element("p", "rm-contact-connect-note");
+        note.setAttribute("role", "status");
+        note.setAttribute("aria-live", "polite");
+        row.append(note);
+      }
+      if (!note) return;
+      const text4 = connectCapable ? contactConnectFeedback(state) : "";
+      note.textContent = text4;
+      note.hidden = text4.length === 0;
+      if (text4.length > 0) note.dataset.tone = state?.tone || (pending ? "info" : "");
+      else delete note.dataset.tone;
+      note.title = state?.detail || "";
+    }
+    function refreshContactConnectRow(peerId2) {
+      const id = String(peerId2 ?? "");
+      if (!id) return;
+      const row = [...contactList.querySelectorAll("[data-contact-row]")].find((item) => item.dataset.contactRow === id) ?? null;
+      const friend = contactFor(id);
+      if (!row || !friend) return;
+      renderContactConnect(row, id, contactRowName(friend));
+    }
+    function startContactConnect(peerId2) {
+      const id = String(peerId2 ?? "");
+      if (destroyed || !connectCapable || id.length === 0 || !contactFor(id)) return;
+      const current = contactConnectState.get(id);
+      if (current?.status === "pending") return;
+      const attempt = (Number(current?.attempt) || 0) + 1;
+      contactConnectState.set(id, { status: "pending", attempt });
+      refreshContactConnectRow(id);
+      let request;
+      try {
+        request = options.onConnect(id);
+      } catch (error) {
+        request = Promise.reject(error);
+      }
+      Promise.resolve(request).then((result) => {
+        if (destroyed || contactConnectState.get(id)?.attempt !== attempt) return;
+        if (result?.contacts) setContacts(result.contacts);
+        const outcome = connectOutcome(result);
+        contactConnectState.set(id, {
+          status: result?.ok === true ? "success" : "error",
+          attempt,
+          tone: outcome.tone,
+          title: outcome.title,
+          body: outcome.body,
+          contactNote: outcome.contactNote,
+          statusNote: outcome.statusNote,
+          detail: outcome.detail
+        });
+        refreshContactConnectRow(id);
+      }, (error) => {
+        if (destroyed || contactConnectState.get(id)?.attempt !== attempt) return;
+        const outcome = connectOutcome({ ok: false, error: errorText(error) });
+        contactConnectState.set(id, {
+          status: "error",
+          attempt,
+          tone: outcome.tone,
+          title: outcome.title,
+          body: outcome.body,
+          contactNote: "",
+          statusNote: "",
+          detail: outcome.detail
+        });
+        refreshContactConnectRow(id);
+      });
+    }
     function fillContactRow(row, friend) {
       const peerId2 = String(friend?.peerId ?? "");
       row.dataset.contactRow = peerId2;
@@ -3161,8 +3476,11 @@ export function createRamingaApp(root, options = {}) {
       menu.setAttribute("aria-haspopup", friendEditCapable ? "menu" : "false");
       menu.setAttribute("aria-controls", "contactQuickMenu");
       menu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === peerId2));
-      if (actionRow.firstElementChild !== chat2 || actionRow.lastElementChild !== menu) {
-        actionRow.replaceChildren(chat2, menu);
+      const connect2 = actionRow.querySelector(":scope > button[data-connect-peer]") ?? element("button", "rm-contact-connect");
+      connect2.type = "button";
+      connect2.dataset.connectPeer = peerId2;
+      if (actionRow.firstElementChild !== connect2 || actionRow.lastElementChild !== menu) {
+        actionRow.replaceChildren(connect2, chat2, menu);
       }
       const ident = row.querySelector(":scope > .rm-contact-ident") ?? element("div", "rm-contact-ident");
       let identLabel = ident.querySelector(":scope > .rm-contact-id-label");
@@ -3204,10 +3522,17 @@ export function createRamingaApp(root, options = {}) {
       }
       copyButton.dataset.copyPeer = peerId2;
       copyButton.setAttribute("aria-label", `复制 ${displayName} 的完整 Peer ID`);
-      if (row.firstElementChild !== avatar || row.childElementCount !== 4 || row.lastElementChild !== ident || actions.parentElement !== row || ident.parentElement !== row) {
-        row.replaceChildren(avatar, main, actions, ident);
+      let connectNote = row.querySelector(":scope > .rm-contact-connect-note");
+      if (!connectNote) {
+        connectNote = element("p", "rm-contact-connect-note");
+        connectNote.setAttribute("role", "status");
+        connectNote.setAttribute("aria-live", "polite");
+      }
+      if (row.firstElementChild !== avatar || row.childElementCount !== 5 || row.lastElementChild !== connectNote || actions.parentElement !== row || ident.parentElement !== row) {
+        row.replaceChildren(avatar, main, actions, ident, connectNote);
       }
       applyContactPeerIdVisibility(row, peerId2);
+      renderContactConnect(row, peerId2, displayName);
     }
     function contactRow(friend) {
       return element("div", "rm-contact");
@@ -3222,6 +3547,7 @@ export function createRamingaApp(root, options = {}) {
       const activePeer = activeRow?.dataset.contactRow ?? "";
       const activeWasAvatar = Boolean(root.activeElement?.dataset?.profilePeer);
       const activeWasChat = Boolean(root.activeElement?.dataset?.chatPeer);
+      const activeWasConnect = Boolean(root.activeElement?.dataset?.connectPeer);
       const activeWasToggle = Boolean(root.activeElement?.dataset?.togglePeer);
       const activeWasCopy = Boolean(root.activeElement?.dataset?.copyPeer);
       const rowsBefore = [...contactList.querySelectorAll("[data-contact-row]")];
@@ -3247,7 +3573,7 @@ export function createRamingaApp(root, options = {}) {
       const rowsAfter = [...contactList.querySelectorAll("[data-contact-row]")];
       const target = activePeer ? rowsAfter.find((row) => row.dataset.contactRow === activePeer) : null;
       if (target) {
-        const focusTarget = activeWasAvatar ? target.querySelector("button[data-profile-peer]") : activeWasChat ? target.querySelector("button[data-chat-peer]") : activeWasToggle ? target.querySelector("[data-toggle-peer]") : activeWasCopy ? target.querySelector("[data-copy-peer]") : target.querySelector("button[data-contact-peer]");
+        const focusTarget = activeWasAvatar ? target.querySelector("button[data-profile-peer]") : activeWasChat ? target.querySelector("button[data-chat-peer]") : activeWasConnect ? target.querySelector("button[data-connect-peer]") : activeWasToggle ? target.querySelector("[data-toggle-peer]") : activeWasCopy ? target.querySelector("[data-copy-peer]") : target.querySelector("button[data-contact-peer]");
         if (focusTarget && root.activeElement !== focusTarget) focusTarget.focus({ preventScroll: true });
       } else if (activeRow) {
         const fallback = rowsAfter[Math.min(Math.max(activeIndex, 0), rowsAfter.length - 1)] ?? null;
@@ -6123,8 +6449,17 @@ export function createRamingaApp(root, options = {}) {
       try {
         const value = await options.onLoadMineFileContent(item.path, item.sha256, item.sizeBytes);
         if (destroyed) return;
-        if (value && typeof value === "object") minePreviews.set(key2, { state: "available", data: value });
-        else minePreviews.set(key2, { state: "error", error: "本机公开文件读取没有返回结果" });
+        if (value && typeof value === "object") {
+          const expectedSha = String(item.sha256 ?? "").toLowerCase();
+          const returnedSha = String(value.sha256 ?? "").toLowerCase();
+          if (value.path && value.path !== item.path) throw new Error("本机公开文件返回的路径与请求不一致，已停止显示。");
+          if (expectedSha && returnedSha && returnedSha !== expectedSha) {
+            throw new Error("本机公开文件返回的版本与请求不一致，已停止显示。");
+          }
+          minePreviews.set(key2, { state: "available", data: value });
+        } else {
+          minePreviews.set(key2, { state: "error", error: "本机公开文件读取没有返回结果" });
+        }
       } catch (error) {
         if (!destroyed) minePreviews.set(key2, { state: "error", error: errorText(error) || "本机公开文件读取失败" });
       }
@@ -9534,6 +9869,7 @@ export function createRamingaApp(root, options = {}) {
       const id = typeof sessionId === "string" ? sessionId : "";
       if (id.length === 0) return;
       const focusKey = returnFocus || (source === "home" ? `journey-home:${id}` : source === "journeys" ? `journey-list:${id}` : source === "activity" ? "home-activity-card" : `journey-memory:${id}`);
+      journeyReport = { id, original: eventSeq > 0 || Boolean(operationId), preview: null };
       view.journey = {
         id,
         source,
@@ -9784,9 +10120,55 @@ export function createRamingaApp(root, options = {}) {
       journeyPageState.hidden = true;
       journeyPageStateAction.hidden = true;
     }
+    function renderJourneyReport(session, highlightSeq) {
+      if (journeyReport.id !== session.id) journeyReport = { id: session.id, original: highlightSeq > 0, preview: null };
+      const request = journeyReport;
+      const preview = request.preview;
+      const box = $("#journeyReport");
+      const frameHost = $("#journeyReportFrame");
+      const status = $("#journeyReportStatus");
+      const toggle = $("#journeyReportToggle");
+      if (!preview && typeof options.onLoadJourneyReport === "function") {
+        request.preview = { state: "loading" };
+        void Promise.resolve().then(() => options.onLoadJourneyReport(session.id)).catch((error) => ({
+          state: "error", error: errorText(error)
+        })).then((value) => {
+          if (destroyed || journeyReport !== request) return;
+          request.preview = value || { state: "missing" };
+          if (currentPage === "journey" && view.journey.id === session.id) renderJourneyDetailPage();
+        });
+      }
+      const available = preview?.state === "available" && Boolean(preview.html);
+      const showReport = available && !request.original;
+      box.hidden = !available && preview?.state !== "error" && request.preview?.state !== "loading";
+      toggle.hidden = !available;
+      toggle.textContent = showReport ? "原始日志" : "查看 HTML 报告";
+      toggle.onclick = available ? () => {
+        request.original = !request.original;
+        renderJourneyDetailPage();
+      } : null;
+      status.hidden = available || box.hidden;
+      status.textContent = preview?.state === "error" ? "HTML 报告读取失败，已显示原始日志。" : "正在读取 HTML 报告…";
+      status.title = preview?.error || "";
+      if (showReport) {
+        let frame = frameHost.querySelector("iframe");
+        if (!frame) {
+          frame = element("iframe", "rm-html-frame rm-journey-report-frame");
+          frame.setAttribute("sandbox", "");
+          frame.referrerPolicy = "no-referrer";
+          frameHost.append(frame);
+        }
+        frame.title = preview.title || "漫游 HTML 报告";
+        if (frame.srcdoc !== preview.html) frame.srcdoc = preview.html;
+      } else {
+        frameHost.replaceChildren();
+      }
+      return showReport;
+    }
     function renderJourneyDetailPage() {
       if (!journeyDetail) return;
       journeyBack.textContent = view.journey.source === "journeys" ? "← 返回全部记录" : "← 返回主页";
+      $("#journeyReport").hidden = true;
       if (!journeyCapable) {
         journeyDetail.replaceChildren();
         journeyDetail.hidden = true;
@@ -9834,6 +10216,11 @@ export function createRamingaApp(root, options = {}) {
         } else if (!activityState.detail.loading) {
           activityMissing = true;
         }
+      }
+      const showReport = renderJourneyReport(session, highlightSeq);
+      if (showReport) {
+        journeyDetail.hidden = true;
+        return;
       }
       const scope = journeyScopeInfo();
       const pageScroll = pageEls.journey.scrollTop;
@@ -10085,12 +10472,10 @@ export function createRamingaApp(root, options = {}) {
       profileState.peerId = canonical;
       profileState.data = null;
       profileState.error = "";
-      profileState.filesOpen = false;
-      profileState.filesReturnTab = "interactions";
-      profileState.filesReturnScroll = 0;
       profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
       profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
       profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.node = { data: null, error: "", requestSeq: 0, retrying: false };
       const humanDetails = profileView.querySelector(".rm-profile-human-details");
       if (humanDetails) humanDetails.open = false;
       if (profileOriginDetails) profileOriginDetails.open = false;
@@ -10121,12 +10506,10 @@ export function createRamingaApp(root, options = {}) {
       profileState.peerId = "";
       profileState.data = null;
       profileState.error = "";
-      profileState.filesOpen = false;
-      profileState.filesReturnTab = "interactions";
-      profileState.filesReturnScroll = 0;
       profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
       profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
       profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.node = { data: null, error: "", requestSeq: 0, retrying: false };
       resetProfileMemoryUi("");
       saveNow();
       profileReturn.open = false;
@@ -10178,12 +10561,10 @@ export function createRamingaApp(root, options = {}) {
         profileState.data = null;
         profileState.error = "";
         profileState.retrying = false;
-        profileState.filesOpen = false;
-        profileState.filesReturnTab = activeTab;
-        profileState.filesReturnScroll = 0;
         profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
         profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
         profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+        profileState.node = { data: null, error: "", requestSeq: 0, retrying: false };
         renderProfile();
         void loadPeerProfile(peerId2, true);
         if (activeTab === "address") void loadPeerFriends(peerId2, true);
@@ -10357,6 +10738,7 @@ export function createRamingaApp(root, options = {}) {
       } else {
         profileAddressNote.textContent = "打开这个区域时读取对方的公开通讯录。";
       }
+      profileAddressNote.dataset.tone = error ? (friends.length > 0 ? "warning" : "error") : peerFriendsCapable && !loading && data?.limited ? "warning" : "";
       profileAddressNote.hidden = profileAddressNote.textContent.length === 0;
       profileAddressDetails.hidden = !error;
       profileAddressRaw.textContent = error || "";
@@ -10428,8 +10810,17 @@ export function createRamingaApp(root, options = {}) {
       try {
         const value = await options.onLoadPeerFileContent(item.peerId, item.path, item.sha256, item.sizeBytes);
         if (destroyed) return;
-        if (value && typeof value === "object") profilePreviews.set(key2, { state: "available", data: value });
-        else profilePreviews.set(key2, { state: "error", error: "对方公开文件读取没有返回结果" });
+        if (value && typeof value === "object") {
+          const expectedSha = String(item.sha256 ?? "").toLowerCase();
+          const returnedSha = String(value.sha256 ?? "").toLowerCase();
+          if (value.path && value.path !== item.path) throw new Error("对方公开文件返回的路径与请求不一致，已停止显示。");
+          if (expectedSha && returnedSha && returnedSha !== expectedSha) {
+            throw new Error("对方公开文件返回的版本与请求不一致，已停止显示。");
+          }
+          profilePreviews.set(key2, { state: "available", data: value });
+        } else {
+          profilePreviews.set(key2, { state: "error", error: "对方公开文件读取没有返回结果" });
+        }
       } catch (error) {
         if (!destroyed) profilePreviews.set(key2, { state: "error", error: errorText(error) || "对方公开文件读取失败" });
       }
@@ -10444,35 +10835,6 @@ export function createRamingaApp(root, options = {}) {
         profileExpanded.add(key2);
       }
       rerenderProfileKeepingPosition();
-    }
-    function renderProfileEntryList(container, entries) {
-      disposePreviewMedia(container);
-      container.replaceChildren();
-      for (const item of entries) {
-        const key2 = previewKeyFor("peer", item);
-        const expanded = profileExpanded.has(key2);
-        const displayItem = itemWithPostMeta(item);
-        const card = renderFileCard(displayItem, {
-          subject: "peer",
-          expanded,
-          onToggle: (next) => toggleProfileFile(item, next),
-          preview: profilePreviews.get(key2) ?? null,
-          showReveal: fileRevealCapable,
-          reveal: revealResults.get(revealResultKey("peer", item)) ?? null,
-          onReveal: (target) => {
-            void revealFileItem("peer", target);
-          },
-          focusKey: `profile:${item.path}:${item.sha256}`,
-          onOpenProfile: null
-        });
-        if (expanded && !profilePreviews.has(key2)) {
-          void ensureProfilePreview(item);
-        }
-        container.append(card);
-        observePostMetaCard(card, item);
-      }
-      container.hidden = entries.length === 0;
-      observePostImages(container);
     }
     function appendAddressRows(container, addresses) {
       container.replaceChildren();
@@ -10508,42 +10870,61 @@ export function createRamingaApp(root, options = {}) {
         note.dataset.tone = "error";
       }
     }
+    function currentPeerNodeSnapshot() {
+      const independent = profileState.node.data;
+      if (independent && typeof independent === "object") return independent;
+      const fromProfile = profileState.data?.node;
+      return fromProfile && typeof fromProfile === "object" ? fromProfile : null;
+    }
+    async function loadPeerNodeInfo(peerId2, force = false) {
+      const target = typeof peerId2 === "string" ? peerId2 : "";
+      if (destroyed || target.length === 0) return;
+      if (!peerNodeInfoCapable) {
+        profileState.node.error = "当前宿主没有提供对方节点信息读取。";
+        renderPeerNodeInfo();
+        return;
+      }
+      if (!hostReady) {
+        profileState.node.error = "工作区正在连接本机节点，请稍后重试。";
+        renderPeerNodeInfo();
+        return;
+      }
+      if (profileState.node.retrying) return;
+      if (!force && profileState.node.data !== null) {
+        renderPeerNodeInfo();
+        return;
+      }
+      const state = profileState.node;
+      const request = ++state.requestSeq;
+      const isCurrent = () => !destroyed && profileState.node === state
+        && state.requestSeq === request && profileState.peerId === target;
+      state.retrying = true;
+      state.error = "";
+      renderPeerNodeInfo();
+      try {
+        const value = await options.onLoadPeerNodeInfo(target, force === true);
+        if (!isCurrent()) return;
+        if (value === null || typeof value !== "object") throw new Error("对方节点信息没有返回结果");
+        state.data = value;
+        state.error = String(value.error ?? "").trim();
+      } catch (error) {
+        if (!isCurrent()) return;
+        state.error = errorText(error) || "对方节点信息读取失败";
+      } finally {
+        if (isCurrent()) {
+          state.retrying = false;
+          renderPeerNodeInfo();
+        }
+      }
+    }
     async function refreshPeerNodeInfo() {
       const peerId2 = profileState.peerId;
       if (!peerId2) return;
-      if (!peerNodeInfoCapable) {
-        profileNodeNote.textContent = "当前宿主没有提供对方节点信息刷新。";
-        profileNodeNote.hidden = false;
-        profileNodeNote.dataset.tone = "error";
-        return;
-      }
-      if (!profileState.data) {
-        await loadPeerProfile(peerId2, true);
-        return;
-      }
-      profileNodeRefresh.disabled = true;
-      profileNodeNote.textContent = "正在重新读取本机 Status 快照…";
-      profileNodeNote.hidden = false;
-      profileNodeNote.dataset.tone = "";
-      try {
-        const value = await options.onLoadPeerNodeInfo(peerId2, true);
-        if (destroyed || profileState.peerId !== peerId2) return;
-        if (profileState.data) profileState.data = { ...profileState.data, node: value };
-        renderPeerNodeInfo(value);
-        rerenderProfileKeepingPosition();
-      } catch (error) {
-        if (destroyed) return;
-        profileNodeNote.textContent = `节点信息刷新失败：${errorText(error)}。保留已有快照并标明未验证。`;
-        profileNodeNote.hidden = false;
-        profileNodeNote.dataset.tone = "error";
-      } finally {
-        profileNodeRefresh.disabled = !peerNodeInfoCapable || !profileState.peerId;
-      }
+      await loadPeerNodeInfo(peerId2, true);
     }
-    function renderPeerNodeInfo(node) {
+    function renderPeerNodeInfo(node = currentPeerNodeSnapshot()) {
       const peerId2 = profileState.peerId;
-      profileNodePeerId.textContent = peerId2 || "—";
-      const value = node || {
+      const value = node && typeof node === "object" ? node : {
         connectionState: "unknown",
         directConnections: 0,
         relayConnections: 0,
@@ -10553,22 +10934,39 @@ export function createRamingaApp(root, options = {}) {
         freshness: "unavailable",
         error: ""
       };
-      profileNodeConnection.textContent = `${connectionStateLabel(value.connectionState, value.freshness)} · 直连 ${value.directConnections} · 中继 ${value.relayConnections}`;
-      profileNodeRoutes.textContent = value.freshness === "live" ? "状态来自最近一次本机 Status 读取" : "非实时快照；旧地址未验证可达";
-      profileNodeStatusAt.textContent = value.statusAt ? refreshedText(value.statusAt) : "尚未读取";
+      const currentAddresses = Array.isArray(value.currentAddresses) ? value.currentAddresses : [];
       const knownAddresses = Array.isArray(value.knownAddresses) ? value.knownAddresses : [];
-      appendAddressRows(profileCurrentAddrs, value.currentAddresses);
+      const error = String(profileState.node.error || value.error || "").trim();
+      const retrying = profileState.node.retrying;
+      const freshness = error && value.freshness === "live" ? "stale" : value.freshness;
+      profileNodeConnection.textContent = `${connectionStateLabel(value.connectionState, freshness)} · 直连 ${Number(value.directConnections) || 0} · 中继 ${Number(value.relayConnections) || 0}`;
+      profileNodeRoutes.textContent = freshness === "live" ? "状态来自最近一次本机 Status 读取" : "非实时快照；旧地址未验证可达";
+      profileNodeStatusAt.textContent = value.statusAt ? refreshedText(value.statusAt) : "尚未读取";
+      appendAddressRows(profileCurrentAddrs, freshness === "live" ? currentAddresses
+        : currentAddresses.map((address) => ({ ...address, reachability: "unverified" })));
       appendAddressRows(profileAnnouncedAddrs, knownAddresses);
-      profileCurrentNote.textContent = value.currentAddresses.length === 0 ? "当前没有到对方的活动连接地址。这不等于对方永久离线。" : value.freshness === "live" ? "这些地址来自本机当前连接，已在本机建立连接时验证。" : "这些是旧快照中的连接地址，当前未验证可达。";
+      profileCurrentNote.textContent = currentAddresses.length === 0 ? "当前没有到对方的活动连接地址。这不等于对方永久离线。" : freshness === "live" ? "这些地址来自本机当前连接，已在本机建立连接时验证。" : "这些是旧快照中的连接地址，当前未验证可达。";
       profileCurrentNote.hidden = false;
       profileAnnouncedNote.textContent = knownAddresses.length === 0 ? "本机没有缓存到对方已知地址。" : "这些是本机 Peerstore、缓存或联系人中的已知地址，不是对方公告证据，也不证明现在可达。";
       profileAnnouncedNote.hidden = false;
-      profileCopyCurrent.disabled = value.currentAddresses.length === 0;
+      profileCopyCurrent.disabled = currentAddresses.length === 0;
       profileCopyAnnounced.disabled = knownAddresses.length === 0;
-      profileCopyPeer.disabled = peerId2.length === 0;
-      profileNodeRefresh.disabled = !peerNodeInfoCapable || peerId2.length === 0;
-      if (value.error) {
-        profileNodeNote.textContent = `节点信息读取失败：${value.error}。下面保留已有地址并标明未验证。`;
+      profileNodeRefresh.disabled = !peerNodeInfoCapable || peerId2.length === 0 || retrying;
+      profileNodeRefresh.textContent = retrying ? "正在刷新…" : "刷新节点信息";
+      if (peerId2.length === 0) {
+        profileNodeNote.hidden = true;
+        profileNodeNote.textContent = "";
+        profileNodeNote.dataset.tone = "";
+      } else if (!peerNodeInfoCapable) {
+        profileNodeNote.textContent = "当前宿主没有提供对方节点信息读取；这里只显示公开档案附带的本机快照。";
+        profileNodeNote.hidden = false;
+        profileNodeNote.dataset.tone = "error";
+      } else if (retrying) {
+        profileNodeNote.textContent = "正在读取本机 Status 快照和地址缓存…";
+        profileNodeNote.hidden = false;
+        profileNodeNote.dataset.tone = "";
+      } else if (error) {
+        profileNodeNote.textContent = `节点信息读取失败：${error}。${currentAddresses.length + knownAddresses.length > 0 ? "下面保留已有地址并标明未验证。" : "可以稍后刷新重试。"}`;
         profileNodeNote.hidden = false;
         profileNodeNote.dataset.tone = "error";
       } else if (value.freshness !== "live") {
@@ -10640,7 +11038,7 @@ export function createRamingaApp(root, options = {}) {
         if (destroyed || request !== profileState.memory.requestSeq || profileState.peerId !== target) return;
         if (value === null || typeof value !== "object") throw new Error("私有社交记忆没有返回结果");
         profileState.memory.data = value;
-        profileState.memory.error = value.error || "";
+        profileState.memory.error = value.sources ? "" : value.error || "";
       } catch (error) {
         if (destroyed || request !== profileState.memory.requestSeq || profileState.peerId !== target) return;
         profileState.memory.error = errorText(error) || "私有社交记忆读取失败";
@@ -10651,40 +11049,93 @@ export function createRamingaApp(root, options = {}) {
         }
       }
     }
+    async function refreshProfilePosts(peerId2) {
+      if (!peerManifestCapable) return loadPeerProfile(peerId2, true);
+      const posts = profileState.posts;
+      posts.manifestRetrying = true;
+      posts.manifestError = "";
+      renderProfilePeerPosts(peerId2);
+      try {
+        posts.manifest = await options.onLoadPeerManifest(peerId2, true);
+      } catch (error) {
+        posts.manifestError = errorText(error) || "公开清单读取失败";
+      } finally {
+        posts.manifestRetrying = false;
+        if (!destroyed && profileState.posts === posts && profileState.peerId === peerId2) renderProfilePeerPosts(peerId2);
+      }
+    }
+    function preparePeerPostContext(peerId2) {
+      const peer = String(peerId2 ?? "");
+      if (!peer) return false;
+      if (profileState.peerId !== peer) {
+        resetProfileMemoryUi(peer);
+        profileState.peerId = peer;
+        profileState.data = null;
+        profileState.error = "";
+        profileState.retrying = false;
+        profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
+        profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
+        profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+        profileState.node = { data: null, error: "", requestSeq: 0, retrying: false };
+      }
+      if (view.contactProfile.peerId !== peer) {
+        const returnPage = pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts";
+        view.contactProfile = {
+          peerId: peer,
+          tab: "posts",
+          returnPage,
+          returnPeer: returnPage === "messages" ? view.contactProfile.returnPeer : "",
+          triggerId: view.contactProfile.triggerId || ""
+        };
+      } else {
+        view.contactProfile.tab = "posts";
+      }
+      if (!profileReturn.open) {
+        const returnPage = pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts";
+        profileReturn.page = returnPage;
+        profileReturn.peerId = view.contactProfile.returnPeer;
+        profileTriggerRef = view.contactProfile.triggerId || "";
+        profileReturn.scroll = pageTracksScroll(returnPage)
+          ? Math.max(0, Number(pageStateFor(returnPage)?.scroll) || 0)
+          : Math.max(0, Number(view.pages.messages?.scroll) || 0);
+        profileReturn.open = true;
+      }
+      return true;
+    }
     function renderProfilePeerPosts(peerId2) {
       if (!profilePostList) return;
-      const data = profileState.posts.data;
+      const { data, manifest, currentEntries, items, candidateParents, discoveryKeys } = profileFeedState();
       const error = profileState.posts.error || data?.error || "";
-      const localItems = Array.isArray(data?.items) ? data.items : [];
-      const manifest = profileState.data?.manifest ?? null;
-      const currentEntries = manifest && manifest.source !== "local-history" && Array.isArray(manifest.entries) ? manifest.entries.filter((entry) => isPostPath(entry.path)) : [];
-      const seen = /* @__PURE__ */ new Set();
-      const items = [];
-      const discoveryKeys = /* @__PURE__ */ new Set();
-      for (const item of [...localItems, ...currentEntries]) {
-        if (!item || !isPostPath(item.path)) continue;
-        const key2 = `${item.path}\0${String(item.sha256 || "").toLowerCase()}`;
-        if (seen.has(key2)) continue;
-        seen.add(key2);
-        items.push(item);
-        if (localItems.includes(item)) discoveryKeys.add(key2);
+      if (view.contactProfile.tab === "posts" && !profileView.hidden) {
+        // These metadata reads decide whether an independent file card should exist.
+        // Resolve them even when the parent post is below the viewport.
+        for (const item of items) {
+          if (candidateParents.has(item.path) && item.kind !== "markdown") ensurePostMeta(item);
+        }
       }
-      const loading = data === null && profileState.posts.retrying && error.length === 0 && items.length === 0;
-      profilePostsStatus.textContent = loading ? "读取中" : error ? items.length > 0 ? `${items.length} 条（局部）` : "读取失败" : items.length > 0 ? `${items.length} 条` : "无本地副本";
+      const loading = items.length === 0 && (profileState.retrying || profileState.posts.manifestRetrying || (data === null && profileState.posts.retrying)) && !error;
+      profilePostsStatus.textContent = loading ? "读取中" : items.length > 0 ? `${items.length} 条` : manifest?.source === "remote" ? "暂无公开动态" : "无本地副本";
       profilePostsStatus.dataset.tone = error ? "error" : items.length > 0 ? "ready" : "unavailable";
+      profilePostsRefresh.disabled = !(peerProfileCapable || peerManifestCapable) || !peerId2 || profileState.retrying || profileState.posts.manifestRetrying;
+      profilePostsRefresh.onclick = () => void refreshProfilePosts(peerId2);
       const notes = [];
       if (loading) notes.push("正在读取本机发现记录中属于该联系人的公开动态副本…");
       if (error) notes.push(`本地历史副本读取失败：${error}`);
-      if (currentEntries.length > 0) {
-        notes.push(`对方公开清单当前列出 ${currentEntries.length} 条动态；其中 ${localItems.length} 条已有本机获取记录。`);
-      }
-      if (!error && currentEntries.length === 0 && localItems.length === 0) {
-        notes.push("本机没有获取过这位联系人的公开动态；没有动态副本不等于对方当前没有动态。");
-      } else if (currentEntries.length === 0 && localItems.length > 0) {
-        notes.push("这些是本机发现记录中的已获取副本，不是对方当前完整清单；对方离线时仍可阅读。");
+      const manifestError = profileState.posts.manifestError || manifest?.error;
+      if (manifestError) notes.push(readFailureSummary(manifestError));
+      if (manifest?.truncated) notes.push("公开清单超过本次读取上限。");
+      if (currentEntries.length > 0) notes.push(`对方公开清单当前列出 ${currentEntries.length} 条动态。`);
+      if (!loading && manifest?.source === "remote" && items.length === 0) {
+        notes.push("对方当前的公开清单中没有动态。");
+      } else if (manifest?.source !== "remote" && items.length > 0) {
+        notes.push("本机历史副本 · 对方当前的公开动态暂不可用。");
       }
       if (data?.truncated) notes.push("本次有界读取没有覆盖全部本地副本。");
       if (favoritesState.actionError) notes.push(favoritesState.actionError);
+      const readFailed = Boolean(error || manifestError);
+      profilePostsNote.dataset.tone = favoritesState.actionError || (readFailed && items.length === 0)
+        ? "error"
+        : readFailed || manifest?.truncated || data?.truncated || (manifest?.source !== "remote" && items.length > 0) ? "warning" : "";
       profilePostsNote.textContent = notes.join(" ");
       profilePostsNote.hidden = notes.length === 0;
       const focusKey = focusRestoreKey(profilePostList);
@@ -10693,22 +11144,20 @@ export function createRamingaApp(root, options = {}) {
       profilePostList.replaceChildren();
       for (const item of items) {
         const key2 = previewKeyFor("peer", item);
-        const expanded = profileExpanded.has(key2);
-        const itemKey = `${item.path}\0${String(item.sha256 || "").toLowerCase()}`;
+        const itemKey = publicVersionKey(item);
         const localEvidence = discoveryKeys.has(itemKey) || item.contentState === "available";
         const card = renderFileCard(itemWithPostMeta(item), {
           subject: "peer",
-          expanded,
-          onToggle: (next) => toggleProfileFile(item, next),
+          expanded: false,
           preview: profilePreviews.get(key2) ?? null,
-          showReveal: false,
-          reveal: null,
-          onReveal: null,
+          showReveal: fileRevealCapable,
+          reveal: revealResults.get(revealResultKey("peer", item)) ?? null,
+          onReveal: (target) => void revealFileItem("peer", target),
           focusKey: `profile-post:${item.path}:${item.sha256}`,
           onOpenProfile: null,
+          onOpenPost: (target, trigger) => openPostDetail(target, "peer", trigger),
           ...favoriteCardOptions(item, `profile-post:${item.path}:${item.sha256}`, localEvidence)
         });
-        if (expanded && localEvidence && !profilePreviews.has(key2)) void ensureProfilePreview(item);
         profilePostList.append(card);
         observePostMetaCard(card, item);
       }
@@ -10719,6 +11168,7 @@ export function createRamingaApp(root, options = {}) {
         target?.focus({ preventScroll: true });
       }
       if (profileView.scrollTop !== pageScroll) profileView.scrollTop = pageScroll;
+      if (currentPage === "post" && view.post.source === "peer") renderPostDetailPage();
     }
     function memoryEvidenceButtons(item) {
       const line = element("div", "rm-memory-evidence");
@@ -10997,7 +11447,14 @@ export function createRamingaApp(root, options = {}) {
     function renderProfileMemory() {
       if (!profileTimeline) return;
       const data = profileState.memory.data;
-      const error = profileState.memory.error || data?.error || "";
+      const requestError = profileState.memory.error || "";
+      const memoryError = data?.sources?.memory?.error || (data?.state === "error" ? data?.error : "") || requestError;
+      const issues = [
+        ["消息", data?.sources?.messages?.error],
+        ["漫游记录", data?.sources?.journey?.error],
+        ["私有记忆", memoryError]
+      ].filter(([, message]) => Boolean(message));
+      const error = issues.length > 0;
       const capable = contactMemoryCapable;
       const retrying = profileState.memory.retrying;
       const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
@@ -11005,15 +11462,16 @@ export function createRamingaApp(root, options = {}) {
       const requestedFocus = profileReturn.focusKey || focusRestoreKey(profileTimeline);
       const focused = revealMemoryFocus(grouped, timeline, requestedFocus);
       const pageScroll = Math.max(0, Number(profileView.scrollTop) || 0);
-      profileTimelineStatus.textContent = !capable ? "不可用" : retrying && data === null ? "读取中" : error ? "读取失败" : `${timeline.length} 条`;
+      profileTimelineStatus.textContent = !capable ? "不可用" : retrying && data === null ? "读取中" : error ? (timeline.length ? `${timeline.length} 条 · 部分读取失败` : "读取未完成") : `${timeline.length} 条`;
       profileTimelineStatus.dataset.tone = error ? "error" : timeline.length > 0 ? "ready" : "unavailable";
       profileMemoryError.hidden = !error;
-      profileMemoryError.textContent = error ? `私有记忆或交互读取未完成：${readFailureSummary(error, "可以稍后重试。")}` : "";
+      profileMemoryError.dataset.tone = error ? "error" : "";
+      profileMemoryError.textContent = issues.map(([label, message]) => `${label}读取失败，${readFailureSummary(message, "可以稍后重试。")}`).join(" ");
       profileMemoryDetails.hidden = !error;
-      profileMemoryRaw.textContent = error || "";
+      profileMemoryRaw.textContent = issues.map(([label, message]) => `${label} · ${message}`).join("\n");
       profileMemoryRetry.hidden = !(capable && error);
       profileMemoryRetry.disabled = retrying;
-      profileMemoryRetry.textContent = retrying ? "正在重试…" : "重试读取私有记忆";
+      profileMemoryRetry.textContent = retrying ? "正在重试…" : memoryError ? "重试读取私有记忆" : "重试读取交互";
       profileMemoryRetry.onclick = capable ? () => {
         void loadContactMemory(profileState.peerId, true);
       } : null;
@@ -11068,6 +11526,7 @@ export function createRamingaApp(root, options = {}) {
       if (data?.timelineTruncated) notes.push("本次有界读取只保留最新记录；更早的消息可能已被裁剪，不能据此断言没有交流。");
       profileMemoryTimelineNote.hidden = notes.length === 0;
       profileMemoryTimelineNote.textContent = notes.join(" ");
+      profileMemoryTimelineNote.dataset.tone = data?.timelineTruncated ? "warning" : "";
       if (data?.timelineTruncated) {
         profileInteractionNote.textContent = "交互时间线只显示本次有界读取的最新记录；更早的消息可能已被裁剪，不能据此断言没有交流。";
       } else if (!capable) {
@@ -11075,7 +11534,7 @@ export function createRamingaApp(root, options = {}) {
       } else if (retrying && data === null) {
         profileInteractionNote.textContent = "正在合并持久消息、Journey 记录与私有印象…";
       } else if (error) {
-        profileInteractionNote.textContent = "这一部分读取失败；不会用推测补足交互记录。";
+        profileInteractionNote.textContent = timeline.length ? `已读取 ${timeline.length} 条记录。` : "交互记录尚未读完。";
       } else if (data !== null) {
         const privateCount = timeline.filter((item) => item.private && item.kind !== "message" && item.kind !== "journey").length;
         profileInteractionNote.textContent = privateCount > 0 ? `共 ${timeline.length} 条可见记录，其中 ${privateCount} 条来自仅本机保存的私有记忆；印象不是聊天记录。` : `共 ${timeline.length} 条可见记录；消息与 Journey 是真实来源，浏览档案不计入。`;
@@ -11084,7 +11543,8 @@ export function createRamingaApp(root, options = {}) {
       const impressions = Array.isArray(contact?.impressions) ? [...contact.impressions] : [];
       impressions.sort((left, right) => Date.parse(right.updatedAt || right.createdAt || "") - Date.parse(left.updatedAt || left.createdAt || ""));
       const latest = impressions[0] || null;
-      profileImpressionSummary.textContent = latest?.summary || "还没有记录印象。";
+      const impressionLabel = memoryError ? "私有记忆读取失败。" : latest?.summary || (data ? "还没有记录印象。" : capable ? "正在读取私有记忆…" : "私有记忆暂不可用。");
+      profileImpressionSummary.textContent = impressionLabel;
       profileImpressionMeta.hidden = !latest;
       if (latest) {
         const uncertainty = latest.uncertainty === "low" ? "低" : latest.uncertainty === "high" ? "高" : latest.uncertainty === "medium" ? "中" : "未标注";
@@ -11105,18 +11565,14 @@ export function createRamingaApp(root, options = {}) {
         profileImpressionToggle.setAttribute("aria-expanded", String(profileMemoryUi.impressionExpanded));
         profileImpressionToggle.focus?.({ preventScroll: true });
       } : null;
-      const canEditImpression = Boolean(saveContactImpressionCapable && data && (data.state === "available" || data.state === "missing") && data.schemaVersion !== 1);
+      const canEditImpression = Boolean(saveContactImpressionCapable && data && (data.state === "available" || data.state === "missing") && !memoryError);
       profileImpressionEdit.hidden = !canEditImpression;
       profileImpressionEdit.disabled = profileState.memory.retrying;
       profileImpressionEdit.onclick = canEditImpression ? () => openImpressionEditor(profileImpressionEdit) : null;
-      profileImpressionQuickText.textContent = latest?.summary || "还没有记录印象。";
+      profileImpressionQuickText.textContent = impressionLabel;
       profileImpressionQuickEdit.hidden = !canEditImpression;
       profileImpressionQuickEdit.disabled = profileState.memory.retrying;
       profileImpressionQuickEdit.onclick = canEditImpression ? () => openImpressionEditor(profileImpressionQuickEdit) : null;
-      if (data?.schemaVersion === 1) {
-        profileImpressionMeta.hidden = false;
-        profileImpressionMeta.textContent = "旧版本私有记忆只读兼容；不会自动改写。请由 Agent 初始化后再编辑。";
-      }
       if (requestedFocus) {
         const focusKey = focused?.key || requestedFocus;
         const target = [...profileTimeline.querySelectorAll("[data-focus-key]")].find((node) => node.dataset.focusKey === focusKey);
@@ -11131,7 +11587,7 @@ export function createRamingaApp(root, options = {}) {
       if (!saveContactImpressionCapable) return;
       const data = profileState.memory.data;
       const peerId2 = profileState.peerId;
-      if (!data || data.state === "error" || data.schemaVersion === 1) return;
+      if (!data || data.state === "error") return;
       const contact = data.contact;
       const impressions = Array.isArray(contact?.impressions) ? [...contact.impressions] : [];
       impressions.sort((left, right) => Date.parse(right.updatedAt || right.createdAt || "") - Date.parse(left.updatedAt || left.createdAt || ""));
@@ -11195,27 +11651,6 @@ export function createRamingaApp(root, options = {}) {
       impressionDialogNote.dataset.tone = "error";
       impressionDialogNote.textContent = result?.conflict ? `文件已在别处修改，未覆盖：${result.error || "请重新读取后再保存"}` : result?.error || "私有印象保存失败。";
     }
-    function renderProfilePublicFiles(peerId2, data) {
-      const manifest = data?.manifest ?? null;
-      const entries = Array.isArray(manifest?.entries) ? manifest.entries : [];
-      const files = entries.filter((entry) => !isPostPath(entry.path) && !isPostImagePath(entry.path));
-      const manifestError = manifest?.error || (data ? "" : profileState.error);
-      const localHistory = manifest?.source === "local-history";
-      const loading = data === null && profileState.retrying && !manifestError;
-      profileFilesStatus.textContent = loading ? "读取中" : localHistory ? `本地历史 ${files.length} 个文件` : manifestError ? "读取失败" : files.length > 0 ? `${files.length} 个文件` : "无文件";
-      const fileNotes = [];
-      if (manifest?.source === "local-history") {
-        fileNotes.push("对方当前不可达；这里只列出本机已核对的历史下载副本。");
-      } else if (manifestError) {
-        fileNotes.push(`公开文件没有完整读取：${manifestError}`);
-      } else if (manifest && files.length === 0) {
-        fileNotes.push("对方当前公开清单中没有动态以外的文件。");
-      }
-      profileFilesNote.textContent = fileNotes.join(" ");
-      profileFilesNote.hidden = fileNotes.length === 0;
-      renderProfileEntryList(profileFileList, files);
-      renderProfilePeerPosts(peerId2);
-    }
     function renderProfileTabs() {
       const knownContact = profileIsContact();
       const contactsKnown = profileContactsKnown();
@@ -11223,12 +11658,11 @@ export function createRamingaApp(root, options = {}) {
       const relationshipSurface = !contactsKnown || knownContact;
       if (!relationshipSurface) active = "posts";
       if (contactsKnown) view.contactProfile.tab = active;
-      const filesOpen = profileState.filesOpen === true;
-      if (profileTabsNav) profileTabsNav.hidden = filesOpen;
+      if (profileTabsNav) profileTabsNav.hidden = false;
       for (const button of profileTabs) {
         const name = button.dataset.profileTab;
-        button.hidden = !filesOpen && !relationshipSurface && name !== "posts";
-        const selected = !filesOpen && name === active;
+        button.hidden = !relationshipSurface && name !== "posts";
+        const selected = name === active;
         if (selected) button.setAttribute("aria-current", "page");
         else button.removeAttribute("aria-current");
       }
@@ -11237,13 +11671,9 @@ export function createRamingaApp(root, options = {}) {
         posts: $("#contactProfilePosts"),
         address: $("#contactProfileAddress")
       })) {
-        if (panel) panel.hidden = filesOpen || name !== active;
+        if (panel) panel.hidden = name !== active;
       }
-      if (contactProfileFiles) contactProfileFiles.hidden = !filesOpen;
-      if (profileFilesOpen) {
-        profileFilesOpen.hidden = filesOpen;
-        profileFilesOpen.setAttribute("aria-expanded", filesOpen ? "true" : "false");
-      }
+
     }
     const PROFILE_INTEREST_ICONS = [
       "M12 3.2 13.8 8.7 19.3 10.5 13.8 12.3 12 17.8 10.2 12.3 4.7 10.5 10.2 8.7Z",
@@ -11542,41 +11972,14 @@ ${value}` : value);
         openAddDialog(profileAddContact);
         addContactInput.value = peerId2;
       } : null;
-      if (profileFilesOpen) {
-        profileFilesOpen.onclick = data === null ? null : () => {
-          profileState.filesReturnTab = view.contactProfile.tab === "posts" || view.contactProfile.tab === "address" ? view.contactProfile.tab : "interactions";
-          profileState.filesReturnScroll = profileView.scrollTop;
-          profileState.filesOpen = true;
-          profileView.scrollTop = 0;
-          renderProfileTabs();
-          profileFilesClose?.focus?.({ preventScroll: true });
-        };
-      }
-      if (profileFilesClose) {
-        profileFilesClose.onclick = () => {
-          const scroll2 = Math.max(0, Number(profileState.filesReturnScroll) || 0);
-          profileState.filesOpen = false;
-          view.contactProfile.tab = profileState.filesReturnTab || "interactions";
-          renderProfileTabs();
-          profileView.scrollTop = scroll2;
-          profileFilesOpen?.focus?.({ preventScroll: true });
-        };
-      }
-      if (profileFilesRefresh) {
-        profileFilesRefresh.disabled = data === null || profileState.retrying;
-        profileFilesRefresh.onclick = data === null || profileState.retrying ? null : () => {
-          void loadPeerProfile(peerId2, true);
-        };
-      }
       if (profileAddressRetry) {
         profileAddressRetry.onclick = peerId2.length === 0 ? null : () => {
           void loadPeerFriends(peerId2, true);
         };
       }
-      renderProfilePublicFiles(peerId2, data);
+      renderProfilePeerPosts(peerId2);
       renderProfileFriends();
-      if (profileFilesOpen) profileFilesOpen.hidden = data === null || profileState.filesOpen;
-      renderPeerNodeInfo(data?.node ?? null);
+      renderPeerNodeInfo();
       if (data === null) {
         profileHumanStrip.hidden = true;
         profileBodyNote.textContent = profileState.error ? readFailureSummary(profileState.error, "没有读取到对方公开资料。") : fromSnapshot ? "正在重新读取对方公开资料；下面保留上次读取的公开卡片。" : "正在读取对方公开资料…";
@@ -11656,10 +12059,10 @@ ${value}` : value);
         profileBodyNote.hidden = false;
       }
       const activeTab = view.contactProfile.tab === "posts" || view.contactProfile.tab === "address" ? view.contactProfile.tab : "interactions";
-      if (!profileState.filesOpen && activeTab === "interactions" && profileIsContact(peerId2) && profileState.memory.data === null && !profileState.memory.retrying && peerId2) {
+      if (activeTab === "interactions" && profileIsContact(peerId2) && profileState.memory.data === null && !profileState.memory.retrying && peerId2) {
         void loadContactMemory(peerId2, false);
       }
-      if (!profileState.filesOpen && activeTab === "posts" && profileState.posts.data === null && !profileState.posts.retrying && peerId2) {
+      if (activeTab === "posts" && profileState.posts.data === null && !profileState.posts.retrying && peerId2) {
         void loadPeerDiscoveries(peerId2, false);
       }
     }
@@ -11702,6 +12105,12 @@ ${value}` : value);
       if (page === "post") {
         if (view.post.source === "mine") {
           if (mineCapable && mineState.data === null) void loadMine(false);
+        } else if (view.post.source === "peer") {
+          const peer = view.post.peerId || view.contactProfile.peerId;
+          if (peer && preparePeerPostContext(peer)) {
+            if (peerProfileCapable && profileState.data === null) void loadPeerProfile(peer, false);
+            if (peerDiscoveriesCapable && profileState.posts.data === null) void loadPeerDiscoveries(peer, false);
+          }
         } else if (discoveriesCapable) {
           ensureDiscoveriesFresh(false);
         }
@@ -11948,13 +12357,16 @@ ${value}` : value);
         if ((next === "interactions" || next === "address") && profileContactsKnown() && !profileIsContact()) return;
         view.contactProfile.tab = next;
         profileScrollMemory = { tab: next, scroll: 0, at: 0 };
-        profileState.filesOpen = false;
         renderProfileTabs();
         if (next === "address" && profileState.friends.data === null && !profileState.friends.retrying) {
           void loadPeerFriends(profileState.peerId, false);
         }
-        if (next === "posts" && profileState.posts.data === null && !profileState.posts.retrying) {
-          void loadPeerDiscoveries(profileState.peerId, false);
+        if (next === "posts") {
+          if (profileState.posts.data === null && !profileState.posts.retrying) {
+            void loadPeerDiscoveries(profileState.peerId, false);
+          } else {
+            renderProfilePeerPosts(profileState.peerId);
+          }
         }
         if (next === "interactions" && profileState.memory.data === null && !profileState.memory.retrying) {
           void loadContactMemory(profileState.peerId, false);
@@ -12335,6 +12747,12 @@ ${value}` : value);
       openShareDialog(event.currentTarget);
     }, { signal: controller.signal });
     contactList.addEventListener("click", (event) => {
+      const connectTrigger = event.target.closest?.("button[data-connect-peer]");
+      if (connectTrigger) {
+        if (connectTrigger.getAttribute("aria-disabled") === "true") return;
+        startContactConnect(connectTrigger.dataset.connectPeer);
+        return;
+      }
       const toggle = event.target.closest?.("button[data-toggle-peer]");
       if (toggle) {
         const row2 = toggle.closest?.("[data-contact-row]");
@@ -12390,11 +12808,12 @@ ${value}` : value);
       openConversation(row.dataset.conversationPeer, { source: "messages" });
     }, { signal: controller.signal });
     discoveryList.addEventListener("click", (event) => {
-      if (event.target.closest?.("[data-expand-post]")) return;
       const retry = event.target.closest?.("[data-retry-post]");
-      if (retry) {
-        void ensurePostContent(retry.dataset.retryPost, true);
-      }
+      if (!retry) return;
+      const id = retry.dataset.retryPost;
+      const items = discoveryDataFor(view.pages.explore.filter === "familiar")?.items ?? [];
+      const item = items.find((entry) => entry.id === id);
+      if (item) void ensurePostContent(item, true);
     }, { signal: controller.signal });
     ramingaSessionList.addEventListener("click", (event) => {
       const tile = event.target.closest?.("[data-journey-open]");
@@ -12530,8 +12949,8 @@ ${value}` : value);
     postDetail?.addEventListener("click", (event) => {
       const retry = event.target.closest?.("[data-detail-retry]");
       if (retry) {
-        const id = retry.dataset.detailRetry || view.post.id;
-        if (id) void ensurePostContent(id, true);
+        const item = postDetailItem();
+        if (item && view.post.source === "explore") void ensurePostContent(item, true);
       }
     }, { signal: controller.signal });
     profileView.addEventListener("scroll", () => {
@@ -12653,22 +13072,31 @@ ${value}` : value);
       const addresses = bootstrapEntries().flatMap((entry) => entry.addrs);
       void copyTextWithNotice(addresses.join("\n"), statusBootstrapFeedback, "已复制全部引导节点地址。");
     }, { signal: controller.signal });
-    profileCopyPeer.addEventListener("click", () => {
-      void copyTextWithNotice(profileState.peerId, profileNodeNote, "完整 Peer ID 已复制。");
-    }, { signal: controller.signal });
     profileCopyPeerInline.addEventListener("click", () => {
       void copyTextWithNotice(profileState.peerId, profileOriginNote, "完整 Peer ID 已复制。");
     }, { signal: controller.signal });
     profileCopyCurrent.addEventListener("click", () => {
-      const text4 = addressesText(profileState.data?.node?.currentAddresses ?? []);
+      const text4 = addressesText(currentPeerNodeSnapshot()?.currentAddresses ?? []);
       void copyTextWithNotice(text4, profileNodeNote, "当前连接地址已复制。");
     }, { signal: controller.signal });
     profileCopyAnnounced.addEventListener("click", () => {
-      const text4 = addressesText(profileState.data?.node?.knownAddresses ?? []);
+      const text4 = addressesText(currentPeerNodeSnapshot()?.knownAddresses ?? []);
       void copyTextWithNotice(text4, profileNodeNote, "本机已知地址已复制；它们不是对方公告证据，也不证明当前可达。");
     }, { signal: controller.signal });
     profileNodeRefresh.addEventListener("click", () => {
       void refreshPeerNodeInfo();
+    }, { signal: controller.signal });
+    profileOriginDetails.addEventListener("toggle", () => {
+      if (destroyed || !profileOriginDetails.open) return;
+      const peerId2 = profileState.peerId;
+      if (!peerId2) return;
+      if (!peerNodeInfoCapable) {
+        renderPeerNodeInfo();
+        return;
+      }
+      if (profileState.node.data === null && !profileState.node.retrying) {
+        void loadPeerNodeInfo(peerId2, false);
+      }
     }, { signal: controller.signal });
     nodeTrigger.addEventListener("click", () => openDialog(statusDialog, nodeTrigger), { signal: controller.signal });
     $("#ramingaStateAction").addEventListener("click", () => openDialog(statusDialog, $("#ramingaStateAction")), { signal: controller.signal });
@@ -12755,7 +13183,21 @@ ${value}` : value);
     renderMineIdentity();
     renderMine();
     renderJourney();
-    if (view.contactProfile.peerId) {
+    const postFromProfile = currentPage === "post" && view.post.source === "peer" && view.post.peerId.length > 0;
+    if (postFromProfile) {
+      // Restore the detail route without reopening the profile overlay. The
+      // profile state and exact posts-tab return target stay ready for Back.
+      profileView.hidden = true;
+      updatePrimaryNav(root, pageElsHas(view.contactProfile.returnPage) ? view.contactProfile.returnPage : "contacts");
+      if (preparePeerPostContext(view.post.peerId)) {
+        renderProfile();
+        if (peerProfileCapable) void loadPeerProfile(view.post.peerId, true);
+        if (peerDiscoveriesCapable && profileState.posts.data === null) {
+          void loadPeerDiscoveries(view.post.peerId, true);
+        }
+        renderPostDetailPage();
+      }
+    } else if (view.contactProfile.peerId) {
       const chatFromProfile = currentPage === "messages" && contactsState.selectedPeerId === view.contactProfile.peerId && view.pages.messages.returnPage === "profile";
       profileReturn.page = view.contactProfile.returnPage;
       profileReturn.peerId = view.contactProfile.returnPeer;
@@ -12766,12 +13208,10 @@ ${value}` : value);
       resetProfileMemoryUi(view.contactProfile.peerId);
       profileState.data = null;
       profileState.error = "";
-      profileState.filesOpen = false;
-      profileState.filesReturnTab = "interactions";
-      profileState.filesReturnScroll = 0;
       profileState.friends = { data: null, error: "", requestSeq: 0, retrying: false };
       profileState.posts = { data: null, error: "", requestSeq: 0, retrying: false };
       profileState.memory = { data: null, error: "", requestSeq: 0, retrying: false };
+      profileState.node = { data: null, error: "", requestSeq: 0, retrying: false };
       if (!chatFromProfile) {
         pageEls[currentPage].hidden = true;
         profileView.hidden = false;
@@ -12848,7 +13288,7 @@ ${value}` : value);
         disposePreviewMedia(profileView);
         disposePreviewMedia(minePostList);
         disposePreviewMedia(mineFeedList);
-        postContent.clear();
+        resetPostContentCache();
         postMetaCache.clear();
         postMetaInflight.clear();
         postMetaQueue.length = 0;

@@ -482,3 +482,145 @@ test('a corrupt or missing projection falls back without hiding real contacts', 
     ui.close();
   }
 });
+
+test('each contact row has an explicit 连接 action that targets its full Peer ID and reports pending/success', async () => {
+  const calls = [];
+  let resolveConnect;
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([
+      friend(PEER_A, { name: 'lin-an', connection: 'disconnected' }),
+      friend(PEER_B, { name: 'xiao-zhou', connection: 'disconnected' }),
+    ]),
+    onLoadConversations: async () => conversations([]),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onLoadPeerProfile: async (peerId) => profile(peerId, { displayName: '林岸' }),
+    onSetFriendName: async (peerId, name) => ({ peerId, name }),
+    onConnect: (input) => {
+      calls.push(input);
+      return new Promise((resolve) => { resolveConnect = resolve; });
+    },
+  });
+  try {
+    ui.app.setContacts(contacts([
+      friend(PEER_A, { name: 'lin-an', connection: 'disconnected' }),
+      friend(PEER_B, { name: 'xiao-zhou', connection: 'disconnected' }),
+    ]));
+    ui.app.setConversations(conversations([]));
+    await settle(20);
+    const row = ui.shadow.querySelector(`[data-contact-row="${PEER_A}"]`);
+    const other = ui.shadow.querySelector(`[data-contact-row="${PEER_B}"]`);
+    const connect = row.querySelector('button[data-connect-peer]');
+    assert.ok(connect, 'every row exposes the connect control');
+    assert.equal(connect.textContent, '连接');
+    assert.equal(connect.dataset.connectPeer, PEER_A);
+    assert.equal(row.querySelector('.rm-contact-state').textContent, '未连接');
+    assert.deepEqual(calls, [], 'rendering or navigating a list never dials');
+    assert.ok(row.querySelector('button[data-chat-peer]'));
+    assert.ok(row.querySelector('button[data-quick-peer]'));
+    assert.ok(row.querySelector('button[data-contact-peer]'));
+
+    connect.click();
+    assert.deepEqual(calls, [PEER_A], 'the row sends exactly its own full Peer ID');
+    assert.equal(connect.textContent, '连接中…');
+    assert.equal(connect.getAttribute('aria-disabled'), 'true');
+    const note = row.querySelector('.rm-contact-connect-note');
+    assert.equal(note.hidden, false);
+    assert.match(note.textContent, /正在连接/);
+    connect.click();
+    connect.click();
+    assert.deepEqual(calls, [PEER_A], 'duplicate clicks while pending never start another attempt');
+    assert.equal(other.querySelector('button[data-connect-peer]').textContent, '连接', 'other rows keep their own state');
+
+    const query = ui.shadow.querySelector('#contactQuery');
+    query.value = 'lin';
+    query.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    await settle();
+    const list = ui.shadow.querySelector('#contactList');
+    list.scrollTop = 28;
+    const activeConnect = ui.shadow.querySelector(`[data-contact-row="${PEER_A}"] button[data-connect-peer]`);
+    activeConnect.focus();
+    assert.equal(ui.shadow.activeElement, activeConnect);
+
+    resolveConnect({
+      ok: true, reused: true, route: 'direct', transport: 'tcp',
+      contact: { ok: true, found: true },
+      contacts: contacts([
+        friend(PEER_A, { name: 'lin-an', connection: 'connected' }),
+        friend(PEER_B, { name: 'xiao-zhou', connection: 'disconnected' }),
+      ]),
+    });
+    await settle(20);
+    const refreshed = ui.shadow.querySelector(`[data-contact-row="${PEER_A}"]`);
+    assert.equal(refreshed.querySelector('button[data-connect-peer]').textContent, '连接');
+    assert.equal(refreshed.querySelector('button[data-connect-peer]').getAttribute('aria-disabled'), 'false');
+    const success = refreshed.querySelector('.rm-contact-connect-note');
+    assert.match(success.textContent, /连接成功（已复用）/);
+    assert.match(success.textContent, /已复用现有直连连接/);
+    assert.match(success.textContent, /联系人已更新/);
+    assert.equal(success.dataset.tone, 'success');
+    assert.equal(refreshed.querySelector('button[data-connect-peer]').dataset.state, 'success');
+    assert.equal(refreshed.querySelector('.rm-contact-state').textContent, '已连接', 'the returned contact snapshot refreshes the row status');
+    assert.equal(query.value, 'lin', 'the search text survives the contact snapshot refresh');
+    assert.equal(ui.shadow.querySelector('#contactList').scrollTop, 28, 'the list scroll survives the contact snapshot refresh');
+    assert.equal(ui.shadow.activeElement, refreshed.querySelector('button[data-connect-peer]'), 'the clicked connect action keeps focus');
+
+    refreshed.querySelector('button[data-quick-peer]').click();
+    assert.equal(ui.shadow.querySelector('#contactQuickMenu').hidden, false, 'the quick menu still opens next to the connect action');
+    assert.equal(ui.shadow.activeElement?.dataset.quickAction, 'edit');
+    refreshed.querySelector('button[data-chat-peer]').click();
+    await settle(20);
+    assert.equal(ui.shadow.querySelector('#page-messages').hidden, false, 'the chat action still opens the conversation');
+  } finally {
+    ui.close();
+  }
+});
+
+test('a failed row connection is actionable, retries in place and ignores a late result after destroy', async () => {
+  const calls = [];
+  const pending = [];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([friend(PEER_A, { name: 'lin-an' })]),
+    onLoadConversations: async () => conversations([]),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onConnect: (input) => {
+      calls.push(input);
+      return new Promise((resolve, reject) => { pending.push({ resolve, reject }); });
+    },
+  });
+  try {
+    ui.app.setContacts(contacts([friend(PEER_A, { name: 'lin-an' })]));
+    ui.app.setConversations(conversations([]));
+    await settle(20);
+    const row = ui.shadow.querySelector(`[data-contact-row="${PEER_A}"]`);
+    const connect = row.querySelector('button[data-connect-peer]');
+    connect.click();
+    assert.deepEqual(calls, [PEER_A]);
+    pending[0].resolve({ ok: false, error: 'all dials failed: no route to host' });
+    await settle(20);
+    const failed = ui.shadow.querySelector(`[data-contact-row="${PEER_A}"]`);
+    const retry = failed.querySelector('button[data-connect-peer]');
+    assert.equal(retry.textContent, '重试连接');
+    assert.equal(retry.getAttribute('aria-disabled'), 'false');
+    const errorNote = failed.querySelector('.rm-contact-connect-note');
+    assert.equal(errorNote.dataset.tone, 'error');
+    assert.match(errorNote.textContent, /连接没有完成/);
+    assert.match(errorNote.textContent, /可以重试连接/);
+
+    retry.click();
+    assert.deepEqual(calls, [PEER_A, PEER_A], 'the retry targets the same full Peer ID');
+    assert.equal(retry.textContent, '连接中…');
+    failed.querySelector('button[data-connect-peer]').click();
+    assert.deepEqual(calls, [PEER_A, PEER_A], 'retry is also duplicate-click guarded');
+
+    ui.close();
+    pending[1].resolve({
+      ok: true, reused: true, route: 'direct',
+      contact: { ok: true, found: true },
+      contacts: contacts([friend(PEER_A, { name: 'lin-an' })]),
+    });
+    await settle(20);
+    assert.match(failed.querySelector('.rm-contact-connect-note').textContent, /正在连接/, 'a late result after destroy is ignored');
+  } finally {
+    ui.close();
+  }
+});

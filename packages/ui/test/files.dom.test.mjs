@@ -113,7 +113,7 @@ test('discovery cards use the publisher public name, keep author claims in detai
   }
 });
 
-test('sandboxed HTML and media previews are created only on demand and cleaned on collapse', async () => {
+test('sandboxed HTML and media previews live only in the independent detail', async () => {
   const htmlItem = baseItem({
     id: 'html-1', path: 'site/index.html', name: 'index.html', kind: 'html', mime: 'text/html', title: 'Sandbox',
   });
@@ -138,40 +138,46 @@ test('sandboxed HTML and media previews are created only on demand and cleaned o
   });
   try {
     await settle();
-    assert.equal(calls, 0, 'previews are not fetched until the reader expands');
-    ui.shadow.querySelectorAll('#discoveryList .rm-post')[0].querySelector('[data-expand-post]').click();
+    assert.equal(calls, 0, 'previews are not fetched until the reader opens the detail');
+    const cards = ui.shadow.querySelectorAll('#discoveryList .rm-post');
+    assert.equal(cards[0].querySelector('[data-expand-post]'), null, 'the Feed card has no in-place expansion');
+    assert.match(cards[0].querySelector('.rm-post-cta').textContent, /查看动态/);
+    cards[0].querySelector('.rm-post-open').click();
     await settle();
-    const frame = ui.shadow.querySelector('.rm-html-frame');
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, false);
+    assert.equal(ui.shadow.querySelector('#discoveryList .rm-html-frame'), null, 'the Feed list never holds the document');
+    const frame = ui.shadow.querySelector('#postDetail .rm-html-frame');
     assert.ok(frame);
     assert.equal(frame.getAttribute('sandbox'), '');
     assert.doesNotMatch(frame.getAttribute('sandbox'), /allow-/);
     assert.equal(frame.getAttribute('referrerpolicy'), 'no-referrer');
     assert.match(frame.getAttribute('srcdoc'), /script-src 'none'/);
-    ui.shadow.querySelectorAll('#discoveryList .rm-post')[0].querySelector('[data-expand-post]').click();
-    await settle();
-    assert.equal(ui.shadow.querySelector('.rm-html-frame'), null, 'collapsing removes the sandboxed document');
     assert.equal(calls, 1);
-
-    ui.shadow.querySelectorAll('#discoveryList .rm-post')[1].querySelector('[data-expand-post]').click();
+    ui.click('#postBack');
     await settle();
-    const image = ui.shadow.querySelector('.rm-file-image');
+    assert.equal(ui.shadow.querySelector('#page-explore').hidden, false);
+    assert.equal(ui.shadow.querySelector('.rm-html-frame'), null, 'leaving the detail releases the sandboxed document');
+
+    ui.shadow.querySelectorAll('#discoveryList .rm-post')[1].querySelector('.rm-post-open').click();
+    await settle();
+    const image = ui.shadow.querySelector('#postDetail .rm-file-image');
     assert.ok(image);
     assert.equal(image.getAttribute('src'), 'data:image/png;base64,UE5H');
-    ui.shadow.querySelectorAll('#discoveryList .rm-post')[1].querySelector('[data-expand-post]').click();
+    ui.click('#postBack');
     await settle();
-    assert.equal(ui.shadow.querySelector('.rm-file-image'), null, 'collapsing releases the media element');
+    assert.equal(ui.shadow.querySelector('.rm-file-image'), null, 'leaving the detail releases the media element');
   } finally {
     ui.close();
   }
 });
 
-test('peer homepage lists current posts/files and exposes chat, full Peer ID, addresses and copy actions', async () => {
+test('peer homepage lists current dynamics and exposes chat, full Peer ID, addresses and copy actions', async () => {
   const copied = [];
   const manifest = {
     peerId: PEER_A, publisherName: '发布节点甲', at: Date.now(), error: null, errorAt: null, freshness: 'live', truncated: false, total: 2,
     entries: [
       baseItem({ id: 'p1', path: 'posts/a.json', name: 'a.json', title: '对方帖子', publisherName: '发布节点甲', kind: 'markdown', sources: ['peer-manifest'] }),
-      baseItem({ id: 'f1', path: 'notes/hello.txt', name: 'hello.txt', title: 'hello', kind: 'text', mime: 'text/plain', publisherName: '发布节点甲', sources: ['peer-manifest'] }),
+      baseItem({ id: 'f1', path: 'posts/hello.txt', name: 'hello.txt', title: 'hello', kind: 'text', mime: 'text/plain', publisherName: '发布节点甲', sources: ['peer-manifest'] }),
     ],
   };
   const node = {
@@ -201,8 +207,9 @@ test('peer homepage lists current posts/files and exposes chat, full Peer ID, ad
     assert.equal(ui.shadow.querySelector('#profileView').hidden, false);
     assert.match(ui.text('#profileName'), /发布节点甲/);
     assert.match(ui.text('#profilePostList'), /对方帖子/);
-    assert.match(ui.text('#profileFileList'), /hello\.txt/);
-    assert.equal(ui.shadow.querySelector('#profileNodePeerId').textContent, PEER_A);
+    assert.match(ui.text('#profilePostList'), /hello\.txt/);
+    assert.equal(ui.shadow.querySelector('#profileNodeInfo'), null, 'the identifiers and addresses share one disclosure');
+    assert.equal(ui.shadow.querySelector('#profilePeerId').textContent, PEER_A);
     assert.match(ui.text('#profileNodeConnection'), /已连接/);
     assert.match(ui.text('#profileCurrentAddrs'), /127\.0\.0\.1/);
     assert.match(ui.text('#profileCurrentAddrs'), new RegExp(`/p2p/${PEER_A}`));
@@ -211,7 +218,7 @@ test('peer homepage lists current posts/files and exposes chat, full Peer ID, ad
     assert.match(ui.text('#profileAnnouncedAddrs'), /旧地址，未验证可达/);
     assert.match(ui.text('#profileAnnouncedAddrs'), /本机缓存/);
 
-    ui.click('#profileCopyPeer');
+    ui.click('#profileCopyPeerInline');
     await settle();
     assert.equal(copied.at(-1), PEER_A);
     ui.click('#profileCopyCurrent');
@@ -233,7 +240,7 @@ test('peer homepage lists current posts/files and exposes chat, full Peer ID, ad
 test('Mine lists every public file, including Agent-authored and non-post formats', async () => {
   const files = [
     baseItem({ id: 'm1', peerId: PEER_B, publisherName: '我的节点', path: 'posts/agent.json', title: 'Agent 内容', authorKind: 'agent', authorName: 'Agent One' }),
-    baseItem({ id: 'm2', peerId: PEER_B, publisherName: '我的节点', path: 'notes/hello.txt', kind: 'text', mime: 'text/plain', title: 'hello', authorKind: '', authorName: '' }),
+    baseItem({ id: 'm2', peerId: PEER_B, publisherName: '我的节点', path: 'posts/hello.txt', kind: 'text', mime: 'text/plain', title: 'hello', authorKind: '', authorName: '' }),
     baseItem({ id: 'm3', peerId: PEER_B, publisherName: '我的节点', path: 'pic.png', kind: 'image', mime: 'image/png', title: 'pic', authorKind: '', authorName: '' }),
   ];
   const ui = mountUi({
@@ -323,21 +330,23 @@ test('profile failure still exposes the message entry and opens the existing con
   }
 });
 
-test('peer downloaded originals expose a verified reveal control only after the local copy exists', async () => {
+test('peer originals fetch only from detail, with exact path/version and a preserved posts-tab return', async () => {
   const entry = baseItem({
-    id: 'pdf-1', path: 'docs/guide.pdf', name: 'guide.pdf', kind: 'unsupported',
+    id: 'pdf-1', path: 'posts/guide.pdf', name: 'guide.pdf', kind: 'unsupported',
     mime: 'application/pdf', previewable: false, title: 'guide',
     sources: ['peer-manifest'], source: 'peer-manifest', contentState: 'not-downloaded',
-    contentError: '本机尚未下载这个文件；展开后可手动获取。',
+    contentError: '本机尚未下载这个文件；打开动态后可手动获取。',
   });
-  const calls = [];
+  const reveals = [];
+  const reads = [];
+  let resolveRead = null;
   const ui = mountUi({
     onLoadContacts: async () => contacts(),
     onLoadConversations: async () => emptyConversations(),
     onLoadMessages: async (peerId) => emptyMessages(peerId),
     onLoadPeerProfile: async () => ({
       peerId: PEER_A, localName: 'alice', remoteName: '发布节点甲', found: true,
-      text: '# 发布节点甲', files: ['docs/guide.pdf'], source: 'remote', at: Date.now(), error: null, freshness: 'live',
+      text: '# 发布节点甲', files: ['posts/guide.pdf'], source: 'remote', at: Date.now(), error: null, freshness: 'live',
       agentCard: { state: 'missing', card: null, error: 'missing' },
       manifest: {
         peerId: PEER_A, publisherName: '发布节点甲', source: 'remote', at: Date.now(), error: null, errorAt: null,
@@ -348,14 +357,12 @@ test('peer downloaded originals expose a verified reveal control only after the 
         currentAddresses: [], knownAddresses: [], statusAt: Date.now(), freshness: 'live', error: null,
       },
     }),
-    onLoadPeerFileContent: async () => ({
-      ...entry, ok: false, subject: 'peer', status: 'unsupported', text: '', html: '', dataUrl: '',
-      warnings: [], missingResources: [], error: '本次已手动获取并核对原件，可使用“在文件夹中显示”定位。',
-      post: null, discoveryRecorded: true, discoveryError: '', localCopy: 'available',
-      acquisition: 'downloaded', source: 'raminga_ui_manual', sources: ['raminga_ui_manual'], fetchedAt: Date.now(),
-    }),
+    onLoadPeerFileContent: async (peerId, filePath, sha256, sizeBytes) => {
+      reads.push({ peerId, filePath, sha256, sizeBytes });
+      return new Promise((resolve) => { resolveRead = resolve; });
+    },
     onRevealFile: async (subject, peerId, filePath, sha256, size) => {
-      calls.push({ kind: 'reveal', subject, peerId, filePath, sha256, size });
+      reveals.push({ kind: 'reveal', subject, peerId, filePath, sha256, size });
       return { ok: true, status: 'revealed', error: null, at: Date.now() };
     },
   });
@@ -364,29 +371,90 @@ test('peer downloaded originals expose a verified reveal control only after the 
     ui.app.setContacts(contacts());
     ui.click('button[data-nav="contacts"]');
     await settle();
+    const contactPage = ui.shadow.querySelector('#page-contacts');
+    contactPage.scrollTop = 143;
+    const query = ui.shadow.querySelector('#contactQuery');
+    query.value = 'ali';
+    query.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    await settle();
     ui.click('button[data-contact-peer]');
     await settle();
-    const before = ui.shadow.querySelector('#profileFileList .rm-post');
+    const profileView = ui.shadow.querySelector('#profileView');
+    profileView.scrollTop = 133;
+    ui.click('[data-profile-tab="posts"]');
+    await settle();
+    const before = ui.shadow.querySelector('#profilePostList .rm-post');
     assert.ok(before);
-    const disabledReveal = before.querySelector('.rm-file-reveal');
-    assert.ok(disabledReveal);
-    assert.equal(disabledReveal.disabled, true, 'an undownloaded peer file must not claim a local original');
-    assert.match(ui.text('#profileFileList'), /尚未下载/);
+    assert.equal(before.querySelector('[data-expand-post]'), null, 'the peer Feed card does not expand file content in place');
+    assert.equal(reads.length, 0, 'opening the posts tab does not fetch an undownloaded original');
+    const trigger = before.querySelector('.rm-post-open');
+    trigger.focus();
+    trigger.click();
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, false);
+    assert.equal(reads.length, 0, 'opening the detail alone must not fetch explicit-consent content');
+    const detail = ui.shadow.querySelector('#postDetail');
+    assert.match(detail.textContent, /远端原件尚未获取/);
+    assert.match(detail.textContent, /posts\/guide\.pdf/);
+    assert.match(detail.textContent, new RegExp(entry.sha256));
+    assert.match(detail.textContent, /120 字节/);
+    const postPage = ui.shadow.querySelector('#page-post');
+    postPage.scrollTop = 180;
+    const fetch = detail.querySelector('[data-detail-fetch]');
+    assert.ok(fetch);
+    assert.equal(fetch.textContent, '获取原件');
+    fetch.focus();
+    fetch.click();
+    await settle();
+    assert.equal(reads.length, 1);
+    assert.deepEqual(reads[0], { peerId: PEER_A, filePath: 'posts/guide.pdf', sha256: entry.sha256, sizeBytes: entry.sizeBytes });
+    const busy = ui.shadow.querySelector('#postDetail [data-detail-fetch]');
+    assert.equal(busy.dataset.busy, 'true');
+    assert.equal(postPage.scrollTop, 180, 'the detail keeps its scroll while the explicit read is pending');
+    assert.equal(ui.shadow.activeElement, busy, 'the detail keeps focus on the fetch action while pending');
 
-    before.querySelector('.rm-post-toggle').click();
+    resolveRead({
+      ...entry, ok: false, subject: 'peer', status: 'unsupported', text: '', html: '', dataUrl: '',
+      warnings: [], missingResources: [], error: '本次已手动获取并核对原件，可使用“在文件夹中显示”定位。',
+      post: null, discoveryRecorded: true, discoveryError: '', localCopy: 'available',
+      acquisition: 'downloaded', source: 'raminga_ui_manual', sources: ['raminga_ui_manual'], fetchedAt: Date.now(),
+    });
     await settle();
     await settle();
-    assert.equal(ui.shadow.querySelector('#profileFileList .rm-post .rm-file-preview') !== null, true);
-    const after = ui.shadow.querySelector('#profileFileList .rm-post');
-    const reveal = after.querySelector('.rm-file-reveal');
+    const loaded = ui.shadow.querySelector('#postDetail');
+    assert.equal(loaded.querySelector('[data-detail-fetch]'), null);
+    assert.match(loaded.textContent, /不支持预览/);
+    assert.match(loaded.textContent, /本次已手动获取并核对原件/);
+    assert.equal(postPage.scrollTop, 180, 'the detail scroll survives the async read');
+    assert.ok(loaded.contains(ui.shadow.activeElement), 'focus stays inside the detail when the fetch button disappears');
+    const reveal = loaded.querySelector('.rm-file-reveal');
+    assert.ok(reveal);
     assert.equal(reveal.disabled, false);
     reveal.click();
     await settle();
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].subject, 'peer');
-    assert.equal(calls[0].filePath, 'docs/guide.pdf');
-    assert.equal(calls[0].sha256, entry.sha256);
-    assert.match(ui.text('#profileFileList'), /已请求宿主在文件夹中显示/);
+    assert.deepEqual(reveals, [{
+      kind: 'reveal', subject: 'peer', peerId: PEER_A, filePath: 'posts/guide.pdf', sha256: entry.sha256, size: entry.sizeBytes,
+    }]);
+    assert.equal(postPage.scrollTop, 180, 'the detail scroll survives reveal feedback');
+    assert.ok(loaded.contains(ui.shadow.activeElement) || ui.shadow.querySelector('#postDetail').contains(ui.shadow.activeElement));
+
+    ui.click('#postBack');
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(profileView.hidden, false, 'Back reopens the same contact profile overlay');
+    assert.equal(ui.shadow.querySelector('[data-profile-tab="posts"]').getAttribute('aria-current'), 'page');
+    assert.equal(ui.shadow.querySelector('#contactProfilePosts').hidden, false);
+    assert.equal(profileView.scrollTop, 133, 'the profile posts-tab scroll is restored');
+    assert.ok(ui.shadow.activeElement?.classList?.contains('rm-post-open'), 'the exact source card regains focus');
+    assert.equal(ui.shadow.activeElement?.dataset?.focusKey, `profile-post:${entry.path}:${entry.sha256}:open`);
+
+    ui.click('#profileBack');
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(ui.shadow.querySelector('#page-contacts').hidden, false);
+    assert.equal(ui.shadow.querySelector('#contactQuery').value, 'ali');
+    assert.equal(ui.shadow.querySelector('#page-contacts').scrollTop, 143, 'the contact search and list scroll survive the profile/detail round trip');
   } finally {
     ui.close();
   }

@@ -278,7 +278,8 @@ test('template has the accepted native workspace chrome and honest states', () =
   assert.match(template, /data-filter="mine"/);
   assert.match(template, /id="contactQuery"/);
   assert.match(template, /id="addContact"/);
-  assert.match(template, /<h1>联系人<\/h1>/);
+  assert.match(template, /data-page="contacts" aria-label="联系人"/);
+  assert.match(template, /data-page="explore" aria-label="动态"/);
   assert.match(template, /id="contactList"/);
   assert.match(template, /id="addContactDialog"/);
   assert.match(template, /id="addContactInput"/);
@@ -299,7 +300,7 @@ test('template has the accepted native workspace chrome and honest states', () =
   assert.match(template, /id="noticeDialog"/);
   assert.match(template, /id="profileAddressHeading"/);
   assert.match(template, /id="profileFriendList"/);
-  assert.match(template, /id="contactProfileFiles"/);
+  assert.doesNotMatch(template, /id="contactProfileFiles"/);
   assert.doesNotMatch(template, /P[1-4]|假装|冒充|次要|主视觉/);
   assert.match(template, /最近刷新/);
   assert.match(template, /连接方式/);

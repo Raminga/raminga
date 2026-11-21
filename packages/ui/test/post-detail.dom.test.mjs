@@ -293,3 +293,271 @@ test('own post detail exposes edit while a remote discovery post does not', asyn
     ui.close();
   }
 });
+
+test('Explore and Contacts keep their accessible page names without intro blocks', async () => {
+  const ui = mountUi({ onLoadDiscoveries: async () => discoveries([], false) });
+  try {
+    await settle();
+    const explore = ui.shadow.querySelector('#page-explore');
+    const contacts = ui.shadow.querySelector('#page-contacts');
+    assert.equal(explore.getAttribute('aria-label'), '动态');
+    assert.equal(contacts.getAttribute('aria-label'), '联系人');
+    assert.equal(explore.querySelector('.rm-page-head'), null, 'the redundant Explore title/subtitle block is gone');
+    assert.equal(explore.querySelector('h1'), null);
+    assert.equal(contacts.querySelector('.rm-page-head'), null, 'the redundant Contacts title/subtitle block is gone');
+    assert.equal(contacts.querySelector('h1'), null);
+    assert.ok(explore.querySelector('.rm-explore-bar .rm-filters'), 'filters remain the first Feed control');
+    assert.ok(explore.querySelector('#exploreQuery'), 'search remains available');
+    assert.ok(contacts.querySelector('#contactQuery'), 'contact search remains available');
+    assert.ok(ui.shadow.querySelector('#page-settings .rm-settings-header h1'), 'other page headers are unchanged');
+    const css = fs.readFileSync(path.resolve(here, '..', 'src', 'styles', 'workspace.css'), 'utf8');
+    assert.match(css, /#page-explore \.rm-explore-bar,\n#page-contacts \.rm-contacts-toolbar \{ padding-top: 18px; \}/,
+      'compact desktop spacing is scoped to the two feed toolbars');
+    assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*?#page-explore \.rm-explore-bar,\n  #page-contacts \.rm-contacts-toolbar \{ padding-top: 12px; \}/,
+      'the narrow layout keeps its own compact inset');
+  } finally {
+    ui.close();
+  }
+});
+
+test('own standalone Markdown and generic files open the same detail and restore the Mine filter/search/scroll', async () => {
+  const ownPeer = '12D3KooWSelfNode111111111111111111111111111111111';
+  const markdownFile = post({
+    id: 'mine-note', peerId: ownPeer, publisherName: '我',
+    path: 'posts/notes.md', name: 'notes.md', sha256: '1'.repeat(64),
+    title: '独立笔记', summary: '一篇独立 Markdown。', tags: [], images: [],
+    source: 'local-public', sources: ['local-public'], authorKind: 'user', authorName: '本人',
+  });
+  const imageFile = post({
+    id: 'mine-image', peerId: ownPeer, publisherName: '我',
+    path: 'posts/photo.png', name: 'photo.png', sha256: '2'.repeat(64),
+    kind: 'image', mime: 'image/png', title: '一张公开图片', summary: '', tags: [], images: [],
+    source: 'local-public', sources: ['local-public'], authorKind: 'user', authorName: '本人',
+  });
+  const pdfFile = post({
+    id: 'mine-pdf', peerId: ownPeer, publisherName: '我',
+    path: 'posts/report.pdf', name: 'report.pdf', sha256: '3'.repeat(64),
+    kind: 'unsupported', mime: 'application/pdf', previewable: false, title: '公开报告',
+    summary: '', tags: [], images: [], source: 'local-public', sources: ['local-public'],
+  });
+  const reads = [];
+  const ui = mountUi({
+    viewState: normalizeViewState({
+      page: 'explore',
+      pages: { explore: { filter: 'mine', query: '', searchOpen: true, scroll: 0, expanded: {}, sourceOpen: {} } },
+    }),
+    onLoadMine: async () => ({
+      peerId: ownPeer, at: Date.now(), error: null, freshness: 'live',
+      profile: { state: 'available', markdown: '# 我', displayName: '我', error: '', path: 'profile/index.md', at: null },
+      posts: { state: 'available', posts: [], error: '', unattributed: 0, agentAuthored: 0, invalid: 0, errors: [], truncated: false },
+      files: [markdownFile, imageFile, pdfFile],
+      filesTruncated: false,
+    }),
+    onLoadMineFileContent: async (filePath, sha256, sizeBytes) => {
+      reads.push({ filePath, sha256, sizeBytes });
+      if (filePath === markdownFile.path) {
+        return { ...markdownFile, ok: true, subject: 'mine', status: 'ok', kind: 'markdown', text: '# 独立笔记\n\n独立文件正文。', dataUrl: '', html: '', warnings: [], missingResources: [], error: '', post: null };
+      }
+      return { ...imageFile, ok: true, subject: 'mine', status: 'ok', kind: 'image', text: '', dataUrl: 'data:image/png;base64,UE5H', html: '', warnings: [], missingResources: [], error: '', post: null };
+    },
+  });
+  try {
+    await settle();
+    await settle();
+    const cards = [...ui.shadow.querySelectorAll('#mineFeedList .rm-post')];
+    assert.equal(cards.length, 3, 'standalone Markdown, image and generic files all remain listed');
+    for (const card of cards) {
+      assert.equal(card.querySelector('[data-expand-post]'), null);
+      assert.equal(card.querySelector('.rm-post-cta').textContent, '查看动态');
+    }
+    const query = ui.shadow.querySelector('#exploreQuery');
+    query.value = '独立笔记';
+    query.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    await settle();
+    const page = ui.shadow.querySelector('#page-explore');
+    page.scrollTop = 210;
+    const card = ui.shadow.querySelector('#mineFeedList .rm-post');
+    assert.ok(card);
+    const open = card.querySelector('.rm-post-open');
+    open.focus();
+    open.click();
+    await settle();
+    await settle();
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, false);
+    const detail = ui.shadow.querySelector('#postDetail');
+    assert.match(detail.textContent, /独立笔记/);
+    assert.match(detail.textContent, /独立文件正文/);
+    assert.deepEqual(reads, [{ filePath: markdownFile.path, sha256: markdownFile.sha256, sizeBytes: markdownFile.sizeBytes }]);
+    ui.click('#postBack');
+    await settle();
+    await wait();
+    assert.equal(ui.shadow.querySelector('#page-explore').hidden, false);
+    assert.equal(ui.viewState.pages.explore.filter, 'mine');
+    assert.equal(ui.shadow.querySelector('#exploreQuery').value, '独立笔记');
+    assert.equal(ui.shadow.querySelector('#page-explore').scrollTop, 210);
+    assert.equal(ui.shadow.activeElement?.dataset?.focusKey, `mine-feed:${markdownFile.path}:${markdownFile.sha256}:open`);
+
+    query.value = '';
+    query.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    await settle();
+    const imageCard = [...ui.shadow.querySelectorAll('#mineFeedList .rm-post')]
+      .find((entry) => entry.textContent.includes('photo.png') || entry.textContent.includes('一张公开图片'));
+    assert.ok(imageCard);
+    imageCard.querySelector('.rm-post-open').click();
+    await settle();
+    await settle();
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, false);
+    const image = ui.shadow.querySelector('#postDetail .rm-file-image');
+    assert.ok(image, 'standalone image renders as native media in the detail');
+    assert.equal(image.getAttribute('src'), 'data:image/png;base64,UE5H');
+  } finally {
+    ui.close();
+  }
+});
+
+test('late content for an older version cannot replace the current detail body', async () => {
+  const first = post({ id: 'post-versioned', path: 'posts/versioned/post.json', sha256: 'a'.repeat(64), title: '版本一' });
+  const second = post({ id: 'post-versioned', path: 'posts/versioned/post.json', sha256: 'd'.repeat(64), title: '版本二' });
+  let list = [first];
+  let reads = 0;
+  let resolveFirst = null;
+  const ui = mountUi({
+    viewState: normalizeViewState({ page: 'explore', pages: { explore: { filter: 'all', query: '', scroll: 0 } } }),
+    onLoadDiscoveries: async () => discoveries(list, false),
+    onLoadDiscoveryContent: async () => {
+      reads += 1;
+      if (reads === 1) return new Promise((resolve) => { resolveFirst = resolve; });
+      return contentFor(second, '# 版本二\n\n新版本正文。');
+    },
+  });
+  try {
+    await settle();
+    ui.shadow.querySelector('#discoveryList .rm-post-open').click();
+    await settle();
+    assert.equal(reads, 1);
+    ui.click('#postBack');
+    await settle();
+    list = [second];
+    ui.click('#exploreRefresh');
+    await settle();
+    await settle();
+    const current = ui.shadow.querySelectorAll('#discoveryList .rm-post')[0];
+    assert.ok(current);
+    current.querySelector('.rm-post-open').click();
+    await settle();
+    await settle();
+    assert.match(ui.shadow.querySelector('#postDetail').textContent, /版本二/);
+    resolveFirst(contentFor(first, '# 版本一\n\n旧版本正文。'));
+    await settle();
+    await settle();
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, false, 'a late old result must not navigate');
+    const detail = ui.shadow.querySelector('#postDetail');
+    assert.match(detail.textContent, /新版本正文/);
+    assert.doesNotMatch(detail.textContent, /旧版本正文/);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a late detail read does not pull the reader back from another page', async () => {
+  const item = post({ id: 'post-late', path: 'posts/late/post.json', title: '迟到的详情' });
+  let resolveRead = null;
+  const ui = mountUi({
+    viewState: normalizeViewState({ page: 'explore', pages: { explore: { filter: 'all', query: '', scroll: 0 } } }),
+    onLoadDiscoveries: async () => discoveries([item], false),
+    onLoadDiscoveryContent: async () => new Promise((resolve) => { resolveRead = resolve; }),
+  });
+  try {
+    await settle();
+    ui.shadow.querySelector('#discoveryList .rm-post-open').click();
+    await settle();
+    ui.click('button[data-nav="home"]');
+    await settle();
+    assert.equal(ui.shadow.querySelector('#page-home').hidden, false);
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, true);
+    resolveRead(contentFor(item, '# 迟到正文'));
+    await settle();
+    await settle();
+    assert.equal(ui.shadow.querySelector('#page-home').hidden, false, 'the reader stays on the page they chose');
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, true);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a profile posts detail survives remount and returns to the same tab, scroll and card', async () => {
+  const entry = {
+    id: 'profile-standalone', peerId: PEER_A, publisherName: '澄野',
+    path: 'posts/tide.md', name: 'tide.md', sha256: 'e'.repeat(64), sizeBytes: 44,
+    modifiedAt: 0, fetchedAt: 0, source: 'peer-manifest', sources: ['peer-manifest'],
+    kind: 'markdown', mime: 'text/markdown', previewable: true, title: '潮汐笔记', summary: '远端独立文件',
+    tags: [], publishedAt: '', authorKind: 'unknown', authorName: '',
+    contentState: 'not-downloaded', contentError: '本机尚未下载这个文件；打开动态后可手动获取。',
+  };
+  const options = {
+    onLoadContacts: async () => ({
+      friends: [{ peerId: PEER_A, name: '澄野', description: '', connection: 'connected', paused: false }],
+      at: Date.now(), error: null, errorAt: null, freshness: 'live', connectionFreshness: 'live', total: 1,
+    }),
+    onLoadPeerProfile: async () => ({
+      peerId: PEER_A, localName: '澄野', remoteName: '澄野', found: true,
+      text: '# 澄野', files: ['posts/tide.md'], at: Date.now(), error: null, freshness: 'live',
+      agentCard: { state: 'missing', card: null, error: '' },
+      manifest: { peerId: PEER_A, publisherName: '澄野', source: 'remote', at: Date.now(), error: null, entries: [entry], truncated: false },
+      node: null,
+    }),
+    onLoadPeerDiscoveries: async () => ({ peerId: PEER_A, items: [], at: Date.now(), error: null, freshness: 'live', truncated: false }),
+    onLoadPeerFileContent: async () => { throw new Error('an explicit fetch must not start on restore'); },
+  };
+  let ui = mountUi(options);
+  let viewState;
+  try {
+    await settle();
+    ui.app.setContacts(await options.onLoadContacts());
+    ui.click('button[data-nav="contacts"]');
+    await settle();
+    ui.click('#contactList button[data-contact-peer]');
+    await settle();
+    ui.click('[data-profile-tab="posts"]');
+    await settle();
+    const profileView = ui.shadow.querySelector('#profileView');
+    profileView.scrollTop = 77;
+    const card = ui.shadow.querySelector('#profilePostList .rm-post');
+    assert.ok(card);
+    card.querySelector('.rm-post-open').click();
+    await settle();
+    await settle();
+    await wait();
+    assert.equal(ui.shadow.querySelector('#page-post').hidden, false);
+    viewState = ui.viewState;
+    assert.equal(viewState.post.source, 'peer');
+    assert.equal(viewState.post.profileScroll, 77);
+    ui.app.destroy();
+    ui.dom.window.close();
+
+    ui = mountUi({ ...options, viewState });
+    try {
+      await settle();
+      ui.app.setContacts(await options.onLoadContacts());
+      await settle();
+      await wait();
+      assert.equal(ui.shadow.querySelector('#page-post').hidden, false, 'the peer detail route is restored');
+      assert.equal(ui.shadow.querySelector('#profileView').hidden, true, 'restoring the detail never shows the profile overlay');
+      assert.deepEqual([...new Set([...ui.shadow.querySelectorAll('nav.rm-nav button[aria-current="page"]')].map((node) => node.dataset.nav))], ['contacts']);
+      assert.match(ui.shadow.querySelector('#postDetail').textContent, /posts\/tide\.md/);
+      ui.click('#postBack');
+      await settle();
+      await wait();
+      assert.equal(ui.shadow.querySelector('#profileView').hidden, false);
+      assert.equal(ui.shadow.querySelector('#contactProfilePosts').hidden, false);
+      assert.equal(ui.shadow.querySelector('[data-profile-tab="posts"]').getAttribute('aria-current'), 'page');
+      assert.equal(ui.shadow.querySelector('#profileView').scrollTop, 77);
+      assert.equal(ui.shadow.activeElement?.dataset?.focusKey, `profile-post:${entry.path}:${entry.sha256}:open`);
+    } finally {
+      ui.close();
+    }
+  } catch (error) {
+    if (ui && !ui.dom.window.closed) ui.close();
+    throw error;
+  }
+});

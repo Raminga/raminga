@@ -17,9 +17,6 @@
 <main class="rm-body">
   <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">
     <div class="rm-page-inner">
-      <header class="rm-page-head">
-        <div><p class="rm-eyebrow">STORIES FROM THE NETWORK</p><h1>动态</h1><p>看看朋友们的世界，今天又多了什么新故事。</p></div>
-      </header>
       <div class="rm-explore-bar">
         <div class="rm-filters" role="group" aria-label="动态筛选">
           <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>
@@ -199,15 +196,17 @@
         <p id="journeyStateBody">请稍候。</p>
         <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeyStateAction" hidden>返回全部记录</button></div>
       </section>
+      <section class="rm-journey-detail" id="journeyReport" aria-label="漫游报告" hidden>
+        <button type="button" class="rm-quiet" id="journeyReportToggle" hidden>原始日志</button>
+        <p class="rm-list-note" id="journeyReportStatus" role="status" hidden></p>
+        <div id="journeyReportFrame"></div>
+      </section>
       <div class="rm-journey-detail" id="journeyDetail" hidden></div>
     </div>
   </section>
 
   <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">
     <div class="rm-page-inner">
-      <header class="rm-page-head">
-        <div><p class="rm-eyebrow">FAMILIAR FACES &amp; NEW ENCOUNTERS</p><h1>联系人</h1><p>每一次相遇，都可以成为下一段故事的开始。</p></div>
-      </header>
       <div class="rm-contacts-toolbar">
         <label class="rm-search rm-contacts-search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>
@@ -464,7 +463,7 @@
         <p class="rm-private-banner">仅本机可见 · 私有记忆与持久消息、Journey 记录在本机合并；印象不是聊天证据。</p>
         <details class="rm-tech">
           <summary>数据说明</summary>
-          <p class="rm-list-note">私有记忆保存在本机 <code>agent/contact-notes.json</code>；不会写入公开目录、friends.json 或远端。</p>
+          <p class="rm-list-note">私有记忆保存在本机 <code>agent/contacts/&lt;Peer ID&gt;/memory.json</code>；不会写入公开目录、friends.json 或远端。</p>
         </details>
         <p class="rm-list-note" id="settingsMemoryNote" role="status" hidden></p>
         <div class="rm-memory-list" id="settingsMemoryList" hidden></div>
@@ -635,13 +634,34 @@
               </dl>
               <p class="rm-list-note rm-profile-local-note" id="profileLocalNote" hidden></p>
               <button type="button" class="rm-secondary" id="profileAgentOpen" hidden>查看完整公开档案</button>
+              <div class="rm-peer-node-body rm-profile-origin-node">
+                <p class="rm-eyebrow rm-profile-node-label">节点信息 · 本机只读</p>
+                <dl class="rm-facts rm-profile-node-facts">
+                  <div><dt>连接状态</dt><dd id="profileNodeConnection">未知</dd></div>
+                  <div><dt>连接方式</dt><dd id="profileNodeRoutes">—</dd></div>
+                  <div><dt>状态读取</dt><dd id="profileNodeStatusAt">—</dd></div>
+                </dl>
+                <div class="rm-address-block">
+                  <div class="rm-address-head"><b>当前连接地址</b><button type="button" class="rm-quiet" id="profileCopyCurrent">复制全部</button></div>
+                  <p class="rm-list-note" id="profileCurrentNote" hidden></p>
+                  <ul class="rm-address-list" id="profileCurrentAddrs"></ul>
+                </div>
+                <div class="rm-address-block">
+                  <div class="rm-address-head"><b>本机已知地址</b><button type="button" class="rm-quiet" id="profileCopyAnnounced">复制全部</button></div>
+                  <p class="rm-list-note" id="profileAnnouncedNote" hidden></p>
+                  <ul class="rm-address-list" id="profileAnnouncedAddrs"></ul>
+                </div>
+                <div class="rm-peer-node-actions">
+                  <button type="button" class="rm-quiet" id="profileNodeRefresh">刷新节点信息</button>
+                  <p class="rm-list-note" id="profileNodeNote" role="status" hidden></p>
+                </div>
+              </div>
             </div>
           </details>
         </div>
         <div class="rm-contact-hero-actions">
           <button type="button" class="rm-primary" id="profileMessage" data-profile-chat-return>发消息</button>
           <div class="rm-contact-hero-secondary">
-            <button type="button" class="rm-secondary" id="profileFilesOpen" aria-expanded="false" aria-controls="contactProfileFiles">公开文件</button>
             <button type="button" class="rm-quiet" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>
             <button type="button" class="rm-quiet" id="profileAddContact" aria-haspopup="dialog" aria-controls="addContactDialog" hidden>添加联系人</button>
           </div>
@@ -706,14 +726,14 @@
                 <button type="button" class="rm-secondary" id="profileImpressionEdit" hidden>编辑私有印象</button>
               </div>
             </div>
-            <p class="rm-private-impression-copy" id="profileImpressionSummary">还没有记录印象。</p>
+            <p class="rm-private-impression-copy" id="profileImpressionSummary">正在读取私有记忆…</p>
             <button type="button" class="rm-quiet rm-private-impression-toggle" id="profileImpressionToggle" aria-expanded="false" hidden>展开完整印象</button>
             <p class="rm-list-note" id="profileImpressionMeta" hidden></p>
             <p class="rm-list-note rm-private-save-status" id="profileImpressionStatus" role="status" hidden></p>
             <div class="rm-private-impression-actions">
               <details class="rm-tech">
                 <summary>数据说明</summary>
-                <p class="rm-list-note">私有印象保存在本机 <code>agent/contact-notes.json</code>；仅你与 Agent 可读取，不会写入公开资料、公开清单或 friends.json，也不会发送给远端。</p>
+                <p class="rm-list-note">私有印象保存在本机 <code>agent/contacts/&lt;Peer ID&gt;/memory.json</code>；仅你与 Agent 可读取，不会写入公开资料、公开清单或 friends.json，也不会发送给远端。</p>
               </details>
             </div>
           </div>
@@ -739,7 +759,7 @@
 
       <div class="rm-contact-panel" id="contactProfilePosts" hidden>
         <section class="rm-panel" aria-labelledby="profilePostsHeading">
-          <div class="rm-panel-head"><h2 id="profilePostsHeading">他的动态</h2><span id="profilePostsStatus">按需读取</span></div>
+          <div class="rm-panel-head"><h2 id="profilePostsHeading">他的动态</h2><div class="rm-panel-head-actions"><span id="profilePostsStatus">按需读取</span><button type="button" class="rm-quiet" id="profilePostsRefresh">刷新</button></div></div>
           <p class="rm-list-note" id="profilePostsNote" role="status" hidden></p>
           <div class="rm-post-list" id="profilePostList" aria-label="对方公开动态" hidden></div>
         </section>
@@ -762,45 +782,6 @@
         </section>
       </div>
 
-      <section class="rm-contact-panel rm-profile-files" id="contactProfileFiles" hidden aria-labelledby="profileFilesHeading">
-        <section class="rm-panel">
-          <div class="rm-panel-head">
-            <h2 id="profileFilesHeading">他的公开文件</h2>
-            <div class="rm-panel-head-actions"><span id="profileFilesStatus">按需读取</span><button type="button" class="rm-quiet" id="profileFilesRefresh">刷新</button><button type="button" class="rm-quiet" id="profileFilesClose">收起</button></div>
-          </div>
-          <p class="rm-list-note" id="profileFilesNote" role="status" hidden></p>
-          <div class="rm-file-list" id="profileFileList" aria-label="对方公开文件" hidden></div>
-        </section>
-      </section>
-
-      <details class="rm-tech rm-peer-node" id="profileNodeInfo">
-        <summary>节点信息</summary>
-        <div class="rm-peer-node-body">
-          <div class="rm-peer-id-row">
-            <code class="rm-peer-id" id="profileNodePeerId"></code>
-            <button type="button" class="rm-quiet" id="profileCopyPeer">复制完整 Peer ID</button>
-          </div>
-          <dl class="rm-facts">
-            <div><dt>连接状态</dt><dd id="profileNodeConnection">未知</dd></div>
-            <div><dt>连接方式</dt><dd id="profileNodeRoutes">—</dd></div>
-            <div><dt>状态读取</dt><dd id="profileNodeStatusAt">—</dd></div>
-          </dl>
-          <div class="rm-address-block">
-            <div class="rm-address-head"><b>当前连接地址</b><button type="button" class="rm-quiet" id="profileCopyCurrent">复制全部</button></div>
-            <p class="rm-list-note" id="profileCurrentNote" hidden></p>
-            <ul class="rm-address-list" id="profileCurrentAddrs"></ul>
-          </div>
-          <div class="rm-address-block">
-            <div class="rm-address-head"><b>本机已知地址</b><button type="button" class="rm-quiet" id="profileCopyAnnounced">复制全部</button></div>
-            <p class="rm-list-note" id="profileAnnouncedNote" hidden></p>
-            <ul class="rm-address-list" id="profileAnnouncedAddrs"></ul>
-          </div>
-          <div class="rm-peer-node-actions">
-            <button type="button" class="rm-quiet" id="profileNodeRefresh">刷新节点信息</button>
-            <p class="rm-list-note" id="profileNodeNote" role="status" hidden></p>
-          </div>
-        </div>
-      </details>
     </div>
   </section>
 </main>
@@ -1122,7 +1103,7 @@
       <p class="rm-private-banner">仅本机可见 · 保存在本机；不会发送给远端，也不会成为聊天证据。</p>
       <details class="rm-tech">
         <summary>数据说明</summary>
-        <p class="rm-list-note">编辑结果写入本机 <code>agent/contact-notes.json</code>，不会进入公开清单。</p>
+        <p class="rm-list-note">编辑结果写入本机 <code>agent/contacts/&lt;Peer ID&gt;/memory.json</code>，不会进入公开清单。</p>
       </details>
       <label class="rm-field" for="impressionSummary">
         <span>我对它的印象</span>
