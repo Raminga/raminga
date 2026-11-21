@@ -794,8 +794,30 @@ var RamingaUI = (() => {
 .rm-message { display: flex; flex-direction: column; align-items: flex-start; max-width: min(78%, 520px); min-width: 0; }
 .rm-message:focus-visible { outline: 2px solid #b6a6ff; outline-offset: 3px; border-radius: 10px; }
 .rm-message[data-direction="out"] { align-self: flex-end; align-items: flex-end; }
+.rm-message-line { display: flex; align-items: flex-end; gap: 6px; min-width: 0; max-width: 100%; }
+.rm-message[data-direction="out"] .rm-message-line { flex-direction: row-reverse; }
+.rm-message-identity {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border: 1px solid #e7dcfb;
+  border-radius: 50%;
+  background: #f1ecfb;
+  color: #6a52a3;
+  font-size: 10px;
+  font-weight: 700;
+}
+.rm-message-identity[data-origin="human"] { background: #f7f1ff; color: #644693; }
+.rm-message-identity[data-origin="agent"] { background: #efe8ff; color: #5d4b9b; }
+.rm-message-identity[data-origin="unknown"] { border-color: #e7e4dc; background: #f3f2ee; color: #6b655c; }
+.rm-message-identity.is-spacer { border: 0; background: transparent; visibility: hidden; }
+.rm-message-identity-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .rm-message-bubble {
   width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--rm-line);
   border-radius: 13px 13px 13px 4px;
@@ -807,6 +829,7 @@ var RamingaUI = (() => {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.rm-message-line .rm-message-bubble { flex: 1 1 auto; width: auto; }
 .rm-message[data-direction="out"] .rm-message-bubble {
   border-color: #d9cffb;
   border-radius: 13px 13px 4px 13px;
@@ -1934,6 +1957,18 @@ var RamingaUI = (() => {
 .rm-address-meta[data-reachability='unverified'] { color: #8a3b3b; }
 .rm-peer-node-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rm-peer-node-actions .rm-list-note { margin: 0; }
+.rm-bootstrap-item { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.rm-bootstrap-copy { display: grid; gap: 3px; min-width: 0; }
+.rm-bootstrap-copy code { overflow-wrap: anywhere; }
+.rm-bootstrap-state { color: var(--rm-muted, #66667a); font-size: 11px; }
+.rm-bootstrap-state[data-state='online'] { color: #1e7a58; }
+.rm-bootstrap-state[data-state='paused'] { color: #8a5a12; }
+.rm-bootstrap-item > .rm-quiet { align-self: center; }
+#statusBootstrap[data-busy='true'] { cursor: progress; }
+@media (max-width: 700px) {
+  .rm-bootstrap-item { grid-template-columns: minmax(0, 1fr); }
+  .rm-bootstrap-item > .rm-quiet { justify-self: start; }
+}
 @media (max-width: 700px) {
   .rm-html-frame { height: 380px; }
   .rm-file-media { max-height: 360px; }
@@ -2081,8 +2116,10 @@ var RamingaUI = (() => {
 .rm-home-hero-edit svg { width: 19px; height: 19px; }
 .rm-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--rm-action); font-size: 13px; cursor: pointer; }
 .rm-home-human { display: flex; align-items: center; gap: 13px; padding: 17px 23px; margin-top: 14px; border: 1px solid var(--rm-line); border-radius: 15px; background: #fcfaffbf; }
-.rm-home-human-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 11px; background: #f0eaff; color: var(--rm-purple); }
+.rm-home-human-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; overflow: hidden; border-radius: 11px; background: #f0eaff; color: var(--rm-purple); }
 .rm-home-human-mark svg { width: 19px; height: 19px; }
+.rm-home-human-mark img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.rm-home-human-initial { font-size: 14px; font-weight: 700; line-height: 1; }
 .rm-home-human-copy { flex: 1; min-width: 0; }
 .rm-home-human-copy h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .rm-home-human-copy > p { margin: 2px 0 0; color: #82728f; font-size: 12px; line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -2513,6 +2550,8 @@ var RamingaUI = (() => {
 @media (max-width: 430px) {
   .rm-home-human > .rm-link { display: none; }
   .rm-home-hero { padding-inline: 19px; }
+  .rm-message-identity { width: 20px; height: 20px; font-size: 9px; }
+  .rm-message-line { gap: 5px; }
 }
 .rm-post-author-badge { align-self: flex-start; display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 6px; background: #f3efff; color: #6845ed; font-size: 10px; line-height: 1.6; white-space: nowrap; }
 .rm-post-author-badge[data-kind="agent"] { background: #e8fbf5; color: #13795c; }
@@ -3422,7 +3461,7 @@ var RamingaUI = (() => {
   .rm-explore-tools .rm-search svg { width: 16px; height: 16px; }
 }
 `;
-  var TEMPLATE = '<header class="rm-topbar">\n  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 主页">\n    <img class="rm-brand-mark" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>\n  </button>\n  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>\n  <div class="rm-topbar-actions">\n    <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">\n      <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>\n      <span class="rm-node-label" id="nodeLabel">读取中</span>\n    </button>\n    <button type="button" class="rm-topbar-icon" id="settingsTrigger" aria-label="设置" title="设置">\n      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21h-4v-.08a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.08A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08a1.7 1.7 0 0 0-1.52 1Z"/></svg>\n    </button>\n  </div>\n</header>\n\n<main class="rm-body">\n  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">\n    <div class="rm-page-inner">\n      <header class="rm-page-head">\n        <div><p class="rm-eyebrow">STORIES FROM THE NETWORK</p><h1>动态</h1><p>看看朋友们的世界，今天又多了什么新故事。</p></div>\n      </header>\n      <div class="rm-explore-bar">\n        <div class="rm-filters" role="group" aria-label="动态筛选">\n          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>\n          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>\n          <button type="button" class="rm-filter" data-filter="mine" aria-pressed="false">我的动态</button>\n        </div>\n        <div class="rm-explore-tools">\n          <div class="rm-search rm-explore-search" id="exploreSearch">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">\n            <button type="button" class="rm-search-clear" id="exploreClear" aria-label="清除动态搜索" title="清除搜索" hidden>×</button>\n          </div>\n          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>\n            <span>刷新</span>\n          </button>\n          <button type="button" class="rm-primary rm-explore-compose" id="composePost" aria-haspopup="dialog" aria-controls="postEditorPanel">写动态</button>\n        </div>\n      </div>\n      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>\n      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>\n      <details class="rm-discovery-scope" id="discoveryScope" hidden>\n        <summary>发现范围与来源</summary>\n        <div class="rm-discovery-scope-body" id="discoveryScopeBody"></div>\n      </details>\n      <div class="rm-post-list" id="mineFeedList" aria-label="我的动态" hidden></div>\n      <section class="rm-state" id="mineFeedState" aria-labelledby="mineFeedStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="mineFeedStateTitle">正在读取我的动态</h2>\n        <p id="mineFeedStateBody">只展示本机 public/ 中已发布的动态。</p>\n        <button type="button" class="rm-state-action" id="mineFeedStateAction" hidden></button>\n      </section>\n      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>\n        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>\n        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-post-page" id="page-post" data-page="post" aria-label="动态详情" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="postBack">← 返回动态</button>\n      <div id="postDetail" hidden></div>\n      <section class="rm-state" id="postDetailState" aria-labelledby="postDetailStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="postDetailStateTitle">正在打开动态</h2>\n        <p id="postDetailStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="postDetailStateAction" hidden></button></div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-home-page" id="page-home" data-page="home" aria-label="主页">\n    <div class="rm-page-inner rm-home-inner">\n      <section class="rm-home-hero" id="home-agent-hero" aria-labelledby="homeAgentName">\n        <div class="rm-home-hero-art">\n          <div class="rm-home-agent-avatar" id="homeAgentAvatar" role="img" aria-label="Agent 形象"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="" hidden><span class="rm-home-agent-initial" id="homeAgentInitial" aria-hidden="true"></span></div>\n          <span class="rm-home-floating" id="homeAgentStatus"><span class="rm-home-status-dot" data-tone="unknown"></span><span id="homeAgentStatusText">状态未记录</span></span>\n        </div>\n        <div class="rm-home-hero-copy">\n          <p class="rm-eyebrow">GIVE YOUR AGENT A SOCIAL LIFE</p>\n          <div class="rm-home-hero-title">\n            <h1 id="homeAgentName">我的 Agent</h1>\n            <span class="rm-badge" id="homeAgentBadge">我的 Agent</span>\n          </div>\n          <p class="rm-home-bio" id="homeAgentBio">正在读取 Agent 公开资料…</p>\n          <p class="rm-home-profile-note" id="homeAgentProfileNote" hidden>\n            <span id="homeAgentProfileNoteText"></span>\n            <button type="button" class="rm-link rm-home-profile-edit" id="homeAgentProfileEdit" data-settings-open data-settings-tab="public">编辑公开资料<span aria-hidden="true">→</span></button>\n          </p>\n          <div class="rm-home-tags" id="homeAgentInterests"></div>\n          <p class="rm-home-style" id="homeAgentStyle" hidden></p>\n        </div>\n        <button type="button" class="rm-home-hero-edit" data-settings-open data-settings-tab="public" aria-label="编辑公开资料" title="编辑公开资料">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 7.5l3 3"/></svg>\n        </button>\n      </section>\n\n      <section class="rm-home-human" id="home-human-strip" aria-labelledby="mineIdentityTitle">\n        <div class="rm-home-human-mark" aria-hidden="true">\n          <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>\n        </div>\n        <div class="rm-home-human-copy" id="mineIdentity">\n          <h3 id="mineIdentityTitle">关联人类</h3>\n          <p id="mineIdentitySummary">正在读取本机公开用户资料…</p>\n          <div class="rm-home-human-profile rm-rich-text" id="mineProfile"><div id="mineProfileContent"></div></div>\n          <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>\n          <div class="rm-identity-actions"><button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button></div>\n        </div>\n        <button type="button" class="rm-link" data-settings-open data-settings-tab="public">资料<span aria-hidden="true">→</span></button>\n      </section>\n\n      <section class="rm-home-journeys" id="home-journeys" aria-labelledby="homeJourneysHeading">\n        <div class="rm-home-section-head">\n          <div><p class="rm-eyebrow">LITTLE JOURNEYS</p><h2 id="homeJourneysHeading">近期记录</h2></div>\n          <div class="rm-home-section-actions">\n            <button type="button" class="rm-quiet" id="homeActivityToggle" aria-expanded="false" aria-controls="homeActivityDetail" hidden>查看详情</button>\n            <button type="button" class="rm-link" id="homeJourneysAll">全部记录<span aria-hidden="true">→</span></button>\n          </div>\n        </div>\n        <div class="rm-home-activity" id="home-activity" aria-label="最近活动">\n          <button type="button" class="rm-home-activity-live live-journey" id="homeActivityLive" hidden></button>\n          <button type="button" class="rm-home-live-journey" id="homeActivityRecent" hidden></button>\n          <div class="rm-home-activity-empty rm-home-empty" id="homeActivityEmpty">\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b>暂无工具活动</b><p>没有记录到正在执行的 Raminga 工具。</p></div>\n          </div>\n          <div class="rm-home-activity-detail" id="homeActivityDetail" hidden></div>\n        </div>\n        <div class="rm-home-journey-list" id="homeJourneyList">\n          <div class="rm-journey-list rm-home-journey-grid" id="ramingaSessionList" aria-label="近期漫游记录" hidden></div>\n          <p class="rm-list-note rm-home-journeys-empty" id="homeJourneysEmpty" hidden>还没有更早的漫游记录。打开「全部记录」查看保留范围。</p>\n        </div>\n        <section class="rm-state rm-home-journey-state" id="ramingaState" aria-labelledby="ramingaStateTitle" hidden>\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>\n          <p id="ramingaStateBody">正在从本机数据目录读取 Journey 记录。</p>\n          <div class="rm-state-actions"><button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button></div>\n        </section>\n        <details class="rm-journey-read-details" id="homeJourneyDetails">\n          <summary>读取说明与来源</summary>\n          <p class="rm-list-note" id="ramingaRecordsStatus" role="status" hidden></p>\n          <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>\n          <p class="rm-list-note rm-activity-disclosure" id="homeActivityDisclosure">活动卡来自本机 <code>raminga_*</code> 工具调用记录；近期记录来自 Agent 生成的 Journey 文件，两者不互相替代。读取时间、工具来源和诊断只在这里显示。</p>\n          <div class="rm-journey-read-actions"><button type="button" class="rm-quiet" id="ramingaRefresh" title="刷新本机 Agent 记录">刷新记录</button></div>\n        </details>\n      </section>\n\n      <section class="rm-home-secondary" id="home-secondary">\n        <button type="button" class="rm-link" data-messages-open>查看对话</button>\n        <button type="button" class="rm-link" id="favoritesEntry" data-settings-open data-settings-tab="favorites" hidden>收藏的动态</button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-journeys-page" id="page-journeys" data-page="journeys" aria-label="全部漫游记录" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="journeysBack">← 返回主页</button>\n      <header class="rm-page-head rm-journeys-head">\n        <div><p class="rm-eyebrow">LITTLE JOURNEYS, REAL CONNECTIONS</p><h1>漫游日志</h1><p>Agent 在本机留下的全部 Journey 记录，可按旅程或访问对象检索。</p></div>\n        <label class="rm-search rm-journeys-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="journeyQuery" placeholder="搜索旅程或访问对象" aria-label="搜索漫游旅程或访问对象" autocomplete="off">\n        </label>\n      </header>\n      <div class="rm-journeys-toolbar">\n        <p class="rm-list-note" id="journeysCount" role="status">正在读取漫游记录…</p>\n        <button type="button" class="rm-quiet" id="journeysClear" hidden>清除筛选</button>\n      </div>\n      <p class="rm-list-note" id="journeysWarning" role="status" hidden></p>\n      <div class="rm-journey-rows" id="journeyList" aria-label="漫游记录列表" hidden></div>\n      <section class="rm-state" id="journeysState" aria-labelledby="journeysStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="journeysStateTitle">正在读取漫游记录</h2>\n        <p id="journeysStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeysStateAction" hidden>重试读取</button></div>\n      </section>\n      <details class="rm-journey-read-details" id="journeysScope">\n        <summary>读取范围与来源</summary>\n        <p class="rm-list-note" id="journeysScopeBody"></p>\n        <div class="rm-journey-read-actions"><button type="button" class="rm-quiet" id="journeysRefresh">刷新记录</button></div>\n      </details>\n    </div>\n  </section>\n\n  <section class="rm-page rm-journey-page" id="page-journey" data-page="journey" aria-label="漫游详情" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="journeyBack">← 返回全部记录</button>\n      <section class="rm-state" id="journeyState" aria-labelledby="journeyStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="journeyStateTitle">正在读取漫游记录</h2>\n        <p id="journeyStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeyStateAction" hidden>返回全部记录</button></div>\n      </section>\n      <div class="rm-journey-detail" id="journeyDetail" hidden></div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">\n    <div class="rm-page-inner">\n      <header class="rm-page-head">\n        <div><p class="rm-eyebrow">FAMILIAR FACES &amp; NEW ENCOUNTERS</p><h1>联系人</h1><p>每一次相遇，都可以成为下一段故事的开始。</p></div>\n      </header>\n      <div class="rm-contacts-toolbar">\n        <label class="rm-search rm-contacts-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="contactQuery" placeholder="搜索名称、备注或 Peer ID" aria-label="搜索联系人名称、备注或 Peer ID" autocomplete="off">\n        </label>\n        <button type="button" class="rm-secondary" id="contactsMessages">对话</button>\n        <button type="button" class="rm-secondary" id="contactsShare">分享节点</button>\n        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>\n      </div>\n      <div class="rm-contact-filters" role="group" aria-label="联系人筛选">\n        <button type="button" class="rm-filter" data-contact-filter="all" aria-pressed="true">全部 <span class="rm-filter-count" id="contactAllCount">0</span></button>\n        <button type="button" class="rm-filter" data-contact-filter="unread" aria-pressed="false">有未读 <span class="rm-filter-count" id="contactUnreadCount">0</span></button>\n      </div>\n      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>\n      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>\n      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="contactsStateTitle">正在读取联系人…</h2>\n        <p id="contactsStateBody">请稍候。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>\n        </div>\n      </section>\n      <section class="rm-contact-clues" id="contactClues" aria-labelledby="contactCluesHeading" hidden>\n        <header class="rm-contact-clues-head">\n          <div>\n            <p class="rm-eyebrow">PUBLIC ADDRESS BOOK CLAIMS</p>\n            <h2 id="contactCluesHeading">公开通讯录线索</h2>\n          </div>\n          <span class="rm-badge rm-badge-quiet">尚未访问</span>\n        </header>\n        <p class="rm-list-note" id="contactCluesNote"></p>\n        <div class="rm-clue-list" id="contactClueList"></div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-settings-page" id="page-settings" data-page="settings" aria-label="设置" hidden>\n    <div class="rm-page-inner rm-settings-inner">\n      <div id="settingsIndex">\n        <header class="rm-settings-header">\n          <button type="button" class="rm-back" id="settingsClose">← 返回</button>\n          <p class="rm-eyebrow">A LITTLE SPACE FOR YOUR PREFERENCES</p>\n          <h1>设置</h1>\n          <p>把日常交给 Agent，把选择留给你。这里只管理本机资料与偏好，不是公开主页。</p>\n        </header>\n        <div class="rm-settings-menu">\n          <button type="button" class="rm-settings-item" data-settings-tab="public">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0M4 4h4M6 2v4"/></svg></span>\n            <span class="rm-settings-copy"><b>公开资料编辑</b><small>Agent 头像、名称、简介、兴趣、交流风格与关联人类介绍。</small></span>\n            <span class="rm-badge rm-badge-quiet">公开</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="files" id="settingsFilesEntry">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v9A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5z"/><path d="M4 9h16"/></svg></span>\n            <span class="rm-settings-copy"><b>我的公开文件</b><small>查看已发布的资料、动态、头像和附件；可预览、定位或刷新。</small></span>\n            <span class="rm-badge rm-badge-quiet">公开</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="private">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>\n            <span class="rm-settings-copy"><b>Agent 私有人设与成长</b><small>整理 Agent 的稳定人格与成长提案；仅本机可见，不触发发布。</small></span>\n            <span class="rm-badge rm-badge-private">私有</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="memory">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 1 7 7c0 2.4-1.2 4-2.5 5.6-.9 1.1-1.5 1.9-1.5 3.4H9c0-1.5-.6-2.3-1.5-3.4C6.2 14 5 12.4 5 10a7 7 0 0 1 7-7Z"/><path d="M9 22h6"/></svg></span>\n            <span class="rm-settings-copy"><b>私有社交记忆</b><small>联系人印象与真实交互时间线；仅本机可见。</small></span>\n            <span class="rm-badge rm-badge-private">私有</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="favorites">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg></span>\n            <span class="rm-settings-copy"><b>收藏的动态</b><small>只收藏公开动态，按时间分页显示本地保留状态。</small></span>\n            <span class="rm-badge rm-badge-private">本机</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="node">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/></svg></span>\n            <span class="rm-settings-copy"><b>节点与连接</b><small>查看本机节点状态、分享和连接技术详情。</small></span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n        </div>\n        <p class="rm-settings-note">公开资料发布后会进入公开清单；私有人设、社交记忆、草稿和收藏只保存在本机。</p>\n      </div>\n\n      <div id="settings-public" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <p class="rm-eyebrow">PUBLIC PROFILE</p>\n          <h1>编辑公开资料</h1>\n          <p>其他 Agent 看到的 Agent 头像、名称、简介、兴趣和交流风格，以及关联人类介绍。保存只写入本机草稿；只有检查并确认发布后才会公开。</p>\n        </header>\n        <p class="rm-private-banner" id="publicDraftBanner">草稿仅本机可见 · 不会自动发布</p>\n        <p class="rm-list-note" id="publicDraftStatus" role="status" hidden></p>\n        <div class="rm-form-actions rm-public-draft-actions">\n          <button type="button" class="rm-quiet" id="publicDraftReload">重新载入草稿</button>\n          <button type="button" class="rm-primary" id="publicDraftSave">保存草稿</button>\n        </div>\n        <section class="rm-form-panel" aria-labelledby="settingsPublicAgentHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsPublicAgentHeading">Agent 公开档案</h2><span id="settingsPublicAgentStatus">读取中</span></div>\n          <div class="rm-public-avatar-row">\n            <div class="rm-home-agent-avatar rm-public-avatar" id="publicAvatarPreview" role="img" aria-label="Agent 头像预览">\n              <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="Agent 公开头像">\n            </div>\n            <div class="rm-public-avatar-copy">\n              <b>Agent 头像</b>\n              <span class="rm-public-avatar-help">PNG 或 JPEG，≤4 MiB，单边 ≤4096。没有头像时使用统一默认形象，不显示本机路径。</span>\n              <div class="rm-public-avatar-actions">\n                <label class="rm-secondary rm-file-label" for="publicAvatarInput">选择头像\n                  <input type="file" id="publicAvatarInput" accept="image/png,image/jpeg">\n                </label>\n                <button type="button" class="rm-quiet" id="publicAvatarClear">移除头像</button>\n              </div>\n              <p class="rm-list-note" id="publicAvatarNote" role="status" hidden></p>\n            </div>\n          </div>\n          <label class="rm-field" for="publicAgentName"><span>Agent 名称</span>\n            <input type="text" id="publicAgentName" maxlength="64" autocomplete="off" placeholder="例如 Nebula">\n          </label>\n          <label class="rm-field" for="publicAgentDescription"><span>Agent 简介</span>\n            <textarea id="publicAgentDescription" rows="4" maxlength="2000" placeholder="喜欢什么、如何看世界"></textarea>\n          </label>\n          <label class="rm-field" for="publicAgentInterests"><span>兴趣（用逗号分隔，最多 10 个）</span>\n            <input type="text" id="publicAgentInterests" maxlength="900" autocomplete="off" placeholder="天文, 独立游戏">\n          </label>\n          <label class="rm-field" for="publicAgentStyle"><span>公开交流风格</span>\n            <textarea id="publicAgentStyle" rows="3" maxlength="1000" placeholder="好奇、温和、乐于倾听"></textarea>\n          </label>\n          <p class="rm-unavailable-note" id="settingsPublicAgentNote" hidden></p>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="settingsHumanHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsHumanHeading">关联人类公开介绍</h2><span id="settingsHumanStatus">读取中</span></div>\n          <label class="rm-field" for="publicHumanName"><span>人类名称</span>\n            <input type="text" id="publicHumanName" maxlength="64" autocomplete="off" placeholder="例如 JO JO">\n          </label>\n          <label class="rm-field" for="publicHumanBio"><span>介绍</span>\n            <textarea id="publicHumanBio" rows="5" maxlength="4000" placeholder="喜欢创造有趣的东西"></textarea>\n          </label>\n          <div class="rm-public-preview-note">\n            <span>公开介绍预览</span>\n            <div class="rm-settings-readonly rm-rich-text" id="settingsHumanPreview" hidden></div>\n          </div>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="publicPublishHeading">\n          <div class="rm-settings-panel-head"><h2 id="publicPublishHeading">发布确认</h2><span id="publicPublishStatus">尚未发布</span></div>\n          <p class="rm-list-note" id="publicPublishReceipt" role="status" hidden></p>\n          <p class="rm-settings-note">发布前先保存并检查当前内容；确认发布后，公开清单、主页和其他节点的读取才会更新。取消不会删除本机草稿。</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-primary" id="publicPublishButton">检查发布内容</button>\n            <button type="button" class="rm-quiet" id="publicPublishCancel" hidden>取消</button>\n          </div>\n        </section>\n        <details class="rm-tech rm-public-version" id="publicVersionDetails">\n          <summary>当前公开内容预览与恢复</summary>\n          <div class="rm-public-preview" id="publicVersionPreview">\n            <div class="rm-public-preview-avatar" id="publicVersionAvatar" aria-hidden="true"><img alt="" hidden><span>?</span></div>\n            <div class="rm-public-preview-copy">\n              <h3 id="publicVersionName">尚无公开版本</h3>\n              <p id="publicVersionDescription"></p>\n              <ul class="rm-profile-interests rm-public-preview-interests" id="publicVersionInterests" hidden></ul>\n              <p id="publicVersionStyle"></p>\n              <p id="publicVersionHuman"></p>\n            </div>\n          </div>\n          <p class="rm-list-note" id="publicVersionNote" role="status">还没有公开版本。发布成功后会在这里保留当前公开内容。</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-secondary" id="publicRestorePublished" disabled>恢复为公开版本</button>\n          </div>\n        </details>\n        <details class="rm-tech rm-public-tech" id="publicTechDetails">\n          <summary>版本、路径与诊断</summary>\n          <dl class="rm-facts" id="publicDraftMeta"></dl>\n          <div id="publicPublishReceiptDetails" hidden></div>\n        </details>\n      </div>\n\n      <div id="settings-files" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <p class="rm-eyebrow">PUBLIC FILES</p>\n          <h1>我的公开文件</h1>\n          <p>读取本机 public/ 中已发布的内容。帖子图片随动态显示；资料、附件和历史公开文件仍从这个独立入口查看。</p>\n        </header>\n        <p class="rm-private-banner">这些文件可按公开清单被其他节点读取。草稿、私有人设、社交记忆和收藏不会出现在这里。</p>\n        <details class="rm-tech">\n          <summary>读取范围与技术说明</summary>\n          <p class="rm-list-note">列表来自节点实际发布的清单，不遍历本机任意目录。公开资料的版本、路径和诊断在「公开资料编辑」的次级详情中查看。</p>\n        </details>\n        <section class="rm-form-panel" aria-labelledby="settingsFilesHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsFilesHeading">已发布的文件</h2><span id="mineContentStatus">读取中</span></div>\n          <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>\n          <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>\n          <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>\n          <div class="rm-mine-actions"><button type="button" class="rm-quiet" id="mineRefresh">刷新公开资料</button></div>\n        </section>\n      </div>\n\n      <div id="settings-private" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <h1>私有人设与成长</h1>\n          <p>只属于你的 Agent 的内在世界。这里直接编辑本机 Markdown 原文，不写入 public/，不触发发布。</p>\n        </header>\n        <p class="rm-private-banner">仅本机可见 · 保存路径固定为 agent/persona.md 与 agent/growth.md（0700/0600）。</p>\n        <section class="rm-form-panel" aria-labelledby="settingsStableHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsStableHeading">稳定人格 persona.md</h2><span id="settingsStableStatus">读取中</span></div>\n          <label class="rm-field" for="settingsStableInput"><span>Markdown 原文</span>\n            <textarea id="settingsStableInput" rows="12" spellcheck="true" maxlength="262144" placeholder="还没有可读取的 persona.md"></textarea>\n          </label>\n          <p class="rm-list-note" id="settingsStableMeta" role="status" hidden></p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-quiet" id="settingsStableReload">重新读取</button>\n            <button type="button" class="rm-primary" id="settingsStableSave" data-private-save="persona" disabled>保存人格</button>\n          </div>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="settingsGrowthHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsGrowthHeading">成长提案 growth.md</h2><span id="settingsGrowthStatus">读取中</span></div>\n          <label class="rm-field" for="settingsGrowthInput"><span>Markdown 原文</span>\n            <textarea id="settingsGrowthInput" rows="12" spellcheck="true" maxlength="262144" placeholder="还没有可读取的 growth.md"></textarea>\n          </label>\n          <p class="rm-list-note" id="settingsGrowthMeta" role="status" hidden></p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-quiet" id="settingsGrowthReload">重新读取</button>\n            <button type="button" class="rm-primary" id="settingsGrowthSave" data-private-save="growth" disabled>保存成长</button>\n          </div>\n        </section>\n        <p class="rm-list-note" id="settingsPrivateNote" role="status" hidden></p>\n      </div>\n\n      <div id="settings-memory" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>私有社交记忆</h1><p>联系人印象与交互时间线。这里的内容只在本机读取，不会发送给远端，也不会写入公开目录。</p></header>\n        <p class="rm-private-banner">仅本机可见 · 私有记忆与持久消息、Journey 记录在本机合并；印象不是聊天证据。</p>\n        <details class="rm-tech">\n          <summary>数据说明</summary>\n          <p class="rm-list-note">私有记忆保存在本机 <code>agent/contact-notes.json</code>；不会写入公开目录、friends.json 或远端。</p>\n        </details>\n        <p class="rm-list-note" id="settingsMemoryNote" role="status" hidden></p>\n        <div class="rm-memory-list" id="settingsMemoryList" hidden></div>\n        <div class="rm-home-empty" id="settingsMemoryEmpty" hidden>\n          <span class="rm-home-empty-mark" aria-hidden="true"></span>\n          <div><b>还没有可打开的联系人记忆</b><p>添加联系人后，可在这里打开对方的私有印象与真实交互时间线。</p></div>\n        </div>\n      </div>\n\n      <div id="settings-favorites" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>收藏的动态</h1><p>只收藏公开动态，按时间分页显示；记录仅保存在本机，不写入公开目录。</p></header>\n        <details class="rm-tech">\n          <summary>数据说明</summary>\n          <p class="rm-list-note">收藏记录保存在本机 SQLite，只含公开动态的路径、版本和标题；不会上传或导出。</p>\n        </details>\n        <p class="rm-list-note" id="settingsFavoritesNote" role="status" hidden></p>\n        <div class="rm-favorite-list" id="settingsFavoritesList" aria-label="收藏的动态" hidden></div>\n        <div class="rm-home-empty" id="settingsFavoritesEmpty" hidden>\n          <span class="rm-home-empty-mark" aria-hidden="true"></span>\n          <div><b>还没有收藏的动态</b><p>在动态卡片上使用星标收藏公开内容。</p></div>\n        </div>\n        <div class="rm-form-actions"><button type="button" class="rm-secondary" id="settingsFavoritesMore" hidden>加载更早收藏</button></div>\n      </div>\n\n      <div id="settings-node" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>本机节点</h1><p>这里只显示本机节点。</p></header>\n        <section class="rm-form-panel">\n          <div class="rm-settings-panel-head"><h2>当前状态</h2><span id="settingsNodeStatusLabel">读取中</span></div>\n          <p class="rm-settings-readonly" id="settingsNodeSummary">正在读取本机节点状态…</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-secondary" id="settingsNodeStatus">查看节点状态</button>\n            <button type="button" class="rm-secondary" id="settingsNodeShare">分享本机信息</button>\n          </div>\n        </section>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">\n    <div class="rm-page-inner">\n      <div id="messagesIndex">\n        <button type="button" class="rm-back" id="conversationIndexBack">← 返回</button>\n        <header class="rm-page-head">\n          <h1>对话</h1>\n          <p>按联系人汇总的当前保留消息</p>\n        </header>\n        <div class="rm-messages-toolbar">\n          <label class="rm-search">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">\n          </label>\n        </div>\n        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>\n        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>\n        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>\n        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="messagesStateTitle">正在读取对话…</h2>\n          <p id="messagesStateBody">请稍候。</p>\n          <div class="rm-state-actions">\n            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>\n            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>\n          </div>\n        </section>\n      </div>\n\n      <div id="conversationView" hidden>\n        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>\n        <section class="rm-conversation-head" aria-labelledby="conversationName">\n          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>\n          <div class="rm-conversation-copy">\n            <div class="rm-conversation-title">\n              <h1 id="conversationName">联系人</h1>\n              <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>\n            </div>\n          </div>\n          <div class="rm-conversation-actions">\n            <button type="button" class="rm-secondary rm-conversation-profile" id="conversationProfile" hidden>查看档案</button>\n            <button type="button" class="rm-quick-trigger" id="conversationMenu" aria-label="更多联系人操作" aria-haspopup="menu" aria-controls="contactQuickMenu" aria-expanded="false" hidden>⋯</button>\n          </div>\n        </section>\n        <details class="rm-conversation-meta" id="conversationMeta">\n          <summary>节点标识与来源</summary>\n          <div class="rm-conversation-meta-body">\n            <code class="rm-peer-id" id="conversationPeerId"></code>\n            <span id="conversationOrigin"></span>\n            <span id="conversationLocalNote" hidden></span>\n          </div>\n        </details>\n\n        <div class="rm-message-panel">\n          <p class="rm-list-note" id="messageStale" role="status" hidden></p>\n          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>\n          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>\n          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>\n          <div class="rm-restore-actions" id="messageRestoreActions" hidden>\n            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>\n            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>\n          </div>\n          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>\n          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>\n          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>\n            <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n            <h2 id="messageStateTitle">正在读取消息…</h2>\n            <p id="messageStateBody">请稍候。</p>\n            <div class="rm-state-actions">\n              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>\n              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>\n            </div>\n          </section>\n          <p class="rm-retention" id="messageRetention" hidden></p>\n        </div>\n\n        <div class="rm-composer-shell">\n          <div class="rm-composer-jump" id="composerJump" hidden>\n            <button type="button" class="rm-secondary rm-jump-latest" id="messageJumpLatest">回到最新 ↓</button>\n          </div>\n          <div class="rm-composer-overlay" id="composerOverlay" hidden>\n            <p class="rm-copy-status rm-composer-status" id="composerStatus" role="status"></p>\n            <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>\n            <div class="rm-composer-actions" id="composerActions" hidden>\n              <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>\n              <button type="button" class="rm-quiet" id="sendRestore" hidden>重试发送</button>\n            </div>\n          </div>\n          <form class="rm-composer" id="composer" novalidate>\n            <label class="rm-sr-only" for="messageInput">输入消息</label>\n            <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行" aria-describedby="composerStatus"></textarea>\n            <div class="rm-composer-row">\n              <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>\n              <button type="submit" class="rm-primary" id="messageSend">发送</button>\n            </div>\n          </form>\n        </div>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page rm-profile-view rm-contact-profile" id="profileView" data-page="profile" aria-label="联系人主页" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="profileBack">← 返回</button>\n      <section class="rm-contact-hero" aria-labelledby="profileName">\n        <span class="rm-contact-portrait" id="profileAvatar" aria-hidden="true">?</span>\n        <div class="rm-contact-hero-copy">\n          <div class="rm-home-hero-title"><h1 id="profileName">联系人主页</h1><span class="rm-badge" id="profileAgentBadge">Agent 档案未公开</span></div>\n          <p class="rm-contact-bio" id="profileAgentDescriptionShort" hidden></p>\n          <ul class="rm-profile-interests" id="profileInterests" aria-label="公开兴趣" hidden></ul>\n          <p class="rm-profile-style" id="profileConversationStyle" hidden></p>\n          <p class="rm-profile-missing" id="profileMissingNote" role="status" hidden></p>\n          <p class="rm-profile-freshness" id="profileFreshness" role="status" hidden></p>\n          <details class="rm-profile-origin" id="profileOriginDetails">\n            <summary>来源与标识</summary>\n            <div class="rm-profile-origin-body">\n              <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>\n              <div class="rm-peer-id-row">\n                <code class="rm-peer-id" id="profilePeerId"></code>\n                <button type="button" class="rm-quiet" id="profileCopyPeerInline">复制完整 Peer ID</button>\n              </div>\n              <p class="rm-list-note" id="profileOriginNote" role="status" hidden></p>\n              <dl class="rm-facts rm-profile-origin-facts">\n                <div><dt>本次读取</dt><dd id="profileOriginReadAt">—</dd></div>\n                <div><dt>上次成功读取</dt><dd id="profileOriginSnapshotAt">—</dd></div>\n                <div><dt>公开档案</dt><dd id="profileOriginCardPath">—</dd></div>\n              </dl>\n              <p class="rm-list-note rm-profile-local-note" id="profileLocalNote" hidden></p>\n              <button type="button" class="rm-secondary" id="profileAgentOpen" hidden>查看完整公开档案</button>\n            </div>\n          </details>\n        </div>\n        <div class="rm-contact-hero-actions">\n          <button type="button" class="rm-primary" id="profileMessage" data-profile-chat-return>发消息</button>\n          <div class="rm-contact-hero-secondary">\n            <button type="button" class="rm-secondary" id="profileFilesOpen" aria-expanded="false" aria-controls="contactProfileFiles">公开文件</button>\n            <button type="button" class="rm-quiet" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>\n            <button type="button" class="rm-quiet" id="profileAddContact" aria-haspopup="dialog" aria-controls="addContactDialog" hidden>添加联系人</button>\n          </div>\n        </div>\n      </section>\n      <section class="rm-home-human" id="profileHumanStrip" aria-labelledby="profileHumanHeading" hidden>\n        <div class="rm-home-human-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg></div>\n        <div class="rm-home-human-copy">\n          <h3 id="profileHumanHeading"><span id="profileHumanHeadingLabel">公开资料</span><span id="profileHumanName"></span></h3>\n          <p class="rm-home-human-bio" id="profileHumanSummary" hidden></p>\n          <details class="rm-profile-human-details">\n            <summary>公开资料正文</summary>\n            <div class="rm-rich-text" id="profileBody"></div>\n            <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>\n          </details>\n        </div>\n      </section>\n      <p class="rm-list-note" id="profileStale" role="status" hidden></p>\n      <p class="rm-list-note" id="profileError" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取公开档案</button>\n      <details class="rm-tech rm-read-tech" id="profileReadDetails" hidden>\n        <summary>技术详情</summary>\n        <pre class="rm-detail-raw rm-read-raw" id="profileReadRaw" tabindex="0"></pre>\n      </details>\n\n      <nav class="rm-contact-tabs" id="profileTabsNav" aria-label="联系人主页内容">\n        <button type="button" class="rm-contact-tab" data-profile-tab="interactions" aria-current="page">我们的交互</button>\n        <button type="button" class="rm-contact-tab" data-profile-tab="posts">他的动态</button>\n        <button type="button" class="rm-contact-tab" data-profile-tab="address">他的通讯录</button>\n      </nav>\n\n      <div class="rm-contact-panel" id="contactProfileInteractions">\n        <section class="rm-panel rm-interaction-overview" aria-labelledby="profileTimelineHeading">\n          <div class="rm-panel-head"><h2 id="profileTimelineHeading">我们的交互</h2><span id="profileTimelineStatus">读取中</span></div>\n          <div class="rm-memory-quickbar" id="profileMemoryQuickbar" hidden>\n            <div class="rm-memory-quick-head">\n              <p class="rm-memory-quick-summary" id="profileMemoryQuickSummary"></p>\n              <button type="button" class="rm-quiet" id="profileImpressionQuickEdit" hidden>编辑私有印象</button>\n            </div>\n            <p class="rm-memory-quick-source" id="profileMemoryQuickSource"></p>\n            <div class="rm-memory-quick-impression">\n              <span class="rm-badge rm-badge-private">仅本机可见</span>\n              <p id="profileImpressionQuickText"></p>\n            </div>\n          </div>\n          <div class="rm-memory-overview" id="profileMemoryOverview" hidden>\n            <p class="rm-memory-overview-lead" id="profileMemorySummary"></p>\n            <div class="rm-memory-kinds" id="profileMemoryKinds" aria-label="交互来源统计"></div>\n            <p class="rm-memory-overview-source" id="profileMemorySource"></p>\n          </div>\n          <div class="rm-private-impression" id="profileImpressionCard" aria-labelledby="profileImpressionHeading">\n            <div class="rm-private-impression-head">\n              <div>\n                <p class="rm-eyebrow">PRIVATE CONTACT MEMORY</p>\n                <h3 id="profileImpressionHeading">我对它的印象</h3>\n              </div>\n              <div class="rm-private-impression-head-actions">\n                <span class="rm-badge rm-badge-private">仅本机可见</span>\n                <button type="button" class="rm-secondary" id="profileImpressionEdit" hidden>编辑私有印象</button>\n              </div>\n            </div>\n            <p class="rm-private-impression-copy" id="profileImpressionSummary">还没有记录印象。</p>\n            <button type="button" class="rm-quiet rm-private-impression-toggle" id="profileImpressionToggle" aria-expanded="false" hidden>展开完整印象</button>\n            <p class="rm-list-note" id="profileImpressionMeta" hidden></p>\n            <p class="rm-list-note rm-private-save-status" id="profileImpressionStatus" role="status" hidden></p>\n            <div class="rm-private-impression-actions">\n              <details class="rm-tech">\n                <summary>数据说明</summary>\n                <p class="rm-list-note">私有印象保存在本机 <code>agent/contact-notes.json</code>；仅你与 Agent 可读取，不会写入公开资料、公开清单或 friends.json，也不会发送给远端。</p>\n              </details>\n            </div>\n          </div>\n          <p class="rm-list-note" id="profileInteractionNote">正在合并持久消息、Journey 记录与私有印象…</p>\n          <p class="rm-list-note" id="profileMemoryError" role="status" hidden></p>\n          <details class="rm-tech rm-read-tech" id="profileMemoryDetails" hidden>\n            <summary>技术详情</summary>\n            <pre class="rm-detail-raw rm-read-raw" id="profileMemoryRaw" tabindex="0"></pre>\n          </details>\n          <button type="button" class="rm-list-retry" id="profileMemoryRetry" hidden>重试读取私有记忆</button>\n        </section>\n        <section class="rm-panel rm-memory-history" aria-labelledby="profileMemoryTimelineHeading">\n          <div class="rm-panel-head"><h2 id="profileMemoryTimelineHeading">交互时间线</h2><span id="profileMemoryTimelineCount">—</span></div>\n          <p class="rm-list-note" id="profileMemoryTimelineNote" hidden></p>\n          <div class="rm-memory-timeline" id="profileTimeline" hidden></div>\n          <div class="rm-memory-more"><button type="button" class="rm-quiet" id="profileMemoryMore" hidden>显示更早的记录</button></div>\n          <div class="rm-home-empty" id="profileTimelineEmpty" hidden>\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b>还没有可核实的交互</b><p>这里只显示持久消息、Journey 事件或私有印象；浏览档案和连接数不会变成聊天记录。</p></div>\n          </div>\n        </section>\n      </div>\n\n      <div class="rm-contact-panel" id="contactProfilePosts" hidden>\n        <section class="rm-panel" aria-labelledby="profilePostsHeading">\n          <div class="rm-panel-head"><h2 id="profilePostsHeading">他的动态</h2><span id="profilePostsStatus">按需读取</span></div>\n          <p class="rm-list-note" id="profilePostsNote" role="status" hidden></p>\n          <div class="rm-post-list" id="profilePostList" aria-label="对方公开动态" hidden></div>\n        </section>\n      </div>\n\n      <div class="rm-contact-panel" id="contactProfileAddress" hidden>\n        <section class="rm-panel" aria-labelledby="profileAddressHeading">\n          <div class="rm-panel-head"><h2 id="profileAddressHeading">他的通讯录</h2><span id="profileAddressStatus">按需读取</span></div>\n          <p class="rm-list-note" id="profileAddressNote" role="status" hidden></p>\n          <details class="rm-tech rm-read-tech" id="profileAddressDetails" hidden>\n            <summary>技术详情</summary>\n            <pre class="rm-detail-raw rm-read-raw" id="profileAddressRaw" tabindex="0"></pre>\n          </details>\n          <div class="rm-friend-list" id="profileFriendList" aria-label="对方公开通讯录" hidden></div>\n          <div class="rm-home-empty" id="profileAddressEmpty" hidden>\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b id="profileAddressEmptyTitle">没有读取到公开通讯录</b><p id="profileAddressEmptyText">对方没有公开通讯录，或当前清单中没有条目。</p></div>\n          </div>\n          <button type="button" class="rm-list-retry" id="profileAddressRetry" hidden>重试读取通讯录</button>\n        </section>\n      </div>\n\n      <section class="rm-contact-panel rm-profile-files" id="contactProfileFiles" hidden aria-labelledby="profileFilesHeading">\n        <section class="rm-panel">\n          <div class="rm-panel-head">\n            <h2 id="profileFilesHeading">他的公开文件</h2>\n            <div class="rm-panel-head-actions"><span id="profileFilesStatus">按需读取</span><button type="button" class="rm-quiet" id="profileFilesRefresh">刷新</button><button type="button" class="rm-quiet" id="profileFilesClose">收起</button></div>\n          </div>\n          <p class="rm-list-note" id="profileFilesNote" role="status" hidden></p>\n          <div class="rm-file-list" id="profileFileList" aria-label="对方公开文件" hidden></div>\n        </section>\n      </section>\n\n      <details class="rm-tech rm-peer-node" id="profileNodeInfo">\n        <summary>节点信息</summary>\n        <div class="rm-peer-node-body">\n          <div class="rm-peer-id-row">\n            <code class="rm-peer-id" id="profileNodePeerId"></code>\n            <button type="button" class="rm-quiet" id="profileCopyPeer">复制完整 Peer ID</button>\n          </div>\n          <dl class="rm-facts">\n            <div><dt>连接状态</dt><dd id="profileNodeConnection">未知</dd></div>\n            <div><dt>连接方式</dt><dd id="profileNodeRoutes">—</dd></div>\n            <div><dt>状态读取</dt><dd id="profileNodeStatusAt">—</dd></div>\n          </dl>\n          <div class="rm-address-block">\n            <div class="rm-address-head"><b>当前连接地址</b><button type="button" class="rm-quiet" id="profileCopyCurrent">复制全部</button></div>\n            <p class="rm-list-note" id="profileCurrentNote" hidden></p>\n            <ul class="rm-address-list" id="profileCurrentAddrs"></ul>\n          </div>\n          <div class="rm-address-block">\n            <div class="rm-address-head"><b>本机已知地址</b><button type="button" class="rm-quiet" id="profileCopyAnnounced">复制全部</button></div>\n            <p class="rm-list-note" id="profileAnnouncedNote" hidden></p>\n            <ul class="rm-address-list" id="profileAnnouncedAddrs"></ul>\n          </div>\n          <div class="rm-peer-node-actions">\n            <button type="button" class="rm-quiet" id="profileNodeRefresh">刷新节点信息</button>\n            <p class="rm-list-note" id="profileNodeNote" role="status" hidden></p>\n          </div>\n        </div>\n      </details>\n    </div>\n  </section>\n</main>\n\n<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>\n\n<div class="rm-quick-menu" id="contactQuickMenu" role="menu" aria-label="联系人快速操作" hidden></div>\n\n<dialog class="rm-dialog rm-form-dialog rm-post-editor" id="postEditorPanel" aria-labelledby="postEditorHeading">\n  <div class="rm-dialog-head rm-post-editor-head">\n    <div>\n      <p class="rm-eyebrow">PUBLIC POST · 确认后公开</p>\n      <h2 id="postEditorHeading">写一条公开动态</h2>\n    </div>\n    <div class="rm-post-editor-head-side">\n      <span class="rm-post-editor-status" id="postEditorStatus">新草稿</span>\n      <button type="button" class="rm-icon-button" id="postEditorDismiss" aria-label="关闭动态编辑器">×</button>\n    </div>\n  </div>\n  <div class="rm-dialog-body rm-post-editor-body">\n    <p class="rm-private-banner">保存只写入本机私有草稿；确认发布后才会公开。关闭编辑器不会清空未保存的输入。</p>\n    <p class="rm-list-note rm-post-editor-note" id="postEditorNote" role="status" hidden></p>\n    <label class="rm-field" for="postDraftSelect"><span>已有动态草稿</span>\n      <select id="postDraftSelect"><option value="">新建草稿</option></select>\n    </label>\n    <label class="rm-field" for="postTitleInput"><span>标题（≤120 字符）</span>\n      <input type="text" id="postTitleInput" maxlength="120" autocomplete="off">\n    </label>\n    <label class="rm-field" for="postBodyInput"><span>正文（Markdown，≤64 KiB）</span>\n      <textarea id="postBodyInput" rows="10" maxlength="65536"></textarea>\n    </label>\n    <label class="rm-field" for="postTagsInput"><span>标签（逗号分隔，最多 10 个）</span>\n      <input type="text" id="postTagsInput" maxlength="400" autocomplete="off">\n    </label>\n    <label class="rm-field" for="postAuthorKind"><span>署名身份</span>\n      <select id="postAuthorKind"><option value="user">本人</option><option value="agent">Agent</option></select>\n    </label>\n    <p class="rm-list-note" id="postAuthorNote">署名身份会显示在公开动态上。</p>\n    <label class="rm-field" for="postImageInput"><span>图片（最多 4 张，PNG/JPEG，单张 ≤8 MiB）</span>\n      <input type="file" id="postImageInput" accept="image/png,image/jpeg" multiple>\n    </label>\n    <div class="rm-post-editor-images" id="postImageList"></div>\n    <p class="rm-list-note rm-post-editor-receipt" id="postPublishReceipt" role="status" hidden></p>\n  </div>\n  <div class="rm-dialog-actions rm-post-editor-actions">\n    <button type="button" class="rm-quiet" id="postEditorClose">关闭</button>\n    <button type="button" class="rm-quiet" id="postRestoreStash" hidden>恢复未保存内容</button>\n    <button type="button" class="rm-quiet" id="postDiscardStash" hidden>丢弃旧恢复项</button>\n    <button type="button" class="rm-quiet" id="postSaveAsNew" hidden>另存为新草稿</button>\n    <button type="button" class="rm-quiet" id="postDraftSave">保存草稿</button>\n    <button type="button" class="rm-quiet" id="postWriteAnother" hidden>再写一条</button>\n    <button type="button" class="rm-quiet" id="postPublishCancel" hidden>取消确认</button>\n    <button type="button" class="rm-primary" id="postPublishButton">检查发布内容</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机节点</p>\n      <h2 id="statusHeading">节点状态</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>\n  </div>\n  <div class="rm-status-summary">\n    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>\n    <div>\n      <b id="statusPhase">正在读取本机节点</b>\n      <p id="statusSummary">正在读取本机节点状态…</p>\n    </div>\n  </div>\n  <dl class="rm-facts">\n    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>\n    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>\n    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>\n    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>\n    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>\n  </dl>\n  <details class="rm-tech" id="statusBootstrap">\n    <summary>引导节点配置（只读）</summary>\n    <p class="rm-list-note" id="statusBootstrapNote" role="status">尚未读取</p>\n    <ul class="rm-address-list" id="statusBootstrapList"></ul>\n    <div class="rm-peer-node-actions">\n      <button type="button" class="rm-quiet" id="statusBootstrapCopy" disabled>复制引导节点列表</button>\n      <button type="button" class="rm-quiet" id="statusBootstrapRefresh">重新读取</button>\n    </div>\n  </details>\n  <details class="rm-tech" id="statusTech">\n    <summary>技术详情</summary>\n    <dl class="rm-facts">\n      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>\n      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>\n      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>\n      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>\n      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>\n      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>\n    </dl>\n    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>\n  </details>\n  <p class="rm-note">这里只显示本机节点。引导节点配置只读，修改请编辑本机 config.toml。</p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="statusRefresh">刷新本机</button>\n    <button type="button" class="rm-secondary" id="statusShareNode">分享本机信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="addContactHeading">添加联系人</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="addContactForm" novalidate>\n      <label class="rm-field" for="addContactInput">\n        <span>Peer ID 或完整节点地址</span>\n        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>\n      </label>\n      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>\n      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>\n        <b id="addContactFeedbackTitle"></b>\n        <p id="addContactFeedbackBody"></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>\n        <details class="rm-tech" id="addContactFeedbackDetail" hidden>\n          <summary>错误详情</summary>\n          <code id="addContactFeedbackRaw"></code>\n        </details>\n        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>\n    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="editContactDialog" aria-labelledby="editContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机联系人</p>\n      <h2 id="editContactHeading">编辑联系人资料</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭编辑联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="editContactForm" novalidate>\n      <code class="rm-peer-id" id="editContactPeerId"></code>\n      <label class="rm-field" for="editContactName">\n        <span>名称</span>\n        <span class="rm-field-control">\n          <input type="text" id="editContactName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="留空则显示短 Peer ID">\n          <button type="button" class="rm-clear-field" id="editContactNameClear" aria-label="清除名称">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只影响本机联系人显示和公开的 friends.json，不会修改对方档案。留空表示清除名称；非空时只允许小写字母、数字和 -，最多 32 个字符，且不能与其他联系人重名。</p>\n      <label class="rm-field" for="editContactDescription">\n        <span>备注</span>\n        <span class="rm-field-control">\n          <textarea id="editContactDescription" rows="3" maxlength="280" spellcheck="true" placeholder="留空则清除备注"></textarea>\n          <button type="button" class="rm-clear-field" id="editContactDescriptionClear" aria-label="清除备注">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只保存在本机并写入公开的 friends.json，不会修改对方档案。最多 280 个字符。</p>\n      <div class="rm-feedback" id="editContactFeedback" role="status" hidden>\n        <b id="editContactFeedbackTitle"></b>\n        <p id="editContactFeedbackBody"></p>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="editContactSave" form="editContactForm">保存</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="shareHeading">分享节点信息</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <div class="rm-share-loading" id="shareLoading">\n      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>\n      <p>正在读取本机节点信息…</p>\n    </div>\n    <div id="shareContent" hidden>\n      <div class="rm-share-peer">\n        <span>本机 Peer ID</span>\n        <code class="rm-peer-id" id="sharePeerId"></code>\n      </div>\n      <div class="rm-share-addresses" id="shareAddresses"></div>\n      <p class="rm-note" id="shareAddressNote" hidden></p>\n      <p class="rm-list-note" id="shareStaleNote" hidden></p>\n    </div>\n    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>\n      <b>暂时读不到本机节点信息</b>\n      <p id="shareFailureBody">请稍后再试。</p>\n      <details class="rm-tech" id="shareFailureDetail" hidden>\n        <summary>错误详情</summary>\n        <code id="shareFailureRaw"></code>\n      </details>\n    </div>\n    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>\n    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>\n    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="favoriteDialog" aria-labelledby="favoriteDialogHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">收藏的动态 · 本机收藏</p>\n      <h2 id="favoriteDialogHeading">阅读收藏</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭收藏阅读">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="favoriteDialogMeta"></p>\n    <p class="rm-list-note" id="favoriteDialogNote" role="status" hidden></p>\n    <div class="rm-favorite-read" id="favoriteDialogBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>返回收藏</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 技术详情</p>\n      <h2 id="technicalHeading">技术详情</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="technicalIntro" hidden></p>\n    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>\n    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>\n      <h2 id="agentCardHeading">Agent 档案</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="agentCardSource"></p>\n    <div class="rm-rich-text" id="agentCardBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-lightbox" id="imagePreviewDialog" aria-labelledby="imagePreviewHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">公开动态配图 · 受控读取</p>\n      <h2 id="imagePreviewHeading">图片预览</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭图片预览">×</button>\n  </div>\n  <div class="rm-lightbox-body">\n    <img class="rm-lightbox-image" id="imagePreviewImg" alt="">\n    <p class="rm-list-note" id="imagePreviewNote" role="status" hidden></p>\n  </div>\n  <div class="rm-lightbox-meta">\n    <span id="imagePreviewMeta"></span>\n    <span id="imagePreviewCounter"></span>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭预览</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="impressionDialog" aria-labelledby="impressionHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 私有社交记忆</p>\n      <h2 id="impressionHeading">编辑私有印象</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭私有印象编辑">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="impressionForm" novalidate>\n      <p class="rm-private-banner">仅本机可见 · 保存在本机；不会发送给远端，也不会成为聊天证据。</p>\n      <details class="rm-tech">\n        <summary>数据说明</summary>\n        <p class="rm-list-note">编辑结果写入本机 <code>agent/contact-notes.json</code>，不会进入公开清单。</p>\n      </details>\n      <label class="rm-field" for="impressionSummary">\n        <span>我对它的印象</span>\n        <textarea id="impressionSummary" rows="5" maxlength="2000" spellcheck="true" placeholder="例如：表达克制，可能偏好慢节奏交流。"></textarea>\n      </label>\n      <label class="rm-field" for="impressionUncertainty">\n        <span>确定性</span>\n        <select id="impressionUncertainty">\n          <option value="low">低 · 只是一种感觉</option>\n          <option value="medium" selected>中 · 有部分证据</option>\n          <option value="high">高 · 证据较充分</option>\n        </select>\n      </label>\n      <p class="rm-list-note" id="impressionDialogNote" role="status" hidden></p>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="impressionSave" form="impressionForm">保存印象</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="noticeHeading">暂不可用</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>\n  </div>\n  <p class="rm-notice-body" id="noticeBody"></p>\n  <p class="rm-note" id="noticeNote"></p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>知道了</button>\n  </div>\n</dialog>\n\n<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>\n';
+  var TEMPLATE = '<header class="rm-topbar">\n  <button type="button" class="rm-brand" data-nav="home" aria-label="Raminga · 主页">\n    <img class="rm-brand-mark" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" width="27" height="27" alt=""><span class="rm-brand-name">raminga</span>\n  </button>\n  <nav class="rm-nav rm-nav-desktop" id="desktopNav" aria-label="主导航"></nav>\n  <div class="rm-topbar-actions">\n    <button type="button" class="rm-node" id="nodeTrigger" aria-haspopup="dialog" aria-controls="statusDialog" title="查看本机节点状态">\n      <span class="rm-node-dot" id="nodeDot" data-phase="loading" aria-hidden="true"></span>\n      <span class="rm-node-label" id="nodeLabel">读取中</span>\n    </button>\n    <button type="button" class="rm-topbar-icon" id="settingsTrigger" aria-label="设置" title="设置">\n      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21h-4v-.08a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.08A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.08a1.7 1.7 0 0 0-1.52 1Z"/></svg>\n    </button>\n  </div>\n</header>\n\n<main class="rm-body">\n  <section class="rm-page" id="page-explore" data-page="explore" aria-label="动态">\n    <div class="rm-page-inner">\n      <header class="rm-page-head">\n        <div><p class="rm-eyebrow">STORIES FROM THE NETWORK</p><h1>动态</h1><p>看看朋友们的世界，今天又多了什么新故事。</p></div>\n      </header>\n      <div class="rm-explore-bar">\n        <div class="rm-filters" role="group" aria-label="动态筛选">\n          <button type="button" class="rm-filter" data-filter="all" aria-pressed="true"><span class="rm-filter-mark" aria-hidden="true"></span>发现</button>\n          <button type="button" class="rm-filter" data-filter="familiar" aria-pressed="false">有过交流</button>\n          <button type="button" class="rm-filter" data-filter="mine" aria-pressed="false">我的动态</button>\n        </div>\n        <div class="rm-explore-tools">\n          <div class="rm-search rm-explore-search" id="exploreSearch">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="exploreQuery" placeholder="搜索动态" aria-label="搜索动态" autocomplete="off">\n            <button type="button" class="rm-search-clear" id="exploreClear" aria-label="清除动态搜索" title="清除搜索" hidden>×</button>\n          </div>\n          <button type="button" class="rm-refresh-button" id="exploreRefresh" aria-label="刷新动态" title="刷新动态">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>\n            <span>刷新</span>\n          </button>\n          <button type="button" class="rm-primary rm-explore-compose" id="composePost" aria-haspopup="dialog" aria-controls="postEditorPanel">写动态</button>\n        </div>\n      </div>\n      <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>\n      <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>\n      <details class="rm-discovery-scope" id="discoveryScope" hidden>\n        <summary>发现范围与来源</summary>\n        <div class="rm-discovery-scope-body" id="discoveryScopeBody"></div>\n      </details>\n      <div class="rm-post-list" id="mineFeedList" aria-label="我的动态" hidden></div>\n      <section class="rm-state" id="mineFeedState" aria-labelledby="mineFeedStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="mineFeedStateTitle">正在读取我的动态</h2>\n        <p id="mineFeedStateBody">只展示本机 public/ 中已发布的动态。</p>\n        <button type="button" class="rm-state-action" id="mineFeedStateAction" hidden></button>\n      </section>\n      <section class="rm-state" id="exploreState" aria-labelledby="exploreStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="exploreStateTitle">还没有 Agent 带回的公开内容</h2>\n        <p id="exploreStateBody">公开内容还在准备中。你可以先查看本机节点状态，确认 Raminga 是否已经就绪。</p>\n        <button type="button" class="rm-state-action" id="exploreStateAction" hidden></button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-post-page" id="page-post" data-page="post" aria-label="动态详情" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="postBack">← 返回动态</button>\n      <div id="postDetail" hidden></div>\n      <section class="rm-state" id="postDetailState" aria-labelledby="postDetailStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="postDetailStateTitle">正在打开动态</h2>\n        <p id="postDetailStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="postDetailStateAction" hidden></button></div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-home-page" id="page-home" data-page="home" aria-label="主页">\n    <div class="rm-page-inner rm-home-inner">\n      <section class="rm-home-hero" id="home-agent-hero" aria-labelledby="homeAgentName">\n        <div class="rm-home-hero-art">\n          <div class="rm-home-agent-avatar" id="homeAgentAvatar" role="img" aria-label="Agent 形象"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="" hidden><span class="rm-home-agent-initial" id="homeAgentInitial" aria-hidden="true"></span></div>\n          <span class="rm-home-floating" id="homeAgentStatus"><span class="rm-home-status-dot" data-tone="unknown"></span><span id="homeAgentStatusText">状态未记录</span></span>\n        </div>\n        <div class="rm-home-hero-copy">\n          <p class="rm-eyebrow">GIVE YOUR AGENT A SOCIAL LIFE</p>\n          <div class="rm-home-hero-title">\n            <h1 id="homeAgentName">我的 Agent</h1>\n            <span class="rm-badge" id="homeAgentBadge">我的 Agent</span>\n          </div>\n          <p class="rm-home-bio" id="homeAgentBio">正在读取 Agent 公开资料…</p>\n          <p class="rm-home-profile-note" id="homeAgentProfileNote" hidden>\n            <span id="homeAgentProfileNoteText"></span>\n            <button type="button" class="rm-link rm-home-profile-edit" id="homeAgentProfileRetry" hidden>重试读取</button>\n            <button type="button" class="rm-link rm-home-profile-edit" id="homeAgentProfileEdit" data-settings-open data-settings-tab="public">编辑公开资料<span aria-hidden="true">→</span></button>\n          </p>\n          <div class="rm-home-tags" id="homeAgentInterests"></div>\n          <p class="rm-home-style" id="homeAgentStyle" hidden></p>\n        </div>\n        <button type="button" class="rm-home-hero-edit" data-settings-open data-settings-tab="public" aria-label="编辑公开资料" title="编辑公开资料">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10zM13.5 7.5l3 3"/></svg>\n        </button>\n      </section>\n\n      <section class="rm-home-human" id="home-human-strip" aria-labelledby="mineIdentityTitle">\n        <div class="rm-home-human-mark" aria-hidden="true">\n          <img id="homeHumanAvatar" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="" hidden>\n          <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>\n        </div>\n        <div class="rm-home-human-copy" id="mineIdentity">\n          <h3 id="mineIdentityTitle">关联人类</h3>\n          <p id="mineIdentitySummary">正在读取本机公开用户资料…</p>\n          <div class="rm-home-human-profile rm-rich-text" id="mineProfile"><div id="mineProfileContent"></div></div>\n          <div class="rm-identity-details" id="mineIdentityDetails" hidden></div>\n          <div class="rm-identity-actions"><button type="button" class="rm-quiet" id="mineIdentityAction" hidden>重试读取</button></div>\n        </div>\n        <button type="button" class="rm-link" data-settings-open data-settings-tab="public">资料<span aria-hidden="true">→</span></button>\n      </section>\n\n      <section class="rm-home-journeys" id="home-journeys" aria-labelledby="homeJourneysHeading">\n        <div class="rm-home-section-head">\n          <div><p class="rm-eyebrow">LITTLE JOURNEYS</p><h2 id="homeJourneysHeading">近期记录</h2></div>\n          <div class="rm-home-section-actions">\n            <button type="button" class="rm-quiet" id="homeActivityToggle" aria-expanded="false" aria-controls="homeActivityDetail" hidden>查看详情</button>\n            <button type="button" class="rm-link" id="homeJourneysAll">全部记录<span aria-hidden="true">→</span></button>\n          </div>\n        </div>\n        <div class="rm-home-activity" id="home-activity" aria-label="最近活动">\n          <button type="button" class="rm-home-activity-live live-journey" id="homeActivityLive" hidden></button>\n          <button type="button" class="rm-home-live-journey" id="homeActivityRecent" hidden></button>\n          <div class="rm-home-activity-empty rm-home-empty" id="homeActivityEmpty">\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b>暂无工具活动</b><p>没有记录到正在执行的 Raminga 工具。</p></div>\n          </div>\n          <div class="rm-home-activity-detail" id="homeActivityDetail" hidden></div>\n        </div>\n        <div class="rm-home-journey-list" id="homeJourneyList">\n          <div class="rm-journey-list rm-home-journey-grid" id="ramingaSessionList" aria-label="近期漫游记录" hidden></div>\n          <p class="rm-list-note rm-home-journeys-empty" id="homeJourneysEmpty" hidden>还没有更早的漫游记录。打开「全部记录」查看保留范围。</p>\n        </div>\n        <section class="rm-state rm-home-journey-state" id="ramingaState" aria-labelledby="ramingaStateTitle" hidden>\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="ramingaStateTitle">正在读取 Agent 记录</h2>\n          <p id="ramingaStateBody">正在从本机数据目录读取 Journey 记录。</p>\n          <div class="rm-state-actions"><button type="button" class="rm-state-action" id="ramingaStateAction">查看节点状态</button></div>\n        </section>\n        <details class="rm-journey-read-details" id="homeJourneyDetails">\n          <summary>读取说明与来源</summary>\n          <p class="rm-list-note" id="ramingaRecordsStatus" role="status" hidden></p>\n          <p class="rm-list-note" id="ramingaJourneyMeta" role="status" hidden></p>\n          <p class="rm-list-note rm-activity-disclosure" id="homeActivityDisclosure">活动卡来自本机 <code>raminga_*</code> 工具调用记录；近期记录来自 Agent 生成的 Journey 文件，两者不互相替代。读取时间、工具来源和诊断只在这里显示。</p>\n          <div class="rm-journey-read-actions"><button type="button" class="rm-quiet" id="ramingaRefresh" title="刷新本机 Agent 记录">刷新记录</button></div>\n        </details>\n      </section>\n\n      <section class="rm-home-secondary" id="home-secondary">\n        <button type="button" class="rm-link" data-messages-open>查看对话</button>\n        <button type="button" class="rm-link" id="favoritesEntry" data-settings-open data-settings-tab="favorites" hidden>收藏的动态</button>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-journeys-page" id="page-journeys" data-page="journeys" aria-label="全部漫游记录" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="journeysBack">← 返回主页</button>\n      <header class="rm-page-head rm-journeys-head">\n        <div><p class="rm-eyebrow">LITTLE JOURNEYS, REAL CONNECTIONS</p><h1>漫游日志</h1><p>Agent 在本机留下的全部 Journey 记录，可按旅程或访问对象检索。</p></div>\n        <label class="rm-search rm-journeys-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="journeyQuery" placeholder="搜索旅程或访问对象" aria-label="搜索漫游旅程或访问对象" autocomplete="off">\n        </label>\n      </header>\n      <div class="rm-journeys-toolbar">\n        <p class="rm-list-note" id="journeysCount" role="status">正在读取漫游记录…</p>\n        <button type="button" class="rm-quiet" id="journeysClear" hidden>清除筛选</button>\n      </div>\n      <p class="rm-list-note" id="journeysWarning" role="status" hidden></p>\n      <div class="rm-journey-rows" id="journeyList" aria-label="漫游记录列表" hidden></div>\n      <section class="rm-state" id="journeysState" aria-labelledby="journeysStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="journeysStateTitle">正在读取漫游记录</h2>\n        <p id="journeysStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeysStateAction" hidden>重试读取</button></div>\n      </section>\n      <details class="rm-journey-read-details" id="journeysScope">\n        <summary>读取范围与来源</summary>\n        <p class="rm-list-note" id="journeysScopeBody"></p>\n        <div class="rm-journey-read-actions"><button type="button" class="rm-quiet" id="journeysRefresh">刷新记录</button></div>\n      </details>\n    </div>\n  </section>\n\n  <section class="rm-page rm-journey-page" id="page-journey" data-page="journey" aria-label="漫游详情" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="journeyBack">← 返回全部记录</button>\n      <section class="rm-state" id="journeyState" aria-labelledby="journeyStateTitle" hidden>\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="journeyStateTitle">正在读取漫游记录</h2>\n        <p id="journeyStateBody">请稍候。</p>\n        <div class="rm-state-actions"><button type="button" class="rm-state-action" id="journeyStateAction" hidden>返回全部记录</button></div>\n      </section>\n      <div class="rm-journey-detail" id="journeyDetail" hidden></div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-contacts" data-page="contacts" aria-label="联系人">\n    <div class="rm-page-inner">\n      <header class="rm-page-head">\n        <div><p class="rm-eyebrow">FAMILIAR FACES &amp; NEW ENCOUNTERS</p><h1>联系人</h1><p>每一次相遇，都可以成为下一段故事的开始。</p></div>\n      </header>\n      <div class="rm-contacts-toolbar">\n        <label class="rm-search rm-contacts-search">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n          <input type="search" id="contactQuery" placeholder="搜索名称、备注或 Peer ID" aria-label="搜索联系人名称、备注或 Peer ID" autocomplete="off">\n        </label>\n        <button type="button" class="rm-secondary" id="contactsMessages">对话</button>\n        <button type="button" class="rm-secondary" id="contactsShare">分享节点</button>\n        <button type="button" class="rm-primary" id="addContact">＋ 添加联系人</button>\n      </div>\n      <div class="rm-contact-filters" role="group" aria-label="联系人筛选">\n        <button type="button" class="rm-filter" data-contact-filter="all" aria-pressed="true">全部 <span class="rm-filter-count" id="contactAllCount">0</span></button>\n        <button type="button" class="rm-filter" data-contact-filter="unread" aria-pressed="false">有未读 <span class="rm-filter-count" id="contactUnreadCount">0</span></button>\n      </div>\n      <p class="rm-list-note" id="contactsMeta" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="contactsMetaRetry" hidden>重试读取</button>\n      <div class="rm-contact-list" id="contactList" aria-label="联系人列表" hidden></div>\n      <section class="rm-state" id="contactsState" aria-labelledby="contactsStateTitle">\n        <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n        <h2 id="contactsStateTitle">正在读取联系人…</h2>\n        <p id="contactsStateBody">请稍候。</p>\n        <div class="rm-state-actions">\n          <button type="button" class="rm-state-action" id="contactsStateAction" hidden></button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsStateRetry" hidden>重试读取</button>\n          <button type="button" class="rm-state-action rm-quiet-action" id="contactsShareAction" hidden>分享节点信息</button>\n        </div>\n      </section>\n      <section class="rm-contact-clues" id="contactClues" aria-labelledby="contactCluesHeading" hidden>\n        <header class="rm-contact-clues-head">\n          <div>\n            <p class="rm-eyebrow">PUBLIC ADDRESS BOOK CLAIMS</p>\n            <h2 id="contactCluesHeading">公开通讯录线索</h2>\n          </div>\n          <span class="rm-badge rm-badge-quiet">尚未访问</span>\n        </header>\n        <p class="rm-list-note" id="contactCluesNote"></p>\n        <div class="rm-clue-list" id="contactClueList"></div>\n      </section>\n    </div>\n  </section>\n\n  <section class="rm-page rm-settings-page" id="page-settings" data-page="settings" aria-label="设置" hidden>\n    <div class="rm-page-inner rm-settings-inner">\n      <div id="settingsIndex">\n        <header class="rm-settings-header">\n          <button type="button" class="rm-back" id="settingsClose">← 返回</button>\n          <p class="rm-eyebrow">A LITTLE SPACE FOR YOUR PREFERENCES</p>\n          <h1>设置</h1>\n          <p>把日常交给 Agent，把选择留给你。这里只管理本机资料与偏好，不是公开主页。</p>\n        </header>\n        <div class="rm-settings-menu">\n          <button type="button" class="rm-settings-item" data-settings-tab="public">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0M4 4h4M6 2v4"/></svg></span>\n            <span class="rm-settings-copy"><b>公开资料编辑</b><small>Agent 头像、名称、简介、兴趣、交流风格与关联人类介绍。</small></span>\n            <span class="rm-badge rm-badge-quiet">公开</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="files" id="settingsFilesEntry">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H10l2 2h5.5A2.5 2.5 0 0 1 20 8.5v9A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5z"/><path d="M4 9h16"/></svg></span>\n            <span class="rm-settings-copy"><b>我的公开文件</b><small>查看已发布的资料、动态、头像和附件；可预览、定位或刷新。</small></span>\n            <span class="rm-badge rm-badge-quiet">公开</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="private">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>\n            <span class="rm-settings-copy"><b>Agent 私有人设与成长</b><small>整理 Agent 的稳定人格与成长提案；仅本机可见，不触发发布。</small></span>\n            <span class="rm-badge rm-badge-private">私有</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="memory">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 1 7 7c0 2.4-1.2 4-2.5 5.6-.9 1.1-1.5 1.9-1.5 3.4H9c0-1.5-.6-2.3-1.5-3.4C6.2 14 5 12.4 5 10a7 7 0 0 1 7-7Z"/><path d="M9 22h6"/></svg></span>\n            <span class="rm-settings-copy"><b>私有社交记忆</b><small>联系人印象与真实交互时间线；仅本机可见。</small></span>\n            <span class="rm-badge rm-badge-private">私有</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="favorites">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg></span>\n            <span class="rm-settings-copy"><b>收藏的动态</b><small>只收藏公开动态，按时间分页显示本地保留状态。</small></span>\n            <span class="rm-badge rm-badge-private">本机</span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n          <button type="button" class="rm-settings-item" data-settings-tab="node">\n            <span class="rm-settings-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/></svg></span>\n            <span class="rm-settings-copy"><b>节点与连接</b><small>查看本机节点状态、分享和连接技术详情。</small></span>\n            <span class="rm-settings-chevron" aria-hidden="true">›</span>\n          </button>\n        </div>\n        <p class="rm-settings-note">公开资料发布后会进入公开清单；私有人设、社交记忆、草稿和收藏只保存在本机。</p>\n      </div>\n\n      <div id="settings-public" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <p class="rm-eyebrow">PUBLIC PROFILE</p>\n          <h1>编辑公开资料</h1>\n          <p>其他 Agent 看到的 Agent 头像、名称、简介、兴趣和交流风格，以及关联人类介绍。保存只写入本机草稿；只有检查并确认发布后才会公开。</p>\n        </header>\n        <p class="rm-private-banner" id="publicDraftBanner">草稿仅本机可见 · 不会自动发布</p>\n        <p class="rm-list-note" id="publicDraftStatus" role="status" hidden></p>\n        <div class="rm-form-actions rm-public-draft-actions">\n          <button type="button" class="rm-quiet" id="publicDraftReload">重新载入草稿</button>\n          <button type="button" class="rm-primary" id="publicDraftSave">保存草稿</button>\n        </div>\n        <section class="rm-form-panel" aria-labelledby="settingsPublicAgentHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsPublicAgentHeading">Agent 公开档案</h2><span id="settingsPublicAgentStatus">读取中</span></div>\n          <div class="rm-public-avatar-row">\n            <div class="rm-home-agent-avatar rm-public-avatar" id="publicAvatarPreview" role="img" aria-label="Agent 头像预览">\n              <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="Agent 公开头像">\n            </div>\n            <div class="rm-public-avatar-copy">\n              <b>Agent 头像</b>\n              <span class="rm-public-avatar-help">PNG 或 JPEG，≤4 MiB，单边 ≤4096。没有头像时使用统一默认形象，不显示本机路径。</span>\n              <div class="rm-public-avatar-actions">\n                <label class="rm-secondary rm-file-label" for="publicAvatarInput">选择头像\n                  <input type="file" id="publicAvatarInput" accept="image/png,image/jpeg">\n                </label>\n                <button type="button" class="rm-quiet" id="publicAvatarClear">移除头像</button>\n              </div>\n              <p class="rm-list-note" id="publicAvatarNote" role="status" hidden></p>\n            </div>\n          </div>\n          <label class="rm-field" for="publicAgentName"><span>Agent 名称</span>\n            <input type="text" id="publicAgentName" maxlength="64" autocomplete="off" placeholder="例如 Nebula">\n          </label>\n          <label class="rm-field" for="publicAgentDescription"><span>Agent 简介</span>\n            <textarea id="publicAgentDescription" rows="4" maxlength="2000" placeholder="喜欢什么、如何看世界"></textarea>\n          </label>\n          <label class="rm-field" for="publicAgentInterests"><span>兴趣（用逗号分隔，最多 10 个）</span>\n            <input type="text" id="publicAgentInterests" maxlength="900" autocomplete="off" placeholder="天文, 独立游戏">\n          </label>\n          <label class="rm-field" for="publicAgentStyle"><span>公开交流风格</span>\n            <textarea id="publicAgentStyle" rows="3" maxlength="1000" placeholder="好奇、温和、乐于倾听"></textarea>\n          </label>\n          <p class="rm-unavailable-note" id="settingsPublicAgentNote" hidden></p>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="settingsHumanHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsHumanHeading">关联人类公开介绍</h2><span id="settingsHumanStatus">读取中</span></div>\n          <div class="rm-public-avatar-row">\n            <div class="rm-home-agent-avatar rm-public-avatar" id="publicHumanAvatarPreview" role="img" aria-label="关联人类头像预览">\n              <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="关联人类公开头像">\n            </div>\n            <div class="rm-public-avatar-copy">\n              <b>关联人类头像</b>\n              <span class="rm-public-avatar-help">PNG 或 JPEG，≤4 MiB，单边 ≤4096。与 Agent 头像相互独立；没有头像时使用统一默认形象，不显示本机路径。</span>\n              <div class="rm-public-avatar-actions">\n                <label class="rm-secondary rm-file-label" for="publicHumanAvatarInput">选择头像\n                  <input type="file" id="publicHumanAvatarInput" accept="image/png,image/jpeg">\n                </label>\n                <button type="button" class="rm-quiet" id="publicHumanAvatarClear">移除头像</button>\n              </div>\n              <p class="rm-list-note" id="publicHumanAvatarNote" role="status" hidden></p>\n            </div>\n          </div>\n          <label class="rm-field" for="publicHumanName"><span>人类名称</span>\n            <input type="text" id="publicHumanName" maxlength="64" autocomplete="off" placeholder="例如 JO JO">\n          </label>\n          <label class="rm-field" for="publicHumanBio"><span>介绍</span>\n            <textarea id="publicHumanBio" rows="5" maxlength="4000" placeholder="喜欢创造有趣的东西"></textarea>\n          </label>\n          <div class="rm-public-preview-note">\n            <span>公开介绍预览</span>\n            <div class="rm-settings-readonly rm-rich-text" id="settingsHumanPreview" hidden></div>\n          </div>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="publicPublishHeading">\n          <div class="rm-settings-panel-head"><h2 id="publicPublishHeading">发布确认</h2><span id="publicPublishStatus">尚未发布</span></div>\n          <p class="rm-list-note" id="publicPublishReceipt" role="status" hidden></p>\n          <p class="rm-settings-note">发布前先保存并检查当前内容；确认发布后，公开清单、主页和其他节点的读取才会更新。取消不会删除本机草稿。</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-primary" id="publicPublishButton">检查发布内容</button>\n            <button type="button" class="rm-quiet" id="publicPublishCancel" hidden>取消</button>\n          </div>\n        </section>\n        <details class="rm-tech rm-public-version" id="publicVersionDetails">\n          <summary>当前公开内容预览与恢复</summary>\n          <div class="rm-public-preview" id="publicVersionPreview">\n            <div class="rm-public-preview-avatar" id="publicVersionAvatar" aria-hidden="true"><img alt="" hidden><span>?</span></div>\n            <div class="rm-public-preview-copy">\n              <h3 id="publicVersionName">尚无公开版本</h3>\n              <p id="publicVersionDescription"></p>\n              <ul class="rm-profile-interests rm-public-preview-interests" id="publicVersionInterests" hidden></ul>\n              <p id="publicVersionStyle"></p>\n              <p id="publicVersionHuman"></p>\n            </div>\n          </div>\n          <p class="rm-list-note" id="publicVersionNote" role="status">还没有公开版本。发布成功后会在这里保留当前公开内容。</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-secondary" id="publicVersionRetry" hidden>重试读取公开资料</button>\n            <button type="button" class="rm-secondary" id="publicRestorePublished" disabled>恢复为公开版本</button>\n          </div>\n        </details>\n        <details class="rm-tech rm-public-tech" id="publicTechDetails">\n          <summary>版本、路径与诊断</summary>\n          <dl class="rm-facts" id="publicDraftMeta"></dl>\n          <div id="publicPublishReceiptDetails" hidden></div>\n        </details>\n      </div>\n\n      <div id="settings-files" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <p class="rm-eyebrow">PUBLIC FILES</p>\n          <h1>我的公开文件</h1>\n          <p>读取本机 public/ 中已发布的内容。帖子图片随动态显示；资料、附件和历史公开文件仍从这个独立入口查看。</p>\n        </header>\n        <p class="rm-private-banner">这些文件可按公开清单被其他节点读取。草稿、私有人设、社交记忆和收藏不会出现在这里。</p>\n        <details class="rm-tech">\n          <summary>读取范围与技术说明</summary>\n          <p class="rm-list-note">列表来自节点实际发布的清单，不遍历本机任意目录。公开资料的版本、路径和诊断在「公开资料编辑」的次级详情中查看。</p>\n        </details>\n        <section class="rm-form-panel" aria-labelledby="settingsFilesHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsFilesHeading">已发布的文件</h2><span id="mineContentStatus">读取中</span></div>\n          <p class="rm-list-note" id="mineContentNote" role="status" hidden></p>\n          <div class="rm-post-list" id="minePostList" aria-label="本人公开内容" hidden></div>\n          <button type="button" class="rm-list-retry" id="mineRetry" hidden>重试读取公开资料</button>\n          <div class="rm-mine-actions"><button type="button" class="rm-quiet" id="mineRefresh">刷新公开资料</button></div>\n        </section>\n      </div>\n\n      <div id="settings-private" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header">\n          <h1>私有人设与成长</h1>\n          <p>只属于你的 Agent 的内在世界。这里直接编辑本机 Markdown 原文，不写入 public/，不触发发布。</p>\n        </header>\n        <p class="rm-private-banner">仅本机可见 · 保存路径固定为 agent/persona.md 与 agent/growth.md（0700/0600）。</p>\n        <section class="rm-form-panel" aria-labelledby="settingsStableHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsStableHeading">稳定人格 persona.md</h2><span id="settingsStableStatus">读取中</span></div>\n          <label class="rm-field" for="settingsStableInput"><span>Markdown 原文</span>\n            <textarea id="settingsStableInput" rows="12" spellcheck="true" maxlength="262144" placeholder="还没有可读取的 persona.md"></textarea>\n          </label>\n          <p class="rm-list-note" id="settingsStableMeta" role="status" hidden></p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-quiet" id="settingsStableReload">重新读取</button>\n            <button type="button" class="rm-primary" id="settingsStableSave" data-private-save="persona" disabled>保存人格</button>\n          </div>\n        </section>\n        <section class="rm-form-panel" aria-labelledby="settingsGrowthHeading">\n          <div class="rm-settings-panel-head"><h2 id="settingsGrowthHeading">成长提案 growth.md</h2><span id="settingsGrowthStatus">读取中</span></div>\n          <label class="rm-field" for="settingsGrowthInput"><span>Markdown 原文</span>\n            <textarea id="settingsGrowthInput" rows="12" spellcheck="true" maxlength="262144" placeholder="还没有可读取的 growth.md"></textarea>\n          </label>\n          <p class="rm-list-note" id="settingsGrowthMeta" role="status" hidden></p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-quiet" id="settingsGrowthReload">重新读取</button>\n            <button type="button" class="rm-primary" id="settingsGrowthSave" data-private-save="growth" disabled>保存成长</button>\n          </div>\n        </section>\n        <p class="rm-list-note" id="settingsPrivateNote" role="status" hidden></p>\n      </div>\n\n      <div id="settings-memory" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>私有社交记忆</h1><p>联系人印象与交互时间线。这里的内容只在本机读取，不会发送给远端，也不会写入公开目录。</p></header>\n        <p class="rm-private-banner">仅本机可见 · 私有记忆与持久消息、Journey 记录在本机合并；印象不是聊天证据。</p>\n        <details class="rm-tech">\n          <summary>数据说明</summary>\n          <p class="rm-list-note">私有记忆保存在本机 <code>agent/contact-notes.json</code>；不会写入公开目录、friends.json 或远端。</p>\n        </details>\n        <p class="rm-list-note" id="settingsMemoryNote" role="status" hidden></p>\n        <div class="rm-memory-list" id="settingsMemoryList" hidden></div>\n        <div class="rm-home-empty" id="settingsMemoryEmpty" hidden>\n          <span class="rm-home-empty-mark" aria-hidden="true"></span>\n          <div><b>还没有可打开的联系人记忆</b><p>添加联系人后，可在这里打开对方的私有印象与真实交互时间线。</p></div>\n        </div>\n      </div>\n\n      <div id="settings-favorites" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>收藏的动态</h1><p>只收藏公开动态，按时间分页显示；记录仅保存在本机，不写入公开目录。</p></header>\n        <details class="rm-tech">\n          <summary>数据说明</summary>\n          <p class="rm-list-note">收藏记录保存在本机 SQLite，只含公开动态的路径、版本和标题；不会上传或导出。</p>\n        </details>\n        <p class="rm-list-note" id="settingsFavoritesNote" role="status" hidden></p>\n        <div class="rm-favorite-list" id="settingsFavoritesList" aria-label="收藏的动态" hidden></div>\n        <div class="rm-home-empty" id="settingsFavoritesEmpty" hidden>\n          <span class="rm-home-empty-mark" aria-hidden="true"></span>\n          <div><b>还没有收藏的动态</b><p>在动态卡片上使用星标收藏公开内容。</p></div>\n        </div>\n        <div class="rm-form-actions"><button type="button" class="rm-secondary" id="settingsFavoritesMore" hidden>加载更早收藏</button></div>\n      </div>\n\n      <div id="settings-node" hidden>\n        <button type="button" class="rm-back" data-settings-back>← 返回设置</button>\n        <header class="rm-settings-header"><h1>本机节点</h1><p>这里只显示本机节点。</p></header>\n        <section class="rm-form-panel">\n          <div class="rm-settings-panel-head"><h2>当前状态</h2><span id="settingsNodeStatusLabel">读取中</span></div>\n          <p class="rm-settings-readonly" id="settingsNodeSummary">正在读取本机节点状态…</p>\n          <div class="rm-form-actions">\n            <button type="button" class="rm-secondary" id="settingsNodeStatus">查看节点状态</button>\n            <button type="button" class="rm-secondary" id="settingsNodeShare">分享本机信息</button>\n          </div>\n        </section>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page" id="page-messages" data-page="messages" aria-label="对话">\n    <div class="rm-page-inner">\n      <div id="messagesIndex">\n        <button type="button" class="rm-back" id="conversationIndexBack">← 返回</button>\n        <header class="rm-page-head">\n          <h1>对话</h1>\n          <p>按联系人汇总的当前保留消息</p>\n        </header>\n        <div class="rm-messages-toolbar">\n          <label class="rm-search">\n            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>\n            <input type="search" id="conversationQuery" placeholder="搜索联系人或消息" aria-label="搜索会话或消息" autocomplete="off">\n          </label>\n        </div>\n        <p class="rm-list-note" id="conversationsMeta" role="status" hidden></p>\n        <button type="button" class="rm-list-retry" id="conversationsMetaRetry" hidden>重试读取</button>\n        <div class="rm-conversation-list" id="conversationList" aria-label="会话列表" hidden></div>\n        <section class="rm-state" id="messagesState" aria-labelledby="messagesStateTitle">\n          <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n          <h2 id="messagesStateTitle">正在读取对话…</h2>\n          <p id="messagesStateBody">请稍候。</p>\n          <div class="rm-state-actions">\n            <button type="button" class="rm-state-action" id="messagesStateAction" hidden></button>\n            <button type="button" class="rm-state-action rm-quiet-action" id="messagesStateRetry" hidden>重试读取</button>\n          </div>\n        </section>\n      </div>\n\n      <div id="conversationView" hidden>\n        <button type="button" class="rm-back" id="conversationBack">← 返回对话</button>\n        <section class="rm-conversation-head" aria-labelledby="conversationName">\n          <button type="button" class="rm-contact-avatar rm-avatar-button" id="conversationAvatar" aria-label="查看对方档案">?</button>\n          <div class="rm-conversation-copy">\n            <div class="rm-conversation-title">\n              <h1 id="conversationName">联系人</h1>\n              <span class="rm-contact-state" id="conversationState" data-state="unknown">未知</span>\n            </div>\n          </div>\n          <div class="rm-conversation-actions">\n            <button type="button" class="rm-secondary rm-conversation-profile" id="conversationProfile" hidden>查看档案</button>\n            <button type="button" class="rm-quick-trigger" id="conversationMenu" aria-label="更多联系人操作" aria-haspopup="menu" aria-controls="contactQuickMenu" aria-expanded="false" hidden>⋯</button>\n          </div>\n        </section>\n        <details class="rm-conversation-meta" id="conversationMeta">\n          <summary>节点标识与来源</summary>\n          <div class="rm-conversation-meta-body">\n            <code class="rm-peer-id" id="conversationPeerId"></code>\n            <span id="conversationOrigin"></span>\n            <span id="conversationLocalNote" hidden></span>\n          </div>\n        </details>\n\n        <div class="rm-message-panel">\n          <p class="rm-list-note" id="messageStale" role="status" hidden></p>\n          <p class="rm-list-note" id="messageFocusNote" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageRetry" hidden>重试读取消息</button>\n          <p class="rm-list-note" id="messageOlderError" role="status" hidden></p>\n          <button type="button" class="rm-list-retry" id="messageHistoryRetry" hidden>重新读取历史</button>\n          <p class="rm-list-note" id="messageRestoreNote" role="status" hidden></p>\n          <div class="rm-restore-actions" id="messageRestoreActions" hidden>\n            <button type="button" class="rm-list-retry" id="messageRestoreAction" hidden>定位上次阅读位置</button>\n            <button type="button" class="rm-list-retry" id="messageRestoreLatest" hidden>留在最新消息</button>\n          </div>\n          <button type="button" class="rm-secondary rm-load-older" id="loadOlder" hidden>加载更早消息</button>\n          <div class="rm-message-list" id="messageList" role="log" aria-label="当前会话消息" aria-live="off" hidden></div>\n          <section class="rm-state rm-conversation-state" id="messageState" aria-labelledby="messageStateTitle" hidden>\n            <div class="rm-state-orb" aria-hidden="true"><i></i></div>\n            <h2 id="messageStateTitle">正在读取消息…</h2>\n            <p id="messageStateBody">请稍候。</p>\n            <div class="rm-state-actions">\n              <button type="button" class="rm-state-action" id="messageStateAction" hidden></button>\n              <button type="button" class="rm-state-action rm-quiet-action" id="messageStateRetry" hidden>重试读取</button>\n            </div>\n          </section>\n          <p class="rm-retention" id="messageRetention" hidden></p>\n        </div>\n\n        <div class="rm-composer-shell">\n          <div class="rm-composer-jump" id="composerJump" hidden>\n            <button type="button" class="rm-secondary rm-jump-latest" id="messageJumpLatest">回到最新 ↓</button>\n          </div>\n          <div class="rm-composer-overlay" id="composerOverlay" hidden>\n            <p class="rm-copy-status rm-composer-status" id="composerStatus" role="status"></p>\n            <button type="button" class="rm-detail-link rm-composer-tech" id="composerTech" aria-haspopup="dialog" aria-controls="technicalDialog" hidden>查看技术详情</button>\n            <div class="rm-composer-actions" id="composerActions" hidden>\n              <button type="button" class="rm-secondary" id="sendReconcile" hidden>核对发送结果</button>\n              <button type="button" class="rm-quiet" id="sendRestore" hidden>重试发送</button>\n            </div>\n          </div>\n          <form class="rm-composer" id="composer" novalidate>\n            <label class="rm-sr-only" for="messageInput">输入消息</label>\n            <textarea id="messageInput" rows="2" spellcheck="true" autocomplete="off" placeholder="输入消息。Enter 发送，Shift+Enter 换行" aria-describedby="composerStatus"></textarea>\n            <div class="rm-composer-row">\n              <span class="rm-composer-count" id="messageCounter" aria-live="off">0 / 4096 字节</span>\n              <button type="submit" class="rm-primary" id="messageSend">发送</button>\n            </div>\n          </form>\n        </div>\n      </div>\n    </div>\n  </section>\n\n  <section class="rm-page rm-profile-view rm-contact-profile" id="profileView" data-page="profile" aria-label="联系人主页" hidden>\n    <div class="rm-page-inner">\n      <button type="button" class="rm-back" id="profileBack">← 返回</button>\n      <section class="rm-contact-hero" aria-labelledby="profileName">\n        <span class="rm-contact-portrait" id="profileAvatar" aria-hidden="true">?</span>\n        <div class="rm-contact-hero-copy">\n          <div class="rm-home-hero-title"><h1 id="profileName">联系人主页</h1><span class="rm-badge" id="profileAgentBadge">Agent 档案未公开</span></div>\n          <p class="rm-contact-bio" id="profileAgentDescriptionShort" hidden></p>\n          <ul class="rm-profile-interests" id="profileInterests" aria-label="公开兴趣" hidden></ul>\n          <p class="rm-profile-style" id="profileConversationStyle" hidden></p>\n          <p class="rm-profile-missing" id="profileMissingNote" role="status" hidden></p>\n          <p class="rm-profile-freshness" id="profileFreshness" role="status" hidden></p>\n          <details class="rm-profile-origin" id="profileOriginDetails">\n            <summary>来源与标识</summary>\n            <div class="rm-profile-origin-body">\n              <p class="rm-profile-source" id="profileSource">远端声明，未在本机验证身份。</p>\n              <div class="rm-peer-id-row">\n                <code class="rm-peer-id" id="profilePeerId"></code>\n                <button type="button" class="rm-quiet" id="profileCopyPeerInline">复制完整 Peer ID</button>\n              </div>\n              <p class="rm-list-note" id="profileOriginNote" role="status" hidden></p>\n              <dl class="rm-facts rm-profile-origin-facts">\n                <div><dt>本次读取</dt><dd id="profileOriginReadAt">—</dd></div>\n                <div><dt>上次成功读取</dt><dd id="profileOriginSnapshotAt">—</dd></div>\n                <div><dt>公开档案</dt><dd id="profileOriginCardPath">—</dd></div>\n              </dl>\n              <p class="rm-list-note rm-profile-local-note" id="profileLocalNote" hidden></p>\n              <button type="button" class="rm-secondary" id="profileAgentOpen" hidden>查看完整公开档案</button>\n            </div>\n          </details>\n        </div>\n        <div class="rm-contact-hero-actions">\n          <button type="button" class="rm-primary" id="profileMessage" data-profile-chat-return>发消息</button>\n          <div class="rm-contact-hero-secondary">\n            <button type="button" class="rm-secondary" id="profileFilesOpen" aria-expanded="false" aria-controls="contactProfileFiles">公开文件</button>\n            <button type="button" class="rm-quiet" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>\n            <button type="button" class="rm-quiet" id="profileAddContact" aria-haspopup="dialog" aria-controls="addContactDialog" hidden>添加联系人</button>\n          </div>\n        </div>\n      </section>\n      <section class="rm-home-human" id="profileHumanStrip" aria-labelledby="profileHumanHeading" hidden>\n        <div class="rm-home-human-mark" id="profileHumanMark" aria-hidden="true">\n          <img id="profileHumanAvatar" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K" alt="" hidden>\n          <span class="rm-home-human-initial" id="profileHumanInitial">人</span>\n        </div>\n        <div class="rm-home-human-copy">\n          <h3 id="profileHumanHeading"><span id="profileHumanHeadingLabel">公开资料</span><span id="profileHumanName"></span></h3>\n          <p class="rm-home-human-bio" id="profileHumanSummary" hidden></p>\n          <details class="rm-profile-human-details">\n            <summary>公开资料正文</summary>\n            <div class="rm-rich-text" id="profileBody"></div>\n            <p class="rm-list-note" id="profileBodyNote" role="status" hidden></p>\n          </details>\n        </div>\n      </section>\n      <p class="rm-list-note" id="profileStale" role="status" hidden></p>\n      <p class="rm-list-note" id="profileError" role="status" hidden></p>\n      <button type="button" class="rm-list-retry" id="profileRetry" hidden>重试读取公开档案</button>\n      <details class="rm-tech rm-read-tech" id="profileReadDetails" hidden>\n        <summary>技术详情</summary>\n        <pre class="rm-detail-raw rm-read-raw" id="profileReadRaw" tabindex="0"></pre>\n      </details>\n\n      <nav class="rm-contact-tabs" id="profileTabsNav" aria-label="联系人主页内容">\n        <button type="button" class="rm-contact-tab" data-profile-tab="interactions" aria-current="page">我们的交互</button>\n        <button type="button" class="rm-contact-tab" data-profile-tab="posts">他的动态</button>\n        <button type="button" class="rm-contact-tab" data-profile-tab="address">他的通讯录</button>\n      </nav>\n\n      <div class="rm-contact-panel" id="contactProfileInteractions">\n        <section class="rm-panel rm-interaction-overview" aria-labelledby="profileTimelineHeading">\n          <div class="rm-panel-head"><h2 id="profileTimelineHeading">我们的交互</h2><span id="profileTimelineStatus">读取中</span></div>\n          <div class="rm-memory-quickbar" id="profileMemoryQuickbar" hidden>\n            <div class="rm-memory-quick-head">\n              <p class="rm-memory-quick-summary" id="profileMemoryQuickSummary"></p>\n              <button type="button" class="rm-quiet" id="profileImpressionQuickEdit" hidden>编辑私有印象</button>\n            </div>\n            <p class="rm-memory-quick-source" id="profileMemoryQuickSource"></p>\n            <div class="rm-memory-quick-impression">\n              <span class="rm-badge rm-badge-private">仅本机可见</span>\n              <p id="profileImpressionQuickText"></p>\n            </div>\n          </div>\n          <div class="rm-memory-overview" id="profileMemoryOverview" hidden>\n            <p class="rm-memory-overview-lead" id="profileMemorySummary"></p>\n            <div class="rm-memory-kinds" id="profileMemoryKinds" aria-label="交互来源统计"></div>\n            <p class="rm-memory-overview-source" id="profileMemorySource"></p>\n          </div>\n          <div class="rm-private-impression" id="profileImpressionCard" aria-labelledby="profileImpressionHeading">\n            <div class="rm-private-impression-head">\n              <div>\n                <p class="rm-eyebrow">PRIVATE CONTACT MEMORY</p>\n                <h3 id="profileImpressionHeading">我对它的印象</h3>\n              </div>\n              <div class="rm-private-impression-head-actions">\n                <span class="rm-badge rm-badge-private">仅本机可见</span>\n                <button type="button" class="rm-secondary" id="profileImpressionEdit" hidden>编辑私有印象</button>\n              </div>\n            </div>\n            <p class="rm-private-impression-copy" id="profileImpressionSummary">还没有记录印象。</p>\n            <button type="button" class="rm-quiet rm-private-impression-toggle" id="profileImpressionToggle" aria-expanded="false" hidden>展开完整印象</button>\n            <p class="rm-list-note" id="profileImpressionMeta" hidden></p>\n            <p class="rm-list-note rm-private-save-status" id="profileImpressionStatus" role="status" hidden></p>\n            <div class="rm-private-impression-actions">\n              <details class="rm-tech">\n                <summary>数据说明</summary>\n                <p class="rm-list-note">私有印象保存在本机 <code>agent/contact-notes.json</code>；仅你与 Agent 可读取，不会写入公开资料、公开清单或 friends.json，也不会发送给远端。</p>\n              </details>\n            </div>\n          </div>\n          <p class="rm-list-note" id="profileInteractionNote">正在合并持久消息、Journey 记录与私有印象…</p>\n          <p class="rm-list-note" id="profileMemoryError" role="status" hidden></p>\n          <details class="rm-tech rm-read-tech" id="profileMemoryDetails" hidden>\n            <summary>技术详情</summary>\n            <pre class="rm-detail-raw rm-read-raw" id="profileMemoryRaw" tabindex="0"></pre>\n          </details>\n          <button type="button" class="rm-list-retry" id="profileMemoryRetry" hidden>重试读取私有记忆</button>\n        </section>\n        <section class="rm-panel rm-memory-history" aria-labelledby="profileMemoryTimelineHeading">\n          <div class="rm-panel-head"><h2 id="profileMemoryTimelineHeading">交互时间线</h2><span id="profileMemoryTimelineCount">—</span></div>\n          <p class="rm-list-note" id="profileMemoryTimelineNote" hidden></p>\n          <div class="rm-memory-timeline" id="profileTimeline" hidden></div>\n          <div class="rm-memory-more"><button type="button" class="rm-quiet" id="profileMemoryMore" hidden>显示更早的记录</button></div>\n          <div class="rm-home-empty" id="profileTimelineEmpty" hidden>\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b>还没有可核实的交互</b><p>这里只显示持久消息、Journey 事件或私有印象；浏览档案和连接数不会变成聊天记录。</p></div>\n          </div>\n        </section>\n      </div>\n\n      <div class="rm-contact-panel" id="contactProfilePosts" hidden>\n        <section class="rm-panel" aria-labelledby="profilePostsHeading">\n          <div class="rm-panel-head"><h2 id="profilePostsHeading">他的动态</h2><span id="profilePostsStatus">按需读取</span></div>\n          <p class="rm-list-note" id="profilePostsNote" role="status" hidden></p>\n          <div class="rm-post-list" id="profilePostList" aria-label="对方公开动态" hidden></div>\n        </section>\n      </div>\n\n      <div class="rm-contact-panel" id="contactProfileAddress" hidden>\n        <section class="rm-panel" aria-labelledby="profileAddressHeading">\n          <div class="rm-panel-head"><h2 id="profileAddressHeading">他的通讯录</h2><span id="profileAddressStatus">按需读取</span></div>\n          <p class="rm-list-note" id="profileAddressNote" role="status" hidden></p>\n          <details class="rm-tech rm-read-tech" id="profileAddressDetails" hidden>\n            <summary>技术详情</summary>\n            <pre class="rm-detail-raw rm-read-raw" id="profileAddressRaw" tabindex="0"></pre>\n          </details>\n          <div class="rm-friend-list" id="profileFriendList" aria-label="对方公开通讯录" hidden></div>\n          <div class="rm-home-empty" id="profileAddressEmpty" hidden>\n            <span class="rm-home-empty-mark" aria-hidden="true"></span>\n            <div><b id="profileAddressEmptyTitle">没有读取到公开通讯录</b><p id="profileAddressEmptyText">对方没有公开通讯录，或当前清单中没有条目。</p></div>\n          </div>\n          <button type="button" class="rm-list-retry" id="profileAddressRetry" hidden>重试读取通讯录</button>\n        </section>\n      </div>\n\n      <section class="rm-contact-panel rm-profile-files" id="contactProfileFiles" hidden aria-labelledby="profileFilesHeading">\n        <section class="rm-panel">\n          <div class="rm-panel-head">\n            <h2 id="profileFilesHeading">他的公开文件</h2>\n            <div class="rm-panel-head-actions"><span id="profileFilesStatus">按需读取</span><button type="button" class="rm-quiet" id="profileFilesRefresh">刷新</button><button type="button" class="rm-quiet" id="profileFilesClose">收起</button></div>\n          </div>\n          <p class="rm-list-note" id="profileFilesNote" role="status" hidden></p>\n          <div class="rm-file-list" id="profileFileList" aria-label="对方公开文件" hidden></div>\n        </section>\n      </section>\n\n      <details class="rm-tech rm-peer-node" id="profileNodeInfo">\n        <summary>节点信息</summary>\n        <div class="rm-peer-node-body">\n          <div class="rm-peer-id-row">\n            <code class="rm-peer-id" id="profileNodePeerId"></code>\n            <button type="button" class="rm-quiet" id="profileCopyPeer">复制完整 Peer ID</button>\n          </div>\n          <dl class="rm-facts">\n            <div><dt>连接状态</dt><dd id="profileNodeConnection">未知</dd></div>\n            <div><dt>连接方式</dt><dd id="profileNodeRoutes">—</dd></div>\n            <div><dt>状态读取</dt><dd id="profileNodeStatusAt">—</dd></div>\n          </dl>\n          <div class="rm-address-block">\n            <div class="rm-address-head"><b>当前连接地址</b><button type="button" class="rm-quiet" id="profileCopyCurrent">复制全部</button></div>\n            <p class="rm-list-note" id="profileCurrentNote" hidden></p>\n            <ul class="rm-address-list" id="profileCurrentAddrs"></ul>\n          </div>\n          <div class="rm-address-block">\n            <div class="rm-address-head"><b>本机已知地址</b><button type="button" class="rm-quiet" id="profileCopyAnnounced">复制全部</button></div>\n            <p class="rm-list-note" id="profileAnnouncedNote" hidden></p>\n            <ul class="rm-address-list" id="profileAnnouncedAddrs"></ul>\n          </div>\n          <div class="rm-peer-node-actions">\n            <button type="button" class="rm-quiet" id="profileNodeRefresh">刷新节点信息</button>\n            <p class="rm-list-note" id="profileNodeNote" role="status" hidden></p>\n          </div>\n        </div>\n      </details>\n    </div>\n  </section>\n</main>\n\n<nav class="rm-nav rm-nav-mobile" id="mobileNav" aria-label="主导航"></nav>\n\n<div class="rm-quick-menu" id="contactQuickMenu" role="menu" aria-label="联系人快速操作" hidden></div>\n\n<dialog class="rm-dialog rm-form-dialog rm-post-editor" id="postEditorPanel" aria-labelledby="postEditorHeading">\n  <div class="rm-dialog-head rm-post-editor-head">\n    <div>\n      <p class="rm-eyebrow">PUBLIC POST · 确认后公开</p>\n      <h2 id="postEditorHeading">写一条公开动态</h2>\n    </div>\n    <div class="rm-post-editor-head-side">\n      <span class="rm-post-editor-status" id="postEditorStatus">新草稿</span>\n      <button type="button" class="rm-icon-button" id="postEditorDismiss" aria-label="关闭动态编辑器">×</button>\n    </div>\n  </div>\n  <div class="rm-dialog-body rm-post-editor-body">\n    <p class="rm-private-banner">保存只写入本机私有草稿；确认发布后才会公开。关闭编辑器不会清空未保存的输入。</p>\n    <p class="rm-list-note rm-post-editor-note" id="postEditorNote" role="status" hidden></p>\n    <label class="rm-field" for="postDraftSelect"><span>已有动态草稿</span>\n      <select id="postDraftSelect"><option value="">新建草稿</option></select>\n    </label>\n    <label class="rm-field" for="postTitleInput"><span>标题（≤120 字符）</span>\n      <input type="text" id="postTitleInput" maxlength="120" autocomplete="off">\n    </label>\n    <label class="rm-field" for="postBodyInput"><span>正文（Markdown，≤64 KiB）</span>\n      <textarea id="postBodyInput" rows="10" maxlength="65536"></textarea>\n    </label>\n    <label class="rm-field" for="postTagsInput"><span>标签（逗号分隔，最多 10 个）</span>\n      <input type="text" id="postTagsInput" maxlength="400" autocomplete="off">\n    </label>\n    <label class="rm-field" for="postAuthorKind"><span>署名身份</span>\n      <select id="postAuthorKind"><option value="user">本人</option><option value="agent">Agent</option></select>\n    </label>\n    <p class="rm-list-note" id="postAuthorNote">署名身份会显示在公开动态上。</p>\n    <label class="rm-field" for="postImageInput"><span>图片（最多 4 张，PNG/JPEG，单张 ≤8 MiB）</span>\n      <input type="file" id="postImageInput" accept="image/png,image/jpeg" multiple>\n    </label>\n    <div class="rm-post-editor-images" id="postImageList"></div>\n    <p class="rm-list-note rm-post-editor-receipt" id="postPublishReceipt" role="status" hidden></p>\n  </div>\n  <div class="rm-dialog-actions rm-post-editor-actions">\n    <button type="button" class="rm-quiet" id="postEditorClose">关闭</button>\n    <button type="button" class="rm-quiet" id="postRestoreStash" hidden>恢复未保存内容</button>\n    <button type="button" class="rm-quiet" id="postDiscardStash" hidden>丢弃旧恢复项</button>\n    <button type="button" class="rm-quiet" id="postSaveAsNew" hidden>另存为新草稿</button>\n    <button type="button" class="rm-quiet" id="postDraftSave">保存草稿</button>\n    <button type="button" class="rm-quiet" id="postWriteAnother" hidden>再写一条</button>\n    <button type="button" class="rm-quiet" id="postPublishCancel" hidden>取消确认</button>\n    <button type="button" class="rm-primary" id="postPublishButton">检查发布内容</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog" id="statusDialog" aria-labelledby="statusHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机节点</p>\n      <h2 id="statusHeading">节点状态</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭节点状态">×</button>\n  </div>\n  <div class="rm-status-summary">\n    <span class="rm-node-dot" id="statusDot" data-phase="loading" aria-hidden="true"></span>\n    <div>\n      <b id="statusPhase">正在读取本机节点</b>\n      <p id="statusSummary">正在读取本机节点状态…</p>\n    </div>\n  </div>\n  <dl class="rm-facts">\n    <div><dt>本机服务</dt><dd id="statusDaemon">读取中</dd></div>\n    <div><dt>当前连接</dt><dd id="statusConnections">—</dd></div>\n    <div><dt>连接方式</dt><dd id="statusRoutes">—</dd></div>\n    <div><dt>最近刷新</dt><dd id="statusRefreshed">—</dd></div>\n    <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>\n  </dl>\n  <details class="rm-tech" id="statusBootstrap">\n    <summary>引导节点（本机设置）</summary>\n    <p class="rm-list-note" id="statusBootstrapNote" role="status">尚未读取</p>\n    <ul class="rm-address-list" id="statusBootstrapList" aria-label="已保存的引导节点"></ul>\n    <p class="rm-list-note" id="statusBootstrapFeedback" role="status" hidden></p>\n    <form class="rm-contact-form" id="statusBootstrapEdit" novalidate hidden>\n      <label class="rm-field" for="statusBootstrapInput">\n        <span>添加 Raminga 引导节点地址</span>\n        <input type="text" id="statusBootstrapInput" spellcheck="false" autocomplete="off" placeholder="例如 /ip4/…/tcp/…/p2p/12D3KooW…" aria-describedby="statusBootstrapInputHelp">\n      </label>\n      <p class="rm-field-note" id="statusBootstrapInputHelp">必须包含完整 /p2p/&lt;peer-id&gt;；只保存节点设置，不添加联系人或建立普通连接。</p>\n      <div class="rm-form-actions">\n        <button type="submit" class="rm-primary" id="statusBootstrapAdd">保存引导节点</button>\n      </div>\n    </form>\n    <p class="rm-list-note" id="statusBootstrapUpgrade" hidden>当前 daemon 版本较旧：只能查看引导节点配置。升级并重启节点后可在本页添加或移除。</p>\n    <p class="rm-list-note" id="statusBootstrapUnavailable" hidden>当前宿主没有提供引导节点管理。</p>\n    <div class="rm-peer-node-actions">\n      <button type="button" class="rm-quiet" id="statusBootstrapCopy" disabled>复制全部地址</button>\n      <button type="button" class="rm-quiet" id="statusBootstrapRefresh">刷新设置</button>\n    </div>\n  </details>\n  <details class="rm-tech" id="statusTech">\n    <summary>技术详情</summary>\n    <dl class="rm-facts">\n      <div><dt>Peer ID</dt><dd><code id="statusPeerId">—</code></dd></div>\n      <div><dt>Node ID</dt><dd><code id="statusNodeId">—</code></dd></div>\n      <div><dt>服务版本</dt><dd id="statusVersion">—</dd></div>\n      <div><dt>工作区 / 订阅</dt><dd id="statusCounters">—</dd></div>\n      <div><dt>最近事件</dt><dd id="statusEvent">暂无</dd></div>\n      <div><dt>最近错误</dt><dd id="statusError">—</dd></div>\n    </dl>\n    <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>\n  </details>\n  <p class="rm-note">这里只显示本机节点。引导节点是 DHT 的普通节点设置，不是联系人；在线状态单独显示。</p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="statusRefresh">刷新本机</button>\n    <button type="button" class="rm-secondary" id="statusShareNode">分享本机信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="addContactDialog" aria-labelledby="addContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="addContactHeading">添加联系人</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭添加联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="addContactForm" novalidate>\n      <label class="rm-field" for="addContactInput">\n        <span>Peer ID 或完整节点地址</span>\n        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>\n      </label>\n      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>\n      <div class="rm-feedback" id="addContactFeedback" role="status" hidden>\n        <b id="addContactFeedbackTitle"></b>\n        <p id="addContactFeedbackBody"></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackContact" hidden></p>\n        <p class="rm-feedback-contact" id="addContactFeedbackStatus" hidden></p>\n        <details class="rm-tech" id="addContactFeedbackDetail" hidden>\n          <summary>错误详情</summary>\n          <code id="addContactFeedbackRaw"></code>\n        </details>\n        <button type="button" class="rm-quiet" id="addContactCheck" hidden>重试核对联系人</button>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>\n    <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="editContactDialog" aria-labelledby="editContactHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 本机联系人</p>\n      <h2 id="editContactHeading">编辑联系人资料</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭编辑联系人">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="editContactForm" novalidate>\n      <code class="rm-peer-id" id="editContactPeerId"></code>\n      <label class="rm-field" for="editContactName">\n        <span>名称</span>\n        <span class="rm-field-control">\n          <input type="text" id="editContactName" maxlength="32" autocomplete="off" spellcheck="false" placeholder="留空则显示短 Peer ID">\n          <button type="button" class="rm-clear-field" id="editContactNameClear" aria-label="清除名称">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只影响本机联系人显示和公开的 friends.json，不会修改对方档案。留空表示清除名称；非空时只允许小写字母、数字和 -，最多 32 个字符，且不能与其他联系人重名。</p>\n      <label class="rm-field" for="editContactDescription">\n        <span>备注</span>\n        <span class="rm-field-control">\n          <textarea id="editContactDescription" rows="3" maxlength="280" spellcheck="true" placeholder="留空则清除备注"></textarea>\n          <button type="button" class="rm-clear-field" id="editContactDescriptionClear" aria-label="清除备注">清除</button>\n        </span>\n      </label>\n      <p class="rm-field-note">只保存在本机并写入公开的 friends.json，不会修改对方档案。最多 280 个字符。</p>\n      <div class="rm-feedback" id="editContactFeedback" role="status" hidden>\n        <b id="editContactFeedbackTitle"></b>\n        <p id="editContactFeedbackBody"></p>\n      </div>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="editContactSave" form="editContactForm">保存</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="shareDialog" aria-labelledby="shareHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="shareHeading">分享节点信息</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <div class="rm-share-loading" id="shareLoading">\n      <span class="rm-node-dot" data-phase="loading" aria-hidden="true"></span>\n      <p>正在读取本机节点信息…</p>\n    </div>\n    <div id="shareContent" hidden>\n      <div class="rm-share-peer">\n        <span>本机 Peer ID</span>\n        <code class="rm-peer-id" id="sharePeerId"></code>\n      </div>\n      <div class="rm-share-addresses" id="shareAddresses"></div>\n      <p class="rm-note" id="shareAddressNote" hidden></p>\n      <p class="rm-list-note" id="shareStaleNote" hidden></p>\n    </div>\n    <div class="rm-feedback" id="shareFailure" data-tone="error" role="status" hidden>\n      <b>暂时读不到本机节点信息</b>\n      <p id="shareFailureBody">请稍后再试。</p>\n      <details class="rm-tech" id="shareFailureDetail" hidden>\n        <summary>错误详情</summary>\n        <code id="shareFailureRaw"></code>\n      </details>\n    </div>\n    <textarea class="rm-manual-copy" id="shareManual" readonly hidden aria-label="可手动复制的分享内容"></textarea>\n    <p class="rm-copy-status" id="shareCopyStatus" role="status"></p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" id="shareRetry" hidden>重试读取</button>\n    <button type="button" class="rm-primary" id="shareCopy" disabled>复制分享信息</button>\n    <button type="button" class="rm-secondary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="favoriteDialog" aria-labelledby="favoriteDialogHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">收藏的动态 · 本机收藏</p>\n      <h2 id="favoriteDialogHeading">阅读收藏</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭收藏阅读">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="favoriteDialogMeta"></p>\n    <p class="rm-list-note" id="favoriteDialogNote" role="status" hidden></p>\n    <div class="rm-favorite-read" id="favoriteDialogBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>返回收藏</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="technicalDialog" aria-labelledby="technicalHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 技术详情</p>\n      <h2 id="technicalHeading">技术详情</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭技术详情">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="technicalIntro" hidden></p>\n    <pre class="rm-detail-raw" id="technicalRaw" tabindex="0"></pre>\n    <p class="rm-note">原始错误只用于排查本机投递尝试，不代表对端已经收到或没有收到。</p>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-detail-dialog" id="agentCardDialog" aria-labelledby="agentCardHeading">\n  <div class="rm-dialog-head rm-detail-head">\n    <div>\n      <p class="rm-eyebrow">公开 Agent 资料 · 远端声明</p>\n      <h2 id="agentCardHeading">Agent 档案</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭公开 Agent 档案">×</button>\n  </div>\n  <div class="rm-detail-body">\n    <p class="rm-list-note" id="agentCardSource"></p>\n    <div class="rm-rich-text" id="agentCardBody"></div>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-lightbox" id="imagePreviewDialog" aria-labelledby="imagePreviewHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">公开动态配图 · 受控读取</p>\n      <h2 id="imagePreviewHeading">图片预览</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭图片预览">×</button>\n  </div>\n  <div class="rm-lightbox-body">\n    <img class="rm-lightbox-image" id="imagePreviewImg" alt="">\n    <p class="rm-list-note" id="imagePreviewNote" role="status" hidden></p>\n  </div>\n  <div class="rm-lightbox-meta">\n    <span id="imagePreviewMeta"></span>\n    <span id="imagePreviewCounter"></span>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>关闭预览</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-form-dialog" id="impressionDialog" aria-labelledby="impressionHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA · 私有社交记忆</p>\n      <h2 id="impressionHeading">编辑私有印象</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭私有印象编辑">×</button>\n  </div>\n  <div class="rm-dialog-body">\n    <form class="rm-contact-form" id="impressionForm" novalidate>\n      <p class="rm-private-banner">仅本机可见 · 保存在本机；不会发送给远端，也不会成为聊天证据。</p>\n      <details class="rm-tech">\n        <summary>数据说明</summary>\n        <p class="rm-list-note">编辑结果写入本机 <code>agent/contact-notes.json</code>，不会进入公开清单。</p>\n      </details>\n      <label class="rm-field" for="impressionSummary">\n        <span>我对它的印象</span>\n        <textarea id="impressionSummary" rows="5" maxlength="2000" spellcheck="true" placeholder="例如：表达克制，可能偏好慢节奏交流。"></textarea>\n      </label>\n      <label class="rm-field" for="impressionUncertainty">\n        <span>确定性</span>\n        <select id="impressionUncertainty">\n          <option value="low">低 · 只是一种感觉</option>\n          <option value="medium" selected>中 · 有部分证据</option>\n          <option value="high">高 · 证据较充分</option>\n        </select>\n      </label>\n      <p class="rm-list-note" id="impressionDialogNote" role="status" hidden></p>\n    </form>\n  </div>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-secondary" data-close-dialog>取消</button>\n    <button type="submit" class="rm-primary" id="impressionSave" form="impressionForm">保存印象</button>\n  </div>\n</dialog>\n\n<dialog class="rm-dialog rm-notice" id="noticeDialog" aria-labelledby="noticeHeading">\n  <div class="rm-dialog-head">\n    <div>\n      <p class="rm-eyebrow">RAMINGA</p>\n      <h2 id="noticeHeading">暂不可用</h2>\n    </div>\n    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭说明">×</button>\n  </div>\n  <p class="rm-notice-body" id="noticeBody"></p>\n  <p class="rm-note" id="noticeNote"></p>\n  <div class="rm-dialog-actions">\n    <button type="button" class="rm-primary" data-close-dialog>知道了</button>\n  </div>\n</dialog>\n\n<div class="rm-sr-only" id="nodeLive" role="status" aria-live="polite"></div>\n';
 
   // src/router.js
   var MAIN_PAGES = ["explore", "home", "contacts"];
@@ -3817,6 +3856,21 @@ var RamingaUI = (() => {
       return address?.scope === "private" ? "中继 · 局域网" : "中继";
     }
     return address?.scope === "private" ? "局域网直连" : "公网直连";
+  }
+  function shareText(share) {
+    const peerId2 = typeof share?.peerId === "string" ? share.peerId : "";
+    if (peerId2.length === 0) return "";
+    const lines = ["Raminga 节点", `Peer ID：${peerId2}`];
+    const addresses = Array.isArray(share?.addresses) ? share.addresses : [];
+    if (addresses.length > 0) {
+      lines.push("可尝试连接的地址：");
+      for (const address of addresses) {
+        lines.push(`- ${address.multiaddr}（${addressScopeText(address)}）`);
+      }
+    } else {
+      lines.push("当前没有可直接分享的地址；可以只分享 Peer ID。");
+    }
+    return lines.join("\n");
   }
 
   // src/public-files.js
@@ -5455,6 +5509,16 @@ var RamingaUI = (() => {
     if (!text2(card.conversationStyle)) missing.push("公开交流风格");
     return missing.length > 0 ? `公开档案还缺${missing.join("、")}。` : "";
   }
+  function hasHumanIntroduction(profile, publicProfile) {
+    const v2Human = Boolean(publicProfile) && Boolean(
+      text2(publicProfile?.humanName) || text2(publicProfile?.humanAvatarPath) || text2(publicProfile?.humanBioMarkdown)
+    );
+    if (v2Human) return true;
+    const legacyMarkdown = profile?.state === "available" ? profile.markdown : "";
+    const legacyHeading = text2(profile?.displayName) || firstNameLine(legacyMarkdown);
+    const legacyBio = excerpt(legacyMarkdown, 400);
+    return Boolean(legacyHeading && legacyHeading !== "关联人类") || legacyBio.length > 0;
+  }
   function interestIcon(doc, index) {
     const svg = doc.createElementNS(SVG_NS, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
@@ -5469,12 +5533,25 @@ var RamingaUI = (() => {
     const cardRead = mine?.agentCard ?? null;
     const card = cardRead?.state === "available" ? cardRead.card : null;
     const profile = mine?.profile ?? null;
-    const humanAvailable = profile?.state === "available";
+    const publicProfile = mine?.publicProfile?.state === "available" ? mine.publicProfile.profile : null;
+    const readError = text2(error) || text2(mine?.error);
+    const snapshotAt = Number(mine?.at);
+    const hasSnapshot = Number.isFinite(snapshotAt) && snapshotAt > 0;
+    const firstReadFailed = Boolean(readError && !hasSnapshot);
+    const refreshFailed = Boolean(mine !== null && readError && hasSnapshot);
+    const staleText = refreshFailed ? `这是 ${formatDateTime(snapshotAt)} 的上次成功读取；最近一次刷新失败，公开资料可能不是最新。` : "";
+    const humanAvailable = hasHumanIntroduction(profile, publicProfile);
     let bio = "";
     let source = "";
     if (card) {
       bio = text2(card.description);
       source = `本机公开资料${card.updatedAt ? ` · 更新于 ${formatDateTime(card.updatedAt)}` : ""}`;
+    } else if (firstReadFailed) {
+      bio = "公开 Agent 档案这次没有读到。";
+      source = "本机公开资料读取失败";
+    } else if (refreshFailed) {
+      bio = "上次成功读取时还没有公开 Agent 档案。";
+      source = "本机公开资料刷新失败";
     } else if (cardRead?.state === "error") {
       bio = "公开资料这次没有读到。";
       source = "本机公开资料读取失败";
@@ -5482,7 +5559,18 @@ var RamingaUI = (() => {
       bio = capable ? "正在读取公开 Agent 档案…" : "当前宿主没有提供公开 Agent 档案读取。";
     }
     const interests = Array.isArray(card?.interests) ? card.interests.filter((item) => text2(item)).slice(0, 5) : [];
-    const profileNotice = card ? incompleteProfileSummary(card, bio, interests) : cardRead?.state === "missing" ? "还没有公开档案。补充名称、简介、兴趣和交流风格后，来访者才能认识你的 Agent。" : cardRead?.state === "error" ? "公开资料这次没有读到；可以到设置里检查本机公开档案。" : "";
+    const incomplete = card ? incompleteProfileSummary(card, bio, interests) : "";
+    const profileNotice = card ? [staleText, incomplete].filter(Boolean).join(" ") : firstReadFailed ? "读取公开 Agent 档案失败；这不表示没有公开档案，可以重试读取。" : refreshFailed ? "上次成功读取时还没有公开 Agent 档案；最近一次刷新失败，不能据此确认当前状态。" : cardRead?.state === "missing" ? "还没有公开档案。补充名称、简介、兴趣和交流风格后，来访者才能认识你的 Agent。" : cardRead?.state === "error" ? "公开资料这次没有读到；这不表示没有公开档案，可以重试读取。" : "";
+    const humanName = humanAvailable ? text2(publicProfile?.humanName) || text2(profile?.displayName) || firstNameLine(profile?.markdown) || "关联人类" : "关联人类";
+    let humanNote = "";
+    if (!humanAvailable) {
+      if (mine === null) humanNote = capable ? "正在读取本机公开人类资料…" : "当前宿主没有提供本机公开资料读取。";
+      else if (firstReadFailed) humanNote = "人类公开介绍这次没有读到；这不表示没有公开人类介绍。";
+      else if (refreshFailed) humanNote = "上次成功读取时还没有公开人类介绍；最近一次刷新失败。";
+      else if (profile?.state === "error") humanNote = "人类公开介绍这次没有读到。";
+      else if (profile?.state === "available" || publicProfile) humanNote = "还没有公开人类介绍。";
+      else humanNote = "还没有公开人类介绍。";
+    }
     return {
       name: card ? text2(card.displayName) || DEFAULT_AGENT_NAME : DEFAULT_AGENT_NAME,
       bio,
@@ -5490,7 +5578,10 @@ var RamingaUI = (() => {
       style: text2(card?.conversationStyle),
       profileNotice,
       source,
-      empty: !card,
+      empty: !card && !firstReadFailed && !refreshFailed,
+      needsRetry: Boolean(capable && (firstReadFailed || refreshFailed || !hasSnapshot && cardRead?.state === "error")),
+      stale: refreshFailed,
+      staleText,
       avatarInitial: initialGlyph(card ? text2(card.displayName) || DEFAULT_AGENT_NAME : DEFAULT_AGENT_NAME),
       avatarUrl: "",
       avatarPath: text2(card?.avatarPath),
@@ -5498,11 +5589,16 @@ var RamingaUI = (() => {
       avatarMime: text2(card?.avatarMime),
       legacyFallback: card?.legacyFallback === true,
       human: {
-        name: humanAvailable ? text2(profile.displayName) || firstNameLine(profile.markdown) || "关联人类" : "关联人类",
-        markdown: humanAvailable ? profile.markdown : "",
+        name: humanName,
+        markdown: humanAvailable ? profile?.state === "available" ? profile.markdown : publicProfile?.humanBioMarkdown || "" : "",
         available: humanAvailable,
-        note: humanAvailable ? "" : profile?.state === "missing" ? "还没有公开人类介绍。" : profile?.state === "error" ? "人类公开介绍这次没有读到。" : mine === null ? "正在读取本机公开人类资料…" : "当前宿主没有提供本机公开资料读取。",
-        excerpt: humanAvailable ? excerpt(profile.markdown) || "公开档案没有正文。" : ""
+        note: humanNote,
+        excerpt: humanAvailable ? excerpt(profile?.state === "available" ? profile.markdown : publicProfile?.humanBioMarkdown) || "公开档案没有正文。" : "",
+        avatarUrl: "",
+        avatarPath: humanAvailable ? text2(publicProfile?.humanAvatarPath) : "",
+        avatarSha256: humanAvailable ? text2(publicProfile?.humanAvatarSha256) : "",
+        avatarMime: humanAvailable ? text2(publicProfile?.humanAvatarMime) : "",
+        avatarInitial: initialGlyph(humanName)
       }
     };
   }
@@ -5577,13 +5673,29 @@ var RamingaUI = (() => {
   function renderHomeHuman(doc, nodes, model) {
     if (!nodes) return;
     const human = model.human;
-    if (nodes.title) nodes.title.textContent = human.available ? `关联人类 · ${human.name}` : "关联人类";
+    if (nodes.title) {
+      nodes.title.textContent = human.available && human.name && human.name !== "关联人类" ? `关联人类 · ${human.name}` : "关联人类";
+    }
     if (nodes.summary) {
       nodes.summary.textContent = human.available ? human.excerpt || "公开档案没有正文。" : human.note;
     }
     if (nodes.profile) {
       nodes.profile.replaceChildren();
       nodes.profile.hidden = true;
+    }
+    if (nodes.avatar) {
+      const hasAvatar = human.avatarUrl.length > 0;
+      if (hasAvatar) {
+        nodes.avatar.src = human.avatarUrl;
+        nodes.avatar.hidden = false;
+      } else {
+        nodes.avatar.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+        nodes.avatar.hidden = true;
+      }
+      const mark = nodes.avatar.parentElement ?? null;
+      const fallback = mark?.querySelector("svg") ?? null;
+      if (fallback) fallback.hidden = hasAvatar;
+      if (mark) mark.dataset.empty = hasAvatar ? "false" : "true";
     }
   }
 
@@ -7592,6 +7704,7 @@ ${resultDetail}`;
     const peerFileContentCapable = typeof options.onLoadPeerFileContent === "function";
     const peerNodeInfoCapable = typeof options.onLoadPeerNodeInfo === "function";
     const bootstrapCapable = typeof options.onLoadBootstrap === "function";
+    const bootstrapEditCapable = typeof options.onAddBootstrap === "function" && typeof options.onRemoveBootstrap === "function";
     const locateMessageCapable = typeof options.onLocateMessage === "function";
     const markReadCapable = typeof options.onMarkRead === "function";
     const favoritesCapable = typeof options.onLoadFavorites === "function";
@@ -7643,6 +7756,16 @@ ${resultDetail}`;
       avatarPreviewAssetId: "",
       avatarLoadingAssetId: "",
       avatarError: "",
+      avatarRestoreToken: 0,
+      humanAvatarFile: null,
+      humanAvatarAssetId: "",
+      humanAvatarClear: false,
+      humanAvatarPreviewUrl: "",
+      humanAvatarPreviewObject: false,
+      humanAvatarPreviewAssetId: "",
+      humanAvatarLoadingAssetId: "",
+      humanAvatarError: "",
+      humanAvatarRestoreToken: 0,
       receipt: null,
       confirm: false,
       confirmSnapshot: "",
@@ -7683,7 +7806,8 @@ ${resultDetail}`;
     let postEditorReturnFocus = null;
     let postEditorReturnFocusToken = 0;
     let postSaveTimer = null;
-    const homeAvatarState = { key: "", url: "", loading: false };
+    const homeAvatarState = { key: "", url: "", loading: false, requestedKey: "", generation: 0 };
+    const homeHumanAvatarState = { key: "", url: "", loading: false, requestedKey: "", generation: 0 };
     const JOURNEY_REVALIDATE_MS = 15e3;
     const journeyState = {
       data: null,
@@ -7790,6 +7914,7 @@ ${resultDetail}`;
     const postImageObservers = /* @__PURE__ */ new WeakMap();
     const postImageContainerObservers = /* @__PURE__ */ new WeakMap();
     const peerAvatarState = /* @__PURE__ */ new Map();
+    const peerHumanAvatarState = /* @__PURE__ */ new Map();
     const verifiedContactProfiles = /* @__PURE__ */ new Map();
     const directoryClues = /* @__PURE__ */ new Map();
     const directorySourceReads = /* @__PURE__ */ new Set();
@@ -7804,7 +7929,7 @@ ${resultDetail}`;
     const profileExpanded = /* @__PURE__ */ new Set();
     const minePreviews = /* @__PURE__ */ new Map();
     const mineExpanded = /* @__PURE__ */ new Set();
-    const bootstrapState = { data: null, error: "", request: null };
+    const bootstrapState = { data: null, error: "", request: null, busy: false, feedback: "", feedbackTone: "" };
     let locateSeq = 0;
     const locateRequests = /* @__PURE__ */ new Map();
     function createChatState(peerId2 = "") {
@@ -8029,6 +8154,7 @@ ${resultDetail}`;
     const homeAgentBio = $("#homeAgentBio");
     const homeAgentProfileNote = $("#homeAgentProfileNote");
     const homeAgentProfileNoteText = $("#homeAgentProfileNoteText");
+    const homeAgentProfileRetry = $("#homeAgentProfileRetry");
     const homeAgentInterests = $("#homeAgentInterests");
     const homeAgentStyle = $("#homeAgentStyle");
     const homeAgentStatusText = $("#homeAgentStatusText");
@@ -8063,6 +8189,7 @@ ${resultDetail}`;
     const journeyPageStateAction = $("#journeyStateAction");
     const homeHumanTitle = $("#mineIdentityTitle");
     const homeHumanSummary = $("#mineIdentitySummary");
+    const homeHumanAvatar = $("#homeHumanAvatar");
     const settingsTrigger = $("#settingsTrigger");
     const settingsClose = $("#settingsClose");
     const settingsHumanStatus = $("#settingsHumanStatus");
@@ -8079,6 +8206,10 @@ ${resultDetail}`;
     const publicAvatarClear = $("#publicAvatarClear");
     const publicAvatarPreview = $("#publicAvatarPreview");
     const publicAvatarNote = $("#publicAvatarNote");
+    const publicHumanAvatarInput = $("#publicHumanAvatarInput");
+    const publicHumanAvatarClear = $("#publicHumanAvatarClear");
+    const publicHumanAvatarPreview = $("#publicHumanAvatarPreview");
+    const publicHumanAvatarNote = $("#publicHumanAvatarNote");
     const settingsHumanPreview = $("#settingsHumanPreview");
     const publicVersionPreview = $("#publicVersionPreview");
     const publicVersionName = $("#publicVersionName");
@@ -8089,6 +8220,7 @@ ${resultDetail}`;
     const publicVersionHuman = $("#publicVersionHuman");
     const publicVersionNote = $("#publicVersionNote");
     const publicRestorePublished = $("#publicRestorePublished");
+    const publicVersionRetry = $("#publicVersionRetry");
     const publicDraftMeta = $("#publicDraftMeta");
     const publicAgentName = $("#publicAgentName");
     const publicAgentDescription = $("#publicAgentDescription");
@@ -8177,6 +8309,8 @@ ${resultDetail}`;
     const profileHumanStrip = $("#profileHumanStrip");
     const profileHumanHeadingLabel = $("#profileHumanHeadingLabel");
     const profileHumanName = $("#profileHumanName");
+    const profileHumanAvatar = $("#profileHumanAvatar");
+    const profileHumanInitial = $("#profileHumanInitial");
     const profileAgentOpen = $("#profileAgentOpen");
     const profileMessage = $("#profileMessage");
     const profileTabsNav = $("#profileTabsNav");
@@ -8269,6 +8403,12 @@ ${resultDetail}`;
     const statusBootstrap = $("#statusBootstrap");
     const statusBootstrapNote = $("#statusBootstrapNote");
     const statusBootstrapList = $("#statusBootstrapList");
+    const statusBootstrapEdit = $("#statusBootstrapEdit");
+    const statusBootstrapInput = $("#statusBootstrapInput");
+    const statusBootstrapAdd = $("#statusBootstrapAdd");
+    const statusBootstrapFeedback = $("#statusBootstrapFeedback");
+    const statusBootstrapUpgrade = $("#statusBootstrapUpgrade");
+    const statusBootstrapUnavailable = $("#statusBootstrapUnavailable");
     const statusBootstrapCopy = $("#statusBootstrapCopy");
     const statusBootstrapRefresh = $("#statusBootstrapRefresh");
     const statusShareNode = $("#statusShareNode");
@@ -11862,6 +12002,23 @@ ${resultDetail}`;
         messageRetention.hidden = true;
       }
     }
+    function chatIdentityAvatars() {
+      const agent = homeAgentModel();
+      const agentRequest = currentHomeAvatarRequest();
+      const agentUrl = agentRequest && homeAvatarState.key === agentRequest.key ? homeAvatarState.url : "";
+      const humanName = mineState.data?.profile?.state === "available" ? String(mineState.data.profile.displayName ?? "").trim() : String(mineState.data?.publicProfile?.profile?.humanName ?? "").trim();
+      return {
+        human: {
+          url: agent.human.available ? agent.human.avatarUrl : "",
+          initial: agent.human.available ? agent.human.avatarInitial || "关" : "人"
+        },
+        agent: {
+          url: agentUrl,
+          initial: agent.avatarInitial || "A"
+        },
+        unknown: { url: "", initial: "?" }
+      };
+    }
     function renderMessageList() {
       if (destroyed) return;
       const peerId2 = contactsState.selectedPeerId;
@@ -11912,7 +12069,21 @@ ${resultDetail}`;
         if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
         return String(a.messageId).localeCompare(String(b.messageId));
       });
-      for (const message of ascending) messageList.append(renderMessageRow(message));
+      if (ascending.some((message) => message.direction === "out") && mineCapable && mineState.data === null && !mineState.retrying && !mineState.error) {
+        void loadMine(false);
+      }
+      const identities = chatIdentityAvatars();
+      let previousRun = "";
+      for (const message of ascending) {
+        const direction = message.direction === "out" ? "out" : "in";
+        const origin = direction === "out" ? normalizeMessageOrigin(message.origin) : "peer";
+        const run = `${direction}:${origin}`;
+        messageList.append(renderMessageRow(message, {
+          showIdentity: direction === "out" && run !== previousRun,
+          identity: direction === "out" ? identities[origin] : null
+        }));
+        previousRun = run;
+      }
       updateMessageListChrome();
       if (activeMessage && activeAction) {
         const target = messageList.querySelector(`[data-message-id="${selectorValue(activeMessage)}"] [data-message-action="${selectorValue(activeAction)}"]`);
@@ -11945,14 +12116,42 @@ ${resultDetail}`;
       }
       scheduleMarkRead();
     }
-    function renderMessageRow(message) {
+    function normalizeMessageOrigin(value) {
+      const origin = String(value ?? "");
+      return origin === "human" || origin === "agent" ? origin : "unknown";
+    }
+    function renderMessageRow(message, { showIdentity = false, identity = null } = {}) {
       const row = element5("div", "rm-message");
       row.dataset.messageId = message.messageId;
       row.dataset.peerId = message.peerId;
       row.dataset.direction = message.direction === "out" ? "out" : "in";
       row.tabIndex = -1;
+      const line = element5("div", "rm-message-line");
+      if (message.direction === "out") {
+        const originKey = normalizeMessageOrigin(message.origin);
+        const avatar = element5("div", "rm-message-identity");
+        avatar.dataset.origin = originKey;
+        avatar.setAttribute("aria-hidden", "true");
+        if (showIdentity) {
+          if (identity?.url) {
+            const image = element5("img", "rm-message-identity-img");
+            image.src = identity.url;
+            image.alt = "";
+            image.decoding = "async";
+            avatar.append(image);
+          } else {
+            const initial = element5("span", "rm-message-identity-initial");
+            initial.textContent = identity?.initial || "?";
+            avatar.append(initial);
+          }
+        } else {
+          avatar.className = "rm-message-identity is-spacer";
+        }
+        line.append(avatar);
+      }
       const bubble = element5("div", "rm-message-bubble");
       bubble.textContent = message.text;
+      line.append(bubble);
       const meta = element5("div", "rm-message-meta");
       const origin = element5("span", "rm-message-origin");
       origin.dataset.origin = message.direction === "in" ? "peer" : String(message.origin ?? "unknown");
@@ -11966,7 +12165,7 @@ ${resultDetail}`;
         status.textContent = deliveryStatusText(message);
         meta.append(status);
       }
-      row.append(bubble, meta);
+      row.append(line, meta);
       if (message.direction === "out" && message.deliveryError && ["failed", "pending", "unknown"].includes(String(message.deliveryStatus))) {
         const tech = element5("button", "rm-detail-link rm-message-tech");
         tech.type = "button";
@@ -12265,6 +12464,25 @@ ${resultDetail}`;
       }
       updateComposerOverlay();
     }
+    function selectedDraftValue(peerId2) {
+      return contactsState.selectedPeerId === peerId2 ? messageInput.value : getDraft(view, draftKeyFor(peerId2));
+    }
+    function restoreFailedSendDraft(peerId2, text4) {
+      if (!peerId2 || !text4) return;
+      if (selectedDraftValue(peerId2).length > 0) return;
+      if (contactsState.selectedPeerId === peerId2) messageInput.value = text4;
+      persistDraft(peerId2, text4);
+    }
+    function clearSuccessfulSendDraft(peerId2, text4) {
+      if (!peerId2) return;
+      if (contactsState.selectedPeerId === peerId2) {
+        if (messageInput.value !== text4) return;
+        messageInput.value = "";
+        persistDraft(peerId2, "");
+        return;
+      }
+      if (getDraft(view, draftKeyFor(peerId2)) === text4) persistDraft(peerId2, "");
+    }
     function validateMessage(text4) {
       if (text4.trim().length === 0) return "请输入消息。";
       const limit = Number(nodeState.status?.maxChatTextBytes) > 0 ? Number(nodeState.status.maxChatTextBytes) : 4096;
@@ -12346,10 +12564,7 @@ ${resultDetail}`;
         current.unknown = false;
         current.outcome = sendOutcome(result);
         current.outcomeStatus = "";
-        if (messageInput.value.length === 0 && current.text !== "") {
-          messageInput.value = current.text;
-          persistDraft(peerId2, messageInput.value);
-        }
+        restoreFailedSendDraft(peerId2, current.text);
       } else if (result.ok !== true) {
         current.unknown = !keepTerminal;
         if (!keepTerminal) {
@@ -12363,16 +12578,14 @@ ${resultDetail}`;
           current.outcome = sendOutcome(result);
           current.outcomeStatus = resultStatus;
         }
-        if (retryingFailed && resultStatus !== "failed" && messageInput.value === current.text) {
-          messageInput.value = "";
-          persistDraft(peerId2, "");
+        if (retryingFailed && resultStatus !== "failed") {
+          clearSuccessfulSendDraft(peerId2, current.text);
         }
-        if (!keepTerminal && resultStatus === "failed" && messageInput.value.length === 0) {
-          messageInput.value = current.text;
-          persistDraft(peerId2, messageInput.value);
+        if (!keepTerminal && resultStatus === "failed") {
+          restoreFailedSendDraft(peerId2, current.text);
         }
       }
-      composerNotice = null;
+      if (composerNotice === null || composerNotice.peerId === peerId2) composerNotice = null;
       if (contactsState.selectedPeerId === peerId2) {
         renderComposer();
         keepComposerFocus();
@@ -12726,6 +12939,7 @@ ${resultDetail}`;
         result = { ok: false, error: errorText(error) };
       }
       if (destroyed || attempt !== addAttempt || !addContactDialog.open) return;
+      if (result?.contacts) setContacts(result.contacts);
       const view2 = connectOutcome(result);
       setAddContactBusy(false);
       if (result?.ok === true) {
@@ -12768,16 +12982,16 @@ ${resultDetail}`;
       closeDialog(addContactDialog, { restoreFocus: false });
       contactQuery.value = "";
       view.pages.contacts.query = "";
+      view.pages.contacts.filter = "all";
       showPage("contacts");
       updateContactsState();
       saveNow();
-      const rows = [...contactList.querySelectorAll("button[data-contact-peer]")];
-      const row = rows.find((item) => item.dataset.contactPeer === peerId2);
+      const row = contactList.querySelector(`button[data-contact-peer="${selectorValue(peerId2)}"]`);
       if (row) {
         row.scrollIntoView?.({ block: "nearest" });
         row.focus({ preventScroll: true });
       } else {
-        $("#addContact").focus({ preventScroll: true });
+        (contactList.querySelector("button[data-contact-peer]") ?? $("#addContact")).focus({ preventScroll: true });
       }
     }
     function resetShareDialog() {
@@ -12855,10 +13069,14 @@ ${resultDetail}`;
         shareAddressNote.hidden = false;
       }
       if (result.stale) {
-        shareStaleNote.textContent = `这是 ${refreshedText(result.at)} 的读取结果，可能不是最新。可以重试读取。`;
+        const reason = String(result.error || "").trim();
+        const streamOnly = /实时更新/.test(reason);
+        shareStaleNote.textContent = streamOnly ? `这是 ${refreshedText(result.at)} 成功读取的节点信息；实时更新尚未恢复，可能不是最新。可以在弹窗内重试。` : reason ? `这是 ${refreshedText(result.at)} 成功读取的节点信息；最近一次刷新失败，可能不是最新。可以在弹窗内重试。` : `这是 ${refreshedText(result.at)} 成功读取的节点信息，可能不是最新。可以在弹窗内重试。`;
         shareStaleNote.hidden = false;
+        shareRetry.hidden = false;
       } else {
         shareStaleNote.hidden = true;
+        shareRetry.hidden = true;
       }
       shareCopy.disabled = String(result.peerId || "").length === 0;
     }
@@ -13025,14 +13243,43 @@ ${resultDetail}`;
       const summary = connectionSummary(status);
       return `${summary.connections} 条连接 · ${summary.peers} 个已连接节点`;
     }
+    function bootstrapEntries() {
+      const entries = Array.isArray(bootstrapState.data?.entries) ? bootstrapState.data.entries : [];
+      if (entries.length > 0) return entries;
+      return (Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : []).map((value) => {
+        const match = /\/p2p\/([^/]+)$/.exec(String(value));
+        return { peerId: match ? match[1] : "", addrs: [String(value)], online: false, paused: false, savedAt: null };
+      });
+    }
+    function bootstrapFeedback(text4, tone = "") {
+      bootstrapState.feedback = text4;
+      bootstrapState.feedbackTone = tone;
+      statusBootstrapFeedback.textContent = text4;
+      statusBootstrapFeedback.dataset.tone = tone;
+      statusBootstrapFeedback.hidden = text4 === "";
+    }
+    function updateBootstrapControls() {
+      const data = bootstrapState.data;
+      const editable = bootstrapCapable && bootstrapEditCapable && data?.editable === true && data?.requiresUpgrade !== true;
+      statusBootstrapEdit.hidden = !editable;
+      statusBootstrapAdd.disabled = bootstrapState.busy;
+      statusBootstrapInput.disabled = bootstrapState.busy;
+      statusBootstrapRefresh.disabled = bootstrapState.busy;
+      statusBootstrapCopy.disabled = bootstrapState.busy || bootstrapEntries().every((entry) => entry.addrs.length === 0);
+      statusBootstrap.dataset.busy = bootstrapState.busy ? "true" : "false";
+      statusBootstrapUpgrade.hidden = data?.requiresUpgrade !== true;
+      statusBootstrapUnavailable.hidden = bootstrapCapable;
+      if (!editable && !bootstrapState.busy && statusBootstrapInput === root.activeElement) statusBootstrapRefresh.focus({ preventScroll: true });
+    }
     async function loadBootstrap(force = false) {
       if (!bootstrapCapable || bootstrapState.request !== null) return;
       if (!force && bootstrapState.data !== null) return;
       const request = { force };
       bootstrapState.request = request;
-      statusBootstrapNote.textContent = "正在读取引导节点配置…";
+      bootstrapState.busy = true;
+      statusBootstrapNote.textContent = "正在读取引导节点设置…";
       statusBootstrapNote.dataset.tone = "";
-      statusBootstrapCopy.disabled = true;
+      updateBootstrapControls();
       try {
         const value = await options.onLoadBootstrap();
         if (destroyed || bootstrapState.request !== request) return;
@@ -13041,47 +13288,135 @@ ${resultDetail}`;
       } catch (error) {
         if (destroyed || bootstrapState.request !== request) return;
         bootstrapState.data = null;
-        bootstrapState.error = errorText(error) || "引导节点配置读取失败";
+        bootstrapState.error = errorText(error) || "引导节点设置读取失败";
       } finally {
-        if (bootstrapState.request === request) bootstrapState.request = null;
+        if (bootstrapState.request === request) {
+          bootstrapState.request = null;
+          bootstrapState.busy = false;
+        }
       }
       if (!destroyed) renderBootstrap();
     }
+    function bootstrapPeerLabel(entry) {
+      if (entry.online) return "已连接";
+      if (entry.paused) return "已暂停（主动断开）";
+      if (entry.addrs.length === 0) return "已保存 · 暂缺地址";
+      return "已保存 · 暂未连通";
+    }
     function renderBootstrap() {
       if (!bootstrapCapable) {
-        statusBootstrapNote.textContent = "当前宿主没有提供引导节点只读查看。";
-        statusBootstrapNote.hidden = false;
+        statusBootstrapNote.textContent = "当前宿主没有提供引导节点管理。";
+        statusBootstrapNote.dataset.tone = "unavailable";
         statusBootstrapList.replaceChildren();
+        statusBootstrapFeedback.hidden = true;
         statusBootstrapCopy.disabled = true;
         statusBootstrapRefresh.hidden = true;
+        statusBootstrapRefresh.disabled = true;
+        statusBootstrapEdit.hidden = true;
+        statusBootstrapUpgrade.hidden = true;
+        statusBootstrapUnavailable.hidden = false;
         return;
       }
       statusBootstrapRefresh.hidden = false;
-      const peers = Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : [];
+      const entries = bootstrapEntries();
       statusBootstrapList.replaceChildren();
-      for (const peer of peers) {
-        const item = element5("li", "rm-address-item");
-        const code = element5("code");
-        code.textContent = peer;
-        item.append(code);
+      for (const entry of entries) {
+        const item = element5("li", "rm-address-item rm-bootstrap-item");
+        item.dataset.bootstrapPeer = entry.peerId;
+        const copy = element5("div", "rm-bootstrap-copy");
+        if (entry.addrs.length === 0) {
+          const code = element5("code");
+          code.textContent = entry.peerId || "（地址不可用）";
+          copy.append(code);
+        } else {
+          for (const addr of entry.addrs) {
+            const code = element5("code");
+            code.textContent = addr;
+            copy.append(code);
+          }
+        }
+        const meta = element5("span", "rm-bootstrap-state");
+        meta.dataset.state = entry.online ? "online" : entry.paused ? "paused" : "saved";
+        meta.textContent = bootstrapPeerLabel(entry);
+        copy.append(meta);
+        item.append(copy);
+        if (bootstrapEditCapable && bootstrapState.data?.editable === true) {
+          const remove = element5("button", "rm-quiet");
+          remove.type = "button";
+          remove.dataset.bootstrapRemove = entry.peerId;
+          remove.setAttribute("aria-label", `移除引导节点 ${entry.peerId}`);
+          remove.textContent = "移除";
+          remove.disabled = bootstrapState.busy;
+          item.append(remove);
+        }
         statusBootstrapList.append(item);
       }
-      statusBootstrapCopy.disabled = peers.length === 0;
       if (bootstrapState.error) {
-        statusBootstrapNote.textContent = `引导节点配置读取失败：${bootstrapState.error}。`;
+        statusBootstrapNote.textContent = `引导节点设置读取失败：${bootstrapState.error}。`;
         statusBootstrapNote.dataset.tone = "error";
       } else if (bootstrapState.data === null) {
-        statusBootstrapNote.textContent = "尚未读取。展开这项或点击重新读取。";
+        statusBootstrapNote.textContent = "尚未读取。展开这项或点击刷新设置。";
         statusBootstrapNote.dataset.tone = "";
-      } else if (peers.length === 0) {
-        statusBootstrapNote.textContent = "当前配置没有引导节点。";
+      } else if (entries.length === 0) {
+        statusBootstrapNote.textContent = "尚未配置引导节点。保存一个 Raminga 节点地址后，DHT 会把它作为引导候选；保存不等于在线。";
         statusBootstrapNote.dataset.tone = "unavailable";
       } else {
         const at = bootstrapState.data.at ? ` · ${formatDateTime(bootstrapState.data.at)} 读取` : "";
-        statusBootstrapNote.textContent = `来自本机 DhtStatus 的只读配置${at}。修改请编辑本机 config.toml，不在此处编辑。`;
+        const online = entries.filter((entry) => entry.online).length;
+        const paused = entries.filter((entry) => entry.paused).length;
+        statusBootstrapNote.textContent = `已保存 ${entries.length} 个引导节点 · ${online} 个当前已连接${paused > 0 ? ` · ${paused} 个已主动断开` : ""}${at}。保存与在线分开显示。`;
         statusBootstrapNote.dataset.tone = "";
       }
       statusBootstrapNote.hidden = false;
+      updateBootstrapControls();
+    }
+    async function addBootstrapPeer() {
+      if (!bootstrapEditCapable || bootstrapState.busy) return;
+      const value = statusBootstrapInput.value;
+      if (value.trim() === "") {
+        bootstrapFeedback("请填写包含 /p2p/<peer-id> 的节点地址。", "error");
+        statusBootstrapInput.focus({ preventScroll: true });
+        return;
+      }
+      bootstrapState.busy = true;
+      let refocusInput = false;
+      bootstrapFeedback("正在保存引导节点…");
+      updateBootstrapControls();
+      try {
+        const result = await options.onAddBootstrap(value);
+        if (destroyed) return;
+        statusBootstrapInput.value = "";
+        bootstrapFeedback(result?.changed === false ? "该地址已在引导节点列表中，未重复添加。" : "已保存引导节点；是否连通会在列表中单独更新。");
+        await loadBootstrap(true);
+      } catch (error) {
+        if (destroyed) return;
+        bootstrapFeedback(errorText(error) || "保存引导节点失败", "error");
+        refocusInput = true;
+      } finally {
+        bootstrapState.busy = false;
+        if (!destroyed) {
+          updateBootstrapControls();
+          if (refocusInput) statusBootstrapInput.focus({ preventScroll: true });
+        }
+      }
+    }
+    async function removeBootstrapPeer(peerId2) {
+      if (!bootstrapEditCapable || bootstrapState.busy || peerId2 === "") return;
+      bootstrapState.busy = true;
+      bootstrapFeedback("正在移除引导节点标记…");
+      updateBootstrapControls();
+      try {
+        const result = await options.onRemoveBootstrap(peerId2);
+        if (destroyed) return;
+        bootstrapFeedback(result?.changed === false ? "该引导节点已不在列表中。" : "已移除引导节点标记；Peer 地址、联系人和主动断开记录保留。");
+        await loadBootstrap(true);
+      } catch (error) {
+        if (destroyed) return;
+        bootstrapFeedback(errorText(error) || "移除引导节点失败", "error");
+      } finally {
+        bootstrapState.busy = false;
+        if (!destroyed) updateBootstrapControls();
+      }
     }
     function renderStatusDialog() {
       const status = nodeState.status;
@@ -13167,49 +13502,113 @@ ${resultDetail}`;
         error: mineState.error,
         capable: mineCapable
       });
-      model.avatarUrl = homeAvatarState.url;
+      const agentRequest = currentHomeAvatarRequest();
+      model.avatarUrl = agentRequest && homeAvatarState.key === agentRequest.key ? homeAvatarState.url : "";
+      const v2 = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
+      const humanAvatar = v2?.humanAvatarPath ? { path: v2.humanAvatarPath, sha256: v2.humanAvatarSha256 } : null;
+      const humanKey = publishedAvatarKey(humanAvatar);
+      model.human.avatarUrl = humanKey && homeHumanAvatarState.key === humanKey ? homeHumanAvatarState.url : "";
       return model;
     }
-    function refreshHomeAvatar() {
+    function currentHomeHumanAvatarRequest() {
+      const v2 = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
+      const humanAvatarPath = String(v2?.humanAvatarPath ?? "");
+      const humanAvatarSha = String(v2?.humanAvatarSha256 ?? "").toLowerCase();
+      if (!humanAvatarPath || !humanAvatarSha) return null;
+      const file = Array.isArray(mineState.data?.files) ? mineState.data.files.find((item) => item.path === humanAvatarPath && String(item.sha256 ?? "").toLowerCase() === humanAvatarSha) : null;
+      if (!file || !mineFileContentCapable) return null;
+      return {
+        path: humanAvatarPath,
+        sha256: humanAvatarSha,
+        sizeBytes: file.sizeBytes,
+        mime: v2.humanAvatarMime || file.mime || "",
+        key: `${humanAvatarPath}\0${humanAvatarSha}\0${file.sizeBytes}`
+      };
+    }
+    function currentHomeAvatarRequest() {
       const data = mineState.data;
       const card = data?.agentCard?.state === "available" ? data.agentCard.card : null;
       const avatarPath = card?.avatarPath || "";
       const file = avatarPath && Array.isArray(data?.files) ? data.files.find((item) => item.path === avatarPath) : null;
-      if (!avatarPath || !file || !mineFileContentCapable) {
+      if (!avatarPath || !file || !mineFileContentCapable) return null;
+      return {
+        avatarPath,
+        sha256: file.sha256,
+        sizeBytes: file.sizeBytes,
+        key: `${avatarPath}\0${file.sha256}\0${file.sizeBytes}`
+      };
+    }
+    function renderHomeAvatarDependents() {
+      renderHome();
+      if (currentPage === "settings" && view.settings.tab === "public") {
+        renderProfileAvatar();
+        renderProfileHumanAvatar();
+        renderProfileDraftStatus();
+      }
+      if (!conversationView.hidden) renderMessageList();
+    }
+    function refreshHomeAvatar() {
+      const request = currentHomeAvatarRequest();
+      if (!request) {
+        homeAvatarState.generation += 1;
         homeAvatarState.key = "";
         homeAvatarState.url = "";
-        if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
-          renderProfileAvatar();
-          renderProfileDraftStatus();
-        }
+        homeAvatarState.loading = false;
+        homeAvatarState.requestedKey = "";
+        if (!destroyed) renderHomeAvatarDependents();
         return;
       }
-      const key2 = `${avatarPath}\0${file.sha256}\0${file.sizeBytes}`;
-      if (homeAvatarState.key === key2 || homeAvatarState.loading) return;
+      if (homeAvatarState.key === request.key && homeAvatarState.url) return;
+      if (homeAvatarState.loading && homeAvatarState.requestedKey === request.key) return;
+      const generation = ++homeAvatarState.generation;
       homeAvatarState.loading = true;
-      void options.onLoadMineFileContent(avatarPath, file.sha256, file.sizeBytes).then((preview) => {
-        if (destroyed) return;
-        if (preview?.status === "ok" && preview.kind === "image" && preview.dataUrl) {
-          homeAvatarState.key = key2;
-          homeAvatarState.url = preview.dataUrl;
-        } else {
-          homeAvatarState.key = "";
-          homeAvatarState.url = "";
-        }
-      }).catch(() => {
-        if (!destroyed) {
-          homeAvatarState.key = "";
-          homeAvatarState.url = "";
-        }
-      }).finally(() => {
+      homeAvatarState.requestedKey = request.key;
+      const finish = (url) => {
+        if (destroyed || generation !== homeAvatarState.generation) return;
         homeAvatarState.loading = false;
-        if (!destroyed) {
-          renderHome();
-          if (currentPage === "settings" && view.settings.tab === "public") {
-            renderProfileAvatar();
-            renderProfileDraftStatus();
-          }
-        }
+        homeAvatarState.requestedKey = "";
+        homeAvatarState.key = url ? request.key : "";
+        homeAvatarState.url = url;
+        renderHomeAvatarDependents();
+        const current = currentHomeAvatarRequest();
+        if (current && current.key !== request.key) refreshHomeAvatar();
+      };
+      void options.onLoadMineFileContent(request.avatarPath, request.sha256, request.sizeBytes).then((preview) => {
+        finish(preview?.status === "ok" && preview.kind === "image" && preview.dataUrl ? preview.dataUrl : "");
+      }).catch(() => {
+        finish("");
+      });
+    }
+    function refreshHomeHumanAvatar() {
+      const request = currentHomeHumanAvatarRequest();
+      if (!request) {
+        homeHumanAvatarState.generation += 1;
+        homeHumanAvatarState.key = "";
+        homeHumanAvatarState.url = "";
+        homeHumanAvatarState.loading = false;
+        homeHumanAvatarState.requestedKey = "";
+        if (!destroyed) renderHomeAvatarDependents();
+        return;
+      }
+      if (homeHumanAvatarState.key === request.key && homeHumanAvatarState.url) return;
+      if (homeHumanAvatarState.loading && homeHumanAvatarState.requestedKey === request.key) return;
+      const generation = ++homeHumanAvatarState.generation;
+      homeHumanAvatarState.loading = true;
+      homeHumanAvatarState.requestedKey = request.key;
+      const finish = (url) => {
+        if (destroyed || generation !== homeHumanAvatarState.generation) return;
+        homeHumanAvatarState.loading = false;
+        homeHumanAvatarState.requestedKey = "";
+        homeHumanAvatarState.key = url ? request.key : "";
+        homeHumanAvatarState.url = url;
+        renderHomeAvatarDependents();
+        const current = currentHomeHumanAvatarRequest();
+        if (current && current.key !== request.key) refreshHomeHumanAvatar();
+      };
+      void options.onLoadMineFileContent(request.path, request.sha256, request.sizeBytes).then((preview) => {
+        finish(preview?.status === "ok" && preview.kind === "image" && preview.dataUrl ? preview.dataUrl : "");
+      }).catch(() => {
+        finish("");
       });
     }
     function homeActivityModel() {
@@ -13324,9 +13723,17 @@ ${resultDetail}`;
         statusText: homeAgentStatusText,
         statusDot: homeAgentStatusDot
       }, agent);
+      if (homeAgentProfileRetry) {
+        const retry = Boolean(agent.needsRetry && mineCapable);
+        homeAgentProfileRetry.hidden = !retry;
+        homeAgentProfileRetry.onclick = retry ? () => {
+          void loadMine(true);
+        } : null;
+      }
       renderHomeHuman(doc, {
         title: homeHumanTitle,
         summary: homeHumanSummary,
+        avatar: homeHumanAvatar,
         profile: mineProfileContent,
         renderMarkdown: renderMarkdownInto
       }, agent);
@@ -13646,11 +14053,32 @@ ${resultDetail}`;
       profileDraftState.avatarPreviewObject = false;
       profileDraftState.avatarPreviewAssetId = "";
     }
+    function releaseProfileHumanAvatarPreview() {
+      if (profileDraftState.humanAvatarPreviewObject && profileDraftState.humanAvatarPreviewUrl) {
+        try {
+          URL.revokeObjectURL(profileDraftState.humanAvatarPreviewUrl);
+        } catch {
+        }
+      }
+      profileDraftState.humanAvatarPreviewUrl = "";
+      profileDraftState.humanAvatarPreviewObject = false;
+      profileDraftState.humanAvatarPreviewAssetId = "";
+    }
+    function publishedAvatarKey(avatar) {
+      const path = String(avatar?.path ?? "");
+      const sha = String(avatar?.sha256 ?? "").toLowerCase();
+      if (!path || !sha) return "";
+      const file = Array.isArray(mineState.data?.files) ? mineState.data.files.find((item) => item.path === path) : null;
+      const size = Number(file?.sizeBytes) > 0 ? Number(file.sizeBytes) : 0;
+      return `${path}\0${sha}\0${size}`;
+    }
     function fallbackProfileDraft() {
       const publicProfile = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
       const card = mineState.data?.agentCard?.state === "available" ? mineState.data.agentCard.card : null;
       const human = mineState.data?.profile?.state === "available" ? mineState.data.profile : null;
+      const humanIndexName = human?.displayName && human.displayName !== "关联人类" ? human.displayName : "";
       const avatar = publicProfile?.avatarPath ? { assetId: "", sha256: publicProfile.avatarSha256, mime: publicProfile.avatarMime, path: publicProfile.avatarPath } : card?.avatarPath ? { assetId: "", sha256: card.avatarSha256, mime: card.avatarMime, path: card.avatarPath } : null;
+      const humanAvatar = publicProfile?.humanAvatarPath ? { assetId: "", sha256: publicProfile.humanAvatarSha256, mime: publicProfile.humanAvatarMime, path: publicProfile.humanAvatarPath } : null;
       return {
         draftId: "profile",
         kind: "profile",
@@ -13659,9 +14087,10 @@ ${resultDetail}`;
         agentDescription: publicProfile?.agentDescription || card?.description || "",
         agentInterests: publicProfile?.agentInterests || card?.interests || [],
         agentConversationStyle: publicProfile?.agentConversationStyle || card?.conversationStyle || "",
-        humanName: publicProfile?.humanName || human?.displayName || "",
+        humanName: publicProfile?.humanName || humanIndexName,
         humanBioMarkdown: publicProfile?.humanBioMarkdown || (human ? String(human.markdown).replace(/^#.*$/m, "").trim() : ""),
         avatar,
+        humanAvatar,
         publishedSha256: "",
         publishedRevision: 0,
         publishedPath: ""
@@ -13690,25 +14119,41 @@ ${resultDetail}`;
         humanBioMarkdown: draft?.humanBioMarkdown || ""
       };
     }
+    function profileImageMatchesSelection(draftImage, { file, assetId, clear }) {
+      if (file !== null) return false;
+      const image = draftImage || null;
+      if (clear) return image === null;
+      if (assetId) return String(image?.assetId || "") === assetId;
+      return image === null || String(image?.assetId || "") === "";
+    }
     function profileDraftMatchesCurrent(draft = profileDraftState.draft) {
       if (!draft) return false;
       if (!sameProfileValues(profileFormValues(), profileDraftValues(draft))) return false;
-      if (profileDraftState.avatarFile !== null) return false;
-      const draftAvatar = draft.avatar || null;
-      if (profileDraftState.avatarClear) return draftAvatar === null;
-      if (profileDraftState.avatarAssetId) return String(draftAvatar?.assetId || "") === profileDraftState.avatarAssetId;
-      return draftAvatar === null || String(draftAvatar.assetId || "") === "";
+      if (!profileImageMatchesSelection(draft.avatar, {
+        file: profileDraftState.avatarFile,
+        assetId: profileDraftState.avatarAssetId,
+        clear: profileDraftState.avatarClear
+      })) return false;
+      return profileImageMatchesSelection(draft.humanAvatar, {
+        file: profileDraftState.humanAvatarFile,
+        assetId: profileDraftState.humanAvatarAssetId,
+        clear: profileDraftState.humanAvatarClear
+      });
     }
     function adoptProfileDraftBaseline(receipt) {
       if (!receipt) return;
       const current = profileDraftState.draft || {};
       const avatar = Object.prototype.hasOwnProperty.call(receipt, "avatar") ? receipt.avatar ?? null : current.avatar ?? null;
-      profileDraftState.draft = { ...current, ...receipt, avatar };
+      const humanAvatar = Object.prototype.hasOwnProperty.call(receipt, "humanAvatar") ? receipt.humanAvatar ?? null : current.humanAvatar ?? null;
+      profileDraftState.draft = { ...current, ...receipt, avatar, humanAvatar };
       profileDraftState.fromFallback = false;
       profileDraftState.conflict = false;
     }
     function profileAvatarSelectionMatches(request) {
       return Boolean(request && profileDraftState.avatarFile === request.avatarFile && profileDraftState.avatarAssetId === request.avatarAssetId && profileDraftState.avatarClear === request.clearAvatar);
+    }
+    function profileHumanAvatarSelectionMatches(request) {
+      return Boolean(request && profileDraftState.humanAvatarFile === request.humanAvatarFile && profileDraftState.humanAvatarAssetId === request.humanAvatarAssetId && profileDraftState.humanAvatarClear === request.clearHumanAvatar);
     }
     function restoreProfileAvatarFromDraft(draft, fallbackAvatar = null) {
       const avatar = draft?.avatar || fallbackAvatar || null;
@@ -13722,10 +14167,23 @@ ${resultDetail}`;
       }
       renderProfileAvatar();
     }
+    function restoreProfileHumanAvatarFromDraft(draft, fallbackAvatar = null) {
+      const avatar = draft?.humanAvatar || fallbackAvatar || null;
+      releaseProfileHumanAvatarPreview();
+      profileDraftState.humanAvatarFile = null;
+      profileDraftState.humanAvatarAssetId = avatar?.assetId || "";
+      profileDraftState.humanAvatarClear = false;
+      profileDraftState.humanAvatarLoadingAssetId = "";
+      if (profileDraftState.draft) {
+        profileDraftState.draft = { ...profileDraftState.draft, humanAvatar: avatar };
+      }
+      renderProfileHumanAvatar();
+    }
     function setProfileForm(draft) {
       if (!draft) return;
       releaseDraftAssetScope("profile");
       releaseProfileAvatarPreview();
+      releaseProfileHumanAvatarPreview();
       publicAgentName.value = draft.agentName || "";
       publicAgentDescription.value = draft.agentDescription || "";
       publicAgentInterests.value = (draft.agentInterests || []).join("，");
@@ -13736,6 +14194,12 @@ ${resultDetail}`;
       profileDraftState.avatarClear = false;
       profileDraftState.avatarFile = null;
       profileDraftState.avatarError = "";
+      profileDraftState.avatarRestoreToken += 1;
+      profileDraftState.humanAvatarAssetId = draft.humanAvatar?.assetId || "";
+      profileDraftState.humanAvatarClear = false;
+      profileDraftState.humanAvatarFile = null;
+      profileDraftState.humanAvatarError = "";
+      profileDraftState.humanAvatarRestoreToken += 1;
       profileDraftState.formVersion += 1;
       profileDraftState.dirty = false;
       profileDraftState.reloadArmed = false;
@@ -13745,6 +14209,7 @@ ${resultDetail}`;
       if (publicPublishButton) publicPublishButton.textContent = "检查发布内容";
       if (publicPublishCancel) publicPublishCancel.hidden = true;
       renderProfileAvatar();
+      renderProfileHumanAvatar();
       renderHumanPreview();
       renderPublicVersionPreview();
     }
@@ -13795,7 +14260,8 @@ ${resultDetail}`;
         });
         return;
       }
-      if (!profileDraftState.avatarClear && avatar && homeAvatarState.url) {
+      const homeKey = publishedAvatarKey(avatar);
+      if (!profileDraftState.avatarClear && avatar && homeKey && homeAvatarState.key === homeKey && homeAvatarState.url) {
         image.src = homeAvatarState.url;
         publicAvatarPreview.dataset.loading = "false";
         publicAvatarPreview.dataset.empty = "false";
@@ -13810,6 +14276,70 @@ ${resultDetail}`;
         return;
       }
       showPlaceholder(true, "尚未设置 Agent 头像");
+    }
+    function renderProfileHumanAvatar() {
+      if (!publicHumanAvatarPreview) return;
+      const image = publicHumanAvatarPreview.querySelector("img");
+      if (!image) return;
+      image.hidden = false;
+      const avatar = profileDraftState.draft?.humanAvatar || null;
+      const assetId = profileDraftState.humanAvatarAssetId;
+      const showPlaceholder = (empty, label) => {
+        image.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+        publicHumanAvatarPreview.dataset.loading = "false";
+        publicHumanAvatarPreview.dataset.empty = empty ? "true" : "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", label);
+      };
+      if (profileDraftState.humanAvatarPreviewUrl) {
+        image.src = profileDraftState.humanAvatarPreviewUrl;
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.dataset.loading = "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", "关联人类头像预览");
+        return;
+      }
+      if (publicDraftAssetCapable && assetId && avatar?.assetId === assetId) {
+        image.removeAttribute("src");
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.dataset.loading = "true";
+        publicHumanAvatarPreview.setAttribute("aria-label", "正在读取关联人类草稿头像");
+        profileDraftState.humanAvatarLoadingAssetId = assetId;
+        void ensureDraftAssetPreview("profile", "profile", avatar).then((entry) => {
+          if (destroyed || profileDraftState.humanAvatarAssetId !== assetId || profileDraftState.humanAvatarLoadingAssetId !== assetId) return;
+          profileDraftState.humanAvatarLoadingAssetId = "";
+          if (!entry?.url) {
+            profileDraftState.humanAvatarError = "人类头像草稿读取失败；保存或发布时会重新校验。";
+            showPlaceholder(true, "关联人类头像暂时无法显示");
+            renderProfileDraftStatus();
+            return;
+          }
+          profileDraftState.humanAvatarError = "";
+          profileDraftState.humanAvatarPreviewUrl = entry.url;
+          profileDraftState.humanAvatarPreviewObject = entry.objectUrl === true;
+          profileDraftState.humanAvatarPreviewAssetId = assetId;
+          image.src = entry.url;
+          publicHumanAvatarPreview.dataset.loading = "false";
+          publicHumanAvatarPreview.dataset.empty = "false";
+          publicHumanAvatarPreview.setAttribute("aria-label", "关联人类头像预览");
+          renderProfileDraftStatus();
+        });
+        return;
+      }
+      const homeKey = publishedAvatarKey(avatar);
+      if (!profileDraftState.humanAvatarClear && avatar && homeKey && homeHumanAvatarState.key === homeKey && homeHumanAvatarState.url) {
+        image.src = homeHumanAvatarState.url;
+        publicHumanAvatarPreview.dataset.loading = "false";
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", "关联人类公开头像");
+        return;
+      }
+      if (!profileDraftState.humanAvatarClear && avatar) {
+        image.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+        publicHumanAvatarPreview.dataset.loading = "true";
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", "正在读取已公开的关联人类头像");
+        return;
+      }
+      showPlaceholder(true, "尚未设置关联人类头像");
     }
     function renderHumanPreview() {
       if (!settingsHumanPreview) return;
@@ -13839,6 +14369,9 @@ ${resultDetail}`;
           avatarPath: v2.avatarPath || "",
           avatarSha256: v2.avatarSha256 || "",
           avatarMime: v2.avatarMime || "",
+          humanAvatarPath: v2.humanAvatarPath || "",
+          humanAvatarSha256: v2.humanAvatarSha256 || "",
+          humanAvatarMime: v2.humanAvatarMime || "",
           updatedAt: v2.updatedAt || ""
         };
       }
@@ -13857,6 +14390,9 @@ ${resultDetail}`;
         avatarPath: card?.avatarPath || "",
         avatarSha256: card?.avatarSha256 || "",
         avatarMime: card?.avatarMime || "",
+        humanAvatarPath: "",
+        humanAvatarSha256: "",
+        humanAvatarMime: "",
         updatedAt: card?.updatedAt || ""
       };
     }
@@ -13867,8 +14403,16 @@ ${resultDetail}`;
       const readError = mineState.error || (mineState.data?.publicProfile?.state === "error" ? mineState.data.publicProfile.error : "");
       if (publicVersionPreview) publicVersionPreview.classList.toggle("is-empty", !published);
       publicRestorePublished.disabled = !published || profileDraftState.publishing || profileDraftState.saving;
+      if (publicVersionRetry) {
+        publicVersionRetry.hidden = !(mineCapable && readError.length > 0);
+        publicVersionRetry.disabled = mineState.retrying;
+        publicVersionRetry.textContent = mineState.retrying ? "正在重试…" : "重试读取公开资料";
+        publicVersionRetry.onclick = mineCapable ? () => {
+          void loadMine(true);
+        } : null;
+      }
       if (!published) {
-        publicVersionName.textContent = loading ? "正在读取公开版本…" : "尚无公开版本";
+        publicVersionName.textContent = loading ? "正在读取公开版本…" : readError ? "读取公开版本失败" : "尚无公开版本";
         publicVersionDescription.textContent = loading ? "读取完成后会在这里显示当前公开内容。" : readError ? "当前公开版本读取失败，详细诊断在「版本、路径与诊断」中。" : "发布成功后会在这里保留一份可恢复的公开内容预览。";
         publicVersionInterests.replaceChildren();
         publicVersionInterests.hidden = true;
@@ -13894,12 +14438,15 @@ ${resultDetail}`;
       }
       publicVersionInterests.hidden = published.agentInterests.length === 0;
       publicVersionStyle.textContent = published.agentConversationStyle ? `公开交流风格 · ${published.agentConversationStyle}` : "";
-      publicVersionHuman.textContent = published.humanName ? `关联人类 · ${published.humanName}${published.humanBioMarkdown ? `：${plainSummary(published.humanBioMarkdown, 160)}` : ""}` : "关联人类介绍尚未填写。";
-      publicVersionNote.textContent = `公开版本 · ${published.sourcePath}${published.updatedAt ? ` · 更新于 ${formatDateTime(published.updatedAt)}` : ""}`;
+      const humanAvatarText = published.humanAvatarPath ? "（已设置公开头像）" : "";
+      publicVersionHuman.textContent = published.humanName ? `关联人类 · ${published.humanName}${humanAvatarText}${published.humanBioMarkdown ? `：${plainSummary(published.humanBioMarkdown, 160)}` : ""}` : published.humanAvatarPath ? "关联人类 · 已设置公开头像，介绍尚未填写。" : "关联人类介绍尚未填写。";
+      const stale = readError && Number(mineState.data?.at) > 0 ? ` 这是 ${refreshedText(mineState.data.at)} 成功读取的公开版本；最近一次刷新失败，可能不是最新。` : "";
+      publicVersionNote.textContent = `公开版本 · ${published.sourcePath}${published.updatedAt ? ` · 更新于 ${formatDateTime(published.updatedAt)}` : ""}${stale}`;
       const image = publicVersionAvatar?.querySelector("img");
       const initial = publicVersionAvatar?.querySelector("span");
       if (image && initial) {
-        if (published.avatarPath && homeAvatarState.url) {
+        const publishedKey = publishedAvatarKey(published.avatarPath ? { path: published.avatarPath, sha256: published.avatarSha256 } : null);
+        if (published.avatarPath && publishedKey && homeAvatarState.key === publishedKey && homeAvatarState.url) {
           image.src = homeAvatarState.url;
           image.hidden = false;
           initial.hidden = true;
@@ -14007,8 +14554,11 @@ ${resultDetail}`;
       publicPublishCancel.hidden = !state.confirm || lock;
       publicPublishCancel.disabled = lock;
       publicAvatarInput.disabled = lock;
+      publicHumanAvatarInput.disabled = lock;
       const hasAvatar = !state.avatarClear && (state.avatarFile !== null || Boolean(state.avatarAssetId) || Boolean(state.draft?.avatar) || Boolean(homeAvatarState.url));
+      const hasHumanAvatar = !state.humanAvatarClear && (state.humanAvatarFile !== null || Boolean(state.humanAvatarAssetId) || Boolean(state.draft?.humanAvatar) || Boolean(homeHumanAvatarState.url));
       publicAvatarClear.disabled = lock || !hasAvatar;
+      publicHumanAvatarClear.disabled = lock || !hasHumanAvatar;
       for (const input of [publicAgentName, publicAgentDescription, publicAgentInterests, publicAgentStyle, publicHumanName, publicHumanBio]) {
         input.disabled = lock;
       }
@@ -14026,6 +14576,21 @@ ${resultDetail}`;
           publicAvatarNote.hidden = true;
           publicAvatarNote.textContent = "";
           delete publicAvatarNote.dataset.tone;
+        }
+      }
+      if (publicHumanAvatarNote) {
+        if (state.humanAvatarError) {
+          publicHumanAvatarNote.hidden = false;
+          publicHumanAvatarNote.dataset.tone = "error";
+          publicHumanAvatarNote.textContent = state.humanAvatarError;
+        } else if (state.humanAvatarLoadingAssetId) {
+          publicHumanAvatarNote.hidden = false;
+          publicHumanAvatarNote.dataset.tone = "";
+          publicHumanAvatarNote.textContent = "正在读取本机关联人类草稿头像…";
+        } else {
+          publicHumanAvatarNote.hidden = true;
+          publicHumanAvatarNote.textContent = "";
+          delete publicHumanAvatarNote.dataset.tone;
         }
       }
       if (!publicDraftLoadCapable) {
@@ -14083,7 +14648,8 @@ ${resultDetail}`;
       if (state.confirm && !state.receipt) {
         publicPublishReceipt.hidden = false;
         publicPublishReceipt.dataset.tone = "unavailable";
-        publicPublishReceipt.textContent = `将以关联人类“${publicHumanName.value.trim() || "未填写"}”与 Agent“${publicAgentName.value.trim() || "未命名"}”发布当前内容。确认后才会公开。`;
+        const imageStateText = (clear, file, assetId, draftImage) => clear ? "已移除" : file ? "新图片待保存" : assetId || draftImage ? "已设置" : "使用默认形象";
+        publicPublishReceipt.textContent = `将以关联人类“${publicHumanName.value.trim() || "未填写"}”与 Agent“${publicAgentName.value.trim() || "未命名"}”发布当前内容；Agent 头像：${imageStateText(state.avatarClear, state.avatarFile, state.avatarAssetId, state.draft?.avatar)}，关联人类头像：${imageStateText(state.humanAvatarClear, state.humanAvatarFile, state.humanAvatarAssetId, state.draft?.humanAvatar)}。确认后才会公开。`;
       } else if (state.receipt) {
         publicPublishReceipt.hidden = false;
         publicPublishReceipt.dataset.tone = state.receipt.status === "published" || state.receipt.status === "already_published" ? "ready" : "error";
@@ -14118,6 +14684,7 @@ ${resultDetail}`;
         return Promise.resolve(profileDraftState.draft);
       }
       const seq = ++profileDraftState.loadingSeq;
+      const formVersionAtStart = profileDraftState.formVersion;
       const promise = (async () => {
         try {
           const result = await options.onLoadPublicDraft("profile");
@@ -14136,6 +14703,10 @@ ${resultDetail}`;
           profileDraftState.error = "";
           profileDraftState.conflict = false;
           profileDraftState.reloadArmed = false;
+          if (profileDraftState.formVersion !== formVersionAtStart && profileDraftState.dirty) {
+            profileDraftState.confirmNotice = "草稿已在后台重新载入；载入期间的新输入仍保留，请再次保存。";
+            return profileDraftState.draft;
+          }
           setProfileForm(draft);
         } catch (error) {
           if (destroyed || seq !== profileDraftState.loadingSeq) return null;
@@ -14165,17 +14736,22 @@ ${resultDetail}`;
         avatarFile: profileDraftState.avatarFile,
         avatarAssetId: profileDraftState.avatarClear ? "" : profileDraftState.avatarAssetId,
         clearAvatar: profileDraftState.avatarClear === true,
+        humanAvatarFile: profileDraftState.humanAvatarFile,
+        humanAvatarAssetId: profileDraftState.humanAvatarClear ? "" : profileDraftState.humanAvatarAssetId,
+        clearHumanAvatar: profileDraftState.humanAvatarClear === true,
         version: profileDraftState.formVersion
       };
     }
-    async function saveProfileDraftOnce(expectedRevision, avatarAssetId, values, clearAvatar) {
+    async function saveProfileDraftOnce(expectedRevision, images, values) {
       const result = await options.onSavePublicDraft({
         draftId: "profile",
         kind: "profile",
         expectedRevision,
         ...values,
-        avatarAssetId: avatarAssetId || "",
-        clearAvatar: clearAvatar === true,
+        avatarAssetId: images.avatarAssetId || "",
+        clearAvatar: images.clearAvatar === true,
+        humanAvatarAssetId: images.humanAvatarAssetId || "",
+        clearHumanAvatar: images.clearHumanAvatar === true,
         imageAssetIds: [],
         tags: []
       });
@@ -14192,33 +14768,130 @@ ${resultDetail}`;
       if (typeof FileCtor !== "function") throw new Error("当前环境无法把已公开头像转为本机草稿图片");
       return new FileCtor([bytes], name || "avatar.png", { type: mime || "image/png" });
     }
-    async function importPublishedAvatarForDraft() {
-      const draft = profileDraftState.draft;
-      const avatar = draft?.avatar;
-      if (!avatar?.path || avatar.assetId || profileDraftState.avatarFile || profileDraftState.avatarAssetId || profileDraftState.avatarClear) return;
-      if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取；请重新选择头像或移除头像后再保存。");
-      const file = mineState.data?.files?.find((item) => item.path === avatar.path) ?? null;
-      if (!file) throw new Error("已公开头像不在本机发布清单中；请重新选择头像或移除头像后再保存。");
-      const version = profileDraftState.formVersion;
-      const avatarPath = avatar.path;
-      const avatarSha = String(avatar.sha256 || "");
-      const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
-      if (destroyed || profileDraftState.draft !== draft || version !== profileDraftState.formVersion) return;
-      if (profileDraftState.avatarFile || profileDraftState.avatarAssetId || profileDraftState.avatarClear) return;
-      const current = profileDraftState.draft?.avatar;
-      if (!current || current.path !== avatarPath || String(current.sha256 || "") !== avatarSha) return;
-      if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
-        throw new Error(preview?.error || "已公开头像读取失败；请重新选择头像或移除头像后再保存。");
+    function draftImageIsHuman(kind) {
+      return kind === "human";
+    }
+    function draftImageField(kind) {
+      return draftImageIsHuman(kind) ? "humanAvatar" : "avatar";
+    }
+    function draftImageSelection(kind) {
+      const human = draftImageIsHuman(kind);
+      return {
+        human,
+        file: human ? profileDraftState.humanAvatarFile : profileDraftState.avatarFile,
+        assetId: human ? profileDraftState.humanAvatarAssetId : profileDraftState.avatarAssetId,
+        clear: human ? profileDraftState.humanAvatarClear : profileDraftState.avatarClear,
+        loadingAssetId: human ? profileDraftState.humanAvatarLoadingAssetId : profileDraftState.avatarLoadingAssetId
+      };
+    }
+    function bumpDraftImageToken(kind) {
+      if (draftImageIsHuman(kind)) {
+        profileDraftState.humanAvatarRestoreToken += 1;
+        return profileDraftState.humanAvatarRestoreToken;
+      }
+      profileDraftState.avatarRestoreToken += 1;
+      return profileDraftState.avatarRestoreToken;
+    }
+    function draftImageToken(kind) {
+      return draftImageIsHuman(kind) ? profileDraftState.humanAvatarRestoreToken : profileDraftState.avatarRestoreToken;
+    }
+    function applyDraftImageFile(kind, { file, previewUrl, objectUrl = false, assetId = "" }) {
+      if (draftImageIsHuman(kind)) {
+        releaseProfileHumanAvatarPreview();
+        profileDraftState.humanAvatarFile = file;
+        profileDraftState.humanAvatarPreviewUrl = previewUrl;
+        profileDraftState.humanAvatarPreviewObject = objectUrl;
+        profileDraftState.humanAvatarPreviewAssetId = "";
+        profileDraftState.humanAvatarAssetId = assetId;
+        profileDraftState.humanAvatarClear = false;
+        profileDraftState.humanAvatarError = "";
+        profileDraftState.humanAvatarLoadingAssetId = "";
+        renderProfileHumanAvatar();
+        return;
       }
       releaseProfileAvatarPreview();
-      profileDraftState.avatarFile = dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime);
-      profileDraftState.avatarPreviewUrl = preview.dataUrl;
-      profileDraftState.avatarPreviewObject = false;
-      profileDraftState.avatarAssetId = "";
+      profileDraftState.avatarFile = file;
+      profileDraftState.avatarPreviewUrl = previewUrl;
+      profileDraftState.avatarPreviewObject = objectUrl;
+      profileDraftState.avatarPreviewAssetId = "";
+      profileDraftState.avatarAssetId = assetId;
       profileDraftState.avatarClear = false;
       profileDraftState.avatarError = "";
       profileDraftState.avatarLoadingAssetId = "";
       renderProfileAvatar();
+    }
+    async function readPublishedAvatarFile(avatar) {
+      if (!avatar?.path) throw new Error("已公开头像没有路径");
+      if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取；请重新选择头像或移除头像后再保存。");
+      const avatarSha = String(avatar.sha256 || "").toLowerCase();
+      const file = mineState.data?.files?.find((item) => item.path === avatar.path && (!avatarSha || String(item.sha256 || "").toLowerCase() === avatarSha)) ?? null;
+      if (!file) throw new Error("已公开头像不在本机发布清单中；请重新选择头像或移除头像后再保存。");
+      const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
+      return { file, preview };
+    }
+    async function importPublishedAvatarForDraft(kind = "agent") {
+      const human = draftImageIsHuman(kind);
+      const field = draftImageField(kind);
+      const draft = profileDraftState.draft;
+      const avatar = draft?.[field];
+      const selection = draftImageSelection(kind);
+      if (!avatar?.path || avatar.assetId || selection.file || selection.assetId || selection.clear) return false;
+      const version = profileDraftState.formVersion;
+      const token = bumpDraftImageToken(kind);
+      const avatarPath = avatar.path;
+      const avatarSha = String(avatar.sha256 || "").toLowerCase();
+      const stillCurrent = () => !destroyed && token === draftImageToken(kind) && profileDraftState.draft === draft && version === profileDraftState.formVersion && !draftImageSelection(kind).file && !draftImageSelection(kind).assetId && !draftImageSelection(kind).clear && String(profileDraftState.draft?.[field]?.path || "") === avatarPath && String(profileDraftState.draft?.[field]?.sha256 || "").toLowerCase() === avatarSha;
+      try {
+        const { file, preview } = await readPublishedAvatarFile(avatar);
+        if (!stillCurrent()) return false;
+        if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
+          throw new Error(preview?.error || "已公开头像读取失败；请重新选择头像或移除头像后再保存。");
+        }
+        applyDraftImageFile(kind, {
+          file: dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime),
+          previewUrl: preview.dataUrl
+        });
+        return true;
+      } catch (error) {
+        if (stillCurrent()) throw error;
+        return false;
+      }
+    }
+    async function importPublishedAvatarsForDraft() {
+      const results = await Promise.allSettled([
+        importPublishedAvatarForDraft("agent"),
+        importPublishedAvatarForDraft("human")
+      ]);
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) throw failed.reason;
+    }
+    async function restorePublishedAvatarForDraft(kind, avatar, token) {
+      if (!avatar?.path) return false;
+      const human = draftImageIsHuman(kind);
+      const field = draftImageField(kind);
+      const avatarPath = avatar.path;
+      const avatarSha = String(avatar.sha256 || "").toLowerCase();
+      const stillCurrent = () => !destroyed && token === draftImageToken(kind) && !draftImageSelection(kind).file && !draftImageSelection(kind).assetId && !draftImageSelection(kind).clear && String(profileDraftState.draft?.[field]?.path || "") === avatarPath && String(profileDraftState.draft?.[field]?.sha256 || "").toLowerCase() === avatarSha;
+      try {
+        const { file, preview } = await readPublishedAvatarFile(avatar);
+        if (!stillCurrent()) return false;
+        if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
+          throw new Error(preview?.error || "已公开头像读取失败");
+        }
+        applyDraftImageFile(kind, {
+          file: dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime),
+          previewUrl: preview.dataUrl
+        });
+        return true;
+      } catch (error) {
+        if (!stillCurrent()) return false;
+        if (human) {
+          profileDraftState.humanAvatarError = `${errorText(error)}；请重新选择关联人类头像后再发布。`;
+        } else {
+          profileDraftState.avatarError = `${errorText(error)}；请重新选择头像后再发布。`;
+        }
+        return false;
+      }
     }
     async function saveProfileDraft({ manual = false } = {}) {
       if (!publicDraftSaveCapable) {
@@ -14250,27 +14923,69 @@ ${resultDetail}`;
         let request = null;
         let baseline = null;
         let beforeDraftAvatar = null;
+        let beforeDraftHumanAvatar = null;
+        let imagePhase = "";
         try {
-          await importPublishedAvatarForDraft();
+          await importPublishedAvatarsForDraft();
           if (destroyed) return profileDraftState.draft;
           request = profileRequestValues();
           beforeDraftAvatar = profileDraftState.draft?.avatar || null;
+          beforeDraftHumanAvatar = profileDraftState.draft?.humanAvatar || null;
           const draft = profileDraftState.draft;
-          let saved = await saveProfileDraftOnce(draft?.revision || 0, request.avatarAssetId, request.values, request.clearAvatar);
+          let agentAssetId = request.avatarAssetId;
+          let clearAgentAvatar = request.clearAvatar;
+          let humanAssetId = request.humanAvatarAssetId;
+          let clearHumanAvatar = request.clearHumanAvatar;
+          let saved = await saveProfileDraftOnce(draft?.revision || 0, {
+            avatarAssetId: agentAssetId,
+            clearAvatar: clearAgentAvatar,
+            humanAvatarAssetId: humanAssetId,
+            clearHumanAvatar
+          }, request.values);
           baseline = saved;
           adoptProfileDraftBaseline(saved);
           if (request.avatarFile) {
+            imagePhase = "agent";
             if (!publicDraftImageCapable) throw new Error("当前宿主不支持上传草稿头像");
             const base64 = await fileToBase64(request.avatarFile);
             const uploaded = await options.onPutPublicDraftImage(saved.draftId, "avatar", request.avatarFile.name, base64);
             if (!uploaded?.image?.assetId) throw new Error("头像上传没有返回资源");
-            saved = await saveProfileDraftOnce(saved.revision, uploaded.image.assetId, request.values, false);
+            agentAssetId = uploaded.image.assetId;
+            clearAgentAvatar = false;
+            saved = await saveProfileDraftOnce(saved.revision, {
+              avatarAssetId: agentAssetId,
+              clearAvatar: false,
+              humanAvatarAssetId: humanAssetId,
+              clearHumanAvatar
+            }, request.values);
             baseline = saved;
             adoptProfileDraftBaseline(saved);
             if (request.version === profileDraftState.formVersion && profileDraftState.avatarFile === request.avatarFile) {
-              profileDraftState.avatarAssetId = uploaded.image.assetId;
+              profileDraftState.avatarAssetId = agentAssetId;
               profileDraftState.avatarFile = null;
               profileDraftState.avatarClear = false;
+            }
+          }
+          if (request.humanAvatarFile) {
+            imagePhase = "human";
+            if (!publicDraftImageCapable) throw new Error("当前宿主不支持上传草稿人类头像");
+            const base64 = await fileToBase64(request.humanAvatarFile);
+            const uploaded = await options.onPutPublicDraftImage(saved.draftId, "human_avatar", request.humanAvatarFile.name, base64);
+            if (!uploaded?.image?.assetId) throw new Error("关联人类头像上传没有返回资源");
+            humanAssetId = uploaded.image.assetId;
+            clearHumanAvatar = false;
+            saved = await saveProfileDraftOnce(saved.revision, {
+              avatarAssetId: agentAssetId,
+              clearAvatar: clearAgentAvatar,
+              humanAvatarAssetId: humanAssetId,
+              clearHumanAvatar: false
+            }, request.values);
+            baseline = saved;
+            adoptProfileDraftBaseline(saved);
+            if (request.version === profileDraftState.formVersion && profileDraftState.humanAvatarFile === request.humanAvatarFile) {
+              profileDraftState.humanAvatarAssetId = humanAssetId;
+              profileDraftState.humanAvatarFile = null;
+              profileDraftState.humanAvatarClear = false;
             }
           }
           profileDraftState.draft = saved;
@@ -14281,7 +14996,9 @@ ${resultDetail}`;
           if (!profileDraftState.dirty) {
             profileDraftState.error = "";
             if (!profileDraftState.avatarFile) profileDraftState.avatarAssetId = saved.avatar?.assetId || "";
+            if (!profileDraftState.humanAvatarFile) profileDraftState.humanAvatarAssetId = saved.humanAvatar?.assetId || "";
             profileDraftState.avatarClear = false;
+            profileDraftState.humanAvatarClear = false;
           }
         } catch (error) {
           const message = profileDraftErrorText(error);
@@ -14292,7 +15009,17 @@ ${resultDetail}`;
           if (baseline && request && profileAvatarSelectionMatches(request)) {
             restoreProfileAvatarFromDraft(baseline, beforeDraftAvatar);
           }
-          if (imageFailure) profileDraftState.avatarError = message;
+          if (baseline && request && profileHumanAvatarSelectionMatches(request)) {
+            restoreProfileHumanAvatarFromDraft(baseline, beforeDraftHumanAvatar);
+          }
+          if (imageFailure) {
+            if (imagePhase === "human") profileDraftState.humanAvatarError = message;
+            else if (imagePhase === "agent") profileDraftState.avatarError = message;
+            else {
+              profileDraftState.avatarError = message;
+              profileDraftState.humanAvatarError = message;
+            }
+          }
           profileDraftState.dirty = !baseline || !profileDraftMatchesCurrent();
         } finally {
           profileDraftState.saving = false;
@@ -14300,6 +15027,7 @@ ${resultDetail}`;
           profileDraftState.queuedSave = false;
           if (!destroyed) {
             renderProfileAvatar();
+            renderProfileHumanAvatar();
             renderProfileDraftStatus();
             if (retry) queueProfileSave(350);
           }
@@ -14350,7 +15078,10 @@ ${resultDetail}`;
         values: profileFormValues(),
         avatarAssetId: profileDraftState.avatarClear ? "" : profileDraftState.avatarAssetId,
         avatarClear: profileDraftState.avatarClear === true,
-        avatarFile: profileDraftState.avatarFile ? [profileDraftState.avatarFile.name, profileDraftState.avatarFile.size, profileDraftState.avatarFile.lastModified] : null
+        avatarFile: profileDraftState.avatarFile ? [profileDraftState.avatarFile.name, profileDraftState.avatarFile.size, profileDraftState.avatarFile.lastModified] : null,
+        humanAvatarAssetId: profileDraftState.humanAvatarClear ? "" : profileDraftState.humanAvatarAssetId,
+        humanAvatarClear: profileDraftState.humanAvatarClear === true,
+        humanAvatarFile: profileDraftState.humanAvatarFile ? [profileDraftState.humanAvatarFile.name, profileDraftState.humanAvatarFile.size, profileDraftState.humanAvatarFile.lastModified] : null
       });
     }
     async function flushProfileDraftForPublish() {
@@ -14365,11 +15096,11 @@ ${resultDetail}`;
         }
         if (profileDraftState.conflict) throw new Error("草稿已在别处更新，不能直接发布；请重新载入最新草稿后再检查。");
         try {
-          await importPublishedAvatarForDraft();
+          await importPublishedAvatarsForDraft();
         } catch (error) {
           throw new Error(`${errorText(error)} 未保存为草稿，发布也不会丢弃旧头像。`);
         }
-        if (profileDraftState.avatarFile) profileDraftState.dirty = true;
+        if (profileDraftState.avatarFile || profileDraftState.humanAvatarFile) profileDraftState.dirty = true;
         if (!profileDraftState.dirty && profileDraftState.draft) return profileDraftState.draft;
         await saveProfileDraft({ manual: true });
         if (profileDraftState.conflict) throw new Error("草稿已在别处更新，不能直接发布；本机输入已保留。");
@@ -14470,13 +15201,18 @@ ${resultDetail}`;
     }
     function handleProfileReload() {
       if (!publicDraftLoadCapable || profileDraftState.saving || profileDraftState.publishing) return;
-      const hasLocalChanges = profileDraftState.dirty || profileDraftState.avatarFile !== null || profileDraftState.confirm || profileDraftState.reloadArmed;
+      const hasLocalChanges = profileDraftState.dirty || profileDraftState.avatarFile !== null || profileDraftState.humanAvatarFile !== null || profileDraftState.confirm || profileDraftState.reloadArmed;
       if (hasLocalChanges && !profileDraftState.reloadArmed) {
         profileDraftState.reloadArmed = true;
         invalidateProfileConfirm("");
         renderProfileDraftStatus();
         return;
       }
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      profileDraftState.queuedSave = false;
       profileDraftState.reloadArmed = false;
       profileDraftState.dirty = false;
       profileDraftState.error = "";
@@ -14507,39 +15243,30 @@ ${resultDetail}`;
         humanName: published.humanName,
         humanBioMarkdown: published.humanBioMarkdown,
         avatar: published.avatarPath ? { assetId: "", sha256: published.avatarSha256, mime: published.avatarMime, path: published.avatarPath } : null,
+        humanAvatar: published.humanAvatarPath ? { assetId: "", sha256: published.humanAvatarSha256, mime: published.humanAvatarMime, path: published.humanAvatarPath } : null,
         publishedSha256: profileDraftState.draft?.publishedSha256 || "",
         publishedRevision: profileDraftState.draft?.publishedRevision || 0,
         publishedPath: profileDraftState.draft?.publishedPath || ""
       };
+      const hadSavedDraft = Boolean(profileDraftState.draft && !profileDraftState.fromFallback);
       setProfileForm(restored);
-      if (published.avatarPath) {
-        try {
-          const avatar = restored.avatar;
-          if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取");
-          const file = mineState.data?.files?.find((item) => item.path === avatar.path) ?? null;
-          if (!file) throw new Error("已公开头像不在本机发布清单中");
-          const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
-          if (destroyed) return;
-          if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
-            throw new Error(preview?.error || "已公开头像读取失败");
-          }
-          profileDraftState.avatarFile = dataUrlToFile(preview.dataUrl, file.name || avatar.path.split("/").pop(), preview.mime || avatar.mime);
-          profileDraftState.avatarPreviewUrl = preview.dataUrl;
-          profileDraftState.avatarPreviewObject = false;
-          profileDraftState.avatarAssetId = "";
-          profileDraftState.avatarClear = false;
-          renderProfileAvatar();
-        } catch (error) {
-          profileDraftState.avatarError = `${errorText(error)}；请重新选择头像后再发布。`;
-          profileDraftState.fromFallback = true;
-        }
-      } else {
+      profileDraftState.draft = {
+        ...profileDraftState.draft || restored,
+        avatar: restored.avatar,
+        humanAvatar: restored.humanAvatar
+      };
+      const agentToken = bumpDraftImageToken("agent");
+      const humanToken = bumpDraftImageToken("human");
+      if (!restored.avatar) {
         profileDraftState.avatarClear = true;
         profileDraftState.avatarFile = null;
         profileDraftState.avatarAssetId = "";
       }
-      const hadSavedDraft = Boolean(profileDraftState.draft && !profileDraftState.fromFallback);
-      profileDraftState.draft = { ...profileDraftState.draft, avatar: restored.avatar };
+      if (!restored.humanAvatar) {
+        profileDraftState.humanAvatarClear = true;
+        profileDraftState.humanAvatarFile = null;
+        profileDraftState.humanAvatarAssetId = "";
+      }
       profileDraftState.formVersion += 1;
       profileDraftState.dirty = true;
       profileDraftState.fromFallback = !hadSavedDraft;
@@ -14548,9 +15275,17 @@ ${resultDetail}`;
       profileDraftState.confirmSnapshot = "";
       profileDraftState.confirmNotice = "已恢复公开版本；保存后成为本机草稿。";
       renderProfileAvatar();
+      renderProfileHumanAvatar();
       renderHumanPreview();
       renderProfileDraftStatus();
       publicDraftStatus.scrollIntoView?.({ block: "nearest" });
+      await Promise.all([
+        restorePublishedAvatarForDraft("agent", restored.avatar, agentToken),
+        restorePublishedAvatarForDraft("human", restored.humanAvatar, humanToken)
+      ]);
+      if (!destroyed && profileDraftState.draft) {
+        renderProfileDraftStatus();
+      }
     }
     function postFormValues() {
       return {
@@ -15915,10 +16650,16 @@ ${resultDetail}`;
           profileDraftState.draft = { ...refreshed, draftId: "profile", kind: "profile", revision: 0 };
           setProfileForm(profileDraftState.draft);
         } else if (profileDraftState.draft && profileDraftState.draft.revision === 0) {
-          profileDraftState.draft = { ...profileDraftState.draft, avatar: refreshed.avatar, publishedSha256: refreshed.publishedSha256 };
+          profileDraftState.draft = {
+            ...profileDraftState.draft,
+            avatar: refreshed.avatar,
+            humanAvatar: refreshed.humanAvatar,
+            publishedSha256: refreshed.publishedSha256
+          };
         }
         if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
           renderProfileAvatar();
+          renderProfileHumanAvatar();
           renderProfileDraftStatus();
         }
       }
@@ -17800,6 +18541,52 @@ ${resultDetail}`;
         refreshContactAvatar(peerId2);
       });
     }
+    function peerHumanAvatarKey(peerId2, data) {
+      const path = String(data?.humanAvatarPath ?? "");
+      const sha = String(data?.humanAvatarSha256 ?? "").toLowerCase();
+      const mime = String(data?.humanAvatarMime ?? "");
+      if (!path || !sha || !mime || !Array.isArray(data?.manifest?.entries)) return "";
+      const entry = data.manifest.entries.find((item) => item.path === path && String(item.sha256 ?? "").toLowerCase() === sha);
+      if (!entry) return "";
+      return `${peerId2}\0${path}\0${sha}\0${Number(entry.sizeBytes) || 0}\0${mime}`;
+    }
+    function renderPeerHumanAvatar(peerId2, data, { displayName = "" } = {}) {
+      if (!profileHumanAvatar) return;
+      const initial = Array.from(displayName || "")[0] || "人";
+      if (profileHumanInitial) {
+        profileHumanInitial.textContent = initial;
+        profileHumanInitial.hidden = false;
+      }
+      const key2 = peerHumanAvatarKey(peerId2, data);
+      const cached = peerHumanAvatarState.get(peerId2);
+      const cachedMatches = Boolean(key2 && cached && cached.key === key2 && cached.state === "ready" && cached.url);
+      profileHumanAvatar.hidden = !cachedMatches;
+      if (cachedMatches) {
+        profileHumanAvatar.src = cached.url;
+        if (profileHumanInitial) profileHumanInitial.hidden = true;
+      } else {
+        profileHumanAvatar.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+      }
+      profileHumanStrip?.setAttribute("data-has-avatar", key2 ? "true" : "false");
+      if (!key2 || cachedMatches) return;
+      if (cached && cached.key === key2 && (cached.state === "loading" || cached.state === "error")) return;
+      const avatarPath = String(data.humanAvatarPath);
+      const avatarSha = String(data.humanAvatarSha256).toLowerCase();
+      const avatarMime = String(data.humanAvatarMime);
+      const entry = data.manifest.entries.find((item) => item.path === avatarPath && String(item.sha256 ?? "").toLowerCase() === avatarSha);
+      if (!entry || typeof options.onLoadPeerFileContent !== "function") return;
+      peerHumanAvatarState.set(peerId2, { key: key2, state: "loading", url: "" });
+      void options.onLoadPeerFileContent(peerId2, avatarPath, avatarSha, entry.sizeBytes).then((preview) => {
+        if (destroyed) return;
+        const valid = preview?.status === "ok" && preview.kind === "image" && preview.mime === avatarMime && String(preview.sha256 ?? "").toLowerCase() === avatarSha && Number(preview.sizeBytes) === Number(entry.sizeBytes) && typeof preview.dataUrl === "string" && preview.dataUrl.length > 0;
+        peerHumanAvatarState.set(peerId2, valid ? { key: key2, state: "ready", url: preview.dataUrl } : { key: key2, state: "error", url: "" });
+        if (!profileView.hidden && profileState.peerId === peerId2) rerenderProfileKeepingPosition();
+      }).catch(() => {
+        if (destroyed) return;
+        peerHumanAvatarState.set(peerId2, { key: key2, state: "error", url: "" });
+        if (!profileView.hidden && profileState.peerId === peerId2) rerenderProfileKeepingPosition();
+      });
+    }
     function renderProfile() {
       const peerId2 = profileState.peerId;
       const data = profileState.data;
@@ -17889,6 +18676,15 @@ ${resultDetail}`;
       profileHumanHeadingLabel.textContent = "公开资料";
       profileHumanName.textContent = "";
       profileHumanName.hidden = true;
+      if (profileHumanAvatar) {
+        profileHumanAvatar.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgZmlsbD0ibm9uZSIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InJnLW1hcmstZ3JhZGllbnQtdGl0bGUgcmctbWFyay1ncmFkaWVudC1kZXNjIj4KIDx0aXRsZSBpZD0icmctbWFyay1ncmFkaWVudC10aXRsZSI+UmFtaW5nYTwvdGl0bGU+CiA8ZGVzYyBpZD0icmctbWFyay1ncmFkaWVudC1kZXNjIj5SYW1pbmdhIG9wZW4tbG9vcCBSIGJyYW5kIG1hcmsuIE91dGxpbmVkIHZlY3RvciBhcnR3b3JrLCB2ZXJzaW9uIDAuMTsgbm90IGFuIEFnZW50IGF2YXRhci48L2Rlc2M+CiA8ZGVmcz4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC1tYWluIiB4MT0iNzAiIHkxPSIyOSIgeDI9IjEzOSIgeTI9IjIxNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0E1OEFGRiIvPjxzdG9wIG9mZnNldD0iMC40MiIgc3RvcC1jb2xvcj0iIzdBNUNGRiIvPgogIDxzdG9wIG9mZnNldD0iMC42NiIgc3RvcC1jb2xvcj0iIzkzNjdGNSIvPjxzdG9wIG9mZnNldD0iMC44NCIgc3RvcC1jb2xvcj0iI0VFODNBRSIvPgogIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI0ZGN0Y2RSIvPgogPC9saW5lYXJHcmFkaWVudD4KIDxsaW5lYXJHcmFkaWVudCBpZD0icmctbWFyay1ncmFkaWVudC10YWlsIiB4MT0iMTI0IiB5MT0iMTY1IiB4Mj0iMjEyIiB5Mj0iMjEyIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZEODRFIi8+PHN0b3Agb2Zmc2V0PSIwLjQwIiBzdG9wLWNvbG9yPSIjQzZFQTc4Ii8+CiAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0ZFNEI2Ii8+CiA8L2xpbmVhckdyYWRpZW50PgogPC9kZWZzPjxwYXRoIGZpbGw9InVybCgjcmctbWFyay1ncmFkaWVudC10YWlsKSIgZD0iTSAxMzIgMTM4IEMgMTU3IDE0MyAxODQgMTU5IDIwNiAxODIgQyAyMjQgMjAzIDIyMCAyMjIgMjA0IDIyOSBDIDE4OSAyMzcgMTc1IDIzMCAxNjIgMjE0IEwgMTQwIDE4OCBDIDEyOSAxNzYgMTE2IDE3MSAxMDEgMTcwIFoiLz48cGF0aCBmaWxsPSJ1cmwoI3JnLW1hcmstZ3JhZGllbnQtbWFpbikiIGQ9Ik0gNDggMTAyIEMgMzYgMTAyIDI4IDkzIDMxIDgxIEMgNDAgNTEgODQgMjcgMTI2IDI3IEMgMTc4IDI3IDIxNCA1MyAyMTQgODggQyAyMTQgMTIzIDE4NCAxNDcgMTQ1IDE2MiBMIDEyMiAxNzEgQyA5OCAxODIgODAgMTk4IDY3IDIyMSBDIDYwIDIzMyA0NCAyMzYgMzIgMjI4IEMgMjEgMjIxIDE4IDIwOCAyNCAxOTUgQyA0NCAxNTUgNzMgMTMyIDExMyAxMTYgTCAxNDUgMTA0IEMgMTYyIDk3IDE3MyA5MSAxNzMgODIgQyAxNzMgNzAgMTU1IDY0IDEzNyA2NCBDIDEwNyA2NCA4MCA3NiA2MyA5NCBDIDU5IDk5IDU0IDEwMiA0OCAxMDIgWiIvPgo8L3N2Zz4K";
+        profileHumanAvatar.hidden = true;
+      }
+      if (profileHumanInitial) {
+        profileHumanInitial.textContent = "人";
+        profileHumanInitial.hidden = false;
+      }
+      profileHumanStrip?.setAttribute("data-has-avatar", "false");
       const technicalErrors = [];
       const addTechnicalError = (label, raw) => {
         const value = String(raw ?? "").trim();
@@ -18033,14 +18829,16 @@ ${value}` : value);
       const humanName = String(data.remoteName ?? "").trim();
       const humanSummary = plainSummary(data.text);
       const humanDistinct = humanName.length > 0 && humanName !== agentName;
+      const hasHumanAvatar = Boolean(String(data.humanAvatarPath ?? "").trim());
       const sameIntro = humanSummary.length > 0 && bio.length > 0 && (humanSummary === bio || bio.startsWith(humanSummary) || humanSummary.startsWith(bio));
       const showHumanSummary = humanSummary.length > 0 && !sameIntro;
-      profileHumanHeadingLabel.textContent = humanDistinct ? "关联人类 · " : "公开资料";
+      renderPeerHumanAvatar(peerId2, data, { displayName: humanName });
+      profileHumanHeadingLabel.textContent = humanDistinct ? "关联人类 · " : hasHumanAvatar ? "关联人类" : "公开资料";
       profileHumanName.textContent = humanDistinct ? humanName : "";
       profileHumanName.hidden = !humanDistinct;
       profileHumanSummary.textContent = showHumanSummary ? humanSummary : "";
       profileHumanSummary.hidden = !showHumanSummary;
-      profileHumanStrip.hidden = !humanDistinct && !showHumanSummary && !data.text;
+      profileHumanStrip.hidden = !humanDistinct && !showHumanSummary && !data.text && !hasHumanAvatar;
       if (!data.found) {
         profileBodyNote.textContent = "对方没有公开用户档案。";
         profileBodyNote.hidden = false;
@@ -18144,6 +18942,7 @@ ${value}` : value);
         if (!destroyed && request === mineState.requestSeq) {
           mineState.retrying = false;
           refreshHomeAvatar();
+          refreshHomeHumanAvatar();
           renderMine();
           if (currentPage === "settings") renderSettingsFavorites();
           if (currentPage === "post") renderPostDetailPage();
@@ -18422,20 +19221,21 @@ ${value}` : value);
       publicPublishButton.focus?.({ preventScroll: true });
       renderProfileDraftStatus();
     }, { signal: controller.signal });
-    publicAvatarInput.addEventListener("change", () => {
-      const file = publicAvatarInput.files?.[0] ?? null;
-      publicAvatarInput.value = "";
-      if (!file || profileDraftState.publishing) return;
-      if (!["image/png", "image/jpeg"].includes(file.type)) {
-        profileDraftState.error = "头像只支持 PNG 或 JPEG。";
-        profileDraftState.avatarError = "头像只支持 PNG 或 JPEG。";
-        renderProfileDraftStatus();
-        return;
-      }
-      if (file.size > 4 * 1024 * 1024) {
-        profileDraftState.error = "头像超过 4 MiB。";
-        profileDraftState.avatarError = "头像超过 4 MiB。";
-        renderProfileDraftStatus();
+    function releaseDraftImageAsset(kind) {
+      const assetId = draftImageIsHuman(kind) ? profileDraftState.humanAvatarAssetId : profileDraftState.avatarAssetId;
+      if (assetId) releaseDraftAsset("profile", "profile", assetId);
+    }
+    function applyPickedDraftImage(kind, file) {
+      if (draftImageIsHuman(kind)) {
+        profileDraftState.humanAvatarFile = file;
+        profileDraftState.humanAvatarClear = false;
+        profileDraftState.humanAvatarAssetId = "";
+        profileDraftState.humanAvatarError = "";
+        profileDraftState.humanAvatarLoadingAssetId = "";
+        bumpDraftImageToken("human");
+        releaseDraftImageAsset("human");
+        releaseProfileHumanAvatarPreview();
+        renderProfileHumanAvatar();
         return;
       }
       profileDraftState.avatarFile = file;
@@ -18443,41 +19243,101 @@ ${value}` : value);
       profileDraftState.avatarAssetId = "";
       profileDraftState.avatarError = "";
       profileDraftState.avatarLoadingAssetId = "";
-      releaseDraftAssetScope("profile");
+      bumpDraftImageToken("agent");
+      releaseDraftImageAsset("agent");
       releaseProfileAvatarPreview();
       renderProfileAvatar();
-      const Reader = win.FileReader ?? globalThis.FileReader;
-      if (typeof Reader !== "function") {
-        profileDraftState.avatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
-        scheduleProfileSave();
+    }
+    function clearDraftImage(kind) {
+      if (draftImageIsHuman(kind)) {
+        profileDraftState.humanAvatarFile = null;
+        profileDraftState.humanAvatarAssetId = "";
+        profileDraftState.humanAvatarClear = true;
+        profileDraftState.humanAvatarError = "";
+        profileDraftState.humanAvatarLoadingAssetId = "";
+        bumpDraftImageToken("human");
+        releaseDraftImageAsset("human");
+        releaseProfileHumanAvatarPreview();
+        renderProfileHumanAvatar();
         return;
       }
-      const reader = new Reader();
-      reader.onload = () => {
-        if (destroyed || profileDraftState.avatarFile !== file) return;
-        profileDraftState.avatarPreviewUrl = String(reader.result ?? "");
-        profileDraftState.avatarPreviewObject = false;
-        renderProfileAvatar();
-      };
-      reader.onerror = () => {
-        if (destroyed || profileDraftState.avatarFile !== file) return;
-        profileDraftState.avatarError = "读取本地头像预览失败；保存时仍会重试上传。";
-        renderProfileDraftStatus();
-      };
-      reader.readAsDataURL(file);
-      profileDraftState.error = "";
-      scheduleProfileSave();
-    }, { signal: controller.signal });
-    publicAvatarClear.addEventListener("click", () => {
-      if (profileDraftState.publishing) return;
       profileDraftState.avatarFile = null;
       profileDraftState.avatarAssetId = "";
       profileDraftState.avatarClear = true;
       profileDraftState.avatarError = "";
       profileDraftState.avatarLoadingAssetId = "";
-      releaseDraftAssetScope("profile");
+      bumpDraftImageToken("agent");
+      releaseDraftImageAsset("agent");
       releaseProfileAvatarPreview();
       renderProfileAvatar();
+    }
+    function handleDraftImagePick(kind, input) {
+      const file = input.files?.[0] ?? null;
+      input.value = "";
+      const human = draftImageIsHuman(kind);
+      const label = human ? "关联人类头像" : "头像";
+      if (!file || profileDraftState.publishing) return;
+      if (!["image/png", "image/jpeg"].includes(file.type)) {
+        profileDraftState.error = `${label}只支持 PNG 或 JPEG。`;
+        if (human) profileDraftState.humanAvatarError = `${label}只支持 PNG 或 JPEG。`;
+        else profileDraftState.avatarError = `${label}只支持 PNG 或 JPEG。`;
+        renderProfileDraftStatus();
+        return;
+      }
+      if (file.size > 4 * 1024 * 1024) {
+        profileDraftState.error = `${label}超过 4 MiB。`;
+        if (human) profileDraftState.humanAvatarError = `${label}超过 4 MiB。`;
+        else profileDraftState.avatarError = `${label}超过 4 MiB。`;
+        renderProfileDraftStatus();
+        return;
+      }
+      applyPickedDraftImage(kind, file);
+      const Reader = win.FileReader ?? globalThis.FileReader;
+      if (typeof Reader !== "function") {
+        if (human) profileDraftState.humanAvatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
+        else profileDraftState.avatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
+        scheduleProfileSave();
+        return;
+      }
+      const reader = new Reader();
+      reader.onload = () => {
+        if (destroyed) return;
+        if (human ? profileDraftState.humanAvatarFile !== file : profileDraftState.avatarFile !== file) return;
+        if (human) {
+          profileDraftState.humanAvatarPreviewUrl = String(reader.result ?? "");
+          profileDraftState.humanAvatarPreviewObject = false;
+          renderProfileHumanAvatar();
+        } else {
+          profileDraftState.avatarPreviewUrl = String(reader.result ?? "");
+          profileDraftState.avatarPreviewObject = false;
+          renderProfileAvatar();
+        }
+      };
+      reader.onerror = () => {
+        if (destroyed) return;
+        if (human ? profileDraftState.humanAvatarFile !== file : profileDraftState.avatarFile !== file) return;
+        if (human) profileDraftState.humanAvatarError = "读取本地人类头像预览失败；保存时仍会重试上传。";
+        else profileDraftState.avatarError = "读取本地头像预览失败；保存时仍会重试上传。";
+        renderProfileDraftStatus();
+      };
+      reader.readAsDataURL(file);
+      profileDraftState.error = "";
+      scheduleProfileSave();
+    }
+    publicAvatarInput.addEventListener("change", () => {
+      handleDraftImagePick("agent", publicAvatarInput);
+    }, { signal: controller.signal });
+    publicAvatarClear.addEventListener("click", () => {
+      if (profileDraftState.publishing) return;
+      clearDraftImage("agent");
+      scheduleProfileSave();
+    }, { signal: controller.signal });
+    publicHumanAvatarInput.addEventListener("change", () => {
+      handleDraftImagePick("human", publicHumanAvatarInput);
+    }, { signal: controller.signal });
+    publicHumanAvatarClear.addEventListener("click", () => {
+      if (profileDraftState.publishing) return;
+      clearDraftImage("human");
       scheduleProfileSave();
     }, { signal: controller.signal });
     publicRestorePublished.addEventListener("click", () => {
@@ -18969,11 +19829,21 @@ ${value}` : value);
       if (statusBootstrap.open && bootstrapState.data === null && bootstrapState.request === null) void loadBootstrap(false);
     }, { signal: controller.signal });
     statusBootstrapRefresh.addEventListener("click", () => {
+      bootstrapFeedback("");
       void loadBootstrap(true);
     }, { signal: controller.signal });
+    statusBootstrapEdit.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void addBootstrapPeer();
+    }, { signal: controller.signal });
+    statusBootstrapList.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-bootstrap-remove]");
+      if (!button) return;
+      void removeBootstrapPeer(button.dataset.bootstrapRemove ?? "");
+    }, { signal: controller.signal });
     statusBootstrapCopy.addEventListener("click", () => {
-      const peers = bootstrapState.data?.peers ?? [];
-      void copyTextWithNotice(peers.join("\n"), statusBootstrapNote, "已复制引导节点列表。修改配置请编辑 config.toml。");
+      const addresses = bootstrapEntries().flatMap((entry) => entry.addrs);
+      void copyTextWithNotice(addresses.join("\n"), statusBootstrapFeedback, "已复制全部引导节点地址。");
     }, { signal: controller.signal });
     profileCopyPeer.addEventListener("click", () => {
       void copyTextWithNotice(profileState.peerId, profileNodeNote, "完整 Peer ID 已复制。");
@@ -19788,6 +20658,18 @@ function createPanelRuntime({
     return remoteValue(await rpc.bootstrap(sessionId));
   }
 
+  async function addBootstrap(multiaddr) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.addBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
+    return remoteValue(await rpc.addBootstrap(sessionId, multiaddr));
+  }
+
+  async function removeBootstrap(peerId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.removeBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
+    return remoteValue(await rpc.removeBootstrap(sessionId, peerId));
+  }
+
   async function readJourney(force) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.journey !== 'function') throw new Error('Raminga journey is unavailable');
@@ -20089,6 +20971,12 @@ function createPanelRuntime({
       if (typeof rpc.bootstrap === 'function') {
         mountOptions.onLoadBootstrap = () => readBootstrap();
       }
+      if (typeof rpc.addBootstrap === 'function') {
+        mountOptions.onAddBootstrap = (multiaddr) => addBootstrap(multiaddr);
+      }
+      if (typeof rpc.removeBootstrap === 'function') {
+        mountOptions.onRemoveBootstrap = (peerId) => removeBootstrap(peerId);
+      }
       if (typeof rpc.journey === 'function') {
         mountOptions.onLoadJourney = (force) => readJourney(force);
       }
@@ -20255,6 +21143,7 @@ function createPanelRuntime({
     const imageDataCodec = passthrough('@raminga/dsh#UiImageBase64');
     const revisionCodec = passthrough('@raminga/dsh#UiDraftRevision');
     const publishedShaCodec = passthrough('@raminga/dsh#UiPublishedSha256');
+    const bootstrapMultiaddrCodec = passthrough('@raminga/dsh#UiBootstrapMultiaddr');
     const sessionParam = { name: 'sessionId', wire: 'sessionId', source: 'json', codec: sessionIdCodec };
     const param = {
       force: { name: 'force', wire: 'force', source: 'json', codec: booleanCodec },
@@ -20289,6 +21178,7 @@ function createPanelRuntime({
       imageData: { name: 'dataBase64', wire: 'dataBase64', source: 'json', codec: imageDataCodec },
       revision: { name: 'expectedRevision', wire: 'expectedRevision', source: 'json', codec: revisionCodec },
       publishedSha: { name: 'expectedPublishedSha256', wire: 'expectedPublishedSha256', source: 'json', codec: publishedShaCodec },
+      bootstrapMultiaddr: { name: 'multiaddr', wire: 'multiaddr', source: 'json', codec: bootstrapMultiaddrCodec },
     };
     const descriptors = [
       ['open', 'UiSnapshot', [sessionParam]],
@@ -20326,6 +21216,8 @@ function createPanelRuntime({
       ['revealDiscovery', 'UiRevealResult', [sessionParam, param.contentId]],
       ['revealFile', 'UiRevealResult', [sessionParam, param.subject, param.peerId, param.filePath, param.sha256, param.size]],
       ['bootstrap', 'UiBootstrapInfo', [sessionParam]],
+      ['addBootstrap', 'UiBootstrapEdit', [sessionParam, param.bootstrapMultiaddr]],
+      ['removeBootstrap', 'UiBootstrapEdit', [sessionParam, param.peerId]],
       ['journey', 'UiJourney', [sessionParam, param.force]],
       ['activity', 'UiActivity', [sessionParam, param.limit]],
       ['activityDetail', 'UiActivityDetail', [param.operationId]],

@@ -65,6 +65,9 @@ type Backend interface {
 	RelayProvider() node.RelayProviderStatus
 	AddPeer(ctx context.Context, multiaddr string) (node.PeerEntry, error)
 	DHTStatus() node.DHTStatus
+	BootstrapPeers(ctx context.Context) ([]node.BootstrapPeer, error)
+	AddBootstrapPeer(ctx context.Context, multiaddr string) (node.BootstrapPeer, bool, error)
+	RemoveBootstrapPeer(ctx context.Context, peerID string) (bool, error)
 	DHTFindPeer(ctx context.Context, peerID string) (node.DHTPeer, error)
 	ListFriends(ctx context.Context) ([]node.Friend, error)
 	SetFriendName(ctx context.Context, peerID, name string) (node.Friend, error)
@@ -937,7 +940,9 @@ func (s *Server) GetPeerProfile(ctx context.Context, req *connect.Request[apiv1.
 			HumanName:              p.Profile.HumanName, HumanBioMarkdown: p.Profile.HumanBioMarkdown,
 			AvatarPath: p.Profile.AvatarPath, AvatarSha256: p.Profile.AvatarSHA256,
 			AvatarMime: p.Profile.AvatarMime, SourcePath: p.Profile.SourcePath,
-			LegacyFallback: p.Profile.LegacyFallback, Warning: p.Profile.Warning,
+			HumanAvatarPath: p.Profile.HumanAvatarPath, HumanAvatarSha256: p.Profile.HumanAvatarSHA256,
+			HumanAvatarMime: p.Profile.HumanAvatarMime,
+			LegacyFallback:  p.Profile.LegacyFallback, Warning: p.Profile.Warning,
 		},
 	}), nil
 }
@@ -1036,6 +1041,7 @@ func (s *Server) SavePublicDraft(ctx context.Context, req *connect.Request[apiv1
 		Title: req.Msg.Title, BodyMarkdown: req.Msg.BodyMarkdown,
 		Tags: req.Msg.GetTags(), ImageAssetIDs: req.Msg.GetImageAssetIds(),
 		AvatarAssetID: req.Msg.GetAvatarAssetId(), ClearAvatar: req.Msg.GetClearAvatar(),
+		HumanAvatarAssetID: req.Msg.GetHumanAvatarAssetId(), ClearHumanAvatar: req.Msg.GetClearHumanAvatar(),
 	}
 	if req.Msg.AuthorKind != nil {
 		in.AuthorKind = *req.Msg.AuthorKind
@@ -1188,6 +1194,15 @@ func (s *Server) publicDraftToProto(ctx context.Context, d node.PublicDraft) (*a
 		}
 		if found {
 			out.Avatar = draftAssetToProto(asset)
+		}
+	}
+	if d.HumanAvatarAssetID != "" {
+		asset, found, err := s.backend.GetPublicDraftAsset(ctx, d.DraftID, d.HumanAvatarAssetID)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			out.HumanAvatar = draftAssetToProto(asset)
 		}
 	}
 	for _, id := range d.ImageAssetIDs {

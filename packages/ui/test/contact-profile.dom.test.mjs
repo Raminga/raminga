@@ -580,3 +580,169 @@ test('profileLabel never presents a Peer ID as a public display name', () => {
   assert.equal(profileLabel({ remoteName: '潮汐线旁的林岸', localName: 'lin-an' }, PEER_A), '潮汐线旁的林岸');
   assert.equal(profileLabel({ remoteName: '', localName: '' }, PEER_A).includes('…'), true);
 });
+
+test('peer human avatar loads only from its verified manifest entry and never substitutes the Agent avatar', async () => {
+  const humanSha = 'd'.repeat(64);
+  const humanPath = `profile/human-avatar-${humanSha.slice(0, 8)}.png`;
+  const humanUrl = 'data:image/png;base64,aHVtYW4tYXZhdGFy';
+  const reads = [];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([contact(PEER_A, { name: 'lin-an' })]),
+    onLoadConversations: async () => conversations(),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onLoadContactMemory: async () => ({ peerId: PEER_A, state: 'missing', sha256: '', schemaVersion: 2, contact: null, timeline: [], timelineTruncated: false, error: '', at: Date.now() }),
+    onLoadPeerProfile: async () => profile(PEER_A, {
+      remoteName: '林岸',
+      humanAvatarPath: humanPath,
+      humanAvatarSha256: humanSha,
+      humanAvatarMime: 'image/png',
+      agentCard: {
+        state: 'available', error: '',
+        card: card({ avatarPath: AVATAR_PATH, avatarSha256: AVATAR_SHA, avatarMime: 'image/png' }),
+      },
+      manifest: {
+        source: 'remote', error: '', truncated: false,
+        entries: [
+          { path: AVATAR_PATH, sha256: AVATAR_SHA, sizeBytes: 68, mime: 'image/png' },
+          { path: humanPath, sha256: humanSha, sizeBytes: 71, mime: 'image/png' },
+        ],
+      },
+    }),
+    onLoadPeerFileContent: async (peerId, filePath, sha, size) => {
+      reads.push({ peerId, filePath, sha, size });
+      if (filePath === humanPath) {
+        return { status: 'ok', kind: 'image', mime: 'image/png', sha256: humanSha, sizeBytes: 71, dataUrl: humanUrl };
+      }
+      return { status: 'ok', kind: 'image', mime: 'image/png', sha256: AVATAR_SHA, sizeBytes: 68, dataUrl: AVATAR_URL };
+    },
+  });
+  try {
+    await openProfile(ui);
+    const human = ui.shadow.querySelector('#profileHumanAvatar');
+    const agent = ui.shadow.querySelector('#profileAvatar img');
+    assert.ok(human, 'peer human strip exposes its own image');
+    assert.equal(human.hidden, false);
+    assert.equal(human.getAttribute('src'), humanUrl);
+    assert.equal(ui.shadow.querySelector('#profileHumanInitial').hidden, true);
+    assert.equal(agent.getAttribute('src'), AVATAR_URL);
+    assert.notEqual(human.getAttribute('src'), agent.getAttribute('src'), 'human and Agent images stay independent');
+    assert.deepEqual(
+      reads.filter((item) => item.filePath === humanPath),
+      [{ peerId: PEER_A, filePath: humanPath, sha: humanSha, size: 71 }],
+    );
+    assert.equal(ui.shadow.querySelector('#profileHumanStrip').hidden, false);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a human-avatar-only peer profile stays visible and mismatched human avatar data is rejected', async () => {
+  const humanSha = 'e'.repeat(64);
+  const humanPath = `profile/human-avatar-${humanSha.slice(0, 8)}.png`;
+  const reads = [];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([contact(PEER_B, { name: '空名人类' })]),
+    onLoadConversations: async () => conversations(),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onLoadContactMemory: async () => ({ peerId: PEER_B, state: 'missing', sha256: '', schemaVersion: 2, contact: null, timeline: [], timelineTruncated: false, error: '', at: Date.now() }),
+    onLoadPeerProfile: async () => profile(PEER_B, {
+      remoteName: '', found: true, text: '', files: [],
+      humanAvatarPath: humanPath,
+      humanAvatarSha256: humanSha,
+      humanAvatarMime: 'image/png',
+      agentCard: { state: 'missing', card: null, error: 'missing' },
+      manifest: {
+        source: 'remote', error: '', truncated: false,
+        entries: [{ path: humanPath, sha256: humanSha, sizeBytes: 72, mime: 'image/png' }],
+      },
+    }),
+    onLoadPeerFileContent: async (peerId, filePath, sha, size) => {
+      reads.push({ filePath, sha, size });
+      return { status: 'ok', kind: 'image', mime: 'image/png', sha256: humanSha, sizeBytes: 72, dataUrl: 'data:image/png;base64,aHVtYW4=' };
+    },
+  });
+  try {
+    await openProfile(ui, PEER_B);
+    assert.equal(ui.shadow.querySelector('#profileHumanStrip').hidden, false, 'avatar-only human data remains a visible strip');
+    assert.equal(ui.text('#profileHumanHeadingLabel'), '关联人类');
+    assert.equal(ui.shadow.querySelector('#profileHumanName').hidden, true);
+    assert.equal(ui.shadow.querySelector('#profileHumanAvatar').hidden, false);
+    assert.equal(reads.length, 1, 'the matching human manifest entry is read once');
+  } finally {
+    ui.close();
+  }
+
+  const mismatchReads = [];
+  const mismatch = mountUi({
+    onLoadContacts: async () => contacts([contact(PEER_B, { name: '空名人类' })]),
+    onLoadConversations: async () => conversations(),
+    onLoadMessages: async (peerId) => messagePage(peerId),
+    onLoadContactMemory: async () => ({ peerId: PEER_B, state: 'missing', sha256: '', schemaVersion: 2, contact: null, timeline: [], timelineTruncated: false, error: '', at: Date.now() }),
+    onLoadPeerProfile: async () => profile(PEER_B, {
+      remoteName: '', found: true, text: '', files: [],
+      humanAvatarPath: humanPath,
+      humanAvatarSha256: humanSha,
+      humanAvatarMime: 'image/png',
+      agentCard: { state: 'missing', card: null, error: 'missing' },
+      manifest: {
+        source: 'remote', error: '', truncated: false,
+        // Same path but a different hash must not be used for the human image.
+        entries: [{ path: humanPath, sha256: 'f'.repeat(64), sizeBytes: 72, mime: 'image/png' }],
+      },
+    }),
+    onLoadPeerFileContent: async (...args) => {
+      mismatchReads.push(args);
+      return { status: 'ok', kind: 'image', mime: 'image/png', sha256: humanSha, sizeBytes: 72, dataUrl: 'data:image/png;base64,aHVtYW4=' };
+    },
+  });
+  try {
+    await openProfile(mismatch, PEER_B);
+    assert.equal(mismatch.shadow.querySelector('#profileHumanStrip').hidden, false);
+    assert.equal(mismatch.shadow.querySelector('#profileHumanAvatar').hidden, true);
+    assert.equal(mismatch.shadow.querySelector('#profileHumanInitial').hidden, false);
+    assert.equal(mismatch.shadow.querySelector('#profileHumanInitial').textContent, '人');
+    assert.equal(mismatchReads.length, 0, 'a human manifest hash mismatch is never read');
+  } finally {
+    mismatch.close();
+  }
+});
+
+test('peer human avatar rejects a response whose mime, hash or size does not match the verified request', async () => {
+  const humanSha = 'a'.repeat(64);
+  const humanPath = `profile/human-avatar-${humanSha.slice(0, 8)}.png`;
+  for (const bad of [
+    { mime: 'image/jpeg', sha256: humanSha, sizeBytes: 72 },
+    { mime: 'image/png', sha256: 'b'.repeat(64), sizeBytes: 72 },
+    { mime: 'image/png', sha256: humanSha, sizeBytes: 73 },
+  ]) {
+    const ui = mountUi({
+      onLoadContacts: async () => contacts([contact(PEER_A, { name: '林岸' })]),
+      onLoadConversations: async () => conversations(),
+      onLoadMessages: async (peerId) => messagePage(peerId),
+      onLoadContactMemory: async () => ({ peerId: PEER_A, state: 'missing', sha256: '', schemaVersion: 2, contact: null, timeline: [], timelineTruncated: false, error: '', at: Date.now() }),
+      onLoadPeerProfile: async () => profile(PEER_A, {
+        remoteName: '林岸', found: true, text: '',
+        humanAvatarPath: humanPath,
+        humanAvatarSha256: humanSha,
+        humanAvatarMime: 'image/png',
+        agentCard: { state: 'missing', card: null, error: 'missing' },
+        manifest: {
+          source: 'remote', error: '', truncated: false,
+          entries: [{ path: humanPath, sha256: humanSha, sizeBytes: 72, mime: 'image/png' }],
+        },
+      }),
+      onLoadPeerFileContent: async () => ({
+        status: 'ok', kind: 'image', dataUrl: 'data:image/png;base64,YmFk', ...bad,
+      }),
+    });
+    try {
+      await openProfile(ui);
+      assert.equal(ui.shadow.querySelector('#profileHumanStrip').hidden, false);
+      assert.equal(ui.shadow.querySelector('#profileHumanAvatar').hidden, true, `mismatch ${JSON.stringify(bad)} is rejected`);
+      assert.equal(ui.shadow.querySelector('#profileHumanInitial').hidden, false);
+      assert.equal(ui.shadow.querySelector('#profileHumanInitial').textContent, '林');
+    } finally {
+      ui.close();
+    }
+  }
+});

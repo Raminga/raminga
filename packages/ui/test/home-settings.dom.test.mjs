@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { createRamingaApp } from '../src/app.js';
+import { buildHomeAgentModel } from '../src/pages/home-agent.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const template = fs.readFileSync(path.resolve(here, '..', 'src', 'template.html'), 'utf8');
@@ -1791,5 +1792,954 @@ test('write post after collapsing a published editor starts a new form', async (
     assert.equal(publishes.length, 1);
   } finally {
     ui.close();
+  }
+});
+
+test('an avatar-only public Agent card shows the real avatar, default name and incomplete hint', async () => {
+  const avatarSha = '9'.repeat(64);
+  const avatarPath = `profile/avatar-${avatarSha.slice(0, 8)}.png`;
+  const publicProfile = {
+    schemaVersion: 2,
+    agentName: '', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+    humanName: '', humanBioMarkdown: '',
+    avatarPath, avatarSha256: avatarSha, avatarMime: 'image/png',
+    updatedAt: '2026-11-20T10:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+  };
+  const data = mine({
+    profile: { state: 'missing', markdown: '', displayName: '', error: '', path: 'profile/index.md', at: null },
+    publicProfile: { state: 'available', profile: publicProfile, error: '' },
+    agentCard: {
+      state: 'available',
+      error: '',
+      card: {
+        schemaVersion: 1, displayName: '', description: '', interests: [], conversationStyle: '',
+        updatedAt: '2026-11-20T10:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+        avatarPath, avatarSha256: avatarSha, avatarMime: 'image/png', legacyFallback: false,
+      },
+    },
+    files: [{
+      path: avatarPath, sha256: avatarSha, sizeBytes: 24000,
+      name: `avatar-${avatarSha.slice(0, 8)}.png`, modifiedAt: 1,
+    }],
+  });
+  const ui = mountUi({
+    onLoadMine: async () => data,
+    onLoadMineFileContent: async () => ({
+      ok: true, status: 'ok', kind: 'image', mime: 'image/png', sha256: avatarSha, sizeBytes: 24000,
+      dataUrl: 'data:image/png;base64,avatar-only',
+    }),
+  });
+  try {
+    await settle();
+    await settle(10);
+    assert.equal(ui.text('#homeAgentName'), '我的 Agent', 'an empty Agent name uses the default, not a placeholder file');
+    assert.doesNotMatch(ui.text('#homeAgentProfileNote'), /还没有公开档案/);
+    assert.match(ui.text('#homeAgentProfileNote'), /公开档案还缺名称/);
+    assert.match(ui.text('#homeAgentProfileNote'), /简介/);
+    assert.match(ui.text('#homeAgentProfileNote'), /兴趣/);
+    assert.match(ui.text('#homeAgentProfileNote'), /公开交流风格/);
+    const avatar = ui.shadow.querySelector('#homeAgentAvatar');
+    assert.equal(avatar.dataset.empty, 'false');
+    assert.equal(avatar.querySelector('img').hidden, false);
+    assert.match(avatar.querySelector('img').getAttribute('src'), /^data:image\/png/);
+    assert.equal(ui.shadow.querySelector('#homeAgentInitial').hidden, true);
+    assert.match(ui.text('#mineIdentitySummary'), /还没有公开人类介绍/);
+    assert.doesNotMatch(ui.text('#mineIdentitySummary'), /关联人类 ·/);
+    assert.equal(ui.shadow.querySelector('#homeAgentProfileRetry').hidden, true);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a failed first public profile read is not shown as an empty profile and retries', async () => {
+  let calls = 0;
+  const ui = mountUi({
+    onLoadMine: async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('Published 暂时不可用');
+      return mine();
+    },
+  });
+  try {
+    await settle();
+    assert.equal(ui.text('#homeAgentName'), '我的 Agent');
+    assert.match(ui.text('#homeAgentBio'), /公开 Agent 档案这次没有读到/);
+    assert.match(ui.text('#homeAgentProfileNote'), /读取公开 Agent 档案失败/);
+    assert.doesNotMatch(ui.text('#homeAgentProfileNote'), /还没有公开档案/);
+    const retry = ui.shadow.querySelector('#homeAgentProfileRetry');
+    assert.equal(retry.hidden, false);
+    retry.focus();
+    retry.click();
+    await settle();
+    assert.equal(calls, 2);
+    assert.equal(ui.text('#homeAgentName'), 'Nova');
+    assert.equal(ui.shadow.querySelector('#homeAgentProfileNote').hidden, true);
+    assert.equal(retry.hidden, true);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a refresh failure keeps the last published Agent snapshot with time and retry', async () => {
+  const at = Date.now() - 60_000;
+  const fresh = mine();
+  let failing = false;
+  const ui = mountUi({
+    onLoadMine: async () => {
+      if (failing) {
+        return {
+          ...fresh,
+          at,
+          error: 'Published 暂时不可用',
+          errorAt: Date.now(),
+          freshness: 'stale',
+        };
+      }
+      return { ...fresh, at: Date.now(), error: null, errorAt: null, freshness: 'live' };
+    },
+    onLoadMineFileContent: async () => ({
+      ok: true, status: 'ok', kind: 'image', mime: 'image/png', dataUrl: 'data:image/png;base64,stale',
+    }),
+  });
+  try {
+    await settle();
+    assert.equal(ui.text('#homeAgentName'), 'Nova');
+    assert.equal(ui.shadow.querySelector('#homeAgentProfileNote').hidden, true);
+
+    failing = true;
+    ui.app.reloadMine();
+    await settle();
+    assert.equal(ui.text('#homeAgentName'), 'Nova', 'the last verified card is retained');
+    assert.match(ui.text('#homeAgentProfileNote'), /上次成功读取/);
+    assert.match(ui.text('#homeAgentProfileNote'), /最近一次刷新失败/);
+    assert.match(ui.text('#homeAgentProfileNote'), /公开资料可能不是最新/);
+    const retry = ui.shadow.querySelector('#homeAgentProfileRetry');
+    assert.equal(retry.hidden, false);
+
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    assert.match(ui.text('#publicVersionNote'), /成功读取的公开版本/);
+    assert.equal(ui.shadow.querySelector('#publicVersionRetry').hidden, false);
+
+    failing = false;
+    ui.shadow.querySelector('#publicVersionRetry').click();
+    await settle();
+    assert.equal(ui.text('#homeAgentName'), 'Nova');
+    assert.equal(ui.shadow.querySelector('#publicVersionNote').textContent.includes('成功读取的公开版本'), false);
+    assert.equal(ui.shadow.querySelector('#publicVersionRetry').hidden, true);
+  } finally {
+    ui.close();
+  }
+});
+
+test('confirming discard cancels the queued autosave and keeps the draft revision', async () => {
+  const base = {
+    draftId: 'profile', kind: 'profile', revision: 3,
+    agentName: '公开旧名', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+    humanName: '', humanBioMarkdown: '', avatar: null, title: '', bodyMarkdown: '',
+    tags: [], images: [], publishedPath: 'profile/profile.json', publishedSha256: 'd'.repeat(64),
+    publishedRevision: 3, createdAtUnixMs: Date.now() - 1000, updatedAtUnixMs: Date.now() - 1000,
+    authorKind: 'user',
+  };
+  const late = deferred();
+  let loads = 0;
+  const saves = [];
+  let publishes = 0;
+  const ui = mountUi({
+    onLoadPublicDraft: async () => {
+      loads += 1;
+      if (loads === 1) return { found: true, draft: base };
+      return late.promise;
+    },
+    onSavePublicDraft: async (input) => {
+      saves.push(input);
+      return { draft: { ...base, ...input, revision: base.revision + saves.length, updatedAtUnixMs: Date.now() } };
+    },
+    onPublishPublicDraft: async () => {
+      publishes += 1;
+      return { status: 'error' };
+    },
+  });
+  try {
+    await settle();
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    await settle();
+    const name = ui.shadow.querySelector('#publicAgentName');
+    assert.equal(name.value, '公开旧名');
+    name.value = '确认放弃的临时输入';
+    name.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    assert.match(ui.text('#publicDraftStatus'), /有未保存修改/);
+
+    ui.click('#publicDraftReload');
+    assert.match(ui.text('#publicDraftReload'), /确认放弃修改并重新载入/);
+    ui.click('#publicDraftReload');
+    assert.equal(loads, 2, 'the second click starts the fresh draft read');
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    assert.equal(saves.length, 0, 'the abandoned autosave timer never writes');
+    assert.equal(publishes, 0);
+    assert.equal(ui.text('#publicDraftMeta').includes('revision 4'), false);
+
+    late.resolve({ found: true, draft: base });
+    await settle();
+    await settle();
+    assert.equal(name.value, '公开旧名', 'the confirmed reload restores the saved draft');
+    assert.match(ui.text('#publicDraftMeta'), /revision 3/);
+    assert.doesNotMatch(ui.text('#publicDraftStatus'), /有未保存修改/);
+    assert.equal(saves.length, 0);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a late draft load never replaces input made while it was in flight, and later input still saves', async () => {
+  const base = {
+    draftId: 'profile', kind: 'profile', revision: 2,
+    agentName: '已保存草稿', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+    humanName: '', humanBioMarkdown: '', avatar: null, title: '', bodyMarkdown: '',
+    tags: [], images: [], publishedPath: '', publishedSha256: '', publishedRevision: 0,
+    createdAtUnixMs: Date.now() - 1000, updatedAtUnixMs: Date.now() - 1000, authorKind: 'user',
+  };
+  const late = deferred();
+  let loads = 0;
+  const saves = [];
+  const ui = mountUi({
+    onLoadPublicDraft: async () => {
+      loads += 1;
+      if (loads === 1) return { found: true, draft: base };
+      return late.promise;
+    },
+    onSavePublicDraft: async (input) => {
+      saves.push(input);
+      return { draft: { ...base, ...input, revision: base.revision + saves.length, updatedAtUnixMs: Date.now() } };
+    },
+  });
+  try {
+    await settle();
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    await settle();
+    const name = ui.shadow.querySelector('#publicAgentName');
+    ui.click('#publicDraftReload');
+    ui.click('#publicDraftReload');
+    assert.equal(loads, 2);
+
+    // Input made after the reload began (the real form is briefly locked, but
+    // the guard must also cover a programmatic/host event that still arrives).
+    name.value = '载入期间的新输入';
+    name.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    late.resolve({ found: true, draft: base });
+    await settle();
+    assert.equal(name.value, '载入期间的新输入', 'the older load cannot overwrite newer input');
+    assert.match(ui.text('#publicDraftStatus'), /有未保存修改/);
+
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    assert.equal(saves.length, 1, 'input made after confirmation is still saved normally');
+    assert.equal(saves[0].agentName, '载入期间的新输入');
+    assert.equal(saves[0].expectedRevision, 2);
+    assert.equal(name.value, '载入期间的新输入');
+  } finally {
+    ui.close();
+  }
+});
+
+test('a slow home-avatar read cannot overwrite a newer published avatar and the latest key is fetched', async () => {
+  const shaA = 'a'.repeat(64);
+  const shaB = 'b'.repeat(64);
+  const pathA = `profile/avatar-${shaA.slice(0, 8)}.png`;
+  const pathB = `profile/avatar-${shaB.slice(0, 8)}.png`;
+  const avatarFile = (path, sha) => ({
+    path, sha256: sha, sizeBytes: 10, name: path.split('/').pop(), modifiedAt: 1,
+    id: path, peerId: 'local-peer-id', publisherName: 'Alice', fetchedAt: 0,
+    source: 'local-public', sources: ['local-public'], kind: 'image', mime: 'image/png',
+    previewable: true, summary: '', tags: [], publishedAt: '', authorKind: '', authorName: '',
+    contentState: 'available', contentError: '',
+  });
+  const dataFor = (path, sha) => mine({
+    agentCard: {
+      state: 'available', error: '',
+      card: { ...mine().agentCard.card, displayName: 'Nova', avatarPath: path, avatarSha256: sha, avatarMime: 'image/png' },
+    },
+    files: [avatarFile(path, sha)],
+  });
+  const slowA = deferred();
+  const calls = [];
+  let mode = 'a';
+  const ui = mountUi({
+    onLoadMine: async () => (mode === 'a' ? dataFor(pathA, shaA) : dataFor(pathB, shaB)),
+    onLoadMineFileContent: async (filePath) => {
+      calls.push(filePath);
+      if (filePath === pathA) return slowA.promise;
+      return { status: 'ok', kind: 'image', mime: 'image/png', dataUrl: 'data:image/png;base64,avatar-b' };
+    },
+  });
+  try {
+    await settle();
+    await settle(10);
+    assert.deepEqual(calls, [pathA], 'the first published avatar read is in flight');
+
+    mode = 'b';
+    ui.app.reloadMine();
+    await settle();
+    await settle(10);
+    assert.deepEqual(calls, [pathA, pathB], 'the newest key is read instead of being skipped while busy');
+    const image = ui.shadow.querySelector('#homeAgentAvatar img');
+    assert.equal(image.getAttribute('src'), 'data:image/png;base64,avatar-b');
+
+    slowA.resolve({ status: 'ok', kind: 'image', mime: 'image/png', dataUrl: 'data:image/png;base64,avatar-a' });
+    await settle();
+    assert.equal(image.getAttribute('src'), 'data:image/png;base64,avatar-b', 'the old reply cannot replace the newer avatar');
+    assert.equal(ui.shadow.querySelector('#homeAgentAvatar').dataset.empty, 'false');
+  } finally {
+    ui.close();
+  }
+});
+
+test('restoring the published avatar cannot override a newer local image pick', async () => {
+  const shaA = 'c'.repeat(64);
+  const pathA = `profile/avatar-${shaA.slice(0, 8)}.png`;
+  const publicProfile = {
+    schemaVersion: 2,
+    agentName: '旧 Agent', agentDescription: '旧简介', agentInterests: [], agentConversationStyle: '',
+    humanName: '', humanBioMarkdown: '',
+    avatarPath: pathA, avatarSha256: shaA, avatarMime: 'image/png',
+    updatedAt: '2026-11-01T08:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+  };
+  const data = mine({
+    publicProfile: { state: 'available', profile: publicProfile, error: '' },
+    agentCard: {
+      state: 'available', error: '',
+      card: {
+        ...mine().agentCard.card, displayName: '旧 Agent', description: '旧简介',
+        avatarPath: pathA, avatarSha256: shaA, avatarMime: 'image/png',
+      },
+    },
+    files: [{
+      path: pathA, sha256: shaA, sizeBytes: 10, name: pathA.split('/').pop(),
+      id: pathA, peerId: 'local-peer-id', publisherName: '旧人类', fetchedAt: 0,
+      source: 'local-public', sources: ['local-public'], kind: 'image', mime: 'image/png',
+      previewable: true, summary: '', tags: [], publishedAt: '', authorKind: '', authorName: '',
+      contentState: 'available', contentError: '',
+    }],
+  });
+  const lateRestore = deferred();
+  let reads = 0;
+  const ui = mountUi({
+    onLoadMine: async () => data,
+    onLoadMineFileContent: async () => {
+      reads += 1;
+      if (reads === 1) {
+        return { status: 'ok', kind: 'image', mime: 'image/png', dataUrl: 'data:image/png;base64,home-avatar' };
+      }
+      return lateRestore.promise;
+    },
+    onLoadPublicDraft: async () => ({ found: false }),
+    onSavePublicDraft: async (input) => ({ draft: { ...input, draftId: 'profile', revision: 1, avatar: null, updatedAtUnixMs: Date.now() } }),
+  });
+  try {
+    await settle();
+    await settle(10);
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    await settle(10);
+    assert.equal(reads, 1, 'the home hero already loaded the published avatar');
+    ui.click('#publicRestorePublished');
+    await settle();
+    assert.equal(reads, 2, 'restore starts a controlled published-avatar read');
+
+    const input = ui.shadow.querySelector('#publicAvatarInput');
+    setFileInput(ui.dom, input, [...Buffer.from(pngBase64, 'base64')], 'new-avatar.png');
+    await settle();
+    const picked = ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src');
+    assert.match(picked, /^data:image\/png;base64,/);
+
+    lateRestore.resolve({ status: 'ok', kind: 'image', mime: 'image/png', dataUrl: 'data:image/png;base64,old-published-avatar' });
+    await settle();
+    assert.equal(
+      ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src'),
+      picked,
+      'the late restore reply must not replace the newer pick',
+    );
+  } finally {
+    ui.close();
+  }
+});
+
+test('public version title distinguishes loading, read failure and a genuinely empty profile', async () => {
+  const loadingRead = deferred();
+  const loadingUi = mountUi({ onLoadMine: async () => loadingRead.promise });
+  try {
+    await settle();
+    loadingUi.click('#settingsTrigger');
+    await settle();
+    loadingUi.click('[data-settings-tab="public"]');
+    await settle();
+    assert.equal(loadingUi.text('#publicVersionName'), '正在读取公开版本…');
+  } finally {
+    loadingUi.close();
+  }
+
+  const failedUi = mountUi({ onLoadMine: async () => { throw new Error('Published 暂时不可用'); } });
+  try {
+    await settle();
+    failedUi.click('#settingsTrigger');
+    await settle();
+    failedUi.click('[data-settings-tab="public"]');
+    await settle();
+    assert.equal(failedUi.text('#publicVersionName'), '读取公开版本失败');
+    assert.match(failedUi.text('#publicVersionNote'), /读取公开版本没有完成/);
+  } finally {
+    failedUi.close();
+  }
+
+  const emptyUi = mountUi({
+    onLoadMine: async () => mine({
+      profile: { state: 'missing', markdown: '', displayName: '', error: '', path: 'profile/index.md', at: null },
+      agentCard: { state: 'missing', card: null, error: 'missing' },
+      publicProfile: { state: 'missing', profile: null, error: '' },
+    }),
+  });
+  try {
+    await settle();
+    emptyUi.click('#settingsTrigger');
+    await settle();
+    emptyUi.click('[data-settings-tab="public"]');
+    await settle();
+    assert.equal(emptyUi.text('#publicVersionName'), '尚无公开版本');
+    assert.match(emptyUi.text('#publicVersionNote'), /还没有公开版本/);
+  } finally {
+    emptyUi.close();
+  }
+});
+
+test('a late rejected published-avatar restore cannot overwrite a newer draft or show its old preview', async () => {
+  const oldSha = '1'.repeat(64);
+  const oldPath = `profile/avatar-${oldSha.slice(0, 8)}.png`;
+  const publicProfile = {
+    schemaVersion: 2,
+    agentName: '旧 Agent', agentDescription: '旧简介', agentInterests: [], agentConversationStyle: '',
+    humanName: '', humanBioMarkdown: '',
+    avatarPath: oldPath, avatarSha256: oldSha, avatarMime: 'image/png',
+    updatedAt: '2026-11-01T08:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+  };
+  const data = mine({
+    publicProfile: { state: 'available', profile: publicProfile, error: '' },
+    agentCard: {
+      state: 'available', error: '',
+      card: { ...mine().agentCard.card, displayName: '旧 Agent', avatarPath: oldPath, avatarSha256: oldSha, avatarMime: 'image/png' },
+    },
+    files: [{
+      path: oldPath, sha256: oldSha, sizeBytes: 24, name: 'avatar-old.png', modifiedAt: 0,
+    }],
+  });
+  const draftB = {
+    draftId: 'profile', kind: 'profile', revision: 7,
+    agentName: '新草稿 B', agentDescription: 'B 简介', agentInterests: ['B'], agentConversationStyle: 'B 风格',
+    humanName: 'B 人类', humanBioMarkdown: 'B 介绍', avatar: null, humanAvatar: null,
+    title: '', bodyMarkdown: '', tags: [], images: [],
+    publishedPath: '', publishedSha256: '', publishedRevision: 0,
+    createdAtUnixMs: Date.now(), updatedAtUnixMs: Date.now(), authorKind: 'user',
+  };
+  const lateRestore = deferred();
+  let reads = 0;
+  let draftBReady = false;
+  const ui = mountUi({
+    onLoadMine: async () => data,
+    onLoadMineFileContent: async () => {
+      reads += 1;
+      if (reads === 1) {
+        return { status: 'ok', kind: 'image', mime: 'image/png', dataUrl: 'data:image/png;base64,b2xkLWhvbWU=' };
+      }
+      return lateRestore.promise;
+    },
+    onLoadPublicDraft: async () => (draftBReady ? { found: true, draft: draftB } : { found: false }),
+  });
+  try {
+    await settle();
+    await settle(10);
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    await settle(10);
+    assert.equal(reads, 1, 'home loaded the published avatar first');
+    ui.click('#publicRestorePublished');
+    await settle();
+    assert.equal(reads, 2, 'restore starts its own read');
+
+    draftBReady = true;
+    ui.click('#publicDraftReload');
+    ui.click('#publicDraftReload');
+    await settle();
+    await settle(10);
+    assert.equal(ui.shadow.querySelector('#publicAgentName').value, '新草稿 B');
+    assert.match(ui.text('#publicDraftMeta'), /revision 7/);
+    const previewAtB = ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src');
+    assert.doesNotMatch(previewAtB, /b2xkLWhvbWU/, 'draft B must not borrow the old published avatar URL');
+    assert.doesNotMatch(previewAtB, /^data:image\/png;base64,b2xkLWhvbWU/);
+
+    lateRestore.reject(new Error('旧公开头像读取失败'));
+    await settle();
+    await settle(10);
+    assert.equal(ui.shadow.querySelector('#publicAgentName').value, '新草稿 B', 'late failure must not restore draft A text');
+    assert.match(ui.text('#publicDraftMeta'), /revision 7/);
+    assert.doesNotMatch(ui.text('#publicDraftStatus'), /旧公开头像读取失败/);
+    assert.doesNotMatch(ui.text('#publicDraftStatus'), /当前内容来自已有公开资料/);
+    assert.doesNotMatch(
+      ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src'),
+      /b2xkLWhvbWU/,
+      'late failure must not put avatar A back on draft B',
+    );
+  } finally {
+    ui.close();
+  }
+});
+
+test('Agent and human draft previews are independent when picking and clearing either image', async () => {
+  await withObjectUrls(async () => {
+    const baseDraft = {
+      draftId: 'profile', kind: 'profile', revision: 2,
+      agentName: 'Nova', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+      humanName: 'Alice', humanBioMarkdown: '', title: '', bodyMarkdown: '', tags: [], images: [],
+      avatar: draftAsset({ assetId: 'agent-saved' }),
+      humanAvatar: draftAsset({ assetId: 'human-saved', sha256: 'd'.repeat(64) }),
+      publishedPath: '', publishedSha256: '', publishedRevision: 0,
+      createdAtUnixMs: Date.now(), updatedAtUnixMs: Date.now(), authorKind: 'user',
+    };
+    const reads = [];
+    const ui = mountUi({
+      onLoadPublicDraft: async () => ({ found: true, draft: baseDraft }),
+      onLoadPublicDraftAsset: async (draftId, assetId) => {
+        reads.push(`${draftId}:${assetId}`);
+        return {
+          image: draftAsset({ assetId, sha256: assetId === 'agent-saved' ? 'a'.repeat(64) : 'd'.repeat(64) }),
+          dataBase64: pngBase64,
+        };
+      },
+      onSavePublicDraft: async (input) => ({ draft: { ...baseDraft, ...input, revision: 3 } }),
+    });
+    try {
+      await settle();
+      ui.click('#settingsTrigger');
+      await settle();
+      ui.click('[data-settings-tab="public"]');
+      await settle();
+      await settle(10);
+      const agentPreview = () => ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src');
+      const humanPreview = () => ui.shadow.querySelector('#publicHumanAvatarPreview img').getAttribute('src');
+      await waitUntil(() => agentPreview().startsWith('blob:raminga-test-') && humanPreview().startsWith('blob:raminga-test-'), 'both saved draft previews');
+      const initialHuman = humanPreview();
+
+      setFileInput(ui.dom, ui.shadow.querySelector('#publicAvatarInput'), [...Buffer.from(pngBase64, 'base64')], 'agent-new.png');
+      await waitUntil(() => agentPreview().startsWith('data:image/png;base64,'), 'Agent local preview');
+      assert.equal(humanPreview(), initialHuman, 'picking an Agent image must not touch the human preview');
+
+      const pickedAgent = agentPreview();
+      setFileInput(ui.dom, ui.shadow.querySelector('#publicHumanAvatarInput'), [...Buffer.from(pngBase64, 'base64')], 'human-new.png');
+      await waitUntil(() => humanPreview().startsWith('data:image/png;base64,'), 'human local preview');
+      assert.equal(agentPreview(), pickedAgent, 'picking a human image must not touch the Agent preview');
+
+      const pickedHuman = humanPreview();
+      ui.click('#publicAvatarClear');
+      await settle();
+      assert.equal(agentPreview(), 'assets/raminga-mark-gradient.svg');
+      assert.equal(humanPreview(), pickedHuman, 'clearing the Agent image leaves the human image');
+
+      ui.click('#publicHumanAvatarClear');
+      await settle();
+      assert.equal(humanPreview(), 'assets/raminga-mark-gradient.svg');
+      assert.deepEqual([...new Set(reads)].sort(), ['profile:agent-saved', 'profile:human-saved']);
+    } finally {
+      ui.close();
+    }
+  });
+});
+
+test('Agent and human uploads save independent asset ids and both previews survive reload', async () => {
+  await withObjectUrls(async () => {
+    let current = {
+      draftId: 'profile', kind: 'profile', revision: 1,
+      agentName: 'Nova', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+      humanName: 'Alice', humanBioMarkdown: '', title: '', bodyMarkdown: '', tags: [], images: [],
+      avatar: draftAsset({ assetId: 'agent-old', sha256: 'a'.repeat(64) }),
+      humanAvatar: draftAsset({ assetId: 'human-old', sha256: 'd'.repeat(64) }),
+      publishedPath: '', publishedSha256: '', publishedRevision: 0,
+      createdAtUnixMs: Date.now(), updatedAtUnixMs: Date.now(), authorKind: 'user',
+    };
+    const saves = [];
+    const uploads = [];
+    const ui = mountUi({
+      onLoadPublicDraft: async () => ({ found: true, draft: current }),
+      onLoadPublicDraftAsset: async (draftId, assetId) => ({
+        image: draftAsset({ assetId, sha256: String(assetId).startsWith('agent') ? 'a'.repeat(64) : 'd'.repeat(64) }),
+        dataBase64: pngBase64,
+      }),
+      onSavePublicDraft: async (input) => {
+        saves.push({ ...input });
+        const avatar = input.avatarAssetId
+          ? draftAsset({ assetId: input.avatarAssetId, sha256: input.avatarAssetId.startsWith('agent') ? 'a'.repeat(64) : 'd'.repeat(64) })
+          : input.clearAvatar ? null : current.avatar;
+        const humanAvatar = input.humanAvatarAssetId
+          ? draftAsset({ assetId: input.humanAvatarAssetId, sha256: input.humanAvatarAssetId.startsWith('human') ? 'd'.repeat(64) : 'a'.repeat(64) })
+          : input.clearHumanAvatar ? null : current.humanAvatar;
+        current = {
+          ...current,
+          ...input,
+          revision: current.revision + 1,
+          updatedAtUnixMs: Date.now(),
+          avatar,
+          humanAvatar,
+        };
+        return { draft: { ...current } };
+      },
+      onPutPublicDraftImage: async (draftId, role, filename) => {
+        uploads.push({ draftId, role, filename });
+        const assetId = role === 'human_avatar' ? 'human-new' : 'agent-new';
+        return { image: draftAsset({ assetId, sha256: role === 'human_avatar' ? 'd'.repeat(64) : 'a'.repeat(64) }) };
+      },
+    });
+    try {
+      await settle();
+      ui.click('#settingsTrigger');
+      await settle();
+      ui.click('[data-settings-tab="public"]');
+      await settle();
+      await settle(10);
+      setFileInput(ui.dom, ui.shadow.querySelector('#publicAvatarInput'), [...Buffer.from(pngBase64, 'base64')], 'agent-new.png');
+      setFileInput(ui.dom, ui.shadow.querySelector('#publicHumanAvatarInput'), [...Buffer.from(pngBase64, 'base64')], 'human-new.png');
+      ui.click('#publicDraftSave');
+      await waitUntil(() => saves.length === 3 && uploads.length === 2 && !ui.shadow.querySelector('#publicDraftSave').disabled, 'dual avatar uploads and saves');
+      assert.deepEqual(uploads.map((item) => item.role), ['avatar', 'human_avatar']);
+      assert.equal(saves[0].avatarAssetId, '', 'a newly picked Agent file has no asset id before upload');
+      assert.equal(saves[0].humanAvatarAssetId, '', 'a newly picked human file has no asset id before upload');
+      assert.equal(saves[1].avatarAssetId, 'agent-new');
+      assert.equal(saves[1].humanAvatarAssetId, '');
+      assert.equal(saves[2].avatarAssetId, 'agent-new');
+      assert.equal(saves[2].humanAvatarAssetId, 'human-new');
+      assert.equal(saves[2].clearAvatar, false);
+      assert.equal(saves[2].clearHumanAvatar, false);
+      assert.match(ui.text('#publicDraftMeta'), /revision 4/);
+
+      ui.click('#publicDraftReload');
+      await settle();
+      await settle(10);
+      await waitUntil(() => {
+        const agent = ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src') ?? '';
+        const human = ui.shadow.querySelector('#publicHumanAvatarPreview img').getAttribute('src') ?? '';
+        return agent.startsWith('blob:raminga-test-') && human.startsWith('blob:raminga-test-');
+      }, 'both saved draft avatars survive reload');
+      assert.match(ui.text('#publicDraftMeta'), /revision 4/);
+    } finally {
+      ui.close();
+    }
+  });
+});
+
+test('publish confirmation names both images and is invalidated by either avatar change', async () => {
+  const agentImage = draftAsset({ assetId: 'agent-published', sha256: 'a'.repeat(64) });
+  const humanImage = draftAsset({ assetId: 'human-published', sha256: 'd'.repeat(64) });
+  const baseDraft = {
+    draftId: 'profile', kind: 'profile', revision: 2,
+    agentName: 'Nova', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+    humanName: 'Alice', humanBioMarkdown: '', title: '', bodyMarkdown: '', tags: [], images: [],
+    avatar: agentImage, humanAvatar: humanImage,
+    publishedPath: '', publishedSha256: '', publishedRevision: 0,
+    createdAtUnixMs: Date.now(), updatedAtUnixMs: Date.now(), authorKind: 'user',
+  };
+  const saves = [];
+  const publishes = [];
+  const ui = mountUi({
+    onLoadPublicDraft: async () => ({ found: true, draft: baseDraft }),
+    onLoadPublicDraftAsset: async (draftId, assetId) => ({
+      image: assetId === 'agent-published' ? agentImage : humanImage,
+      dataBase64: pngBase64,
+    }),
+    onSavePublicDraft: async (input) => {
+      saves.push({ ...input });
+      const avatar = input.clearAvatar ? null : input.avatarAssetId ? agentImage : baseDraft.avatar;
+      const humanAvatar = input.clearHumanAvatar ? null : input.humanAvatarAssetId ? humanImage : baseDraft.humanAvatar;
+      return {
+        draft: { ...baseDraft, ...input, avatar, humanAvatar, revision: baseDraft.revision + saves.length }
+      };
+    },
+    onPublishPublicDraft: async () => {
+      publishes.push(1);
+      return { status: 'invalid', error: 'test stop', files: [] };
+    },
+    onPutPublicDraftImage: async () => ({ image: draftAsset({ assetId: 'agent-new' }) }),
+  });
+  try {
+    await settle();
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    await settle(10);
+    ui.click('#publicPublishButton');
+    await settle();
+    await settle(10);
+    assert.equal(ui.text('#publicPublishButton'), '确认发布公开资料');
+    assert.match(ui.text('#publicPublishReceipt'), /Agent 头像：已设置/);
+    assert.match(ui.text('#publicPublishReceipt'), /关联人类头像：已设置/);
+    assert.equal(publishes.length, 0, 'the confirmation step still needs an explicit second click');
+
+    ui.click('#publicHumanAvatarClear');
+    await settle();
+    assert.equal(ui.text('#publicPublishButton'), '检查发布内容', 'human avatar clear invalidates the saved confirmation snapshot');
+
+    ui.click('#publicPublishButton');
+    await settle();
+    await settle(10);
+    assert.equal(ui.text('#publicPublishButton'), '确认发布公开资料');
+    setFileInput(ui.dom, ui.shadow.querySelector('#publicAvatarInput'), [...Buffer.from(pngBase64, 'base64')], 'agent-change.png');
+    await settle();
+    assert.equal(ui.text('#publicPublishButton'), '检查发布内容', 'Agent avatar pick invalidates the saved confirmation snapshot');
+  } finally {
+    ui.close();
+  }
+});
+
+test('home human strip shows the published v2 human avatar and ignores a late older read', async () => {
+  const oldSha = '2'.repeat(64);
+  const newSha = '3'.repeat(64);
+  const oldPath = `profile/human-avatar-${oldSha.slice(0, 8)}.png`;
+  const newPath = `profile/human-avatar-${newSha.slice(0, 8)}.png`;
+  const oldScreen = deferred();
+  let mineCalls = 0;
+  const dataA = mine({
+    publicProfile: {
+      state: 'available', error: '',
+      profile: {
+        schemaVersion: 2, agentName: 'Nova', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+        humanName: '旧人类', humanBioMarkdown: '', avatarPath: '', avatarSha256: '', avatarMime: '',
+        humanAvatarPath: oldPath, humanAvatarSha256: oldSha, humanAvatarMime: 'image/png',
+        updatedAt: '2026-11-01T08:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+      },
+    },
+    files: [{ path: oldPath, sha256: oldSha, sizeBytes: 20, name: 'old.png', modifiedAt: 0 }],
+  });
+  const dataB = mine({
+    profile: { state: 'missing', markdown: '', displayName: '', error: '', path: 'profile/index.md', at: null },
+    publicProfile: {
+      state: 'available', error: '',
+      profile: {
+        schemaVersion: 2, agentName: '', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+        humanName: '', humanBioMarkdown: '', avatarPath: '', avatarSha256: '', avatarMime: '',
+        humanAvatarPath: newPath, humanAvatarSha256: newSha, humanAvatarMime: 'image/png',
+        updatedAt: '2026-11-02T08:00:00Z', path: 'profile/profile.json', sha256: 'e'.repeat(64),
+      },
+    },
+    files: [{ path: newPath, sha256: newSha, sizeBytes: 21, name: 'new.png', modifiedAt: 1 }],
+  });
+  const ui = mountUi({
+    onLoadMine: async () => (++mineCalls === 1 ? dataA : dataB),
+    onLoadMineFileContent: async (filePath) => {
+      if (filePath === oldPath) return oldScreen.promise;
+      return {
+        status: 'ok', kind: 'image', mime: 'image/png', sha256: newSha, sizeBytes: 21,
+        dataUrl: 'data:image/png;base64,bmV3LWh1bWFuLWF2YXRhcg==',
+      };
+    },
+  });
+  try {
+    await settle();
+    await settle(10);
+    const avatar = ui.shadow.querySelector('#homeHumanAvatar');
+    assert.ok(avatar, 'home human strip exposes the human avatar image');
+    ui.app.reloadMine();
+    await settle();
+    await settle(10);
+    assert.equal(avatar.hidden, false);
+    assert.match(avatar.getAttribute('src'), /bmV3LWh1bWFuLWF2YXRhcg/);
+    assert.equal(ui.text('#mineIdentityTitle'), '关联人类', 'an empty v2 human name falls back to the shared heading');
+
+    oldScreen.resolve({
+      status: 'ok', kind: 'image', mime: 'image/png', sha256: oldSha, sizeBytes: 20,
+      dataUrl: 'data:image/png;base64,b2xkLWh1bWFuLWF2YXRhcg==',
+    });
+    await settle();
+    await settle(10);
+    assert.match(
+      ui.shadow.querySelector('#homeHumanAvatar').getAttribute('src'),
+      /bmV3LWh1bWFuLWF2YXRhcg/,
+      'the late older read must not replace the newest human avatar',
+    );
+  } finally {
+    ui.close();
+  }
+});
+
+test('published v2 human fields are real data even for the literal 关联人类 name or avatar-only profiles', () => {
+  const base = mine({
+    profile: { state: 'missing', markdown: '', displayName: '', error: '', path: 'profile/index.md', at: null },
+    agentCard: { state: 'missing', card: null, error: 'missing' },
+  });
+  const explicitName = buildHomeAgentModel({
+    mine: {
+      ...base,
+      publicProfile: {
+        state: 'available', error: '',
+        profile: {
+          schemaVersion: 2, agentName: '', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+          humanName: '关联人类', humanBioMarkdown: '',
+          avatarPath: '', avatarSha256: '', avatarMime: '',
+          humanAvatarPath: '', humanAvatarSha256: '', humanAvatarMime: '',
+          updatedAt: '', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+        },
+      },
+    },
+  });
+  assert.equal(explicitName.human.available, true, 'an explicit v2 humanName is not treated as the generated placeholder');
+  assert.equal(explicitName.human.name, '关联人类');
+
+  const avatarOnly = buildHomeAgentModel({
+    mine: {
+      ...base,
+      publicProfile: {
+        state: 'available', error: '',
+        profile: {
+          schemaVersion: 2, agentName: '', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+          humanName: '', humanBioMarkdown: '',
+          avatarPath: '', avatarSha256: '', avatarMime: '',
+          humanAvatarPath: 'profile/human-avatar-eeeeeeee.png', humanAvatarSha256: 'e'.repeat(64), humanAvatarMime: 'image/png',
+          updatedAt: '', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+        },
+      },
+    },
+  });
+  assert.equal(avatarOnly.human.available, true, 'a v2 humanAvatarPath alone counts as published human data');
+  assert.equal(avatarOnly.human.avatarPath, 'profile/human-avatar-eeeeeeee.png');
+
+  const legacyPlaceholder = buildHomeAgentModel({
+    mine: {
+      ...base,
+      profile: {
+        state: 'available', markdown: '# 关联人类\n\n', displayName: '关联人类',
+        error: '', path: 'profile/index.md', at: 1,
+      },
+      publicProfile: { state: 'missing', profile: null, error: '' },
+    },
+  });
+  assert.equal(legacyPlaceholder.human.available, false, 'the legacy default index.md heading without v2 human fields stays a placeholder');
+
+  const legacyReal = buildHomeAgentModel({
+    mine: {
+      ...base,
+      profile: {
+        state: 'available', markdown: '# 旧人类\n\n喜欢旧地图。', displayName: '旧人类',
+        error: '', path: 'profile/index.md', at: 1,
+      },
+      publicProfile: { state: 'missing', profile: null, error: '' },
+    },
+  });
+  assert.equal(legacyReal.human.available, true, 'a real old index.md profile remains visible');
+  assert.equal(legacyReal.human.name, '旧人类');
+});
+
+function publishedPairData() {
+  const agentSha = 'a'.repeat(64);
+  const humanSha = 'd'.repeat(64);
+  const agentPath = `profile/avatar-${agentSha.slice(0, 8)}.png`;
+  const humanPath = `profile/human-avatar-${humanSha.slice(0, 8)}.png`;
+  return {
+    data: mine({
+      publicProfile: {
+        state: 'available', error: '',
+        profile: {
+          schemaVersion: 2,
+          agentName: '公开 Agent', agentDescription: '公开简介', agentInterests: ['天文'], agentConversationStyle: '温和',
+          humanName: '公开人类', humanBioMarkdown: '公开人类介绍',
+          avatarPath: agentPath, avatarSha256: agentSha, avatarMime: 'image/png',
+          humanAvatarPath: humanPath, humanAvatarSha256: humanSha, humanAvatarMime: 'image/png',
+          updatedAt: '2026-11-01T08:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+        },
+      },
+      agentCard: {
+        state: 'available', error: '',
+        card: {
+          ...mine().agentCard.card, displayName: '公开 Agent',
+          avatarPath: agentPath, avatarSha256: agentSha, avatarMime: 'image/png',
+        },
+      },
+      files: [
+        { path: agentPath, sha256: agentSha, sizeBytes: 40, name: 'agent.png', modifiedAt: 0 },
+        { path: humanPath, sha256: humanSha, sizeBytes: 41, name: 'human.png', modifiedAt: 1 },
+      ],
+    }),
+    agentPath,
+    humanPath,
+    agentDataUrl: 'data:image/png;base64,cHVibGlzaGVkLWFnZW50',
+    humanDataUrl: 'data:image/png;base64,cHVibGlzaGVkLWh1bWFu',
+  };
+}
+
+test('restore-published restores both avatars, and one failed image read does not corrupt the other or the form', async () => {
+  const pair = publishedPairData();
+  const ui = mountUi({
+    onLoadMine: async () => pair.data,
+    onLoadMineFileContent: async (filePath) => (filePath === pair.humanPath
+      ? { status: 'ok', kind: 'image', mime: 'image/png', dataUrl: pair.humanDataUrl }
+      : { status: 'ok', kind: 'image', mime: 'image/png', dataUrl: pair.agentDataUrl }),
+    onLoadPublicDraft: async () => ({ found: false }),
+  });
+  try {
+    await settle();
+    await settle(10);
+    ui.click('#settingsTrigger');
+    await settle();
+    ui.click('[data-settings-tab="public"]');
+    await settle();
+    await settle(10);
+    assert.equal(
+      ui.shadow.querySelector('#publicHumanAvatarPreview img').getAttribute('src'),
+      pair.humanDataUrl,
+      'the fallback draft previews the published v2 human avatar from home state',
+    );
+    ui.click('#publicRestorePublished');
+    await settle();
+    await settle(20);
+    assert.equal(ui.shadow.querySelector('#publicAgentName').value, '公开 Agent');
+    assert.equal(ui.shadow.querySelector('#publicHumanName').value, '公开人类');
+    assert.equal(ui.shadow.querySelector('#publicHumanBio').value, '公开人类介绍');
+    assert.equal(ui.shadow.querySelector('#publicAvatarPreview img').getAttribute('src'), pair.agentDataUrl);
+    assert.equal(ui.shadow.querySelector('#publicHumanAvatarPreview img').getAttribute('src'), pair.humanDataUrl);
+  } finally {
+    ui.close();
+  }
+
+  const failed = mountUi({
+    onLoadMine: async () => pair.data,
+    onLoadMineFileContent: async (filePath) => {
+      if (filePath === pair.humanPath) throw new Error('人类头像读取失败');
+      return { status: 'ok', kind: 'image', mime: 'image/png', dataUrl: pair.agentDataUrl };
+    },
+    onLoadPublicDraft: async () => ({ found: false }),
+  });
+  try {
+    await settle();
+    await settle(10);
+    failed.click('#settingsTrigger');
+    await settle();
+    failed.click('[data-settings-tab="public"]');
+    await settle();
+    await settle(10);
+    failed.click('#publicRestorePublished');
+    await settle();
+    await settle(20);
+    assert.equal(failed.shadow.querySelector('#publicAgentName').value, '公开 Agent', 'text form survives the human image failure');
+    assert.equal(failed.shadow.querySelector('#publicHumanName').value, '公开人类');
+    assert.equal(failed.shadow.querySelector('#publicAvatarPreview img').getAttribute('src'), pair.agentDataUrl, 'the Agent image still restores');
+    assert.equal(failed.shadow.querySelector('#publicHumanAvatarPreview img').getAttribute('src'), 'assets/raminga-mark-gradient.svg');
+    assert.match(failed.text('#publicHumanAvatarNote'), /人类头像读取失败/);
+  } finally {
+    failed.close();
   }
 });

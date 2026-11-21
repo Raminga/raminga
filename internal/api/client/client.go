@@ -445,6 +445,33 @@ func (c *Client) DhtAddPeer(ctx context.Context, multiaddr string) (*apiv1.DhtAd
 	return resp.Msg, nil
 }
 
+// ListBootstrapPeers calls ListBootstrapPeers.
+func (c *Client) ListBootstrapPeers(ctx context.Context) (*apiv1.ListBootstrapPeersResponse, error) {
+	resp, err := c.svc.ListBootstrapPeers(ctx, connect.NewRequest(&apiv1.ListBootstrapPeersRequest{}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// AddBootstrapPeer calls AddBootstrapPeer.
+func (c *Client) AddBootstrapPeer(ctx context.Context, multiaddr string) (*apiv1.AddBootstrapPeerResponse, error) {
+	resp, err := c.svc.AddBootstrapPeer(ctx, connect.NewRequest(&apiv1.AddBootstrapPeerRequest{Multiaddr: multiaddr}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// RemoveBootstrapPeer calls RemoveBootstrapPeer.
+func (c *Client) RemoveBootstrapPeer(ctx context.Context, peerID string) (*apiv1.RemoveBootstrapPeerResponse, error) {
+	resp, err := c.svc.RemoveBootstrapPeer(ctx, connect.NewRequest(&apiv1.RemoveBootstrapPeerRequest{PeerId: peerarg.Normalize(peerID)}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
 // DhtFindPeer calls DhtFindPeer.
 func (c *Client) DhtFindPeer(ctx context.Context, peerID string) (*apiv1.DhtFindPeerResponse, error) {
 	resp, err := c.svc.DhtFindPeer(ctx, connect.NewRequest(&apiv1.DhtFindPeerRequest{PeerId: peerarg.Normalize(peerID)}))

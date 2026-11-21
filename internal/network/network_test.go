@@ -14,6 +14,7 @@ import (
 	"github.com/Raminga/raminga/internal/p2phttp" //nolint:depguard // network-owned HTTP substrate
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	corenet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	relayv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	ma "github.com/multiformats/go-multiaddr"
@@ -490,5 +491,68 @@ func TestNetworkHTTPPausedPeerStaysDenied(t *testing.T) {
 	}
 	if len(a.Host().Network().ConnsToPeer(b.Host().ID())) != 0 {
 		t.Fatal("paused peer connection remains")
+	}
+}
+
+func TestPausedBootstrapPeerIsNotDialedOnRefreshOrRestart(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+	newKey := func() crypto.PrivKey {
+		key, _, err := crypto.GenerateEd25519Key(crand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return key
+	}
+	server, err := New(Config{
+		PrivateKey:  newKey(),
+		ListenAddrs: []string{"/ip4/127.0.0.1/tcp/0"},
+		DHT: DHTConfig{
+			Enabled: true, Mode: "server", ProtocolPrefix: "/raminga",
+			RefreshInterval: time.Second, QueryTimeout: 2 * time.Second,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if err := server.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	addr := server.Host().Addrs()[0].Encapsulate(ma.StringCast("/p2p/" + server.Host().ID().String())).String()
+	makeClient := func() *Network {
+		client, err := New(Config{
+			PrivateKey:  newKey(),
+			ListenAddrs: []string{"/ip4/127.0.0.1/tcp/0"},
+			PausedPeers: []string{server.Host().ID().String()},
+			DHT: DHTConfig{
+				Enabled: true, Mode: "client", ProtocolPrefix: "/raminga",
+				BootstrapPeers:  []string{addr},
+				RefreshInterval: time.Second, QueryTimeout: 2 * time.Second,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Start(ctx); err != nil {
+			_ = client.Close()
+			t.Fatal(err)
+		}
+		return client
+	}
+	for attempt := 0; attempt < 2; attempt += 1 {
+		client := makeClient()
+		time.Sleep(3 * time.Second)
+		if connected := client.Host().Network().Connectedness(server.Host().ID()); connected == corenet.Connected {
+			_ = client.Close()
+			t.Fatalf("attempt %d: paused bootstrap peer was redialed after start/refresh", attempt)
+		}
+		if st := client.DHT().Status(); st.BootstrapConnected != 0 {
+			_ = client.Close()
+			t.Fatalf("attempt %d: bootstrap_connected=%d for paused peer", attempt, st.BootstrapConnected)
+		}
+		if err := client.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

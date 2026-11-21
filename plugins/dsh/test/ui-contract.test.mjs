@@ -68,7 +68,7 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
     'conversations', 'messages', 'markRead', 'favorites', 'setFavorite', 'peerDiscoveries', 'contactMemory', 'saveContactImpression',
     'send', 'cancelOutbox', 'discoveries', 'discoveryContent',
     'humanOutbound', 'mine', 'mineFilePreview', 'peerProfile', 'peerFriends', 'contactProjection', 'peerManifest', 'peerFilePreview', 'peerPostMeta', 'peerNodeInfo',
-    'revealDiscovery', 'revealFile', 'bootstrap', 'journey', 'activity', 'activityDetail', 'savePrivateAgent',
+    'revealDiscovery', 'revealFile', 'bootstrap', 'addBootstrap', 'removeBootstrap', 'journey', 'activity', 'activityDetail', 'savePrivateAgent',
     'publicDraft', 'publicDrafts', 'savePublicDraft', 'putPublicDraftImage', 'publicDraftAsset', 'importPublicPost',
     'deletePublicDraft', 'publishPublicDraft', 'locateMessage',
   ]);
@@ -105,6 +105,8 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.deepEqual(byMethod.revealDiscovery.parameters.map((item) => item.name), ['sessionId', 'id']);
   assert.deepEqual(byMethod.revealFile.parameters.map((item) => item.name), ['sessionId', 'subject', 'peerId', 'path', 'sha256', 'size']);
   assert.deepEqual(byMethod.bootstrap.parameters.map((item) => item.name), ['sessionId']);
+  assert.deepEqual(byMethod.addBootstrap.parameters.map((item) => item.name), ['sessionId', 'multiaddr']);
+  assert.deepEqual(byMethod.removeBootstrap.parameters.map((item) => item.name), ['sessionId', 'peerId']);
   assert.deepEqual(byMethod.journey.parameters.map((item) => item.name), ['sessionId', 'force']);
   assert.deepEqual(byMethod.activity.parameters.map((item) => item.name), ['sessionId', 'limit']);
   assert.deepEqual(byMethod.activityDetail.parameters.map((item) => item.name), ['operationId']);

@@ -14,7 +14,8 @@ Status: P2 公开资料/图文动态/草稿与原子发布（2026-11-18）。本
 │   ├── profile.json         # P2 canonical 公开资料 v2（Agent + 人类）
 │   ├── index.md             # 人类公开自我介绍；P2 继续生成兼容旧客户端
 │   ├── agent-card.json      # 旧 Agent 卡片（存在时按用户确认同步镜像）
-│   └── avatar-<sha8>.png    # 公开 Agent 头像，内容寻址
+│   ├── avatar-<sha8>.png    # 公开 Agent 头像，内容寻址
+│   └── human-avatar-<sha8>.png # 关联人类自己的可选公开头像
 └── posts/
     ├── <name>.json          # 旧版 v1 帖子（兼容读取；可导入编辑并更新原文件）
     └── <post-id>/
@@ -161,7 +162,10 @@ ZIP 由成熟库解析，宿主再执行自己的上限与路径检查：压缩�
   },
   "human": {
     "name": "JO JO",
-    "bio_markdown": "喜欢创造有趣的东西。"
+    "bio_markdown": "喜欢创造有趣的东西。",
+    "avatar": "human-avatar-8b7d6c5a.png",
+    "avatar_sha256": "…64 hex…",
+    "avatar_mime": "image/png"
   },
   "updated_at": "2026-11-18T10:00:00Z"
 }
@@ -170,14 +174,14 @@ ZIP 由成熟库解析，宿主再执行自己的上限与路径检查：压缩�
 读取优先级：`profile.json` v2 → `agent-card.json` v1 + `index.md`。`profile.json` 有效时以它为准，旧文件只作兼容镜像；`index.md` 继续生成人类名称与介绍。`agent-card.json` 只有已存在时才在发布时同步，不自动创建。
 
 - `agent.name`/`human.name` ≤64 字符；简介 ≤2000；兴趣 ≤10 个、每个 ≤80；交流风格 ≤1000；人类介绍 ≤4000。
-- 头像路径固定 `profile/avatar-<sha256前8位>.png|.jpg`，`avatar_sha256`/`avatar_mime` 必须与清单实际文件一致；无头像使用默认图形，不拿人类资料冒充 Agent。
+- Agent 头像路径固定 `profile/avatar-<sha256前8位>.png|.jpg`；关联人类头像使用独立的 `profile/human-avatar-<sha256前8位>.png|.jpg`。两者的 `avatar_*` 都必须与清单实际文件一致；无头像使用默认图形，不拿人类资料冒充 Agent，也不拿 Agent 形象冒充人类。人类头像字段是 v2 的兼容附加字段，旧 `profile.json` 没有它时仍按原样读取。
 - `profile.json` 不存在/损坏：Agent 从 `agent-card.json` 读取；人类从 `index.md` 读取；缺失 Agent 字段保持空（“未公开”），不得把人类名称/介绍写给 Agent。
 - 旧客户端：`GetPeerProfile.name` 回退到 `human.name`/`index.md` 首标题/短 Peer ID，`text` 回退到人类介绍/`index.md` 正文，`found` 只要任一来源命中即为 true。
 
 
 ## 6. 私有草稿、发布临界区与清单摘要
 
-- 草稿在 `<data-dir>/raminga.db` 的 `public_drafts` / `public_draft_assets` 中（schema v10），只通过本地 API 读取；不写 `public/`，不会因为保存在 SQLite 就变成公开内容。
+- 草稿在 `<data-dir>/raminga.db` 的 `public_drafts` / `public_draft_assets` 中（当前 schema v13；v12 增加独立的人类头像资源，v13 增加引导角色关系），只通过本地 API 读取；不写 `public/`，不会因为保存在 SQLite 就变成公开内容。`human_avatar` 与 `avatar` 是两种独立资源，清除或替换其中一个不影响另一个。
 - `GetPublicDraftAsset(draft_id, asset_id)` 按草稿和资源双键读取私有图片字节；资源不属于该草稿时返回 `NotFound`。该 RPC 只走本机受控传输，不生成公开 URL，浏览器拿到的是短生命周期 object URL，切换草稿/移除图片/卸载时释放。
 - `ImportPublicPost(path)` 只接受本机 `posts/*.json` 或 `posts/*/post.json`，并校验作者声明、图片哈希/尺寸；导入的图片复制为私有 SQLite 资源，公开目录在发布前不变。重复导入同一路径返回同一草稿，不重复创建。
 - profile 的 `draft_id` 固定为 `profile`；post 草稿由服务端生成 id。更新必须携带精确 `expected_revision`，冲突返回 `FailedPrecondition`，UI 保留本地输入并提供重新载入，不静默覆盖。
@@ -185,7 +189,7 @@ ZIP 由成熟库解析，宿主再执行自己的上限与路径检查：压缩�
 - 发布只有显式 `PublishPublicDraft` 才发生。`PublishPublicDraft` 在 `draft lock → publishMu` 临界区内重新读取 revision/公开文件哈希，校验 `expected_published_sha256`，在 `publication/staging/` 预写，再按“图片/头像 → 旧格式镜像 → post.json/profile.json 最后切换”的顺序原子写入；元数据切换前会再次读取目标 `post.json`/`profile.json`，与临界区开始时观测的哈希不同就返回冲突并回滚新增资源。
 - 同一草稿并发重试只产生一组文件和一个 `manifest_sha256`；相同内容返回 `ALREADY_PUBLISHED`。元数据切换前失败回滚新文件，旧清单摘要保持不变；切换后清单扫描/数据库回写失败返回 `PARTIAL`，`files`/`manifest_sha256` 来自实际扫描，下一次重试先对账并修复。
 - `manifest_sha256` 对 `version + peer_id + 按 path 排序的 entries(path,size_bytes,sha256)` 的规范 JSON 计算，不含生成时间/mtime；`files` 是本次提交/已存在文件，不是完整清单。
-- 旧头像/旧图片只在同一临界区、且既不被当前也不被上一版本引用时清理；清理失败只 warning。
+- 旧头像/旧图片只在同一临界区、且既不被当前也不被上一版本引用时清理；只删除上一版 `profile.json` 实际引用的 Agent/人类头像，不按文件名前缀删除未受本功能管理的文件。清理失败只 warning。
 - 启动时清理 `publication/staging`，隔离不完整 v2 元数据；恢复在 API 就绪前完成。同一 data dir 仍由现有 `raminga.lock` 保证单 daemon 写者。
 
 ## 6.1 P5 升级与并发验收补充（2026-11-18）

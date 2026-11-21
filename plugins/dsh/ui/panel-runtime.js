@@ -532,6 +532,18 @@ export function createPanelRuntime({
     return remoteValue(await rpc.bootstrap(sessionId));
   }
 
+  async function addBootstrap(multiaddr) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.addBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
+    return remoteValue(await rpc.addBootstrap(sessionId, multiaddr));
+  }
+
+  async function removeBootstrap(peerId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.removeBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
+    return remoteValue(await rpc.removeBootstrap(sessionId, peerId));
+  }
+
   async function readJourney(force) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.journey !== 'function') throw new Error('Raminga journey is unavailable');
@@ -832,6 +844,12 @@ export function createPanelRuntime({
       }
       if (typeof rpc.bootstrap === 'function') {
         mountOptions.onLoadBootstrap = () => readBootstrap();
+      }
+      if (typeof rpc.addBootstrap === 'function') {
+        mountOptions.onAddBootstrap = (multiaddr) => addBootstrap(multiaddr);
+      }
+      if (typeof rpc.removeBootstrap === 'function') {
+        mountOptions.onRemoveBootstrap = (peerId) => removeBootstrap(peerId);
       }
       if (typeof rpc.journey === 'function') {
         mountOptions.onLoadJourney = (force) => readJourney(force);

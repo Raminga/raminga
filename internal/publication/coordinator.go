@@ -56,22 +56,24 @@ var ErrDraftConflict = errors.New("publication: draft conflict")
 // DraftUpdate is the resolved full update used by SaveDraft. Nil optional text
 // preserves the existing value; every list replaces the old list.
 type DraftUpdate struct {
-	DraftID          string
-	Kind             string
-	AuthorKind       string
-	ExpectedRevision int64
-	AgentName        *string
-	AgentDescription *string
-	AgentInterests   []string
-	AgentStyle       *string
-	HumanName        *string
-	HumanBio         *string
-	Title            *string
-	BodyMarkdown     *string
-	Tags             []string
-	ImageAssetIDs    []string
-	AvatarAssetID    string
-	ClearAvatar      bool
+	DraftID            string
+	Kind               string
+	AuthorKind         string
+	ExpectedRevision   int64
+	AgentName          *string
+	AgentDescription   *string
+	AgentInterests     []string
+	AgentStyle         *string
+	HumanName          *string
+	HumanBio           *string
+	Title              *string
+	BodyMarkdown       *string
+	Tags               []string
+	ImageAssetIDs      []string
+	AvatarAssetID      string
+	ClearAvatar        bool
+	HumanAvatarAssetID string
+	ClearHumanAvatar   bool
 }
 
 // PublishFile is one actual file committed or already present.
@@ -353,6 +355,11 @@ func (c *Coordinator) SaveDraft(ctx context.Context, in DraftUpdate) (storage.Pu
 	} else if in.AvatarAssetID != "" {
 		d.AvatarAssetID = in.AvatarAssetID
 	}
+	if in.ClearHumanAvatar {
+		d.HumanAvatarAssetID = ""
+	} else if in.HumanAvatarAssetID != "" {
+		d.HumanAvatarAssetID = in.HumanAvatarAssetID
+	}
 
 	if err := validateDraftValues(d); err != nil {
 		return storage.PublicDraft{}, err
@@ -447,13 +454,22 @@ func (c *Coordinator) validateDraftAssets(ctx context.Context, d storage.PublicD
 			return fmt.Errorf("%w: 头像资源不属于该草稿", ErrDraftInvalid)
 		}
 	}
+	if d.HumanAvatarAssetID != "" {
+		a, found, err := c.store.GetPublicDraftAsset(ctx, d.DraftID, d.HumanAvatarAssetID)
+		if err != nil {
+			return err
+		}
+		if !found || a.Role != "human_avatar" {
+			return fmt.Errorf("%w: 人类头像资源不属于该草稿", ErrDraftInvalid)
+		}
+	}
 	return nil
 }
 
 // PutDraftImage validates and stores one private avatar/image asset.
 func (c *Coordinator) PutDraftImage(ctx context.Context, draftID, role, filename string, data []byte) (storage.PublicDraftAsset, error) {
-	if role != "avatar" && role != "image" {
-		return storage.PublicDraftAsset{}, fmt.Errorf("%w: role 必须是 avatar 或 image", ErrDraftInvalid)
+	if role != "avatar" && role != "human_avatar" && role != "image" {
+		return storage.PublicDraftAsset{}, fmt.Errorf("%w: role 必须是 avatar、human_avatar 或 image", ErrDraftInvalid)
 	}
 	if !storage.ValidateDraftID(draftID) {
 		return storage.PublicDraftAsset{}, fmt.Errorf("%w: draft_id 无效", ErrDraftInvalid)
@@ -505,8 +521,11 @@ type profileAgentJSON struct {
 }
 
 type profileHumanJSON struct {
-	Name        string `json:"name"`
-	BioMarkdown string `json:"bio_markdown"`
+	Name         string `json:"name"`
+	BioMarkdown  string `json:"bio_markdown"`
+	Avatar       string `json:"avatar,omitempty"`
+	AvatarSHA256 string `json:"avatar_sha256,omitempty"`
+	AvatarMime   string `json:"avatar_mime,omitempty"`
 }
 
 type profileJSONV2 struct {
@@ -596,9 +615,29 @@ func (c *Coordinator) buildProfileTargets(ctx context.Context, d storage.PublicD
 		agent.AvatarMime = image.Mime
 		avatar = targetFile{path: "profile/" + name, data: image.Bytes}
 	}
+	human := profileHumanJSON{Name: d.HumanName, BioMarkdown: d.HumanBioMarkdown}
+	var humanAvatar targetFile
+	if d.HumanAvatarAssetID != "" {
+		asset, found, err := c.store.GetPublicDraftAsset(ctx, d.DraftID, d.HumanAvatarAssetID)
+		if err != nil {
+			return nil, "", "", nil, err
+		}
+		if !found || asset.Role != "human_avatar" {
+			return nil, "", "", nil, fmt.Errorf("%w: 人类头像不存在", ErrDraftInvalid)
+		}
+		image, err := ValidateImage(asset.Bytes, "avatar", "avatar"+imageExtension(asset.Mime))
+		if err != nil {
+			return nil, "", "", nil, err
+		}
+		name := "human-avatar-" + image.SHA256[:8] + imageExtension(image.Mime)
+		human.Avatar = name
+		human.AvatarSHA256 = image.SHA256
+		human.AvatarMime = image.Mime
+		humanAvatar = targetFile{path: "profile/" + name, data: image.Bytes}
+	}
 	profile := profileJSONV2{
 		SchemaVersion: 2, Agent: agent,
-		Human:     profileHumanJSON{Name: d.HumanName, BioMarkdown: d.HumanBioMarkdown},
+		Human:     human,
 		UpdatedAt: now.UTC().Format(time.RFC3339),
 	}
 	profileRaw, err := json.MarshalIndent(profile, "", "  ")
@@ -624,6 +663,9 @@ func (c *Coordinator) buildProfileTargets(ctx context.Context, d storage.PublicD
 	files := []targetFile{}
 	if avatar.data != nil {
 		files = append(files, avatar)
+	}
+	if humanAvatar.data != nil {
+		files = append(files, humanAvatar)
 	}
 	files = append(files, targetFile{path: "profile/index.md", data: []byte(index.String())})
 	// Only mirror agent-card.json when it already exists; never create a new
@@ -777,16 +819,22 @@ func (c *Coordinator) buildPostTargets(ctx context.Context, d storage.PublicDraf
 }
 
 type oldRefs struct {
-	images map[string]struct{}
-	avatar string
+	images      map[string]struct{}
+	avatar      string
+	humanAvatar string
 }
 
 func (c *Coordinator) readOldRefsLocked(profile bool, d storage.PublicDraft, existingPath string) oldRefs {
 	refs := oldRefs{images: map[string]struct{}{}}
 	if profile {
 		var old profileJSONV2
-		if c.readPublicJSONLocked("profile/profile.json", metadataMaxBytes, &old) && old.Agent.Avatar != "" {
-			refs.avatar = "profile/" + path.Base(old.Agent.Avatar)
+		if c.readPublicJSONLocked("profile/profile.json", metadataMaxBytes, &old) {
+			if old.Agent.Avatar != "" {
+				refs.avatar = "profile/" + path.Base(old.Agent.Avatar)
+			}
+			if old.Human.Avatar != "" {
+				refs.humanAvatar = "profile/" + path.Base(old.Human.Avatar)
+			}
 		}
 		return refs
 	}
@@ -812,15 +860,26 @@ func (c *Coordinator) cleanupOldLocked(profile bool, files []targetFile, refs ol
 			postImageDir = path.Join(path.Dir(f.path), "images") + "/"
 		}
 	}
+	if profile {
+		// Remove only avatar files that the previous profile.json actually
+		// referenced and this publish no longer uses. A same-prefix file that
+		// was not managed by this feature must never be deleted.
+		for _, rel := range []string{refs.avatar, refs.humanAvatar} {
+			if rel == "" {
+				continue
+			}
+			if _, keep := newPaths[rel]; keep {
+				continue
+			}
+			if err := c.content.RemovePublicFileLocked(rel); err != nil {
+				warnings = append(warnings, "旧文件清理失败："+path.Base(rel))
+			}
+		}
+		return warnings
+	}
 	for _, e := range snap.Entries {
 		remove := false
-		if profile {
-			if strings.HasPrefix(e.Path, "profile/avatar-") && e.Path != refs.avatar {
-				if _, keep := newPaths[e.Path]; !keep {
-					remove = true
-				}
-			}
-		} else if postImageDir != "" && strings.HasPrefix(e.Path, postImageDir) {
+		if postImageDir != "" && strings.HasPrefix(e.Path, postImageDir) {
 			if _, old := refs.images[e.Path]; !old {
 				if _, keep := newPaths[e.Path]; !keep {
 					remove = true

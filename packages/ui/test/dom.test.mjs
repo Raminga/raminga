@@ -492,3 +492,55 @@ test('the contact re-check keeps its focus while busy and moves to 查看联系�
     ui.close();
   }
 });
+
+test('viewing a newly added contact leaves the unread filter and focuses its row', async () => {
+  const PEER_NEW = '12D3KooWQ9ZmTDyCK5A1npdydkdYAnrn4cMhBQ9AwaE4MvABrUBe';
+  const ui = mountUi({
+    onConnect: async () => ({
+      ok: true,
+      peerId: PEER_NEW,
+      route: 'direct',
+      transport: 'tcp',
+      reused: false,
+      contact: { ok: true, found: true },
+      status: { ok: true },
+      contacts: contacts([
+        friend(PEER_A, { name: 'Has unread', unreadCount: 2 }),
+        friend(PEER_NEW, { name: 'New peer' }),
+      ]),
+    }),
+  });
+  try {
+    ui.app.setContacts(contacts([
+      friend(PEER_A, { name: 'Has unread', unreadCount: 2 }),
+    ]));
+    ui.shadow.querySelector('[data-contact-filter="unread"]').click();
+    assert.equal(ui.list.querySelector(`button[data-contact-peer="${PEER_A}"]`) !== null, true);
+    assert.equal(ui.list.querySelector(`button[data-contact-peer="${PEER_NEW}"]`), null);
+
+    ui.addTrigger.click();
+    ui.addInput.value = `/ip4/127.0.0.1/tcp/1/p2p/${PEER_NEW}`;
+    ui.addSubmit.click();
+    await settle();
+    assert.equal(ui.addView.hidden, false);
+    ui.addView.click();
+    await settle();
+
+    assert.equal(ui.addDialog.open, false);
+    assert.equal(ui.shadow.querySelector('[data-contact-filter="all"]').getAttribute('aria-pressed'), 'true');
+    const row = ui.list.querySelector(`button[data-contact-peer="${PEER_NEW}"]`);
+    assert.ok(row, 'the new contact is visible after the explicit jump');
+    assert.equal(ui.active(), row, 'the new contact row receives focus');
+    assert.equal(ui.shadow.querySelector('#contactQuery').value, '');
+
+    // Ordinary filter switching still uses the chosen filter, not a sticky
+    // all-contacts override from the explicit jump.
+    ui.shadow.querySelector('[data-contact-filter="unread"]').click();
+    assert.equal(ui.list.querySelector(`button[data-contact-peer="${PEER_NEW}"]`), null);
+    assert.ok(ui.list.querySelector(`button[data-contact-peer="${PEER_A}"]`));
+    ui.shadow.querySelector('[data-contact-filter="all"]').click();
+    assert.ok(ui.list.querySelector(`button[data-contact-peer="${PEER_NEW}"]`));
+  } finally {
+    ui.close();
+  }
+});

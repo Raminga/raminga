@@ -93,6 +93,12 @@ type Node struct {
 	friendsWG       sync.WaitGroup
 	friendsSyncedAt atomic.Int64
 
+	// bootstrapMu serializes bootstrap role persistence with the live DHT
+	// candidate-map update. It is never held across a network dial: add and
+	// remove apply the map change and hand any dial/refresh to the network in
+	// the background.
+	bootstrapMu sync.Mutex
+
 	stopOnce sync.Once
 	stopped  atomic.Bool
 }

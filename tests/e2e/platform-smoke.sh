@@ -68,8 +68,8 @@ run_tui_pty() {
 host_smoke() {
   echo "platform-smoke: macOS host (two real daemons + CLI + TUI pty)"
   local a="$tmp/host-a" b="$tmp/host-b"
-  "$bin" init --data-dir "$a" --listen /ip4/127.0.0.1/tcp/24101 --listen /ip4/127.0.0.1/udp/24101/quic-v1 >/dev/null
-  "$bin" init --data-dir "$b" --listen /ip4/127.0.0.1/tcp/24102 --listen /ip4/127.0.0.1/udp/24102/quic-v1 >/dev/null
+  "$bin" init --no-bootstrap-preset --data-dir "$a" --listen /ip4/127.0.0.1/tcp/24101 --listen /ip4/127.0.0.1/udp/24101/quic-v1 >/dev/null
+  "$bin" init --no-bootstrap-preset --data-dir "$b" --listen /ip4/127.0.0.1/tcp/24102 --listen /ip4/127.0.0.1/udp/24102/quic-v1 >/dev/null
   "$bin" daemon --data-dir "$a" --log-level error >"$tmp/host-a.log" 2>&1 &
   pids+=($!)
   "$bin" daemon --data-dir "$b" --log-level error >"$tmp/host-b.log" 2>&1 &
@@ -99,7 +99,7 @@ linux_smoke() {
   docker run --rm --entrypoint /bin/sh -v "$root/docs/schemas:/schemas:ro" "$image" -c '
     set -eu
     export RAMINGA_DATA_DIR=/tmp/smoke
-    raminga init --data-dir /tmp/smoke >/dev/null
+    raminga init --no-bootstrap-preset --data-dir /tmp/smoke >/dev/null
     raminga daemon --data-dir /tmp/smoke --log-level error >/tmp/daemon.log 2>&1 &
     pid=$!
     trap "kill $pid 2>/dev/null || true" EXIT

@@ -91,6 +91,7 @@
           <p class="rm-home-bio" id="homeAgentBio">正在读取 Agent 公开资料…</p>
           <p class="rm-home-profile-note" id="homeAgentProfileNote" hidden>
             <span id="homeAgentProfileNoteText"></span>
+            <button type="button" class="rm-link rm-home-profile-edit" id="homeAgentProfileRetry" hidden>重试读取</button>
             <button type="button" class="rm-link rm-home-profile-edit" id="homeAgentProfileEdit" data-settings-open data-settings-tab="public">编辑公开资料<span aria-hidden="true">→</span></button>
           </p>
           <div class="rm-home-tags" id="homeAgentInterests"></div>
@@ -103,6 +104,7 @@
 
       <section class="rm-home-human" id="home-human-strip" aria-labelledby="mineIdentityTitle">
         <div class="rm-home-human-mark" aria-hidden="true">
+          <img id="homeHumanAvatar" src="assets/raminga-mark-gradient.svg" alt="" hidden>
           <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>
         </div>
         <div class="rm-home-human-copy" id="mineIdentity">
@@ -342,6 +344,22 @@
         </section>
         <section class="rm-form-panel" aria-labelledby="settingsHumanHeading">
           <div class="rm-settings-panel-head"><h2 id="settingsHumanHeading">关联人类公开介绍</h2><span id="settingsHumanStatus">读取中</span></div>
+          <div class="rm-public-avatar-row">
+            <div class="rm-home-agent-avatar rm-public-avatar" id="publicHumanAvatarPreview" role="img" aria-label="关联人类头像预览">
+              <img src="assets/raminga-mark-gradient.svg" alt="关联人类公开头像">
+            </div>
+            <div class="rm-public-avatar-copy">
+              <b>关联人类头像</b>
+              <span class="rm-public-avatar-help">PNG 或 JPEG，≤4 MiB，单边 ≤4096。与 Agent 头像相互独立；没有头像时使用统一默认形象，不显示本机路径。</span>
+              <div class="rm-public-avatar-actions">
+                <label class="rm-secondary rm-file-label" for="publicHumanAvatarInput">选择头像
+                  <input type="file" id="publicHumanAvatarInput" accept="image/png,image/jpeg">
+                </label>
+                <button type="button" class="rm-quiet" id="publicHumanAvatarClear">移除头像</button>
+              </div>
+              <p class="rm-list-note" id="publicHumanAvatarNote" role="status" hidden></p>
+            </div>
+          </div>
           <label class="rm-field" for="publicHumanName"><span>人类名称</span>
             <input type="text" id="publicHumanName" maxlength="64" autocomplete="off" placeholder="例如 JO JO">
           </label>
@@ -376,6 +394,7 @@
           </div>
           <p class="rm-list-note" id="publicVersionNote" role="status">还没有公开版本。发布成功后会在这里保留当前公开内容。</p>
           <div class="rm-form-actions">
+            <button type="button" class="rm-secondary" id="publicVersionRetry" hidden>重试读取公开资料</button>
             <button type="button" class="rm-secondary" id="publicRestorePublished" disabled>恢复为公开版本</button>
           </div>
         </details>
@@ -629,7 +648,10 @@
         </div>
       </section>
       <section class="rm-home-human" id="profileHumanStrip" aria-labelledby="profileHumanHeading" hidden>
-        <div class="rm-home-human-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg></div>
+        <div class="rm-home-human-mark" id="profileHumanMark" aria-hidden="true">
+          <img id="profileHumanAvatar" src="assets/raminga-mark-gradient.svg" alt="" hidden>
+          <span class="rm-home-human-initial" id="profileHumanInitial">人</span>
+        </div>
         <div class="rm-home-human-copy">
           <h3 id="profileHumanHeading"><span id="profileHumanHeadingLabel">公开资料</span><span id="profileHumanName"></span></h3>
           <p class="rm-home-human-bio" id="profileHumanSummary" hidden></p>
@@ -858,12 +880,25 @@
     <div><dt>实时更新</dt><dd id="statusSubscription">—</dd></div>
   </dl>
   <details class="rm-tech" id="statusBootstrap">
-    <summary>引导节点配置（只读）</summary>
+    <summary>引导节点（本机设置）</summary>
     <p class="rm-list-note" id="statusBootstrapNote" role="status">尚未读取</p>
-    <ul class="rm-address-list" id="statusBootstrapList"></ul>
+    <ul class="rm-address-list" id="statusBootstrapList" aria-label="已保存的引导节点"></ul>
+    <p class="rm-list-note" id="statusBootstrapFeedback" role="status" hidden></p>
+    <form class="rm-contact-form" id="statusBootstrapEdit" novalidate hidden>
+      <label class="rm-field" for="statusBootstrapInput">
+        <span>添加 Raminga 引导节点地址</span>
+        <input type="text" id="statusBootstrapInput" spellcheck="false" autocomplete="off" placeholder="例如 /ip4/…/tcp/…/p2p/12D3KooW…" aria-describedby="statusBootstrapInputHelp">
+      </label>
+      <p class="rm-field-note" id="statusBootstrapInputHelp">必须包含完整 /p2p/&lt;peer-id&gt;；只保存节点设置，不添加联系人或建立普通连接。</p>
+      <div class="rm-form-actions">
+        <button type="submit" class="rm-primary" id="statusBootstrapAdd">保存引导节点</button>
+      </div>
+    </form>
+    <p class="rm-list-note" id="statusBootstrapUpgrade" hidden>当前 daemon 版本较旧：只能查看引导节点配置。升级并重启节点后可在本页添加或移除。</p>
+    <p class="rm-list-note" id="statusBootstrapUnavailable" hidden>当前宿主没有提供引导节点管理。</p>
     <div class="rm-peer-node-actions">
-      <button type="button" class="rm-quiet" id="statusBootstrapCopy" disabled>复制引导节点列表</button>
-      <button type="button" class="rm-quiet" id="statusBootstrapRefresh">重新读取</button>
+      <button type="button" class="rm-quiet" id="statusBootstrapCopy" disabled>复制全部地址</button>
+      <button type="button" class="rm-quiet" id="statusBootstrapRefresh">刷新设置</button>
     </div>
   </details>
   <details class="rm-tech" id="statusTech">
@@ -878,7 +913,7 @@
     </dl>
     <ol class="rm-event-log" id="statusEventLog" aria-label="最近真实事件"></ol>
   </details>
-  <p class="rm-note">这里只显示本机节点。引导节点配置只读，修改请编辑本机 config.toml。</p>
+  <p class="rm-note">这里只显示本机节点。引导节点是 DHT 的普通节点设置，不是联系人；在线状态单独显示。</p>
   <div class="rm-dialog-actions">
     <button type="button" class="rm-primary" id="statusRefresh">刷新本机</button>
     <button type="button" class="rm-secondary" id="statusShareNode">分享本机信息</button>

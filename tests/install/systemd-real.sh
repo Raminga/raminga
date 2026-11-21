@@ -75,7 +75,7 @@ expect_install_failure() {
   esac
 }
 
-as_user "$root/raminga" init --data-dir "$data" --listen /ip4/127.0.0.1/tcp/0
+as_user "$root/raminga" init --no-bootstrap-preset --data-dir "$data" --listen /ip4/127.0.0.1/tcp/0
 setpriv --reuid="$(id -u "$account")" --regid="$(id -g "$account")" --init-groups \
   "$root/raminga" daemon --api-tcp --data-dir "$data" >"$root/old.log" 2>&1 &
 old_pid=$!

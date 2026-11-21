@@ -24,7 +24,7 @@ const binary = path.join(repoRoot, 'bin', 'raminga');
 const canRun = process.platform !== 'win32' && fs.existsSync(binary);
 
 function startNode(dir) {
-  const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   return spawn(binary, ['daemon', '--data-dir', dir], { stdio: 'ignore' });
 }

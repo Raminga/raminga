@@ -1296,3 +1296,270 @@ test('the composer enforces the daemon UTF-8 byte limit without discarding text'
     ui.close();
   }
 });
+
+test('a late failed send stays in its original conversation and never replaces another draft', async () => {
+  const results = [];
+  const requests = [];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([friend(PEER_A, { name: 'Alice' }), friend(PEER_B, { name: 'Bob' })]),
+    onLoadConversations: async () => conversations([]),
+    onLoadMessages: async (peerId) => page(peerId, []),
+    onSend: async (peerId, text, requestId) => {
+      requests.push({ peerId, text, requestId });
+      const pending = deferred();
+      results.push(pending);
+      return pending.promise;
+    },
+  });
+  const failed = (request, text) => ({
+    ok: true, unknown: false, invalid: false, peerId: request.peerId, requestId: request.requestId,
+    messageId: 'failed-out', replayed: false, acked: false, deliveryStatus: 'failed',
+    outboxStatus: 'failed', error: '远端拒绝', detail: null, at: Date.now(),
+  });
+  try {
+    ui.app.setContacts(contacts([friend(PEER_A, { name: 'Alice' }), friend(PEER_B, { name: 'Bob' })]));
+    ui.app.setConversations(conversations([]));
+    await settle();
+
+    // Send from Alice, then switch to an empty Bob composer before the failure
+    // returns. The old failure path wrote Alice's body into Bob's editor.
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_A}"]`).click();
+    await settle();
+    ui.messageInput.value = '只属于 Alice 的失败草稿';
+    ui.messageInput.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    ui.composer.dispatchEvent(new ui.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    assert.equal(requests.length, 1);
+    assert.equal(ui.messageInput.value, '');
+    ui.back.click();
+    await settle();
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_B}"]`).click();
+    await settle();
+    assert.equal(ui.messageInput.value, '');
+    results[0].resolve(failed(requests[0], '只属于 Alice 的失败草稿'));
+    await settle();
+    assert.equal(ui.messageInput.value, '', 'Bob never receives Alice failed text');
+    assert.equal(ui.app.getDraft(`chat:${PEER_A}`), '只属于 Alice 的失败草稿');
+    assert.equal(ui.app.getDraft(`chat:${PEER_B}`), '', 'Bob draft remains empty');
+    assert.doesNotMatch(ui.composerStatus.textContent, /发送失败|Alice/);
+
+    // Return to Alice, send a second body, then type a newer Bob draft before
+    // the result. The newer Bob draft must survive the late failure.
+    ui.back.click();
+    await settle();
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_A}"]`).click();
+    await settle();
+    assert.equal(ui.messageInput.value, '只属于 Alice 的失败草稿', 'Alice draft is restored in its own conversation');
+    ui.messageInput.value = 'Alice 的第二条失败草稿';
+    ui.messageInput.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    ui.composer.dispatchEvent(new ui.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    assert.equal(requests.length, 2);
+    ui.back.click();
+    await settle();
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_B}"]`).click();
+    await settle();
+    ui.messageInput.value = 'Bob 在等待期间的新草稿';
+    ui.messageInput.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    results[1].resolve(failed(requests[1], 'Alice 的第二条失败草稿'));
+    await settle();
+    assert.equal(ui.messageInput.value, 'Bob 在等待期间的新草稿');
+    assert.equal(ui.app.getDraft(`chat:${PEER_B}`), 'Bob 在等待期间的新草稿');
+    assert.equal(ui.app.getDraft(`chat:${PEER_A}`), 'Alice 的第二条失败草稿');
+  } finally {
+    ui.close();
+  }
+});
+
+test('a late successful send clears only its own draft while another conversation is visible', async () => {
+  const pending = deferred();
+  let request;
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([friend(PEER_A, { name: 'Alice' }), friend(PEER_B, { name: 'Bob' })]),
+    onLoadConversations: async () => conversations([]),
+    onLoadMessages: async (peerId) => page(peerId, []),
+    onSend: async (peerId, text, requestId) => {
+      request = { peerId, text, requestId };
+      return pending.promise;
+    },
+  });
+  try {
+    ui.app.setContacts(contacts([friend(PEER_A, { name: 'Alice' }), friend(PEER_B, { name: 'Bob' })]));
+    ui.app.setConversations(conversations([]));
+    await settle();
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_A}"]`).click();
+    await settle();
+    ui.messageInput.value = 'Alice 的待确认消息';
+    ui.messageInput.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    ui.composer.dispatchEvent(new ui.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    assert.ok(request);
+
+    ui.back.click();
+    await settle();
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_B}"]`).click();
+    await settle();
+    ui.messageInput.value = 'Bob 不受回执影响的草稿';
+    ui.messageInput.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+
+    pending.resolve({
+      ok: true, unknown: false, invalid: false, peerId: request.peerId, requestId: request.requestId,
+      messageId: 'acked-out', replayed: false, acked: true, deliveryStatus: 'acked',
+      outboxStatus: 'acked', error: null, detail: null, at: Date.now(),
+    });
+    await settle();
+    assert.equal(ui.messageInput.value, 'Bob 不受回执影响的草稿');
+    assert.equal(ui.app.getDraft(`chat:${PEER_B}`), 'Bob 不受回执影响的草稿');
+    assert.equal(ui.app.getDraft(`chat:${PEER_A}`), '', 'the acknowledged Alice body is cleared from Alice draft');
+
+    ui.back.click();
+    await settle();
+    ui.contactList.querySelector(`button[data-contact-peer="${PEER_A}"]`).click();
+    await settle();
+    assert.equal(ui.messageInput.value, '');
+    assert.match(ui.composerStatus.textContent, /协议已接收/);
+  } finally {
+    ui.close();
+  }
+});
+
+function localMine(overrides = {}) {
+  const agentSha = '6'.repeat(64);
+  const humanSha = '7'.repeat(64);
+  const agentPath = `profile/avatar-${agentSha.slice(0, 8)}.png`;
+  const humanPath = `profile/human-avatar-${humanSha.slice(0, 8)}.png`;
+  return {
+    at: Date.now(),
+    error: null,
+    freshness: 'live',
+    profile: { state: 'missing', markdown: '', displayName: '', error: '', path: 'profile/index.md', at: null },
+    publicProfile: {
+      state: 'available', error: '',
+      profile: {
+        schemaVersion: 2,
+        agentName: 'Nova', agentDescription: '', agentInterests: [], agentConversationStyle: '',
+        humanName: 'Alice', humanBioMarkdown: '',
+        avatarPath: agentPath, avatarSha256: agentSha, avatarMime: 'image/png',
+        humanAvatarPath: humanPath, humanAvatarSha256: humanSha, humanAvatarMime: 'image/png',
+        updatedAt: '2026-11-01T08:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+      },
+    },
+    agentCard: {
+      state: 'available', error: '',
+      card: {
+        schemaVersion: 1, displayName: 'Nova', description: '', interests: [], conversationStyle: '',
+        updatedAt: '2026-11-01T08:00:00Z', path: 'profile/profile.json', sha256: 'f'.repeat(64),
+        avatarPath: agentPath, avatarSha256: agentSha, avatarMime: 'image/png', legacyFallback: false,
+      },
+    },
+    files: [
+      { path: agentPath, sha256: agentSha, sizeBytes: 30, name: 'agent.png', modifiedAt: 0 },
+      { path: humanPath, sha256: humanSha, sizeBytes: 31, name: 'human.png', modifiedAt: 1 },
+    ],
+    ...overrides,
+  };
+}
+
+test('outbound chat identity uses only local human/Agent avatars while inbound stays neutral', async () => {
+  const rows = [
+    message('in-1', '对方消息', { direction: 'in', origin: 'unknown' }),
+    message('out-1', '本人第一条', { direction: 'out', origin: 'human', deliveryStatus: 'acked' }),
+    message('out-2', '本人第二条', { direction: 'out', origin: 'human', deliveryStatus: 'acked' }),
+    message('out-3', 'Agent 消息', { direction: 'out', origin: 'agent', deliveryStatus: 'acked' }),
+    message('out-4', '来源未知的消息', { direction: 'out', origin: 'unknown', deliveryStatus: 'acked' }),
+    message('in-2', '对方又说了一句', { direction: 'in', origin: 'human' }),
+  ];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([friend(PEER_A, { name: 'Alice' })]),
+    onLoadConversations: async () => conversations([]),
+    onLoadMessages: async (peerId) => page(peerId, rows),
+    onLoadMine: async () => localMine(),
+    onLoadMineFileContent: async (filePath) => {
+      if (filePath.includes('human-avatar')) {
+        return {
+          status: 'ok', kind: 'image', mime: 'image/png', sha256: '7'.repeat(64), sizeBytes: 31,
+          dataUrl: 'data:image/png;base64,aHVtYW4taWRlbnRpdHk=',
+        };
+      }
+      return {
+        status: 'ok', kind: 'image', mime: 'image/png', sha256: '6'.repeat(64), sizeBytes: 30,
+        dataUrl: 'data:image/png;base64,YWdlbnQtaWRlbnRpdHk=',
+      };
+    },
+  });
+  try {
+    ui.app.onLeaseReady();
+    ui.app.setContacts(contacts([friend(PEER_A, { name: 'Alice' })]));
+    ui.app.setConversations(conversations([]));
+    await settle();
+    ui.contactList.querySelector('button[data-contact-peer]').click();
+    await settle();
+    await frame();
+    const rendered = [...ui.messageList.querySelectorAll('.rm-message')];
+    assert.equal(rendered.length, 6);
+    const byId = Object.fromEntries(rendered.map((row) => [row.dataset.messageId, row]));
+
+    assert.equal(byId['in-1'].querySelector('.rm-message-identity'), null, 'inbound messages never get a peer identity image');
+    assert.equal(byId['in-2'].querySelector('.rm-message-identity'), null, 'an inbound human-origin row still stays neutral');
+    assert.equal(byId['out-1'].querySelector('.rm-message-identity').dataset.origin, 'human');
+    assert.equal(
+      byId['out-1'].querySelector('.rm-message-identity img').getAttribute('src'),
+      'data:image/png;base64,aHVtYW4taWRlbnRpdHk=',
+    );
+    assert.ok(byId['out-2'].querySelector('.rm-message-identity.is-spacer'), 'a repeated run keeps alignment without repeating the avatar');
+    assert.equal(
+      byId['out-3'].querySelector('.rm-message-identity img').getAttribute('src'),
+      'data:image/png;base64,YWdlbnQtaWRlbnRpdHk=',
+    );
+    assert.equal(byId['out-3'].querySelector('.rm-message-identity').dataset.origin, 'agent');
+    assert.equal(byId['out-4'].querySelector('.rm-message-identity').dataset.origin, 'unknown');
+    assert.equal(byId['out-4'].querySelector('.rm-message-identity img'), null);
+    assert.equal(byId['out-4'].querySelector('.rm-message-identity-initial').textContent, '?');
+
+    assert.deepEqual(
+      [...ui.messageList.querySelectorAll('.rm-message-origin')].map((node) => node.textContent),
+      ['对方', '对方', '本人', '本人', 'Agent', '来源未知'],
+      'source labels keep their existing wording',
+    );
+    assert.deepEqual(
+      [...ui.messageList.querySelectorAll('.rm-message[data-direction="out"] .rm-message-status')].map((node) => node.textContent),
+      ['协议已接收', '协议已接收', '协议已接收', '协议已接收'],
+      'delivery text is unchanged',
+    );
+  } finally {
+    ui.close();
+  }
+});
+
+test('outbound chat identity falls back to stable initials when local avatars are unavailable', async () => {
+  const rows = [
+    message('out-1', '本人消息', { direction: 'out', origin: 'human', deliveryStatus: 'acked' }),
+    message('out-2', 'Agent 消息', { direction: 'out', origin: 'agent', deliveryStatus: 'acked' }),
+  ];
+  const ui = mountUi({
+    onLoadContacts: async () => contacts([friend(PEER_A, { name: 'Alice' })]),
+    onLoadConversations: async () => conversations([]),
+    onLoadMessages: async (peerId) => page(peerId, rows),
+    onLoadMine: async () => localMine(),
+    onLoadMineFileContent: async () => ({ status: 'error', kind: 'image', mime: 'image/png', dataUrl: '' }),
+  });
+  try {
+    ui.app.onLeaseReady();
+    ui.app.setContacts(contacts([friend(PEER_A, { name: 'Alice' })]));
+    ui.app.setConversations(conversations([]));
+    await settle();
+    ui.contactList.querySelector('button[data-contact-peer]').click();
+    await settle();
+    await frame();
+    await frame();
+    const rendered = [...ui.messageList.querySelectorAll('.rm-message')];
+    const human = rendered.find((row) => row.dataset.messageId === 'out-1');
+    const agent = rendered.find((row) => row.dataset.messageId === 'out-2');
+    assert.equal(human.querySelector('.rm-message-identity img'), null);
+    assert.equal(human.querySelector('.rm-message-identity-initial').textContent, 'A', 'the human initial comes from the local public human name');
+    assert.equal(agent.querySelector('.rm-message-identity img'), null);
+    assert.equal(agent.querySelector('.rm-message-identity-initial').textContent, 'N', 'the Agent initial comes from the local public Agent name');
+  } finally {
+    ui.close();
+  }
+});

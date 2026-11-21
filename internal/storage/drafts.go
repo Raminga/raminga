@@ -45,6 +45,7 @@ type PublicDraft struct {
 	AgentConversationStyle string
 	HumanName              string
 	HumanBioMarkdown       string
+	HumanAvatarAssetID     string
 	AvatarAssetID          string
 	Title                  string
 	BodyMarkdown           string
@@ -130,7 +131,7 @@ func (s *Store) draftTx(ctx context.Context, q interface {
 }, id string) (PublicDraft, bool, error) {
 	row := q.QueryRowContext(ctx, `SELECT draft_id, kind, author_kind, revision,
 		agent_name, agent_description, agent_interests_json, agent_conversation_style,
-		human_name, human_bio_markdown, avatar_asset_id, title, body_markdown,
+		human_name, human_bio_markdown, human_avatar_asset_id, avatar_asset_id, title, body_markdown,
 		tags_json, image_asset_ids_json, published_path, published_sha256,
 		published_revision, created_at_ms, updated_at_ms
 		FROM public_drafts WHERE draft_id=?`, id)
@@ -139,7 +140,7 @@ func (s *Store) draftTx(ctx context.Context, q interface {
 	var created, updated int64
 	err := row.Scan(&d.DraftID, &d.Kind, &d.AuthorKind, &d.Revision,
 		&d.AgentName, &d.AgentDescription, &interests, &d.AgentConversationStyle,
-		&d.HumanName, &d.HumanBioMarkdown, &d.AvatarAssetID, &d.Title, &d.BodyMarkdown,
+		&d.HumanName, &d.HumanBioMarkdown, &d.HumanAvatarAssetID, &d.AvatarAssetID, &d.Title, &d.BodyMarkdown,
 		&tags, &images, &d.PublishedPath, &d.PublishedSHA256,
 		&d.PublishedRevision, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -167,7 +168,7 @@ func (s *Store) GetPublicDraft(ctx context.Context, id string) (PublicDraft, boo
 func (s *Store) FindPublicDraftByPublishedPath(ctx context.Context, rel string) (PublicDraft, bool, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT draft_id, kind, author_kind, revision,
 		agent_name, agent_description, agent_interests_json, agent_conversation_style,
-		human_name, human_bio_markdown, avatar_asset_id, title, body_markdown,
+		human_name, human_bio_markdown, human_avatar_asset_id, avatar_asset_id, title, body_markdown,
 		tags_json, image_asset_ids_json, published_path, published_sha256,
 		published_revision, created_at_ms, updated_at_ms
 		FROM public_drafts WHERE published_path=? AND kind=?
@@ -177,7 +178,7 @@ func (s *Store) FindPublicDraftByPublishedPath(ctx context.Context, rel string) 
 	var created, updated int64
 	err := row.Scan(&d.DraftID, &d.Kind, &d.AuthorKind, &d.Revision,
 		&d.AgentName, &d.AgentDescription, &interests, &d.AgentConversationStyle,
-		&d.HumanName, &d.HumanBioMarkdown, &d.AvatarAssetID, &d.Title, &d.BodyMarkdown,
+		&d.HumanName, &d.HumanBioMarkdown, &d.HumanAvatarAssetID, &d.AvatarAssetID, &d.Title, &d.BodyMarkdown,
 		&tags, &images, &d.PublishedPath, &d.PublishedSHA256,
 		&d.PublishedRevision, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -209,7 +210,7 @@ func (s *Store) ListPublicDrafts(ctx context.Context, kind, before string, limit
 	}
 	query := `SELECT draft_id, kind, author_kind, revision,
 		agent_name, agent_description, agent_interests_json, agent_conversation_style,
-		human_name, human_bio_markdown, avatar_asset_id, title, body_markdown,
+		human_name, human_bio_markdown, human_avatar_asset_id, avatar_asset_id, title, body_markdown,
 		tags_json, image_asset_ids_json, published_path, published_sha256,
 		published_revision, created_at_ms, updated_at_ms FROM public_drafts`
 	var args []any
@@ -243,7 +244,7 @@ func (s *Store) ListPublicDrafts(ctx context.Context, kind, before string, limit
 		var created, updated int64
 		if err := rows.Scan(&d.DraftID, &d.Kind, &d.AuthorKind, &d.Revision,
 			&d.AgentName, &d.AgentDescription, &interests, &d.AgentConversationStyle,
-			&d.HumanName, &d.HumanBioMarkdown, &d.AvatarAssetID, &d.Title, &d.BodyMarkdown,
+			&d.HumanName, &d.HumanBioMarkdown, &d.HumanAvatarAssetID, &d.AvatarAssetID, &d.Title, &d.BodyMarkdown,
 			&tags, &images, &d.PublishedPath, &d.PublishedSHA256,
 			&d.PublishedRevision, &created, &updated); err != nil {
 			return nil, false, fmt.Errorf("scan public draft: %w", err)
@@ -348,11 +349,11 @@ func (s *Store) CreatePublicDraft(ctx context.Context, d PublicDraft) (PublicDra
 	_, err = tx.ExecContext(ctx, `INSERT INTO public_drafts
 		(draft_id, kind, author_kind, revision, agent_name, agent_description,
 		 agent_interests_json, agent_conversation_style, human_name, human_bio_markdown,
-		 avatar_asset_id, title, body_markdown, tags_json, image_asset_ids_json,
+		 human_avatar_asset_id, avatar_asset_id, title, body_markdown, tags_json, image_asset_ids_json,
 		 published_path, published_sha256, published_revision, created_at_ms, updated_at_ms)
-		VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		d.DraftID, d.Kind, d.AuthorKind, d.AgentName, d.AgentDescription,
-		interests, d.AgentConversationStyle, d.HumanName, d.HumanBioMarkdown,
+		interests, d.AgentConversationStyle, d.HumanName, d.HumanBioMarkdown, d.HumanAvatarAssetID,
 		d.AvatarAssetID, d.Title, d.BodyMarkdown, tags, images,
 		d.PublishedPath, d.PublishedSHA256, d.PublishedRevision,
 		d.CreatedAt.UnixMilli(), d.UpdatedAt.UnixMilli())
@@ -409,11 +410,11 @@ func (s *Store) UpdatePublicDraft(ctx context.Context, d PublicDraft, expectedRe
 	res, err := tx.ExecContext(ctx, `UPDATE public_drafts SET
 		author_kind=?, revision=revision+1, agent_name=?, agent_description=?,
 		agent_interests_json=?, agent_conversation_style=?, human_name=?,
-		human_bio_markdown=?, avatar_asset_id=?, title=?, body_markdown=?,
+		human_bio_markdown=?, human_avatar_asset_id=?, avatar_asset_id=?, title=?, body_markdown=?,
 		tags_json=?, image_asset_ids_json=?, updated_at_ms=?
 		WHERE draft_id=? AND revision=?`,
 		d.AuthorKind, d.AgentName, d.AgentDescription, interests, d.AgentConversationStyle,
-		d.HumanName, d.HumanBioMarkdown, d.AvatarAssetID, d.Title, d.BodyMarkdown,
+		d.HumanName, d.HumanBioMarkdown, d.HumanAvatarAssetID, d.AvatarAssetID, d.Title, d.BodyMarkdown,
 		tags, images, now.UnixMilli(), d.DraftID, expectedRevision)
 	if err != nil {
 		return PublicDraft{}, fmt.Errorf("update draft: %w", err)
@@ -427,7 +428,7 @@ func (s *Store) UpdatePublicDraft(ctx context.Context, d PublicDraft, expectedRe
 	}
 	// Remove assets that are no longer referenced by this draft. Only this
 	// draft owns its asset rows.
-	keep := append([]string{d.AvatarAssetID}, d.ImageAssetIDs...)
+	keep := append([]string{d.HumanAvatarAssetID, d.AvatarAssetID}, d.ImageAssetIDs...)
 	if err := deleteUnreferencedAssetsTx(ctx, tx, d.DraftID, keep); err != nil {
 		return PublicDraft{}, err
 	}
@@ -497,7 +498,7 @@ func (s *Store) PutPublicDraftAsset(ctx context.Context, a PublicDraftAsset) (Pu
 	if !ValidateDraftID(a.DraftID) {
 		return PublicDraftAsset{}, fmt.Errorf("storage: invalid draft id")
 	}
-	if a.Role != "avatar" && a.Role != "image" {
+	if a.Role != "avatar" && a.Role != "human_avatar" && a.Role != "image" {
 		return PublicDraftAsset{}, fmt.Errorf("storage: invalid asset role")
 	}
 	if len(a.SHA256) != 64 {
@@ -538,13 +539,14 @@ func (s *Store) PutPublicDraftAsset(ctx context.Context, a PublicDraftAsset) (Pu
 	if total+int64(len(a.Bytes)) > MaxDraftImageBytes {
 		return PublicDraftAsset{}, ErrDraftAsset
 	}
-	if a.Role == "image" && count >= MaxDraftImageCount+1 {
-		// One avatar plus four images is the allowed shape.
+	if a.Role == "image" && count >= MaxDraftImageCount+2 {
+		// One Agent avatar, one human avatar and four images are the allowed
+		// shape. Replacing either avatar must not count as an extra image.
 		return PublicDraftAsset{}, ErrDraftAsset
 	}
-	if a.Role == "avatar" {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM public_draft_assets WHERE draft_id=? AND role='avatar'`, a.DraftID); err != nil {
-			return PublicDraftAsset{}, fmt.Errorf("replace draft avatar: %w", err)
+	if a.Role == "avatar" || a.Role == "human_avatar" {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM public_draft_assets WHERE draft_id=? AND role=?`, a.DraftID, a.Role); err != nil {
+			return PublicDraftAsset{}, fmt.Errorf("replace draft %s: %w", a.Role, err)
 		}
 	}
 	now := time.Now()

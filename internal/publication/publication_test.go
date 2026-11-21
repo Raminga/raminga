@@ -102,9 +102,13 @@ func TestProfileAndPostPublicationConflictAndIdempotency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	humanAvatar, err := c.PutDraftImage(ctx, draft.DraftID, "human_avatar", "human-avatar.png", pngBytes(t, 28, 28))
+	if err != nil {
+		t.Fatal(err)
+	}
 	draft, err = c.SaveDraft(ctx, DraftUpdate{
 		DraftID: "profile", Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
-		AvatarAssetID: avatar.AssetID,
+		AvatarAssetID: avatar.AssetID, HumanAvatarAssetID: humanAvatar.AssetID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -122,11 +126,17 @@ func TestProfileAndPostPublicationConflictAndIdempotency(t *testing.T) {
 	if err != nil || json.Unmarshal(raw, &profile) != nil {
 		t.Fatalf("read profile: %v %s", err, raw)
 	}
-	if profile.Agent.Name != "Nebula" || profile.Human.Name != "JO JO" || profile.Agent.Avatar == "" {
+	if profile.Agent.Name != "Nebula" || profile.Human.Name != "JO JO" || profile.Agent.Avatar == "" || profile.Human.Avatar == "" {
 		t.Fatalf("profile = %+v", profile)
+	}
+	if profile.Human.AvatarSHA256 == "" || profile.Human.AvatarMime != "image/png" || !strings.HasPrefix(profile.Human.Avatar, "human-avatar-") {
+		t.Fatalf("human avatar = %+v", profile.Human)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "public", "profile", profile.Agent.Avatar)); err != nil {
 		t.Fatalf("avatar missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "public", "profile", profile.Human.Avatar)); err != nil {
+		t.Fatalf("human avatar missing: %v", err)
 	}
 	index, _ := os.ReadFile(filepath.Join(dir, "public", "profile", "index.md"))
 	if !strings.Contains(string(index), "# JO JO") || !strings.Contains(string(index), "喜欢创造") {
@@ -668,5 +678,203 @@ func TestExternalMetadataChangeDuringResourceWriteConflicts(t *testing.T) {
 	newPath := filepath.Join(dir, "public", "posts", postIDForDraft(draft.DraftID), "images", hashBytes(pngBytes(t, 12, 12))+".png")
 	if _, err := os.Stat(newPath); !os.IsNotExist(err) {
 		t.Fatalf("new image from failed publish remains: %v", err)
+	}
+}
+
+func TestProfileAvatarCleanupKeepsIndependentImageAndUnmanagedFiles(t *testing.T) {
+	ctx := context.Background()
+	c, _, _, dir := newCoordinator(t)
+	fixed := time.Date(2026, 11, 21, 8, 0, 0, 0, time.UTC)
+	c.now = func() time.Time { return fixed }
+	draft, err := c.SaveDraft(ctx, DraftUpdate{
+		DraftID: "profile", Kind: storage.DraftKindProfile, ExpectedRevision: 0,
+		AgentName: strptr("Agent A"), HumanName: strptr("Human A"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := c.PutDraftImage(ctx, draft.DraftID, "avatar", "avatar.png", pngBytes(t, 20, 20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	human, err := c.PutDraftImage(ctx, draft.DraftID, "human_avatar", "human-avatar.png", pngBytes(t, 24, 24))
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err = c.SaveDraft(ctx, DraftUpdate{
+		DraftID: draft.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
+		AvatarAssetID: agent.AssetID, HumanAvatarAssetID: human.AssetID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := c.Publish(ctx, draft.DraftID, draft.Revision, "")
+	if err != nil || first.Status != StatusPublished {
+		t.Fatalf("first publish = %+v %v", first, err)
+	}
+	var firstProfile profileJSONV2
+	raw, _ := os.ReadFile(filepath.Join(dir, "public", "profile", "profile.json"))
+	if err := json.Unmarshal(raw, &firstProfile); err != nil {
+		t.Fatal(err)
+	}
+	// Files with the same prefixes but not referenced by profile.json are not
+	// managed by this feature and must survive cleanup.
+	unmanaged := []string{"profile/avatar-deadbeef.png", "profile/human-avatar-deadbeef.png"}
+	for _, rel := range unmanaged {
+		if err := os.WriteFile(filepath.Join(dir, "public", rel), []byte("not-managed"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	human2, err := c.PutDraftImage(ctx, draft.DraftID, "human_avatar", "human-avatar-2.png", pngBytes(t, 30, 30))
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err = c.SaveDraft(ctx, DraftUpdate{
+		DraftID: draft.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
+		ClearAvatar: true, HumanAvatarAssetID: human2.AssetID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := c.Publish(ctx, draft.DraftID, draft.Revision, first.CurrentPublishedSHA256)
+	if err != nil || second.Status != StatusPublished {
+		t.Fatalf("second publish = %+v %v", second, err)
+	}
+	var secondProfile profileJSONV2
+	raw, _ = os.ReadFile(filepath.Join(dir, "public", "profile", "profile.json"))
+	if err := json.Unmarshal(raw, &secondProfile); err != nil {
+		t.Fatal(err)
+	}
+	if secondProfile.Agent.Avatar != "" || secondProfile.Human.Avatar == "" {
+		t.Fatalf("second profile avatars = %+v", secondProfile)
+	}
+	for _, gone := range []string{"profile/" + firstProfile.Agent.Avatar, "profile/" + firstProfile.Human.Avatar} {
+		if _, err := os.Stat(filepath.Join(dir, "public", gone)); !os.IsNotExist(err) {
+			t.Fatalf("old managed avatar %s still exists (err=%v)", gone, err)
+		}
+	}
+	for _, keep := range append([]string{"profile/" + secondProfile.Human.Avatar}, unmanaged...) {
+		if _, err := os.Stat(filepath.Join(dir, "public", keep)); err != nil {
+			t.Fatalf("expected kept file %s: %v", keep, err)
+		}
+	}
+
+	// Removing the human image must not remove the unmanaged same-prefix file.
+	draft, err = c.SaveDraft(ctx, DraftUpdate{
+		DraftID: draft.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
+		ClearHumanAvatar: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	third, err := c.Publish(ctx, draft.DraftID, draft.Revision, second.CurrentPublishedSHA256)
+	if err != nil || third.Status != StatusPublished {
+		t.Fatalf("third publish = %+v %v", third, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "public", "profile", secondProfile.Human.Avatar)); !os.IsNotExist(err) {
+		t.Fatalf("removed human avatar still exists (err=%v)", err)
+	}
+	for _, keep := range unmanaged {
+		if _, err := os.Stat(filepath.Join(dir, "public", keep)); err != nil {
+			t.Fatalf("unmanaged file %s was removed: %v", keep, err)
+		}
+	}
+}
+
+func TestHumanAvatarOnlyProfilePublishesWithoutAgentAvatar(t *testing.T) {
+	ctx := context.Background()
+	c, _, _, dir := newCoordinator(t)
+	draft, err := c.SaveDraft(ctx, DraftUpdate{
+		DraftID: "profile", Kind: storage.DraftKindProfile, ExpectedRevision: 0,
+		HumanName: strptr("只发布人类头像"), HumanBio: strptr(""),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	human, err := c.PutDraftImage(ctx, draft.DraftID, "human_avatar", "human.png", pngBytes(t, 26, 26))
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err = c.SaveDraft(ctx, DraftUpdate{
+		DraftID: draft.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
+		HumanAvatarAssetID: human.AssetID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.Publish(ctx, draft.DraftID, draft.Revision, "")
+	if err != nil || res.Status != StatusPublished {
+		t.Fatalf("publish = %+v %v", res, err)
+	}
+	var profile profileJSONV2
+	raw, _ := os.ReadFile(filepath.Join(dir, "public", "profile", "profile.json"))
+	if err := json.Unmarshal(raw, &profile); err != nil {
+		t.Fatal(err)
+	}
+	if profile.Agent.Avatar != "" || profile.Human.Avatar == "" || profile.Human.Name != "只发布人类头像" {
+		t.Fatalf("profile = %+v", profile)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "public", "profile", profile.Human.Avatar)); err != nil {
+		t.Fatalf("human avatar file: %v", err)
+	}
+	found := false
+	for _, file := range res.Files {
+		if file.Path == "profile/"+profile.Human.Avatar {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("publish manifest does not include human avatar: %+v", res.Files)
+	}
+}
+
+func TestOldClientSavingUnrelatedProfileFieldsKeepsHumanAvatar(t *testing.T) {
+	ctx := context.Background()
+	c, _, _, _ := newCoordinator(t)
+	draft, err := c.SaveDraft(ctx, DraftUpdate{
+		DraftID: "profile", Kind: storage.DraftKindProfile, ExpectedRevision: 0,
+		AgentName: strptr("Nova"), HumanName: strptr("JO JO"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	human, err := c.PutDraftImage(ctx, draft.DraftID, "human_avatar", "human.png", pngBytes(t, 18, 18))
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err = c.SaveDraft(ctx, DraftUpdate{
+		DraftID: draft.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
+		HumanAvatarAssetID: human.AssetID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// This is what an older client does: write a text field it knows about,
+	// leaving the optional human-avatar field unset.
+	updated, err := c.SaveDraft(ctx, DraftUpdate{
+		DraftID: draft.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: draft.Revision,
+		AgentDescription: strptr("新简介"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.HumanAvatarAssetID != human.AssetID || updated.AgentDescription != "新简介" {
+		t.Fatalf("old-client update cleared human avatar: %+v", updated)
+	}
+	if _, found, _ := c.store.GetPublicDraftAsset(ctx, draft.DraftID, human.AssetID); !found {
+		t.Fatal("old-client update deleted the human avatar asset")
+	}
+	cleared, err := c.SaveDraft(ctx, DraftUpdate{
+		DraftID: updated.DraftID, Kind: storage.DraftKindProfile, ExpectedRevision: updated.Revision,
+		ClearHumanAvatar: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.HumanAvatarAssetID != "" {
+		t.Fatalf("explicit clear kept human avatar: %+v", cleared)
+	}
+	if _, found, _ := c.store.GetPublicDraftAsset(ctx, draft.DraftID, human.AssetID); found {
+		t.Fatal("explicit clear left unreferenced human avatar asset")
 	}
 }

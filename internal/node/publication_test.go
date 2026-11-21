@@ -51,8 +51,13 @@ func TestPublishedProfileAndPostAreReadableBySecondNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	humanAvatar, err := b.node.PutPublicDraftImage(ctx, profile.DraftID, "human_avatar", "human-avatar.png", testPNG(t, 28, 28))
+	if err != nil {
+		t.Fatal(err)
+	}
 	profile, err = b.node.SavePublicDraft(ctx, node.DraftUpdate{
-		DraftID: "profile", Kind: "profile", ExpectedRevision: profile.Revision, AvatarAssetID: avatar.AssetID,
+		DraftID: "profile", Kind: "profile", ExpectedRevision: profile.Revision,
+		AvatarAssetID: avatar.AssetID, HumanAvatarAssetID: humanAvatar.AssetID,
 		AgentName: ptr("Nebula"), AgentDescription: ptr("喜欢星空"),
 		AgentInterests: []string{"天文", "独立游戏"}, AgentStyle: ptr("好奇而温和"),
 		HumanName: ptr("JO JO"), HumanBio: ptr("喜欢创造有趣的东西"),
@@ -108,6 +113,9 @@ func TestPublishedProfileAndPostAreReadableBySecondNode(t *testing.T) {
 	if !strings.HasPrefix(remote.Profile.AvatarPath, "profile/avatar-") || remote.Profile.AvatarSHA256 == "" {
 		t.Fatalf("avatar = %+v", remote.Profile)
 	}
+	if !strings.HasPrefix(remote.Profile.HumanAvatarPath, "profile/human-avatar-") || remote.Profile.HumanAvatarSHA256 == "" || remote.Profile.HumanAvatarMime != "image/png" {
+		t.Fatalf("human avatar = %+v", remote.Profile)
+	}
 
 	manifest, err := a.node.FetchManifest(ctx, b.status(t).PeerID, 0, content.MaxManifestLimit)
 	if err != nil {
@@ -117,7 +125,7 @@ func TestPublishedProfileAndPostAreReadableBySecondNode(t *testing.T) {
 	for _, entry := range manifest.Entries {
 		paths[entry.Path] = entry
 	}
-	for _, want := range []string{"profile/profile.json", "profile/index.md", remote.Profile.AvatarPath, postres.PostPath} {
+	for _, want := range []string{"profile/profile.json", "profile/index.md", remote.Profile.AvatarPath, remote.Profile.HumanAvatarPath, postres.PostPath} {
 		if _, ok := paths[want]; !ok {
 			t.Fatalf("manifest missing %s: %+v", want, paths)
 		}
@@ -206,5 +214,30 @@ func writePublicFile(t *testing.T, n *testNode, rel, body string) {
 	}
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPublicProfileV2WithoutHumanAvatarStillReads(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	a := newTestNode(t, t.TempDir())
+	b := newTestNode(t, t.TempDir())
+	if _, err := a.node.Connect(ctx, "", tcpMultiaddr(t, b.status(t))); err != nil {
+		t.Fatal(err)
+	}
+	writePublicFile(t, b, "profile/index.md", "# Old Human\n\n旧版 v2 人类介绍。")
+	writePublicFile(t, b, "profile/profile.json", `{"schema_version":2,"agent":{"name":"Old Agent","description":"旧 v2 Agent","interests":["旧兴趣"],"conversation_style":"温和"},"human":{"name":"Old Human","bio_markdown":"旧版 v2 人类介绍。"},"updated_at":"2026-11-18T00:00:00Z"}`)
+	p, err := a.node.ViewProfile(ctx, b.status(t).PeerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Found || p.Profile.AgentName != "Old Agent" || p.Profile.HumanName != "Old Human" {
+		t.Fatalf("v2 profile = %+v", p.Profile)
+	}
+	if p.Profile.HumanAvatarPath != "" || p.Profile.HumanAvatarSHA256 != "" || p.Profile.HumanAvatarMime != "" {
+		t.Fatalf("old v2 profile invented a human avatar: %+v", p.Profile)
+	}
+	if p.Profile.AvatarPath != "" {
+		t.Fatalf("old v2 profile invented an agent avatar: %+v", p.Profile)
 	}
 }

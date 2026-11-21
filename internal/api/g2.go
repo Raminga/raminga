@@ -284,3 +284,58 @@ func resourceToProto(st node.ResourceStatus) *apiv1.ResourceStatus {
 		HeapAllocBytes:  st.HeapAllocBytes,
 	}
 }
+
+// ListBootstrapPeers implements the normal, token-authenticated bootstrap role
+// list RPC. It never dials and never claims online from saved state.
+func (s *Server) ListBootstrapPeers(ctx context.Context, _ *connect.Request[apiv1.ListBootstrapPeersRequest]) (*connect.Response[apiv1.ListBootstrapPeersResponse], error) {
+	peers, err := s.backend.BootstrapPeers(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	resp := &apiv1.ListBootstrapPeersResponse{Peers: make([]*apiv1.BootstrapPeer, 0, len(peers))}
+	for _, peer := range peers {
+		resp.Peers = append(resp.Peers, bootstrapPeerToProto(peer))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// AddBootstrapPeer implements the local authenticated setting write. A saved
+// role is not a contact, does not publish, and does not imply connectivity.
+func (s *Server) AddBootstrapPeer(ctx context.Context, req *connect.Request[apiv1.AddBootstrapPeerRequest]) (*connect.Response[apiv1.AddBootstrapPeerResponse], error) {
+	raw := req.Msg.GetMultiaddr()
+	if strings.TrimSpace(raw) == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("multiaddr is required"))
+	}
+	peer, added, err := s.backend.AddBootstrapPeer(ctx, raw)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&apiv1.AddBootstrapPeerResponse{Peer: bootstrapPeerToProto(peer), Added: added}), nil
+}
+
+// RemoveBootstrapPeer implements the local authenticated setting write. Missing
+// roles are idempotent no-ops; addresses, contacts and pause state remain.
+func (s *Server) RemoveBootstrapPeer(ctx context.Context, req *connect.Request[apiv1.RemoveBootstrapPeerRequest]) (*connect.Response[apiv1.RemoveBootstrapPeerResponse], error) {
+	peerID := strings.TrimSpace(req.Msg.GetPeerId())
+	if peerID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("peer_id is required"))
+	}
+	removed, err := s.backend.RemoveBootstrapPeer(ctx, peerID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&apiv1.RemoveBootstrapPeerResponse{Removed: removed}), nil
+}
+
+func bootstrapPeerToProto(peer node.BootstrapPeer) *apiv1.BootstrapPeer {
+	out := &apiv1.BootstrapPeer{
+		PeerId: peer.PeerID,
+		Addrs:  peer.Addrs,
+		Online: peer.Online,
+		Paused: peer.Paused,
+	}
+	if !peer.SavedAt.IsZero() {
+		out.SavedAtUnixMs = peer.SavedAt.UnixMilli()
+	}
+	return out
+}

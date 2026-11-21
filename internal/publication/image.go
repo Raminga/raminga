@@ -48,7 +48,8 @@ func imageError(code, format string, args ...any) *ImageError {
 // and JPEG are accepted; SVG/GIF/WebP are intentionally rejected in P2.
 func ValidateImage(data []byte, role, filename string) (ValidatedImage, error) {
 	maxBytes, maxSide, maxPixels := int64(imageMaxBytes), imageMaxSide, imageMaxPixels
-	if role == "avatar" {
+	isAvatar := role == "avatar" || role == "human_avatar"
+	if isAvatar {
 		maxBytes, maxSide, maxPixels = avatarMaxBytes, avatarMaxSide, avatarMaxPixels
 	}
 	if int64(len(data)) == 0 {
@@ -90,7 +91,7 @@ func ValidateImage(data []byte, role, filename string) (ValidatedImage, error) {
 	}
 	var out bytes.Buffer
 	var mime string
-	if role == "avatar" || format == "png" {
+	if isAvatar || format == "png" {
 		encoder := png.Encoder{CompressionLevel: png.BestCompression}
 		if err := encoder.Encode(&out, decoded); err != nil {
 			return ValidatedImage{}, imageError("image_decode", "图片重编码失败：%s", err)

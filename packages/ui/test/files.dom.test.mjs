@@ -263,7 +263,7 @@ test('Mine lists every public file, including Agent-authored and non-post format
   }
 });
 
-test('status dialog owns local share and read-only bootstrap configuration', async () => {
+test('status dialog owns local share and bootstrap configuration view', async () => {
   let shares = 0;
   let copied = '';
   const bootstrapPeers = [`/ip4/127.0.0.1/tcp/4001/p2p/${PEER_B}`];
@@ -281,7 +281,7 @@ test('status dialog owns local share and read-only bootstrap configuration', asy
     await settle();
     assert.equal(ui.shadow.querySelector('#statusDialog').open, true);
     assert.equal(ui.shadow.querySelector('#shareNode'), null, 'share entry moved out of Mine');
-    assert.match(ui.text('#statusBootstrapNote'), /没有引导节点|只读配置/);
+    assert.match(ui.text('#statusBootstrapNote'), /已保存 1 个引导节点|尚未配置/);
     ui.click('#statusBootstrapRefresh');
     await settle();
     assert.match(ui.text('#statusBootstrapList'), /127\.0\.0\.1/);

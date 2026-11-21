@@ -723,8 +723,30 @@
 .rm-message { display: flex; flex-direction: column; align-items: flex-start; max-width: min(78%, 520px); min-width: 0; }
 .rm-message:focus-visible { outline: 2px solid #b6a6ff; outline-offset: 3px; border-radius: 10px; }
 .rm-message[data-direction="out"] { align-self: flex-end; align-items: flex-end; }
+.rm-message-line { display: flex; align-items: flex-end; gap: 6px; min-width: 0; max-width: 100%; }
+.rm-message[data-direction="out"] .rm-message-line { flex-direction: row-reverse; }
+.rm-message-identity {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border: 1px solid #e7dcfb;
+  border-radius: 50%;
+  background: #f1ecfb;
+  color: #6a52a3;
+  font-size: 10px;
+  font-weight: 700;
+}
+.rm-message-identity[data-origin="human"] { background: #f7f1ff; color: #644693; }
+.rm-message-identity[data-origin="agent"] { background: #efe8ff; color: #5d4b9b; }
+.rm-message-identity[data-origin="unknown"] { border-color: #e7e4dc; background: #f3f2ee; color: #6b655c; }
+.rm-message-identity.is-spacer { border: 0; background: transparent; visibility: hidden; }
+.rm-message-identity-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .rm-message-bubble {
   width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--rm-line);
   border-radius: 13px 13px 13px 4px;
@@ -736,6 +758,7 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.rm-message-line .rm-message-bubble { flex: 1 1 auto; width: auto; }
 .rm-message[data-direction="out"] .rm-message-bubble {
   border-color: #d9cffb;
   border-radius: 13px 13px 4px 13px;
@@ -1863,6 +1886,18 @@
 .rm-address-meta[data-reachability='unverified'] { color: #8a3b3b; }
 .rm-peer-node-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rm-peer-node-actions .rm-list-note { margin: 0; }
+.rm-bootstrap-item { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.rm-bootstrap-copy { display: grid; gap: 3px; min-width: 0; }
+.rm-bootstrap-copy code { overflow-wrap: anywhere; }
+.rm-bootstrap-state { color: var(--rm-muted, #66667a); font-size: 11px; }
+.rm-bootstrap-state[data-state='online'] { color: #1e7a58; }
+.rm-bootstrap-state[data-state='paused'] { color: #8a5a12; }
+.rm-bootstrap-item > .rm-quiet { align-self: center; }
+#statusBootstrap[data-busy='true'] { cursor: progress; }
+@media (max-width: 700px) {
+  .rm-bootstrap-item { grid-template-columns: minmax(0, 1fr); }
+  .rm-bootstrap-item > .rm-quiet { justify-self: start; }
+}
 @media (max-width: 700px) {
   .rm-html-frame { height: 380px; }
   .rm-file-media { max-height: 360px; }
@@ -2010,8 +2045,10 @@
 .rm-home-hero-edit svg { width: 19px; height: 19px; }
 .rm-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--rm-action); font-size: 13px; cursor: pointer; }
 .rm-home-human { display: flex; align-items: center; gap: 13px; padding: 17px 23px; margin-top: 14px; border: 1px solid var(--rm-line); border-radius: 15px; background: #fcfaffbf; }
-.rm-home-human-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 11px; background: #f0eaff; color: var(--rm-purple); }
+.rm-home-human-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; overflow: hidden; border-radius: 11px; background: #f0eaff; color: var(--rm-purple); }
 .rm-home-human-mark svg { width: 19px; height: 19px; }
+.rm-home-human-mark img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.rm-home-human-initial { font-size: 14px; font-weight: 700; line-height: 1; }
 .rm-home-human-copy { flex: 1; min-width: 0; }
 .rm-home-human-copy h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .rm-home-human-copy > p { margin: 2px 0 0; color: #82728f; font-size: 12px; line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -2442,6 +2479,8 @@
 @media (max-width: 430px) {
   .rm-home-human > .rm-link { display: none; }
   .rm-home-hero { padding-inline: 19px; }
+  .rm-message-identity { width: 20px; height: 20px; font-size: 9px; }
+  .rm-message-line { gap: 5px; }
 }
 .rm-post-author-badge { align-self: flex-start; display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 6px; background: #f3efff; color: #6845ed; font-size: 10px; line-height: 1.6; white-space: nowrap; }
 .rm-post-author-badge[data-kind="agent"] { background: #e8fbf5; color: #13795c; }

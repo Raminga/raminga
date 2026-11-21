@@ -35,6 +35,8 @@ archives:
         strip_parent: true
       - src: scripts/install.ps1
         strip_parent: true
+      - src: internal/config/bootstrap-preset.toml
+        strip_parent: true
       - src: LICENSE
         strip_parent: true
       - src: README.md

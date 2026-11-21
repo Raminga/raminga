@@ -51,6 +51,7 @@ const filenameCodec = codec('@raminga/dsh#UiFileName');
 const imageDataCodec = codec('@raminga/dsh#UiImageBase64');
 const revisionCodec = codec('@raminga/dsh#UiDraftRevision');
 const publishedShaCodec = codec('@raminga/dsh#UiPublishedSha256');
+const bootstrapMultiaddrCodec = codec('@raminga/dsh#UiBootstrapMultiaddr');
 const titleCodec = codec('@raminga/dsh#UiFavoriteTitle');
 const contactInputCodec = codec('@raminga/dsh#UiContactImpressionSave');
 const operationIdCodec = codec('@raminga/dsh#UiOperationId');
@@ -60,6 +61,7 @@ const PARAMS = {
     session: { name: 'sessionId', wire: 'sessionId', codec: sessionIdCodec },
     boolean: { name: 'force', wire: 'force', codec: booleanCodec },
     familiar: { name: 'familiar', wire: 'familiar', codec: booleanCodec },
+    bootstrapMultiaddr: { name: 'multiaddr', wire: 'multiaddr', codec: bootstrapMultiaddrCodec },
     connectInput: { name: 'input', wire: 'input', codec: connectInputCodec },
     peerId: { name: 'peerId', wire: 'peerId', codec: peerIdCodec },
     before: { name: 'before', wire: 'before', codec: beforeCodec },
@@ -138,6 +140,8 @@ export const UI_INVOCATIONS = [
     invocation('revealDiscovery', ['session', 'contentId'], 'UiRevealResult'),
     invocation('revealFile', ['session', 'subject', 'peerId', 'filePath', 'sha256', 'size'], 'UiRevealResult'),
     invocation('bootstrap', ['session'], 'UiBootstrapInfo'),
+    invocation('addBootstrap', ['session', 'bootstrapMultiaddr'], 'UiBootstrapEdit'),
+    invocation('removeBootstrap', ['session', 'peerId'], 'UiBootstrapEdit'),
     invocation('journey', ['session', 'boolean'], 'UiJourney'),
     invocation('activity', ['session', 'limit'], 'UiActivity'),
     invocation('activityDetail', ['operationId'], 'UiActivityDetail'),

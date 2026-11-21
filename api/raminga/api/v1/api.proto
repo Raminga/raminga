@@ -73,6 +73,18 @@ service RamingaService {
   // DhtAddPeer manually adds one Raminga peer multiaddr to the PeerStore/cache.
   rpc DhtAddPeer(DhtAddPeerRequest) returns (DhtAddPeerResponse);
 
+  // ListBootstrapPeers returns the saved DHT bootstrap roles. Adding or
+  // removing one is a local node setting, not a contact or chat action.
+  rpc ListBootstrapPeers(ListBootstrapPeersRequest) returns (ListBootstrapPeersResponse);
+
+  // AddBootstrapPeer saves one explicit Raminga bootstrap address and applies
+  // it to the live DHT. Persistence is the receipt; connectivity is separate.
+  rpc AddBootstrapPeer(AddBootstrapPeerRequest) returns (AddBootstrapPeerResponse);
+
+  // RemoveBootstrapPeer removes only the bootstrap role. Peer addresses,
+  // contact history, other roles and the explicit disconnect pause remain.
+  rpc RemoveBootstrapPeer(RemoveBootstrapPeerRequest) returns (RemoveBootstrapPeerResponse);
+
   // DhtFindPeer performs a real Raminga DHT lookup.
   rpc DhtFindPeer(DhtFindPeerRequest) returns (DhtFindPeerResponse);
 
@@ -1058,7 +1070,9 @@ message DHTStatus {
   // protocol is /raminga/kad/1.0.0.
   string protocol = 3;
 
-  // bootstrap_peers are explicit Raminga bootstrap peers only.
+  // bootstrap_peers are the live saved Raminga bootstrap addresses. Paused
+  // peers are kept in the setting but are not dialed. Online state is not
+  // implied by this list.
   repeated string bootstrap_peers = 4;
 
   // public_bootstrap_configured is always false.
@@ -1259,6 +1273,62 @@ message DhtAddPeerRequest {
 message DhtAddPeerResponse {
   // peer is the added peer.
   DhtPeer peer = 1;
+}
+
+// BootstrapPeer is one ordinary peer record carrying the bootstrap role.
+message BootstrapPeer {
+  // peer_id is the canonical remote Peer ID.
+  string peer_id = 1;
+
+  // addrs are stored peer-cache addresses. They are hints, not an online
+  // claim. The same Peer may have more than one address.
+  repeated string addrs = 2;
+
+  // online is true only for a current live connection.
+  bool online = 3;
+
+  // paused is the existing explicit-disconnect state. Saving/removing the
+  // bootstrap role never clears or sets it.
+  bool paused = 4;
+
+  // saved_at_unix_ms is when this role was first stored.
+  int64 saved_at_unix_ms = 5;
+}
+
+// ListBootstrapPeersRequest has no fields.
+message ListBootstrapPeersRequest {}
+
+// ListBootstrapPeersResponse contains saved bootstrap roles.
+message ListBootstrapPeersResponse {
+  // peers are saved roles in stable order. An empty list is a normal
+  // "not configured" state, distinct from a read failure.
+  repeated BootstrapPeer peers = 1;
+}
+
+// AddBootstrapPeerRequest saves one address. The daemon requires a canonical
+// multiaddr including /p2p/<peer-id> and only applies it as a node setting.
+message AddBootstrapPeerRequest {
+  // multiaddr is the complete address to save.
+  string multiaddr = 1;
+}
+
+// AddBootstrapPeerResponse reports the saved role and whether the list
+// changed. A repeated identical add is idempotent (added=false).
+message AddBootstrapPeerResponse {
+  BootstrapPeer peer = 1;
+  bool added = 2;
+}
+
+// RemoveBootstrapPeerRequest names the role to remove.
+message RemoveBootstrapPeerRequest {
+  // peer_id is the remote Peer ID.
+  string peer_id = 1;
+}
+
+// RemoveBootstrapPeerResponse reports role removal. A missing role is an
+// idempotent no-op (removed=false).
+message RemoveBootstrapPeerResponse {
+  bool removed = 1;
 }
 
 // DhtFindPeerRequest asks for a DHT lookup.
@@ -1496,6 +1566,11 @@ message PublicProfile {
   bool legacy_fallback = 11;
   // warning is bounded; it never contains a local absolute path.
   string warning = 12;
+  // human_avatar_* describe the linked human's optional public avatar. They
+  // are empty for older profiles that only have an Agent avatar.
+  string human_avatar_path = 13;
+  string human_avatar_sha256 = 14;
+  string human_avatar_mime = 15;
 }
 
 message PublicDraftImage {
@@ -1528,6 +1603,7 @@ message PublicDraft {
   int64 created_at_unix_ms = 18;
   int64 updated_at_unix_ms = 19;
   string author_kind = 20;                // "user" | "agent"；profile 忽略
+  PublicDraftImage human_avatar = 21;     // 关联人类头像；与 Agent 头像独立
 }
 
 message GetPublicDraftRequest { string draft_id = 1; }
@@ -1564,6 +1640,11 @@ message SavePublicDraftRequest {
   repeated string image_asset_ids = 14;   // 整体替换；空表示清空
   bool clear_avatar = 15;
   optional string author_kind = 16;       // post 必填；"user" | "agent"；profile 忽略
+  // human_avatar_asset_id is an optional field: an old client that does not
+  // know about human avatars leaves it unset and the saved value is preserved.
+  // clear_human_avatar explicitly removes only the human avatar.
+  optional string human_avatar_asset_id = 17;
+  bool clear_human_avatar = 18;
 }
 message SavePublicDraftResponse { PublicDraft draft = 1; }
 

@@ -106,7 +106,7 @@ func newInitCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&announce, "announce", nil, "advertised multiaddr without /p2p or /p2p-circuit (repeatable)")
 	cmd.Flags().StringArrayVar(&knownRelays, "known-relay", nil, "Raminga relay multiaddr including /p2p/<peer-id> (repeatable)")
 	cmd.Flags().StringArrayVar(&bootstrap, "bootstrap", nil, "Raminga bootstrap multiaddr including /p2p/<peer-id> (repeatable; custom list wins over the release preset)")
-	cmd.Flags().BoolVar(&noPreset, "no-bootstrap-preset", false, "do not seed the built-in official bootstrap preset on this new config")
+	cmd.Flags().BoolVar(&noPreset, "no-bootstrap-preset", false, "do not seed the official sidecar/embedded bootstrap preset on this new config")
 	cmd.Flags().StringVar(&dhtMode, "dht-mode", "auto", "DHT mode written to config.toml: client, server or auto")
 	return cmd
 }

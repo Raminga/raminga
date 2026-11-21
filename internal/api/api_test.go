@@ -44,6 +44,9 @@ type fakeBackend struct {
 	lastImportPath              string
 	discoveryPeerID             string
 	discoveryPostCandidatesOnly bool
+	bootstrapPeers              []node.BootstrapPeer
+	lastBootstrapAdd            string
+	removedBootstrap            []string
 }
 
 func (f *fakeBackend) MarkConversationRead(_ context.Context, peerID, messageID string) (node.MarkReadResult, error) {
@@ -217,6 +220,51 @@ func TestDHTStatusReportsConfiguredAndActiveMode(t *testing.T) {
 	}
 	if d.GetConnectedPeers() != 2 || d.GetBootstrapConnected() != 1 {
 		t.Fatalf("connected=%d bootstrap_connected=%d, want 2/1", d.GetConnectedPeers(), d.GetBootstrapConnected())
+	}
+}
+
+func TestBootstrapPeerRPCsAreExplicitLocalSetting(t *testing.T) {
+	ts := startServer(t, false)
+	ts.backend.bootstrapPeers = []node.BootstrapPeer{{
+		PeerID:  "peer-b",
+		Addrs:   []string{"/ip4/127.0.0.1/tcp/4001/p2p/peer-b"},
+		Online:  true,
+		Paused:  true,
+		SavedAt: time.UnixMilli(1234),
+	}}
+	c, err := client.New(ts.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx := context.Background()
+	list, err := c.ListBootstrapPeers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.GetPeers()) != 1 {
+		t.Fatalf("list = %+v", list)
+	}
+	peer := list.GetPeers()[0]
+	if peer.GetPeerId() != "peer-b" || !peer.GetOnline() || !peer.GetPaused() || peer.GetSavedAtUnixMs() != 1234 {
+		t.Fatalf("peer = %+v", peer)
+	}
+	added, err := c.AddBootstrapPeer(ctx, "/ip4/127.0.0.1/tcp/4001/p2p/peer-b")
+	if err != nil || !added.GetAdded() || added.GetPeer().GetPeerId() != "peer-b" {
+		t.Fatalf("add = %+v err=%v", added, err)
+	}
+	if ts.backend.lastBootstrapAdd != "/ip4/127.0.0.1/tcp/4001/p2p/peer-b" {
+		t.Fatalf("backend did not receive the exact address: %q", ts.backend.lastBootstrapAdd)
+	}
+	if _, err := c.AddBootstrapPeer(ctx, "/ip4/127.0.0.1/tcp/4001"); err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("invalid add code=%v err=%v", connect.CodeOf(err), err)
+	}
+	removed, err := c.RemoveBootstrapPeer(ctx, "peer-b")
+	if err != nil || !removed.GetRemoved() {
+		t.Fatalf("remove = %+v err=%v", removed, err)
+	}
+	if len(ts.backend.removedBootstrap) != 1 || ts.backend.removedBootstrap[0] != "peer-b" {
+		t.Fatalf("backend removals = %v", ts.backend.removedBootstrap)
 	}
 }
 
@@ -588,6 +636,24 @@ func (f *fakeBackend) DHTStatus() node.DHTStatus {
 		ConnectedPeers:     2,
 		BootstrapConnected: 1,
 	}
+}
+
+func (f *fakeBackend) BootstrapPeers(context.Context) ([]node.BootstrapPeer, error) {
+	return f.bootstrapPeers, nil
+}
+
+func (f *fakeBackend) AddBootstrapPeer(_ context.Context, multiaddr string) (node.BootstrapPeer, bool, error) {
+	if strings.TrimSpace(multiaddr) == "" || !strings.Contains(multiaddr, "/p2p/") {
+		return node.BootstrapPeer{}, false, errors.New("invalid bootstrap multiaddr")
+	}
+	f.lastBootstrapAdd = multiaddr
+	value := node.BootstrapPeer{PeerID: "peer-b", Addrs: []string{multiaddr}, SavedAt: time.UnixMilli(1000)}
+	return value, true, nil
+}
+
+func (f *fakeBackend) RemoveBootstrapPeer(_ context.Context, peerID string) (bool, error) {
+	f.removedBootstrap = append(f.removedBootstrap, peerID)
+	return true, nil
 }
 
 func (f *fakeBackend) DHTFindPeer(context.Context, string) (node.DHTPeer, error) {

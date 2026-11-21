@@ -47,7 +47,7 @@ func TestMigrateV9ToV10CreatesDraftTablesAndKeepsMessages(t *testing.T) {
 		t.Fatalf("old message = %+v, err=%v", msgs, err)
 	}
 	var version int
-	if err := store.DB().QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil || version != 11 {
+	if err := store.DB().QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil || version != schemaVersion {
 		t.Fatalf("schema version = %d, err=%v", version, err)
 	}
 	for _, table := range []string{"public_drafts", "public_draft_assets"} {
@@ -208,5 +208,176 @@ func TestDraftAssetLookupIsScopedToOwningDraft(t *testing.T) {
 	}
 	if _, found, err := store.GetPublicDraftAsset(ctx, first.DraftID, "asset-missing"); err != nil || found {
 		t.Fatalf("missing asset reported found=%v err=%v", found, err)
+	}
+}
+
+func TestMigrateV11DraftAssetsToV12AddsHumanAvatarAndKeepsOldRows(t *testing.T) {
+	dir := t.TempDir()
+	db, err := sql.Open("sqlite", filepath.Join(dir, FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	statements := []string{
+		`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at_ms INTEGER NOT NULL)`,
+		`INSERT INTO schema_migrations (version, applied_at_ms) VALUES (11, 1)`,
+		`CREATE TABLE public_drafts (
+			draft_id TEXT PRIMARY KEY,
+			kind TEXT NOT NULL CHECK (kind IN ('profile','post')),
+			author_kind TEXT NOT NULL DEFAULT 'agent' CHECK (author_kind IN ('user','agent')),
+			revision INTEGER NOT NULL DEFAULT 0,
+			agent_name TEXT NOT NULL DEFAULT '',
+			agent_description TEXT NOT NULL DEFAULT '',
+			agent_interests_json TEXT NOT NULL DEFAULT '[]',
+			agent_conversation_style TEXT NOT NULL DEFAULT '',
+			human_name TEXT NOT NULL DEFAULT '',
+			human_bio_markdown TEXT NOT NULL DEFAULT '',
+			avatar_asset_id TEXT NOT NULL DEFAULT '',
+			title TEXT NOT NULL DEFAULT '',
+			body_markdown TEXT NOT NULL DEFAULT '',
+			tags_json TEXT NOT NULL DEFAULT '[]',
+			image_asset_ids_json TEXT NOT NULL DEFAULT '[]',
+			published_path TEXT NOT NULL DEFAULT '',
+			published_sha256 TEXT NOT NULL DEFAULT '',
+			published_revision INTEGER NOT NULL DEFAULT 0,
+			created_at_ms INTEGER NOT NULL,
+			updated_at_ms INTEGER NOT NULL
+		)`,
+		`CREATE TABLE public_draft_assets (
+			asset_id TEXT PRIMARY KEY,
+			draft_id TEXT NOT NULL,
+			role TEXT NOT NULL CHECK (role IN ('avatar','image')),
+			sha256 TEXT NOT NULL,
+			mime TEXT NOT NULL,
+			width INTEGER NOT NULL,
+			height INTEGER NOT NULL,
+			size_bytes INTEGER NOT NULL,
+			bytes BLOB NOT NULL,
+			created_at_ms INTEGER NOT NULL
+		)`,
+		`INSERT INTO public_drafts (draft_id, kind, author_kind, revision, human_name, created_at_ms, updated_at_ms)
+			VALUES ('profile', 'profile', 'user', 4, '旧人类', 1000, 2000)`,
+		`INSERT INTO public_draft_assets (asset_id, draft_id, role, sha256, mime, width, height, size_bytes, bytes, created_at_ms)
+			VALUES ('asset-old-avatar', 'profile', 'avatar', '` + strings.Repeat("a", 64) + `', 'image/png', 10, 10, 4, x'89504e47', 1000)`,
+	}
+	for _, stmt := range statements {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("prepare v11 database: %v", err)
+		}
+	}
+	_ = db.Close()
+
+	store, err := Open(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Open migrated v11: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	ctx := context.Background()
+	draft, found, err := store.GetPublicDraft(ctx, "profile")
+	if err != nil || !found || draft.HumanName != "旧人类" || draft.Revision != 4 {
+		t.Fatalf("old draft = %+v found=%t err=%v", draft, found, err)
+	}
+	if draft.HumanAvatarAssetID != "" {
+		t.Fatalf("old draft human avatar = %q, want empty", draft.HumanAvatarAssetID)
+	}
+	old, found, err := store.GetPublicDraftAsset(ctx, "profile", "asset-old-avatar")
+	if err != nil || !found || old.Role != "avatar" || len(old.Bytes) != 4 {
+		t.Fatalf("old avatar = %+v found=%t err=%v", old, found, err)
+	}
+	human, err := store.PutPublicDraftAsset(ctx, PublicDraftAsset{
+		DraftID: "profile", Role: "human_avatar", SHA256: strings.Repeat("b", 64),
+		Mime: "image/png", Width: 12, Height: 12, Bytes: []byte("human-avatar"),
+	})
+	if err != nil {
+		t.Fatalf("insert human avatar after migration: %v", err)
+	}
+	draft.HumanAvatarAssetID = human.AssetID
+	updated, err := store.UpdatePublicDraft(ctx, draft, draft.Revision)
+	if err != nil || updated.HumanAvatarAssetID != human.AssetID || updated.AvatarAssetID != "" {
+		t.Fatalf("updated = %+v err=%v", updated, err)
+	}
+	var tableSQL string
+	if err := store.DB().QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='public_draft_assets'`).Scan(&tableSQL); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tableSQL, "human_avatar") {
+		t.Fatalf("migrated asset table does not allow human_avatar: %s", tableSQL)
+	}
+	var version int
+	if err := store.DB().QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil || version != schemaVersion {
+		t.Fatalf("schema version = %d, err=%v", version, err)
+	}
+}
+
+func TestPublicDraftAgentAndHumanAvatarsAreIndependent(t *testing.T) {
+	store, _ := open(t)
+	ctx := context.Background()
+	draft, err := store.CreatePublicDraft(ctx, PublicDraft{
+		DraftID: "profile", Kind: DraftKindProfile, AuthorKind: DraftAuthorUser,
+		AgentInterests: []string{}, Tags: []string{}, ImageAssetIDs: []string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := func(role, seed string) PublicDraftAsset {
+		t.Helper()
+		asset, err := store.PutPublicDraftAsset(ctx, PublicDraftAsset{
+			DraftID: draft.DraftID, Role: role, SHA256: seed + strings.Repeat("0", 63),
+			Mime: "image/png", Width: 10, Height: 10, Bytes: []byte(role + "-bytes"),
+		})
+		if err != nil {
+			t.Fatalf("put %s: %v", role, err)
+		}
+		return asset
+	}
+	agent := put("avatar", "a")
+	human := put("human_avatar", "b")
+	draft.AvatarAssetID = agent.AssetID
+	draft.HumanAvatarAssetID = human.AssetID
+	draft, err = store.UpdatePublicDraft(ctx, draft, draft.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.AvatarAssetID != agent.AssetID || draft.HumanAvatarAssetID != human.AssetID {
+		t.Fatalf("both avatars = %+v", draft)
+	}
+
+	// Clearing only the human avatar keeps the Agent image and removes only
+	// the now-unreferenced human asset row.
+	draft.HumanAvatarAssetID = ""
+	draft, err = store.UpdatePublicDraft(ctx, draft, draft.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.HumanAvatarAssetID != "" || draft.AvatarAssetID != agent.AssetID {
+		t.Fatalf("after human clear = %+v", draft)
+	}
+	if _, found, _ := store.GetPublicDraftAsset(ctx, draft.DraftID, human.AssetID); found {
+		t.Fatal("cleared human avatar asset was not removed")
+	}
+	if _, found, _ := store.GetPublicDraftAsset(ctx, draft.DraftID, agent.AssetID); !found {
+		t.Fatal("clearing human avatar removed the Agent avatar")
+	}
+
+	// Replace the human avatar with a second asset, then clear only the Agent
+	// image; the human replacement must survive.
+	human2 := put("human_avatar", "c")
+	draft.HumanAvatarAssetID = human2.AssetID
+	draft, err = store.UpdatePublicDraft(ctx, draft, draft.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft.AvatarAssetID = ""
+	draft, err = store.UpdatePublicDraft(ctx, draft, draft.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.AvatarAssetID != "" || draft.HumanAvatarAssetID != human2.AssetID {
+		t.Fatalf("after agent clear = %+v", draft)
+	}
+	if _, found, _ := store.GetPublicDraftAsset(ctx, draft.DraftID, agent.AssetID); found {
+		t.Fatal("cleared Agent avatar asset was not removed")
+	}
+	if _, found, _ := store.GetPublicDraftAsset(ctx, draft.DraftID, human2.AssetID); !found {
+		t.Fatal("clearing Agent avatar removed the human avatar")
 	}
 }

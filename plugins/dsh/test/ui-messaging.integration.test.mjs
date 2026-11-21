@@ -65,7 +65,7 @@ test('two real daemons: human send, reply, queue, cancel, restart and replay', {
   const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-msg-main-'));
   const peerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-msg-peer-'));
   for (const dir of [mainDir, peerDir]) {
-    const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+    const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
     assert.equal(init.status, 0, init.stderr || init.stdout);
   }
   let mainDaemon = startDaemon(mainDir);

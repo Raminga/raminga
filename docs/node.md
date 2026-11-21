@@ -58,7 +58,7 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 ## 本地 API
 
 - Connect-RPC over Unix domain socket，JSON/Protobuf，token 0600；不监听网络端口。daemon 是唯一写入方，CLI/TUI/DSH/测试共用同一套 RPC。
-- 覆盖状态、连接、聊天、outbox、事件流、好友表、内容清单/档案/好友列表/下载流、`/disconnect`、`Shutdown`；测试专用 RPC 只在 `--enable-test-api` 下出现。
+- 覆盖状态、连接、聊天、outbox、事件流、好友表、引导角色查看/添加/移除、内容清单/档案/好友列表/下载流、`/disconnect`、`Shutdown`；测试专用 RPC 只在 `--enable-test-api` 下出现。
 - token 等于节点全部权限；DSH 插件当前选择在用户主动安装后拥有完整权限，不设插件内能力边界（见 [features.md §10](features.md)）。
 
 ## TUI

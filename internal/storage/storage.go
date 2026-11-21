@@ -24,7 +24,7 @@ import (
 const (
 	// FileName is the SQLite database inside the data directory.
 	FileName            = "raminga.db"
-	schemaVersion       = 11
+	schemaVersion       = 13
 	defaultCacheEntries = 512
 	defaultMaxFriends   = 10000
 )
@@ -420,6 +420,22 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			peer_id TEXT PRIMARY KEY,
 			paused_at_ms INTEGER NOT NULL
 		)`,
+		// Bootstrap is a role on the ordinary peer record, not a second
+		// identity/address store. Addresses stay in known_peers and the
+		// in-memory PeerStore; this table only marks the role.
+		`CREATE TABLE IF NOT EXISTS bootstrap_peers (
+			peer_id TEXT PRIMARY KEY,
+			created_at_ms INTEGER NOT NULL
+		)`,
+		// Import state records that the legacy config.toml bootstrap list (and
+		// its first-run release preset) has been consumed exactly once. An
+		// explicit clear later must never be undone by a restart or a config
+		// edit.
+		`CREATE TABLE IF NOT EXISTS bootstrap_import_state (
+			singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+			imported_at_ms INTEGER NOT NULL,
+			imported_count INTEGER NOT NULL
+		)`,
 		`CREATE TABLE IF NOT EXISTS public_drafts (
 			draft_id TEXT PRIMARY KEY,
 			kind TEXT NOT NULL CHECK (kind IN ('profile','post')),
@@ -431,6 +447,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			agent_conversation_style TEXT NOT NULL DEFAULT '',
 			human_name TEXT NOT NULL DEFAULT '',
 			human_bio_markdown TEXT NOT NULL DEFAULT '',
+			human_avatar_asset_id TEXT NOT NULL DEFAULT '',
 			avatar_asset_id TEXT NOT NULL DEFAULT '',
 			title TEXT NOT NULL DEFAULT '',
 			body_markdown TEXT NOT NULL DEFAULT '',
@@ -445,7 +462,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS public_draft_assets (
 			asset_id TEXT PRIMARY KEY,
 			draft_id TEXT NOT NULL,
-			role TEXT NOT NULL CHECK (role IN ('avatar','image')),
+			role TEXT NOT NULL CHECK (role IN ('avatar','human_avatar','image')),
 			sha256 TEXT NOT NULL,
 			mime TEXT NOT NULL,
 			width INTEGER NOT NULL,
@@ -476,6 +493,43 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("exec schema statement: %w", err)
+		}
+	}
+	// v12 adds the linked human's optional avatar as an independent asset.
+	// The draft column is additive; the asset role CHECK requires a table
+	// rebuild on databases created before this version.
+	if err := ensureColumn(ctx, tx, "public_drafts", "human_avatar_asset_id", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	var assetTableSQL string
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(sql,'') FROM sqlite_master WHERE type='table' AND name='public_draft_assets'`).Scan(&assetTableSQL); err != nil {
+		return fmt.Errorf("inspect public_draft_assets: %w", err)
+	}
+	if !strings.Contains(assetTableSQL, "human_avatar") {
+		for _, stmt := range []string{
+			`ALTER TABLE public_draft_assets RENAME TO public_draft_assets_v11`,
+			`CREATE TABLE public_draft_assets (
+				asset_id TEXT PRIMARY KEY,
+				draft_id TEXT NOT NULL,
+				role TEXT NOT NULL CHECK (role IN ('avatar','human_avatar','image')),
+				sha256 TEXT NOT NULL,
+				mime TEXT NOT NULL,
+				width INTEGER NOT NULL,
+				height INTEGER NOT NULL,
+				size_bytes INTEGER NOT NULL,
+				bytes BLOB NOT NULL,
+				created_at_ms INTEGER NOT NULL
+			)`,
+			`INSERT INTO public_draft_assets
+				(asset_id, draft_id, role, sha256, mime, width, height, size_bytes, bytes, created_at_ms)
+				SELECT asset_id, draft_id, role, sha256, mime, width, height, size_bytes, bytes, created_at_ms
+				FROM public_draft_assets_v11`,
+			`DROP TABLE public_draft_assets_v11`,
+			`CREATE INDEX IF NOT EXISTS public_draft_assets_draft_idx ON public_draft_assets (draft_id)`,
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("migrate public_draft_assets: %w", err)
+			}
 		}
 	}
 	// Add columns introduced after G1 without rebuilding the database. Older
@@ -1080,7 +1134,7 @@ func (s *Store) UpsertPeerCache(ctx context.Context, peerID string, addrs []stri
 		return fmt.Errorf("read peer cache: %w", err)
 	}
 	merged := dedupeAddrs(addrs)
-	if err == nil && existingExp > now.UnixMilli() {
+	if err == nil && (existingExp == 0 || existingExp > now.UnixMilli()) {
 		var old []string
 		if jsonErr := json.Unmarshal([]byte(existingJSON), &old); jsonErr == nil {
 			merged = dedupeAddrs(append(merged, old...))
@@ -1146,11 +1200,16 @@ func dedupeAddrs(addrs []string) []string {
 }
 
 func prunePeerCacheTx(ctx context.Context, tx *sql.Tx, nowMS int64, maxEntries int) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM known_peers WHERE expires_at_ms > 0 AND expires_at_ms <= ?`, nowMS); err != nil {
+	// Bootstrap roles are explicit operator settings, not evictable hints. The
+	// cache cap applies to ordinary peers only; removing the role (not this
+	// pruning path) makes the row eligible again.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM known_peers WHERE expires_at_ms > 0 AND expires_at_ms <= ?
+		AND NOT EXISTS (SELECT 1 FROM bootstrap_peers b WHERE b.peer_id=known_peers.peer_id)`, nowMS); err != nil {
 		return fmt.Errorf("prune expired peer cache: %w", err)
 	}
 	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM known_peers`).Scan(&count); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM known_peers
+		WHERE NOT EXISTS (SELECT 1 FROM bootstrap_peers b WHERE b.peer_id=known_peers.peer_id)`).Scan(&count); err != nil {
 		return fmt.Errorf("count peer cache: %w", err)
 	}
 	if count <= maxEntries {
@@ -1158,7 +1217,9 @@ func prunePeerCacheTx(ctx context.Context, tx *sql.Tx, nowMS int64, maxEntries i
 	}
 	over := count - maxEntries
 	rows, err := tx.QueryContext(ctx,
-		`SELECT peer_id FROM known_peers ORDER BY updated_at_ms ASC, peer_id ASC LIMIT ?`, over)
+		`SELECT peer_id FROM known_peers
+		 WHERE NOT EXISTS (SELECT 1 FROM bootstrap_peers b WHERE b.peer_id=known_peers.peer_id)
+		 ORDER BY updated_at_ms ASC, peer_id ASC LIMIT ?`, over)
 	if err != nil {
 		return fmt.Errorf("select over-cap peer cache: %w", err)
 	}

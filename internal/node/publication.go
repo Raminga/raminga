@@ -19,6 +19,9 @@ type PublicProfile struct {
 	AvatarPath             string
 	AvatarSHA256           string
 	AvatarMime             string
+	HumanAvatarPath        string
+	HumanAvatarSHA256      string
+	HumanAvatarMime        string
 	SourcePath             string
 	LegacyFallback         bool
 	Warning                string

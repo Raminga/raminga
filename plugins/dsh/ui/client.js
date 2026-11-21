@@ -60,6 +60,7 @@ window.__ModuleLoader__.load({
     const imageDataCodec = passthrough('@raminga/dsh#UiImageBase64');
     const revisionCodec = passthrough('@raminga/dsh#UiDraftRevision');
     const publishedShaCodec = passthrough('@raminga/dsh#UiPublishedSha256');
+    const bootstrapMultiaddrCodec = passthrough('@raminga/dsh#UiBootstrapMultiaddr');
     const sessionParam = { name: 'sessionId', wire: 'sessionId', source: 'json', codec: sessionIdCodec };
     const param = {
       force: { name: 'force', wire: 'force', source: 'json', codec: booleanCodec },
@@ -94,6 +95,7 @@ window.__ModuleLoader__.load({
       imageData: { name: 'dataBase64', wire: 'dataBase64', source: 'json', codec: imageDataCodec },
       revision: { name: 'expectedRevision', wire: 'expectedRevision', source: 'json', codec: revisionCodec },
       publishedSha: { name: 'expectedPublishedSha256', wire: 'expectedPublishedSha256', source: 'json', codec: publishedShaCodec },
+      bootstrapMultiaddr: { name: 'multiaddr', wire: 'multiaddr', source: 'json', codec: bootstrapMultiaddrCodec },
     };
     const descriptors = [
       ['open', 'UiSnapshot', [sessionParam]],
@@ -131,6 +133,8 @@ window.__ModuleLoader__.load({
       ['revealDiscovery', 'UiRevealResult', [sessionParam, param.contentId]],
       ['revealFile', 'UiRevealResult', [sessionParam, param.subject, param.peerId, param.filePath, param.sha256, param.size]],
       ['bootstrap', 'UiBootstrapInfo', [sessionParam]],
+      ['addBootstrap', 'UiBootstrapEdit', [sessionParam, param.bootstrapMultiaddr]],
+      ['removeBootstrap', 'UiBootstrapEdit', [sessionParam, param.peerId]],
       ['journey', 'UiJourney', [sessionParam, param.force]],
       ['activity', 'UiActivity', [sessionParam, param.limit]],
       ['activityDetail', 'UiActivityDetail', [param.operationId]],

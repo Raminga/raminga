@@ -37,8 +37,11 @@ type publicProfileJSON struct {
 		AvatarMime        string   `json:"avatar_mime"`
 	} `json:"agent"`
 	Human struct {
-		Name        string `json:"name"`
-		BioMarkdown string `json:"bio_markdown"`
+		Name         string `json:"name"`
+		BioMarkdown  string `json:"bio_markdown"`
+		Avatar       string `json:"avatar"`
+		AvatarSHA256 string `json:"avatar_sha256"`
+		AvatarMime   string `json:"avatar_mime"`
 	} `json:"human"`
 	UpdatedAt string `json:"updated_at"`
 }
@@ -193,6 +196,16 @@ func (n *Node) loadPeerProfile(ctx context.Context, pid peer.ID) (PeerProfile, e
 							profile.Profile.AvatarMime = avatar.mime
 						}
 					}
+					if p.Human.Avatar != "" {
+						avatar, warning := n.checkedHumanAvatar(pid, byPath, p.Human.Avatar, p.Human.AvatarSHA256, p.Human.AvatarMime)
+						if warning != "" {
+							warnings = append(warnings, warning)
+						} else {
+							profile.Profile.HumanAvatarPath = avatar.path
+							profile.Profile.HumanAvatarSHA256 = avatar.sha
+							profile.Profile.HumanAvatarMime = avatar.mime
+						}
+					}
 					readIndex()
 					if profile.Name == "" {
 						profile.Name = humanName
@@ -284,11 +297,19 @@ type checkedAvatar struct {
 }
 
 func (n *Node) checkedAvatar(pid peer.ID, entries map[string]content.Entry, name, sha, mime string) (checkedAvatar, string) {
+	return n.checkedAvatarPrefix(pid, entries, name, sha, mime, "avatar-")
+}
+
+func (n *Node) checkedHumanAvatar(pid peer.ID, entries map[string]content.Entry, name, sha, mime string) (checkedAvatar, string) {
+	return n.checkedAvatarPrefix(pid, entries, name, sha, mime, "human-avatar-")
+}
+
+func (n *Node) checkedAvatarPrefix(_ peer.ID, entries map[string]content.Entry, name, sha, mime, prefix string) (checkedAvatar, string) {
 	if path.Base(name) != name || strings.Contains(name, "\\") || strings.Contains(name, "..") {
 		return checkedAvatar{}, "头像文件名为非法路径，已忽略"
 	}
-	if !strings.HasPrefix(name, "avatar-") || (!strings.HasSuffix(name, ".png") && !strings.HasSuffix(name, ".jpg")) {
-		return checkedAvatar{}, "头像文件名不符合 avatar-<sha8>.png 约定，已忽略"
+	if !strings.HasPrefix(name, prefix) || (!strings.HasSuffix(name, ".png") && !strings.HasSuffix(name, ".jpg")) {
+		return checkedAvatar{}, "头像文件名不符合 " + prefix + "<sha8>.png 约定，已忽略"
 	}
 	if len(sha) != 64 || strings.ToLower(sha) != sha {
 		return checkedAvatar{}, "头像 SHA-256 格式无效，已忽略"

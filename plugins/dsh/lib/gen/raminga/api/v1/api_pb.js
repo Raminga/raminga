@@ -3136,7 +3136,9 @@ export class DHTStatus extends Message {
      */
     protocol = "";
     /**
-     * bootstrap_peers are explicit Raminga bootstrap peers only.
+     * bootstrap_peers are the live saved Raminga bootstrap addresses. Paused
+     * peers are kept in the setting but are not dialed. Online state is not
+     * implied by this list.
      *
      * @generated from field: repeated string bootstrap_peers = 4;
      */
@@ -3861,6 +3863,271 @@ export class DhtAddPeerResponse extends Message {
     }
     static equals(a, b) {
         return proto3.util.equals(DhtAddPeerResponse, a, b);
+    }
+}
+/**
+ * BootstrapPeer is one ordinary peer record carrying the bootstrap role.
+ *
+ * @generated from message raminga.api.v1.BootstrapPeer
+ */
+export class BootstrapPeer extends Message {
+    /**
+     * peer_id is the canonical remote Peer ID.
+     *
+     * @generated from field: string peer_id = 1;
+     */
+    peerId = "";
+    /**
+     * addrs are stored peer-cache addresses. They are hints, not an online
+     * claim. The same Peer may have more than one address.
+     *
+     * @generated from field: repeated string addrs = 2;
+     */
+    addrs = [];
+    /**
+     * online is true only for a current live connection.
+     *
+     * @generated from field: bool online = 3;
+     */
+    online = false;
+    /**
+     * paused is the existing explicit-disconnect state. Saving/removing the
+     * bootstrap role never clears or sets it.
+     *
+     * @generated from field: bool paused = 4;
+     */
+    paused = false;
+    /**
+     * saved_at_unix_ms is when this role was first stored.
+     *
+     * @generated from field: int64 saved_at_unix_ms = 5;
+     */
+    savedAtUnixMs = protoInt64.zero;
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.BootstrapPeer";
+    static fields = proto3.util.newFieldList(() => [
+        { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 2, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+        { no: 3, name: "online", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+        { no: 4, name: "paused", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+        { no: 5, name: "saved_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    ]);
+    static fromBinary(bytes, options) {
+        return new BootstrapPeer().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new BootstrapPeer().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new BootstrapPeer().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(BootstrapPeer, a, b);
+    }
+}
+/**
+ * ListBootstrapPeersRequest has no fields.
+ *
+ * @generated from message raminga.api.v1.ListBootstrapPeersRequest
+ */
+export class ListBootstrapPeersRequest extends Message {
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.ListBootstrapPeersRequest";
+    static fields = proto3.util.newFieldList(() => []);
+    static fromBinary(bytes, options) {
+        return new ListBootstrapPeersRequest().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new ListBootstrapPeersRequest().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new ListBootstrapPeersRequest().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(ListBootstrapPeersRequest, a, b);
+    }
+}
+/**
+ * ListBootstrapPeersResponse contains saved bootstrap roles.
+ *
+ * @generated from message raminga.api.v1.ListBootstrapPeersResponse
+ */
+export class ListBootstrapPeersResponse extends Message {
+    /**
+     * peers are saved roles in stable order. An empty list is a normal
+     * "not configured" state, distinct from a read failure.
+     *
+     * @generated from field: repeated raminga.api.v1.BootstrapPeer peers = 1;
+     */
+    peers = [];
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.ListBootstrapPeersResponse";
+    static fields = proto3.util.newFieldList(() => [
+        { no: 1, name: "peers", kind: "message", T: BootstrapPeer, repeated: true },
+    ]);
+    static fromBinary(bytes, options) {
+        return new ListBootstrapPeersResponse().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new ListBootstrapPeersResponse().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new ListBootstrapPeersResponse().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(ListBootstrapPeersResponse, a, b);
+    }
+}
+/**
+ * AddBootstrapPeerRequest saves one address. The daemon requires a canonical
+ * multiaddr including /p2p/<peer-id> and only applies it as a node setting.
+ *
+ * @generated from message raminga.api.v1.AddBootstrapPeerRequest
+ */
+export class AddBootstrapPeerRequest extends Message {
+    /**
+     * multiaddr is the complete address to save.
+     *
+     * @generated from field: string multiaddr = 1;
+     */
+    multiaddr = "";
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.AddBootstrapPeerRequest";
+    static fields = proto3.util.newFieldList(() => [
+        { no: 1, name: "multiaddr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    ]);
+    static fromBinary(bytes, options) {
+        return new AddBootstrapPeerRequest().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new AddBootstrapPeerRequest().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new AddBootstrapPeerRequest().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(AddBootstrapPeerRequest, a, b);
+    }
+}
+/**
+ * AddBootstrapPeerResponse reports the saved role and whether the list
+ * changed. A repeated identical add is idempotent (added=false).
+ *
+ * @generated from message raminga.api.v1.AddBootstrapPeerResponse
+ */
+export class AddBootstrapPeerResponse extends Message {
+    /**
+     * @generated from field: raminga.api.v1.BootstrapPeer peer = 1;
+     */
+    peer;
+    /**
+     * @generated from field: bool added = 2;
+     */
+    added = false;
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.AddBootstrapPeerResponse";
+    static fields = proto3.util.newFieldList(() => [
+        { no: 1, name: "peer", kind: "message", T: BootstrapPeer },
+        { no: 2, name: "added", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    ]);
+    static fromBinary(bytes, options) {
+        return new AddBootstrapPeerResponse().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new AddBootstrapPeerResponse().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new AddBootstrapPeerResponse().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(AddBootstrapPeerResponse, a, b);
+    }
+}
+/**
+ * RemoveBootstrapPeerRequest names the role to remove.
+ *
+ * @generated from message raminga.api.v1.RemoveBootstrapPeerRequest
+ */
+export class RemoveBootstrapPeerRequest extends Message {
+    /**
+     * peer_id is the remote Peer ID.
+     *
+     * @generated from field: string peer_id = 1;
+     */
+    peerId = "";
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.RemoveBootstrapPeerRequest";
+    static fields = proto3.util.newFieldList(() => [
+        { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    ]);
+    static fromBinary(bytes, options) {
+        return new RemoveBootstrapPeerRequest().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new RemoveBootstrapPeerRequest().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new RemoveBootstrapPeerRequest().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(RemoveBootstrapPeerRequest, a, b);
+    }
+}
+/**
+ * RemoveBootstrapPeerResponse reports role removal. A missing role is an
+ * idempotent no-op (removed=false).
+ *
+ * @generated from message raminga.api.v1.RemoveBootstrapPeerResponse
+ */
+export class RemoveBootstrapPeerResponse extends Message {
+    /**
+     * @generated from field: bool removed = 1;
+     */
+    removed = false;
+    constructor(data) {
+        super();
+        proto3.util.initPartial(data, this);
+    }
+    static runtime = proto3;
+    static typeName = "raminga.api.v1.RemoveBootstrapPeerResponse";
+    static fields = proto3.util.newFieldList(() => [
+        { no: 1, name: "removed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    ]);
+    static fromBinary(bytes, options) {
+        return new RemoveBootstrapPeerResponse().fromBinary(bytes, options);
+    }
+    static fromJson(jsonValue, options) {
+        return new RemoveBootstrapPeerResponse().fromJson(jsonValue, options);
+    }
+    static fromJsonString(jsonString, options) {
+        return new RemoveBootstrapPeerResponse().fromJsonString(jsonString, options);
+    }
+    static equals(a, b) {
+        return proto3.util.equals(RemoveBootstrapPeerResponse, a, b);
     }
 }
 /**
@@ -5204,6 +5471,21 @@ export class PublicProfile extends Message {
      * @generated from field: string warning = 12;
      */
     warning = "";
+    /**
+     * human_avatar_* describe the linked human's optional public avatar. They
+     * are empty for older profiles that only have an Agent avatar.
+     *
+     * @generated from field: string human_avatar_path = 13;
+     */
+    humanAvatarPath = "";
+    /**
+     * @generated from field: string human_avatar_sha256 = 14;
+     */
+    humanAvatarSha256 = "";
+    /**
+     * @generated from field: string human_avatar_mime = 15;
+     */
+    humanAvatarMime = "";
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -5223,6 +5505,9 @@ export class PublicProfile extends Message {
         { no: 10, name: "source_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
         { no: 11, name: "legacy_fallback", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
         { no: 12, name: "warning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 13, name: "human_avatar_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 14, name: "human_avatar_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 15, name: "human_avatar_mime", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     ]);
     static fromBinary(bytes, options) {
         return new PublicProfile().fromBinary(bytes, options);
@@ -5380,6 +5665,12 @@ export class PublicDraft extends Message {
      * @generated from field: string author_kind = 20;
      */
     authorKind = "";
+    /**
+     * 关联人类头像；与 Agent 头像独立
+     *
+     * @generated from field: raminga.api.v1.PublicDraftImage human_avatar = 21;
+     */
+    humanAvatar;
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -5407,6 +5698,7 @@ export class PublicDraft extends Message {
         { no: 18, name: "created_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
         { no: 19, name: "updated_at_unix_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
         { no: 20, name: "author_kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 21, name: "human_avatar", kind: "message", T: PublicDraftImage },
     ]);
     static fromBinary(bytes, options) {
         return new PublicDraft().fromBinary(bytes, options);
@@ -5648,6 +5940,18 @@ export class SavePublicDraftRequest extends Message {
      * @generated from field: optional string author_kind = 16;
      */
     authorKind;
+    /**
+     * human_avatar_asset_id is an optional field: an old client that does not
+     * know about human avatars leaves it unset and the saved value is preserved.
+     * clear_human_avatar explicitly removes only the human avatar.
+     *
+     * @generated from field: optional string human_avatar_asset_id = 17;
+     */
+    humanAvatarAssetId;
+    /**
+     * @generated from field: bool clear_human_avatar = 18;
+     */
+    clearHumanAvatar = false;
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -5671,6 +5975,8 @@ export class SavePublicDraftRequest extends Message {
         { no: 14, name: "image_asset_ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
         { no: 15, name: "clear_avatar", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
         { no: 16, name: "author_kind", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+        { no: 17, name: "human_avatar_asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+        { no: 18, name: "clear_human_avatar", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     ]);
     static fromBinary(bytes, options) {
         return new SavePublicDraftRequest().fromBinary(bytes, options);

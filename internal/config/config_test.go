@@ -125,7 +125,7 @@ func TestG2DHTAndBootstrapValidation(t *testing.T) {
 
 func TestInitWritesPortsAndValidatesStrictly(t *testing.T) {
 	dir := t.TempDir()
-	cfg, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14002})
+	cfg, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14002, DisableBootstrapPreset: true})
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestDHTModeMissingDefaultsToAuto(t *testing.T) {
 }
 
 func TestInitDHTModePreservesDefaultAndValidates(t *testing.T) {
-	cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001})
+	cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, DisableBootstrapPreset: true})
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestInitDHTModePreservesDefaultAndValidates(t *testing.T) {
 	}
 	for _, mode := range []string{"client", "server", "auto"} {
 		dir := t.TempDir()
-		cfg, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14001, DHTMode: mode})
+		cfg, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14001, DHTMode: mode, DisableBootstrapPreset: true})
 		if err != nil {
 			t.Fatalf("Init(%s): %v", mode, err)
 		}
@@ -184,13 +184,13 @@ func TestInitDHTModePreservesDefaultAndValidates(t *testing.T) {
 			t.Fatalf("loaded dht.mode = %q, want %q", loaded.DHT.Mode, mode)
 		}
 	}
-	if _, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, DHTMode: "bogus"}); err == nil {
+	if _, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, DHTMode: "bogus", DisableBootstrapPreset: true}); err == nil {
 		t.Fatal("invalid dht mode unexpectedly succeeded")
 	}
 }
 
 func TestInitListenOverridesPorts(t *testing.T) {
-	cfg, err := Init(t.TempDir(), InitOptions{ListenAddrs: []string{"/ip4/127.0.0.1/tcp/15001"}})
+	cfg, err := Init(t.TempDir(), InitOptions{ListenAddrs: []string{"/ip4/127.0.0.1/tcp/15001"}, DisableBootstrapPreset: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,13 +201,13 @@ func TestInitListenOverridesPorts(t *testing.T) {
 
 func TestInitRefusesExistingWithoutForce(t *testing.T) {
 	dir := t.TempDir()
-	if _, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14001}); err != nil {
+	if _, err := Init(dir, InitOptions{TCPPort: 14001, QUICPort: 14001, DisableBootstrapPreset: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Init(dir, InitOptions{TCPPort: 14003, QUICPort: 14003}); err == nil || !strings.Contains(err.Error(), "--force") {
+	if _, err := Init(dir, InitOptions{TCPPort: 14003, QUICPort: 14003, DisableBootstrapPreset: true}); err == nil || !strings.Contains(err.Error(), "--force") {
 		t.Fatalf("second Init error = %v, want --force hint", err)
 	}
-	cfg, err := Init(dir, InitOptions{TCPPort: 14003, QUICPort: 14003, Force: true})
+	cfg, err := Init(dir, InitOptions{TCPPort: 14003, QUICPort: 14003, Force: true, DisableBootstrapPreset: true})
 	if err != nil {
 		t.Fatalf("forced Init: %v", err)
 	}
@@ -218,10 +218,10 @@ func TestInitRefusesExistingWithoutForce(t *testing.T) {
 
 func TestInitRejectsInvalidPortAndListen(t *testing.T) {
 	for _, opts := range []InitOptions{
-		{TCPPort: 0, QUICPort: 70000},
-		{TCPPort: -1, QUICPort: 4001},
-		{ListenAddrs: []string{"/ip4/127.0.0.1/udp/4001/quic-v1/p2p-circuit"}},
-		{ListenAddrs: []string{"not-a-multiaddr"}},
+		{TCPPort: 0, QUICPort: 70000, DisableBootstrapPreset: true},
+		{TCPPort: -1, QUICPort: 4001, DisableBootstrapPreset: true},
+		{ListenAddrs: []string{"/ip4/127.0.0.1/udp/4001/quic-v1/p2p-circuit"}, DisableBootstrapPreset: true},
+		{ListenAddrs: []string{"not-a-multiaddr"}, DisableBootstrapPreset: true},
 	} {
 		if _, err := Init(t.TempDir(), opts); err == nil {
 			t.Fatalf("Init(%+v) unexpectedly succeeded", opts)
@@ -272,80 +272,4 @@ func TestContentLimitsDefaultsAndValidation(t *testing.T) {
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("zero content limit accepted")
 	}
-}
-
-func TestBootstrapPresetInitPriorityAndExistingPreservation(t *testing.T) {
-	const official = "/ip4/127.0.0.1/tcp/14001/p2p/12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6"
-	const custom = "/ip4/127.0.0.1/tcp/14002/p2p/12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6"
-	previous := OfficialBootstrapPeers
-	OfficialBootstrapPeers = []string{official}
-	t.Cleanup(func() { OfficialBootstrapPeers = previous })
-
-	t.Run("release preset seeds a new init", func(t *testing.T) {
-		cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cfg.DHT.BootstrapPeers) != 1 || cfg.DHT.BootstrapPeers[0] != official {
-			t.Fatalf("bootstrap peers = %v, want official preset", cfg.DHT.BootstrapPeers)
-		}
-		if cfg.DHT.BootstrapPreset == nil || !*cfg.DHT.BootstrapPreset {
-			t.Fatalf("bootstrap preset = %v, want true", cfg.DHT.BootstrapPreset)
-		}
-	})
-	t.Run("custom list wins over preset", func(t *testing.T) {
-		cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, BootstrapPeers: []string{custom}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cfg.DHT.BootstrapPeers) != 1 || cfg.DHT.BootstrapPeers[0] != custom {
-			t.Fatalf("bootstrap peers = %v, want custom", cfg.DHT.BootstrapPeers)
-		}
-		if cfg.DHT.BootstrapPreset == nil || *cfg.DHT.BootstrapPreset {
-			t.Fatalf("bootstrap preset = %v, want false when custom wins", cfg.DHT.BootstrapPreset)
-		}
-	})
-	t.Run("explicit opt out", func(t *testing.T) {
-		cfg, err := Init(t.TempDir(), InitOptions{TCPPort: 14001, QUICPort: 14001, DisableBootstrapPreset: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cfg.DHT.BootstrapPeers) != 0 {
-			t.Fatalf("bootstrap peers = %v, want empty", cfg.DHT.BootstrapPeers)
-		}
-		if cfg.DHT.BootstrapPreset == nil || *cfg.DHT.BootstrapPreset {
-			t.Fatalf("bootstrap preset = %v, want false", cfg.DHT.BootstrapPreset)
-		}
-	})
-	t.Run("existing empty config is not refilled", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, FileName)
-		raw := []byte("[dht]\nbootstrap_peers = []\n")
-		if err := os.WriteFile(path, raw, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		cfg, err := Load(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cfg.DHT.BootstrapPeers) != 0 || cfg.DHT.BootstrapPreset != nil {
-			t.Fatalf("existing config changed: peers=%v preset=%v", cfg.DHT.BootstrapPeers, cfg.DHT.BootstrapPreset)
-		}
-		after, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if string(after) != string(raw) {
-			t.Fatalf("Load rewrote existing config: %q", after)
-		}
-	})
-	t.Run("new load writes preset", func(t *testing.T) {
-		cfg, err := Load(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cfg.DHT.BootstrapPeers) != 1 || cfg.DHT.BootstrapPeers[0] != official {
-			t.Fatalf("bootstrap peers = %v, want official preset", cfg.DHT.BootstrapPeers)
-		}
-	})
 }

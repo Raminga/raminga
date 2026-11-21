@@ -315,6 +315,7 @@ export function createRamingaApp(root, options = {}) {
     const peerFileContentCapable = typeof options.onLoadPeerFileContent === "function";
     const peerNodeInfoCapable = typeof options.onLoadPeerNodeInfo === "function";
     const bootstrapCapable = typeof options.onLoadBootstrap === "function";
+    const bootstrapEditCapable = typeof options.onAddBootstrap === "function" && typeof options.onRemoveBootstrap === "function";
     const locateMessageCapable = typeof options.onLocateMessage === "function";
     const markReadCapable = typeof options.onMarkRead === "function";
     const favoritesCapable = typeof options.onLoadFavorites === "function";
@@ -366,6 +367,16 @@ export function createRamingaApp(root, options = {}) {
       avatarPreviewAssetId: "",
       avatarLoadingAssetId: "",
       avatarError: "",
+      avatarRestoreToken: 0,
+      humanAvatarFile: null,
+      humanAvatarAssetId: "",
+      humanAvatarClear: false,
+      humanAvatarPreviewUrl: "",
+      humanAvatarPreviewObject: false,
+      humanAvatarPreviewAssetId: "",
+      humanAvatarLoadingAssetId: "",
+      humanAvatarError: "",
+      humanAvatarRestoreToken: 0,
       receipt: null,
       confirm: false,
       confirmSnapshot: "",
@@ -406,7 +417,8 @@ export function createRamingaApp(root, options = {}) {
     let postEditorReturnFocus = null;
     let postEditorReturnFocusToken = 0;
     let postSaveTimer = null;
-    const homeAvatarState = { key: "", url: "", loading: false };
+    const homeAvatarState = { key: "", url: "", loading: false, requestedKey: "", generation: 0 };
+    const homeHumanAvatarState = { key: "", url: "", loading: false, requestedKey: "", generation: 0 };
     const JOURNEY_REVALIDATE_MS = 15e3;
     const journeyState = {
       data: null,
@@ -513,6 +525,7 @@ export function createRamingaApp(root, options = {}) {
     const postImageObservers = /* @__PURE__ */ new WeakMap();
     const postImageContainerObservers = /* @__PURE__ */ new WeakMap();
     const peerAvatarState = /* @__PURE__ */ new Map();
+    const peerHumanAvatarState = /* @__PURE__ */ new Map();
     const verifiedContactProfiles = /* @__PURE__ */ new Map();
     const directoryClues = /* @__PURE__ */ new Map();
     const directorySourceReads = /* @__PURE__ */ new Set();
@@ -527,7 +540,7 @@ export function createRamingaApp(root, options = {}) {
     const profileExpanded = /* @__PURE__ */ new Set();
     const minePreviews = /* @__PURE__ */ new Map();
     const mineExpanded = /* @__PURE__ */ new Set();
-    const bootstrapState = { data: null, error: "", request: null };
+    const bootstrapState = { data: null, error: "", request: null, busy: false, feedback: "", feedbackTone: "" };
     let locateSeq = 0;
     const locateRequests = /* @__PURE__ */ new Map();
     function createChatState(peerId2 = "") {
@@ -752,6 +765,7 @@ export function createRamingaApp(root, options = {}) {
     const homeAgentBio = $("#homeAgentBio");
     const homeAgentProfileNote = $("#homeAgentProfileNote");
     const homeAgentProfileNoteText = $("#homeAgentProfileNoteText");
+    const homeAgentProfileRetry = $("#homeAgentProfileRetry");
     const homeAgentInterests = $("#homeAgentInterests");
     const homeAgentStyle = $("#homeAgentStyle");
     const homeAgentStatusText = $("#homeAgentStatusText");
@@ -786,6 +800,7 @@ export function createRamingaApp(root, options = {}) {
     const journeyPageStateAction = $("#journeyStateAction");
     const homeHumanTitle = $("#mineIdentityTitle");
     const homeHumanSummary = $("#mineIdentitySummary");
+    const homeHumanAvatar = $("#homeHumanAvatar");
     const settingsTrigger = $("#settingsTrigger");
     const settingsClose = $("#settingsClose");
     const settingsHumanStatus = $("#settingsHumanStatus");
@@ -802,6 +817,10 @@ export function createRamingaApp(root, options = {}) {
     const publicAvatarClear = $("#publicAvatarClear");
     const publicAvatarPreview = $("#publicAvatarPreview");
     const publicAvatarNote = $("#publicAvatarNote");
+    const publicHumanAvatarInput = $("#publicHumanAvatarInput");
+    const publicHumanAvatarClear = $("#publicHumanAvatarClear");
+    const publicHumanAvatarPreview = $("#publicHumanAvatarPreview");
+    const publicHumanAvatarNote = $("#publicHumanAvatarNote");
     const settingsHumanPreview = $("#settingsHumanPreview");
     const publicVersionPreview = $("#publicVersionPreview");
     const publicVersionName = $("#publicVersionName");
@@ -812,6 +831,7 @@ export function createRamingaApp(root, options = {}) {
     const publicVersionHuman = $("#publicVersionHuman");
     const publicVersionNote = $("#publicVersionNote");
     const publicRestorePublished = $("#publicRestorePublished");
+    const publicVersionRetry = $("#publicVersionRetry");
     const publicDraftMeta = $("#publicDraftMeta");
     const publicAgentName = $("#publicAgentName");
     const publicAgentDescription = $("#publicAgentDescription");
@@ -900,6 +920,8 @@ export function createRamingaApp(root, options = {}) {
     const profileHumanStrip = $("#profileHumanStrip");
     const profileHumanHeadingLabel = $("#profileHumanHeadingLabel");
     const profileHumanName = $("#profileHumanName");
+    const profileHumanAvatar = $("#profileHumanAvatar");
+    const profileHumanInitial = $("#profileHumanInitial");
     const profileAgentOpen = $("#profileAgentOpen");
     const profileMessage = $("#profileMessage");
     const profileTabsNav = $("#profileTabsNav");
@@ -992,6 +1014,12 @@ export function createRamingaApp(root, options = {}) {
     const statusBootstrap = $("#statusBootstrap");
     const statusBootstrapNote = $("#statusBootstrapNote");
     const statusBootstrapList = $("#statusBootstrapList");
+    const statusBootstrapEdit = $("#statusBootstrapEdit");
+    const statusBootstrapInput = $("#statusBootstrapInput");
+    const statusBootstrapAdd = $("#statusBootstrapAdd");
+    const statusBootstrapFeedback = $("#statusBootstrapFeedback");
+    const statusBootstrapUpgrade = $("#statusBootstrapUpgrade");
+    const statusBootstrapUnavailable = $("#statusBootstrapUnavailable");
     const statusBootstrapCopy = $("#statusBootstrapCopy");
     const statusBootstrapRefresh = $("#statusBootstrapRefresh");
     const statusShareNode = $("#statusShareNode");
@@ -4595,6 +4623,25 @@ export function createRamingaApp(root, options = {}) {
         messageRetention.hidden = true;
       }
     }
+    function chatIdentityAvatars() {
+      const agent = homeAgentModel();
+      const agentRequest = currentHomeAvatarRequest();
+      const agentUrl = agentRequest && homeAvatarState.key === agentRequest.key ? homeAvatarState.url : "";
+      const humanName = mineState.data?.profile?.state === "available"
+        ? String(mineState.data.profile.displayName ?? "").trim()
+        : String(mineState.data?.publicProfile?.profile?.humanName ?? "").trim();
+      return {
+        human: {
+          url: agent.human.available ? agent.human.avatarUrl : "",
+          initial: agent.human.available ? (agent.human.avatarInitial || "关") : "人"
+        },
+        agent: {
+          url: agentUrl,
+          initial: agent.avatarInitial || "A"
+        },
+        unknown: { url: "", initial: "?" }
+      };
+    }
     function renderMessageList() {
       if (destroyed) return;
       const peerId2 = contactsState.selectedPeerId;
@@ -4645,7 +4692,22 @@ export function createRamingaApp(root, options = {}) {
         if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
         return String(a.messageId).localeCompare(String(b.messageId));
       });
-      for (const message of ascending) messageList.append(renderMessageRow(message));
+      if (ascending.some((message) => message.direction === "out")
+        && mineCapable && mineState.data === null && !mineState.retrying && !mineState.error) {
+        void loadMine(false);
+      }
+      const identities = chatIdentityAvatars();
+      let previousRun = "";
+      for (const message of ascending) {
+        const direction = message.direction === "out" ? "out" : "in";
+        const origin = direction === "out" ? normalizeMessageOrigin(message.origin) : "peer";
+        const run = `${direction}:${origin}`;
+        messageList.append(renderMessageRow(message, {
+          showIdentity: direction === "out" && run !== previousRun,
+          identity: direction === "out" ? identities[origin] : null
+        }));
+        previousRun = run;
+      }
       updateMessageListChrome();
       if (activeMessage && activeAction) {
         const target = messageList.querySelector(`[data-message-id="${selectorValue(activeMessage)}"] [data-message-action="${selectorValue(activeAction)}"]`);
@@ -4678,14 +4740,42 @@ export function createRamingaApp(root, options = {}) {
       }
       scheduleMarkRead();
     }
-    function renderMessageRow(message) {
+    function normalizeMessageOrigin(value) {
+      const origin = String(value ?? "");
+      return origin === "human" || origin === "agent" ? origin : "unknown";
+    }
+    function renderMessageRow(message, { showIdentity = false, identity = null } = {}) {
       const row = element("div", "rm-message");
       row.dataset.messageId = message.messageId;
       row.dataset.peerId = message.peerId;
       row.dataset.direction = message.direction === "out" ? "out" : "in";
       row.tabIndex = -1;
+      const line = element("div", "rm-message-line");
+      if (message.direction === "out") {
+        const originKey = normalizeMessageOrigin(message.origin);
+        const avatar = element("div", "rm-message-identity");
+        avatar.dataset.origin = originKey;
+        avatar.setAttribute("aria-hidden", "true");
+        if (showIdentity) {
+          if (identity?.url) {
+            const image = element("img", "rm-message-identity-img");
+            image.src = identity.url;
+            image.alt = "";
+            image.decoding = "async";
+            avatar.append(image);
+          } else {
+            const initial = element("span", "rm-message-identity-initial");
+            initial.textContent = identity?.initial || "?";
+            avatar.append(initial);
+          }
+        } else {
+          avatar.className = "rm-message-identity is-spacer";
+        }
+        line.append(avatar);
+      }
       const bubble = element("div", "rm-message-bubble");
       bubble.textContent = message.text;
+      line.append(bubble);
       const meta = element("div", "rm-message-meta");
       const origin = element("span", "rm-message-origin");
       origin.dataset.origin = message.direction === "in" ? "peer" : String(message.origin ?? "unknown");
@@ -4699,7 +4789,7 @@ export function createRamingaApp(root, options = {}) {
         status.textContent = deliveryStatusText(message);
         meta.append(status);
       }
-      row.append(bubble, meta);
+      row.append(line, meta);
       if (message.direction === "out" && message.deliveryError && ["failed", "pending", "unknown"].includes(String(message.deliveryStatus))) {
         const tech = element("button", "rm-detail-link rm-message-tech");
         tech.type = "button";
@@ -4998,6 +5088,29 @@ export function createRamingaApp(root, options = {}) {
       }
       updateComposerOverlay();
     }
+    function selectedDraftValue(peerId2) {
+      return contactsState.selectedPeerId === peerId2
+        ? messageInput.value
+        : readDraft(view, draftKeyFor(peerId2));
+    }
+    /** Restore a failed send only into that same conversation, never the
+     * currently visible editor and never over a newer draft. */
+    function restoreFailedSendDraft(peerId2, text4) {
+      if (!peerId2 || !text4) return;
+      if (selectedDraftValue(peerId2).length > 0) return;
+      if (contactsState.selectedPeerId === peerId2) messageInput.value = text4;
+      persistDraft(peerId2, text4);
+    }
+    function clearSuccessfulSendDraft(peerId2, text4) {
+      if (!peerId2) return;
+      if (contactsState.selectedPeerId === peerId2) {
+        if (messageInput.value !== text4) return;
+        messageInput.value = "";
+        persistDraft(peerId2, "");
+        return;
+      }
+      if (readDraft(view, draftKeyFor(peerId2)) === text4) persistDraft(peerId2, "");
+    }
     function validateMessage(text4) {
       if (text4.trim().length === 0) return "请输入消息。";
       const limit = Number(nodeState.status?.maxChatTextBytes) > 0 ? Number(nodeState.status.maxChatTextBytes) : 4096;
@@ -5079,10 +5192,9 @@ export function createRamingaApp(root, options = {}) {
         current.unknown = false;
         current.outcome = sendOutcome(result);
         current.outcomeStatus = "";
-        if (messageInput.value.length === 0 && current.text !== "") {
-          messageInput.value = current.text;
-          persistDraft(peerId2, messageInput.value);
-        }
+        // The editor may now show another conversation or a newer draft in
+        // this one. Keep the failed body in its original conversation draft.
+        restoreFailedSendDraft(peerId2, current.text);
       } else if (result.ok !== true) {
         current.unknown = !keepTerminal;
         if (!keepTerminal) {
@@ -5096,16 +5208,15 @@ export function createRamingaApp(root, options = {}) {
           current.outcome = sendOutcome(result);
           current.outcomeStatus = resultStatus;
         }
-        if (retryingFailed && resultStatus !== "failed" && messageInput.value === current.text) {
-          messageInput.value = "";
-          persistDraft(peerId2, "");
+        if (retryingFailed && resultStatus !== "failed") {
+          clearSuccessfulSendDraft(peerId2, current.text);
         }
-        if (!keepTerminal && resultStatus === "failed" && messageInput.value.length === 0) {
-          messageInput.value = current.text;
-          persistDraft(peerId2, messageInput.value);
+        if (!keepTerminal && resultStatus === "failed") {
+          restoreFailedSendDraft(peerId2, current.text);
         }
       }
-      composerNotice = null;
+      // Never clear a notice that belongs to the conversation now on screen.
+      if (composerNotice === null || composerNotice.peerId === peerId2) composerNotice = null;
       if (contactsState.selectedPeerId === peerId2) {
         renderComposer();
         keepComposerFocus();
@@ -5459,6 +5570,9 @@ export function createRamingaApp(root, options = {}) {
         result = { ok: false, error: errorText(error) };
       }
       if (destroyed || attempt !== addAttempt || !addContactDialog.open) return;
+      // Hosts that return the post-connect contact snapshot update the list now,
+      // instead of relying on a later poll before "查看联系人" can find the row.
+      if (result?.contacts) setContacts(result.contacts);
       const view2 = connectOutcome(result);
       setAddContactBusy(false);
       if (result?.ok === true) {
@@ -5501,16 +5615,20 @@ export function createRamingaApp(root, options = {}) {
       closeDialog(addContactDialog, { restoreFocus: false });
       contactQuery.value = "";
       view.pages.contacts.query = "";
+      // "查看联系人" is an explicit jump to the newly added row. A new contact
+      // often has no unread messages, so keeping the previous unread-only filter
+      // would hide exactly the row the user asked to see. Only this navigation
+      // resets the filter; ordinary filter switches stay untouched.
+      view.pages.contacts.filter = "all";
       showPage("contacts");
       updateContactsState();
       saveNow();
-      const rows = [...contactList.querySelectorAll("button[data-contact-peer]")];
-      const row = rows.find((item) => item.dataset.contactPeer === peerId2);
+      const row = contactList.querySelector(`button[data-contact-peer="${selectorValue(peerId2)}"]`);
       if (row) {
         row.scrollIntoView?.({ block: "nearest" });
         row.focus({ preventScroll: true });
       } else {
-        $("#addContact").focus({ preventScroll: true });
+        (contactList.querySelector("button[data-contact-peer]") ?? $("#addContact")).focus({ preventScroll: true });
       }
     }
     function resetShareDialog() {
@@ -5588,15 +5706,23 @@ export function createRamingaApp(root, options = {}) {
         shareAddressNote.hidden = false;
       }
       if (result.stale) {
-        shareStaleNote.textContent = `这是 ${refreshedText(result.at)} 的读取结果，可能不是最新。可以重试读取。`;
+        const reason = String(result.error || "").trim();
+        const streamOnly = /实时更新/.test(reason);
+        shareStaleNote.textContent = streamOnly
+          ? `这是 ${refreshedText(result.at)} 成功读取的节点信息；实时更新尚未恢复，可能不是最新。可以在弹窗内重试。`
+          : reason
+            ? `这是 ${refreshedText(result.at)} 成功读取的节点信息；最近一次刷新失败，可能不是最新。可以在弹窗内重试。`
+            : `这是 ${refreshedText(result.at)} 成功读取的节点信息，可能不是最新。可以在弹窗内重试。`;
         shareStaleNote.hidden = false;
+        shareRetry.hidden = false;
       } else {
         shareStaleNote.hidden = true;
+        shareRetry.hidden = true;
       }
       shareCopy.disabled = String(result.peerId || "").length === 0;
     }
     async function copyShareInfo() {
-      const text4 = shareText(currentShare);
+      const text4 = buildShareText(currentShare);
       if (text4.length === 0) return;
       shareCopy.disabled = true;
       try {
@@ -5758,14 +5884,45 @@ export function createRamingaApp(root, options = {}) {
       const summary = connectionSummary(status);
       return `${summary.connections} 条连接 · ${summary.peers} 个已连接节点`;
     }
+    function bootstrapEntries() {
+      const entries = Array.isArray(bootstrapState.data?.entries) ? bootstrapState.data.entries : [];
+      if (entries.length > 0) return entries;
+      // Older hosts expose only flat DhtStatus strings. Keep that view
+      // readable without inventing saved/online state.
+      return (Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : []).map((value) => {
+        const match = /\/p2p\/([^/]+)$/.exec(String(value));
+        return { peerId: match ? match[1] : "", addrs: [String(value)], online: false, paused: false, savedAt: null };
+      });
+    }
+    function bootstrapFeedback(text, tone = "") {
+      bootstrapState.feedback = text;
+      bootstrapState.feedbackTone = tone;
+      statusBootstrapFeedback.textContent = text;
+      statusBootstrapFeedback.dataset.tone = tone;
+      statusBootstrapFeedback.hidden = text === "";
+    }
+    function updateBootstrapControls() {
+      const data = bootstrapState.data;
+      const editable = bootstrapCapable && bootstrapEditCapable && data?.editable === true && data?.requiresUpgrade !== true;
+      statusBootstrapEdit.hidden = !editable;
+      statusBootstrapAdd.disabled = bootstrapState.busy;
+      statusBootstrapInput.disabled = bootstrapState.busy;
+      statusBootstrapRefresh.disabled = bootstrapState.busy;
+      statusBootstrapCopy.disabled = bootstrapState.busy || bootstrapEntries().every((entry) => entry.addrs.length === 0);
+      statusBootstrap.dataset.busy = bootstrapState.busy ? "true" : "false";
+      statusBootstrapUpgrade.hidden = data?.requiresUpgrade !== true;
+      statusBootstrapUnavailable.hidden = bootstrapCapable;
+      if (!editable && !bootstrapState.busy && statusBootstrapInput === root.activeElement) statusBootstrapRefresh.focus({ preventScroll: true });
+    }
     async function loadBootstrap(force = false) {
       if (!bootstrapCapable || bootstrapState.request !== null) return;
       if (!force && bootstrapState.data !== null) return;
       const request = { force };
       bootstrapState.request = request;
-      statusBootstrapNote.textContent = "正在读取引导节点配置…";
+      bootstrapState.busy = true;
+      statusBootstrapNote.textContent = "正在读取引导节点设置…";
       statusBootstrapNote.dataset.tone = "";
-      statusBootstrapCopy.disabled = true;
+      updateBootstrapControls();
       try {
         const value = await options.onLoadBootstrap();
         if (destroyed || bootstrapState.request !== request) return;
@@ -5774,47 +5931,139 @@ export function createRamingaApp(root, options = {}) {
       } catch (error) {
         if (destroyed || bootstrapState.request !== request) return;
         bootstrapState.data = null;
-        bootstrapState.error = errorText(error) || "引导节点配置读取失败";
+        bootstrapState.error = errorText(error) || "引导节点设置读取失败";
       } finally {
-        if (bootstrapState.request === request) bootstrapState.request = null;
+        if (bootstrapState.request === request) {
+          bootstrapState.request = null;
+          bootstrapState.busy = false;
+        }
       }
       if (!destroyed) renderBootstrap();
     }
+    function bootstrapPeerLabel(entry) {
+      if (entry.online) return "已连接";
+      if (entry.paused) return "已暂停（主动断开）";
+      if (entry.addrs.length === 0) return "已保存 · 暂缺地址";
+      return "已保存 · 暂未连通";
+    }
     function renderBootstrap() {
       if (!bootstrapCapable) {
-        statusBootstrapNote.textContent = "当前宿主没有提供引导节点只读查看。";
-        statusBootstrapNote.hidden = false;
+        statusBootstrapNote.textContent = "当前宿主没有提供引导节点管理。";
+        statusBootstrapNote.dataset.tone = "unavailable";
         statusBootstrapList.replaceChildren();
+        statusBootstrapFeedback.hidden = true;
         statusBootstrapCopy.disabled = true;
         statusBootstrapRefresh.hidden = true;
+        statusBootstrapRefresh.disabled = true;
+        statusBootstrapEdit.hidden = true;
+        statusBootstrapUpgrade.hidden = true;
+        statusBootstrapUnavailable.hidden = false;
         return;
       }
       statusBootstrapRefresh.hidden = false;
-      const peers = Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : [];
+      const entries = bootstrapEntries();
       statusBootstrapList.replaceChildren();
-      for (const peer of peers) {
-        const item = element("li", "rm-address-item");
-        const code = element("code");
-        code.textContent = peer;
-        item.append(code);
+      for (const entry of entries) {
+        const item = element("li", "rm-address-item rm-bootstrap-item");
+        item.dataset.bootstrapPeer = entry.peerId;
+        const copy = element("div", "rm-bootstrap-copy");
+        if (entry.addrs.length === 0) {
+          const code = element("code");
+          code.textContent = entry.peerId || "（地址不可用）";
+          copy.append(code);
+        } else {
+          for (const addr of entry.addrs) {
+            const code = element("code");
+            code.textContent = addr;
+            copy.append(code);
+          }
+        }
+        const meta = element("span", "rm-bootstrap-state");
+        meta.dataset.state = entry.online ? "online" : entry.paused ? "paused" : "saved";
+        meta.textContent = bootstrapPeerLabel(entry);
+        copy.append(meta);
+        item.append(copy);
+        if (bootstrapEditCapable && bootstrapState.data?.editable === true) {
+          const remove = element("button", "rm-quiet");
+          remove.type = "button";
+          remove.dataset.bootstrapRemove = entry.peerId;
+          remove.setAttribute("aria-label", `移除引导节点 ${entry.peerId}`);
+          remove.textContent = "移除";
+          remove.disabled = bootstrapState.busy;
+          item.append(remove);
+        }
         statusBootstrapList.append(item);
       }
-      statusBootstrapCopy.disabled = peers.length === 0;
       if (bootstrapState.error) {
-        statusBootstrapNote.textContent = `引导节点配置读取失败：${bootstrapState.error}。`;
+        statusBootstrapNote.textContent = `引导节点设置读取失败：${bootstrapState.error}。`;
         statusBootstrapNote.dataset.tone = "error";
       } else if (bootstrapState.data === null) {
-        statusBootstrapNote.textContent = "尚未读取。展开这项或点击重新读取。";
+        statusBootstrapNote.textContent = "尚未读取。展开这项或点击刷新设置。";
         statusBootstrapNote.dataset.tone = "";
-      } else if (peers.length === 0) {
-        statusBootstrapNote.textContent = "当前配置没有引导节点。";
+      } else if (entries.length === 0) {
+        statusBootstrapNote.textContent = "尚未配置引导节点。保存一个 Raminga 节点地址后，DHT 会把它作为引导候选；保存不等于在线。";
         statusBootstrapNote.dataset.tone = "unavailable";
       } else {
         const at = bootstrapState.data.at ? ` · ${formatDateTime(bootstrapState.data.at)} 读取` : "";
-        statusBootstrapNote.textContent = `来自本机 DhtStatus 的只读配置${at}。修改请编辑本机 config.toml，不在此处编辑。`;
+        const online = entries.filter((entry) => entry.online).length;
+        const paused = entries.filter((entry) => entry.paused).length;
+        statusBootstrapNote.textContent = `已保存 ${entries.length} 个引导节点 · ${online} 个当前已连接${paused > 0 ? ` · ${paused} 个已主动断开` : ""}${at}。保存与在线分开显示。`;
         statusBootstrapNote.dataset.tone = "";
       }
       statusBootstrapNote.hidden = false;
+      updateBootstrapControls();
+    }
+    async function addBootstrapPeer() {
+      if (!bootstrapEditCapable || bootstrapState.busy) return;
+      const value = statusBootstrapInput.value;
+      if (value.trim() === "") {
+        bootstrapFeedback("请填写包含 /p2p/<peer-id> 的节点地址。", "error");
+        statusBootstrapInput.focus({ preventScroll: true });
+        return;
+      }
+      bootstrapState.busy = true;
+      let refocusInput = false;
+      bootstrapFeedback("正在保存引导节点…");
+      updateBootstrapControls();
+      try {
+        const result = await options.onAddBootstrap(value);
+        if (destroyed) return;
+        statusBootstrapInput.value = "";
+        bootstrapFeedback(result?.changed === false
+          ? "该地址已在引导节点列表中，未重复添加。"
+          : "已保存引导节点；是否连通会在列表中单独更新。");
+        await loadBootstrap(true);
+      } catch (error) {
+        if (destroyed) return;
+        bootstrapFeedback(errorText(error) || "保存引导节点失败", "error");
+        refocusInput = true;
+      } finally {
+        bootstrapState.busy = false;
+        if (!destroyed) {
+          updateBootstrapControls();
+          if (refocusInput) statusBootstrapInput.focus({ preventScroll: true });
+        }
+      }
+    }
+    async function removeBootstrapPeer(peerId) {
+      if (!bootstrapEditCapable || bootstrapState.busy || peerId === "") return;
+      bootstrapState.busy = true;
+      bootstrapFeedback("正在移除引导节点标记…");
+      updateBootstrapControls();
+      try {
+        const result = await options.onRemoveBootstrap(peerId);
+        if (destroyed) return;
+        bootstrapFeedback(result?.changed === false
+          ? "该引导节点已不在列表中。"
+          : "已移除引导节点标记；Peer 地址、联系人和主动断开记录保留。");
+        await loadBootstrap(true);
+      } catch (error) {
+        if (destroyed) return;
+        bootstrapFeedback(errorText(error) || "移除引导节点失败", "error");
+      } finally {
+        bootstrapState.busy = false;
+        if (!destroyed) updateBootstrapControls();
+      }
     }
     function renderStatusDialog() {
       const status = nodeState.status;
@@ -5900,49 +6149,125 @@ export function createRamingaApp(root, options = {}) {
         error: mineState.error,
         capable: mineCapable
       });
-      model.avatarUrl = homeAvatarState.url;
+      const agentRequest = currentHomeAvatarRequest();
+      model.avatarUrl = agentRequest && homeAvatarState.key === agentRequest.key ? homeAvatarState.url : "";
+      const v2 = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
+      const humanAvatar = v2?.humanAvatarPath
+        ? { path: v2.humanAvatarPath, sha256: v2.humanAvatarSha256 }
+        : null;
+      const humanKey = publishedAvatarKey(humanAvatar);
+      model.human.avatarUrl = humanKey && homeHumanAvatarState.key === humanKey ? homeHumanAvatarState.url : "";
       return model;
     }
-    function refreshHomeAvatar() {
+    function currentHomeHumanAvatarRequest() {
+      const v2 = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
+      const humanAvatarPath = String(v2?.humanAvatarPath ?? "");
+      const humanAvatarSha = String(v2?.humanAvatarSha256 ?? "").toLowerCase();
+      if (!humanAvatarPath || !humanAvatarSha) return null;
+      const file = Array.isArray(mineState.data?.files)
+        ? mineState.data.files.find((item) => item.path === humanAvatarPath
+          && String(item.sha256 ?? "").toLowerCase() === humanAvatarSha)
+        : null;
+      if (!file || !mineFileContentCapable) return null;
+      return {
+        path: humanAvatarPath,
+        sha256: humanAvatarSha,
+        sizeBytes: file.sizeBytes,
+        mime: v2.humanAvatarMime || file.mime || "",
+        key: `${humanAvatarPath}\u0000${humanAvatarSha}\u0000${file.sizeBytes}`
+      };
+    }
+    function currentHomeAvatarRequest() {
       const data = mineState.data;
       const card = data?.agentCard?.state === "available" ? data.agentCard.card : null;
       const avatarPath = card?.avatarPath || "";
       const file = avatarPath && Array.isArray(data?.files) ? data.files.find((item) => item.path === avatarPath) : null;
-      if (!avatarPath || !file || !mineFileContentCapable) {
+      if (!avatarPath || !file || !mineFileContentCapable) return null;
+      return {
+        avatarPath,
+        sha256: file.sha256,
+        sizeBytes: file.sizeBytes,
+        key: `${avatarPath}\0${file.sha256}\0${file.sizeBytes}`
+      };
+    }
+    function renderHomeAvatarDependents() {
+      renderHome();
+      if (currentPage === "settings" && view.settings.tab === "public") {
+        renderProfileAvatar();
+        renderProfileHumanAvatar();
+        renderProfileDraftStatus();
+      }
+      if (!conversationView.hidden) renderMessageList();
+    }
+    function refreshHomeAvatar() {
+      const request = currentHomeAvatarRequest();
+      if (!request) {
+        // A removal or a different public version invalidates the old read.
+        homeAvatarState.generation += 1;
         homeAvatarState.key = "";
         homeAvatarState.url = "";
-        if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
-          renderProfileAvatar();
-          renderProfileDraftStatus();
-        }
+        homeAvatarState.loading = false;
+        homeAvatarState.requestedKey = "";
+        if (!destroyed) renderHomeAvatarDependents();
         return;
       }
-      const key2 = `${avatarPath}\0${file.sha256}\0${file.sizeBytes}`;
-      if (homeAvatarState.key === key2 || homeAvatarState.loading) return;
+      if (homeAvatarState.key === request.key && homeAvatarState.url) return;
+      if (homeAvatarState.loading && homeAvatarState.requestedKey === request.key) return;
+      // Start the latest key immediately. The previous read is invalidated by
+      // the generation bump, so a slow old response cannot win.
+      const generation = ++homeAvatarState.generation;
       homeAvatarState.loading = true;
-      void options.onLoadMineFileContent(avatarPath, file.sha256, file.sizeBytes).then((preview) => {
-        if (destroyed) return;
-        if (preview?.status === "ok" && preview.kind === "image" && preview.dataUrl) {
-          homeAvatarState.key = key2;
-          homeAvatarState.url = preview.dataUrl;
-        } else {
-          homeAvatarState.key = "";
-          homeAvatarState.url = "";
-        }
-      }).catch(() => {
-        if (!destroyed) {
-          homeAvatarState.key = "";
-          homeAvatarState.url = "";
-        }
-      }).finally(() => {
+      homeAvatarState.requestedKey = request.key;
+      const finish = (url) => {
+        if (destroyed || generation !== homeAvatarState.generation) return;
         homeAvatarState.loading = false;
-        if (!destroyed) {
-          renderHome();
-          if (currentPage === "settings" && view.settings.tab === "public") {
-            renderProfileAvatar();
-            renderProfileDraftStatus();
-          }
-        }
+        homeAvatarState.requestedKey = "";
+        homeAvatarState.key = url ? request.key : "";
+        homeAvatarState.url = url;
+        renderHomeAvatarDependents();
+        // If the published avatar changed while this read was in flight,
+        // immediately read the newest key instead of leaving the stale one.
+        const current = currentHomeAvatarRequest();
+        if (current && current.key !== request.key) refreshHomeAvatar();
+      };
+      void options.onLoadMineFileContent(request.avatarPath, request.sha256, request.sizeBytes).then((preview) => {
+        finish(preview?.status === "ok" && preview.kind === "image" && preview.dataUrl ? preview.dataUrl : "");
+      }).catch(() => {
+        finish("");
+      });
+    }
+    function refreshHomeHumanAvatar() {
+      const request = currentHomeHumanAvatarRequest();
+      if (!request) {
+        // Removal, a different public version or a missing manifest entry
+        // invalidates any older read immediately.
+        homeHumanAvatarState.generation += 1;
+        homeHumanAvatarState.key = "";
+        homeHumanAvatarState.url = "";
+        homeHumanAvatarState.loading = false;
+        homeHumanAvatarState.requestedKey = "";
+        if (!destroyed) renderHomeAvatarDependents();
+        return;
+      }
+      if (homeHumanAvatarState.key === request.key && homeHumanAvatarState.url) return;
+      if (homeHumanAvatarState.loading && homeHumanAvatarState.requestedKey === request.key) return;
+      const generation = ++homeHumanAvatarState.generation;
+      homeHumanAvatarState.loading = true;
+      homeHumanAvatarState.requestedKey = request.key;
+      const finish = (url) => {
+        if (destroyed || generation !== homeHumanAvatarState.generation) return;
+        homeHumanAvatarState.loading = false;
+        homeHumanAvatarState.requestedKey = "";
+        homeHumanAvatarState.key = url ? request.key : "";
+        homeHumanAvatarState.url = url;
+        renderHomeAvatarDependents();
+        const current = currentHomeHumanAvatarRequest();
+        if (current && current.key !== request.key) refreshHomeHumanAvatar();
+      };
+      void options.onLoadMineFileContent(request.path, request.sha256, request.sizeBytes).then((preview) => {
+        finish(preview?.status === "ok" && preview.kind === "image" && preview.dataUrl ? preview.dataUrl : "");
+      }).catch(() => {
+        finish("");
       });
     }
     function homeActivityModel() {
@@ -6057,9 +6382,17 @@ export function createRamingaApp(root, options = {}) {
         statusText: homeAgentStatusText,
         statusDot: homeAgentStatusDot
       }, agent);
+      if (homeAgentProfileRetry) {
+        const retry = Boolean(agent.needsRetry && mineCapable);
+        homeAgentProfileRetry.hidden = !retry;
+        homeAgentProfileRetry.onclick = retry ? () => {
+          void loadMine(true);
+        } : null;
+      }
       renderHomeHuman(doc, {
         title: homeHumanTitle,
         summary: homeHumanSummary,
+        avatar: homeHumanAvatar,
         profile: mineProfileContent,
         renderMarkdown: renderMarkdownInto
       }, agent);
@@ -6376,16 +6709,42 @@ export function createRamingaApp(root, options = {}) {
       profileDraftState.avatarPreviewObject = false;
       profileDraftState.avatarPreviewAssetId = "";
     }
+    function releaseProfileHumanAvatarPreview() {
+      if (profileDraftState.humanAvatarPreviewObject && profileDraftState.humanAvatarPreviewUrl) {
+        try { URL.revokeObjectURL(profileDraftState.humanAvatarPreviewUrl); } catch { /* detached test DOM */ }
+      }
+      profileDraftState.humanAvatarPreviewUrl = "";
+      profileDraftState.humanAvatarPreviewObject = false;
+      profileDraftState.humanAvatarPreviewAssetId = "";
+    }
+    /** Key of the local public bytes that back a published avatar. A draft
+     * source can only borrow the loaded home URL when path, hash and manifest
+     * size all still match; otherwise an older public image could appear while
+     * a newer draft is selected. */
+    function publishedAvatarKey(avatar) {
+      const path = String(avatar?.path ?? "");
+      const sha = String(avatar?.sha256 ?? "").toLowerCase();
+      if (!path || !sha) return "";
+      const file = Array.isArray(mineState.data?.files)
+        ? mineState.data.files.find((item) => item.path === path)
+        : null;
+      const size = Number(file?.sizeBytes) > 0 ? Number(file.sizeBytes) : 0;
+      return `${path}\u0000${sha}\u0000${size}`;
+    }
 
     function fallbackProfileDraft() {
       const publicProfile = mineState.data?.publicProfile?.state === "available" ? mineState.data.publicProfile.profile : null;
       const card = mineState.data?.agentCard?.state === "available" ? mineState.data.agentCard.card : null;
       const human = mineState.data?.profile?.state === "available" ? mineState.data.profile : null;
+      const humanIndexName = human?.displayName && human.displayName !== "关联人类" ? human.displayName : "";
       const avatar = publicProfile?.avatarPath
         ? { assetId: "", sha256: publicProfile.avatarSha256, mime: publicProfile.avatarMime, path: publicProfile.avatarPath }
         : card?.avatarPath
           ? { assetId: "", sha256: card.avatarSha256, mime: card.avatarMime, path: card.avatarPath }
           : null;
+      const humanAvatar = publicProfile?.humanAvatarPath
+        ? { assetId: "", sha256: publicProfile.humanAvatarSha256, mime: publicProfile.humanAvatarMime, path: publicProfile.humanAvatarPath }
+        : null;
       return {
         draftId: "profile",
         kind: "profile",
@@ -6394,9 +6753,10 @@ export function createRamingaApp(root, options = {}) {
         agentDescription: publicProfile?.agentDescription || card?.description || "",
         agentInterests: publicProfile?.agentInterests || card?.interests || [],
         agentConversationStyle: publicProfile?.agentConversationStyle || card?.conversationStyle || "",
-        humanName: publicProfile?.humanName || human?.displayName || "",
+        humanName: publicProfile?.humanName || humanIndexName,
         humanBioMarkdown: publicProfile?.humanBioMarkdown || (human ? String(human.markdown).replace(/^#.*$/m, "").trim() : ""),
         avatar,
+        humanAvatar,
         publishedSha256: "",
         publishedRevision: 0,
         publishedPath: ""
@@ -6435,14 +6795,27 @@ export function createRamingaApp(root, options = {}) {
       };
     }
 
+    function profileImageMatchesSelection(draftImage, { file, assetId, clear }) {
+      if (file !== null) return false;
+      const image = draftImage || null;
+      if (clear) return image === null;
+      if (assetId) return String(image?.assetId || "") === assetId;
+      return image === null || String(image?.assetId || "") === "";
+    }
+
     function profileDraftMatchesCurrent(draft = profileDraftState.draft) {
       if (!draft) return false;
       if (!sameProfileValues(profileFormValues(), profileDraftValues(draft))) return false;
-      if (profileDraftState.avatarFile !== null) return false;
-      const draftAvatar = draft.avatar || null;
-      if (profileDraftState.avatarClear) return draftAvatar === null;
-      if (profileDraftState.avatarAssetId) return String(draftAvatar?.assetId || "") === profileDraftState.avatarAssetId;
-      return draftAvatar === null || String(draftAvatar.assetId || "") === "";
+      if (!profileImageMatchesSelection(draft.avatar, {
+        file: profileDraftState.avatarFile,
+        assetId: profileDraftState.avatarAssetId,
+        clear: profileDraftState.avatarClear
+      })) return false;
+      return profileImageMatchesSelection(draft.humanAvatar, {
+        file: profileDraftState.humanAvatarFile,
+        assetId: profileDraftState.humanAvatarAssetId,
+        clear: profileDraftState.humanAvatarClear
+      });
     }
 
     function adoptProfileDraftBaseline(receipt) {
@@ -6451,7 +6824,10 @@ export function createRamingaApp(root, options = {}) {
       const avatar = Object.prototype.hasOwnProperty.call(receipt, "avatar")
         ? receipt.avatar ?? null
         : current.avatar ?? null;
-      profileDraftState.draft = { ...current, ...receipt, avatar };
+      const humanAvatar = Object.prototype.hasOwnProperty.call(receipt, "humanAvatar")
+        ? receipt.humanAvatar ?? null
+        : current.humanAvatar ?? null;
+      profileDraftState.draft = { ...current, ...receipt, avatar, humanAvatar };
       profileDraftState.fromFallback = false;
       profileDraftState.conflict = false;
     }
@@ -6461,6 +6837,13 @@ export function createRamingaApp(root, options = {}) {
         && profileDraftState.avatarFile === request.avatarFile
         && profileDraftState.avatarAssetId === request.avatarAssetId
         && profileDraftState.avatarClear === request.clearAvatar);
+    }
+
+    function profileHumanAvatarSelectionMatches(request) {
+      return Boolean(request
+        && profileDraftState.humanAvatarFile === request.humanAvatarFile
+        && profileDraftState.humanAvatarAssetId === request.humanAvatarAssetId
+        && profileDraftState.humanAvatarClear === request.clearHumanAvatar);
     }
 
     function restoreProfileAvatarFromDraft(draft, fallbackAvatar = null) {
@@ -6476,10 +6859,24 @@ export function createRamingaApp(root, options = {}) {
       renderProfileAvatar();
     }
 
+    function restoreProfileHumanAvatarFromDraft(draft, fallbackAvatar = null) {
+      const avatar = draft?.humanAvatar || fallbackAvatar || null;
+      releaseProfileHumanAvatarPreview();
+      profileDraftState.humanAvatarFile = null;
+      profileDraftState.humanAvatarAssetId = avatar?.assetId || "";
+      profileDraftState.humanAvatarClear = false;
+      profileDraftState.humanAvatarLoadingAssetId = "";
+      if (profileDraftState.draft) {
+        profileDraftState.draft = { ...profileDraftState.draft, humanAvatar: avatar };
+      }
+      renderProfileHumanAvatar();
+    }
+
     function setProfileForm(draft) {
       if (!draft) return;
       releaseDraftAssetScope("profile");
       releaseProfileAvatarPreview();
+      releaseProfileHumanAvatarPreview();
       publicAgentName.value = draft.agentName || "";
       publicAgentDescription.value = draft.agentDescription || "";
       publicAgentInterests.value = (draft.agentInterests || []).join("，");
@@ -6490,6 +6887,12 @@ export function createRamingaApp(root, options = {}) {
       profileDraftState.avatarClear = false;
       profileDraftState.avatarFile = null;
       profileDraftState.avatarError = "";
+      profileDraftState.avatarRestoreToken += 1;
+      profileDraftState.humanAvatarAssetId = draft.humanAvatar?.assetId || "";
+      profileDraftState.humanAvatarClear = false;
+      profileDraftState.humanAvatarFile = null;
+      profileDraftState.humanAvatarError = "";
+      profileDraftState.humanAvatarRestoreToken += 1;
       profileDraftState.formVersion += 1;
       profileDraftState.dirty = false;
       profileDraftState.reloadArmed = false;
@@ -6499,6 +6902,7 @@ export function createRamingaApp(root, options = {}) {
       if (publicPublishButton) publicPublishButton.textContent = "检查发布内容";
       if (publicPublishCancel) publicPublishCancel.hidden = true;
       renderProfileAvatar();
+      renderProfileHumanAvatar();
       renderHumanPreview();
       renderPublicVersionPreview();
     }
@@ -6550,7 +6954,8 @@ export function createRamingaApp(root, options = {}) {
         });
         return;
       }
-      if (!profileDraftState.avatarClear && avatar && homeAvatarState.url) {
+      const homeKey = publishedAvatarKey(avatar);
+      if (!profileDraftState.avatarClear && avatar && homeKey && homeAvatarState.key === homeKey && homeAvatarState.url) {
         image.src = homeAvatarState.url;
         publicAvatarPreview.dataset.loading = "false";
         publicAvatarPreview.dataset.empty = "false";
@@ -6565,6 +6970,71 @@ export function createRamingaApp(root, options = {}) {
         return;
       }
       showPlaceholder(true, "尚未设置 Agent 头像");
+    }
+
+    function renderProfileHumanAvatar() {
+      if (!publicHumanAvatarPreview) return;
+      const image = publicHumanAvatarPreview.querySelector("img");
+      if (!image) return;
+      image.hidden = false;
+      const avatar = profileDraftState.draft?.humanAvatar || null;
+      const assetId = profileDraftState.humanAvatarAssetId;
+      const showPlaceholder = (empty, label) => {
+        image.src = "assets/raminga-mark-gradient.svg";
+        publicHumanAvatarPreview.dataset.loading = "false";
+        publicHumanAvatarPreview.dataset.empty = empty ? "true" : "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", label);
+      };
+      if (profileDraftState.humanAvatarPreviewUrl) {
+        image.src = profileDraftState.humanAvatarPreviewUrl;
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.dataset.loading = "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", "关联人类头像预览");
+        return;
+      }
+      if (publicDraftAssetCapable && assetId && avatar?.assetId === assetId) {
+        image.removeAttribute("src");
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.dataset.loading = "true";
+        publicHumanAvatarPreview.setAttribute("aria-label", "正在读取关联人类草稿头像");
+        profileDraftState.humanAvatarLoadingAssetId = assetId;
+        void ensureDraftAssetPreview("profile", "profile", avatar).then((entry) => {
+          if (destroyed || profileDraftState.humanAvatarAssetId !== assetId || profileDraftState.humanAvatarLoadingAssetId !== assetId) return;
+          profileDraftState.humanAvatarLoadingAssetId = "";
+          if (!entry?.url) {
+            profileDraftState.humanAvatarError = "人类头像草稿读取失败；保存或发布时会重新校验。";
+            showPlaceholder(true, "关联人类头像暂时无法显示");
+            renderProfileDraftStatus();
+            return;
+          }
+          profileDraftState.humanAvatarError = "";
+          profileDraftState.humanAvatarPreviewUrl = entry.url;
+          profileDraftState.humanAvatarPreviewObject = entry.objectUrl === true;
+          profileDraftState.humanAvatarPreviewAssetId = assetId;
+          image.src = entry.url;
+          publicHumanAvatarPreview.dataset.loading = "false";
+          publicHumanAvatarPreview.dataset.empty = "false";
+          publicHumanAvatarPreview.setAttribute("aria-label", "关联人类头像预览");
+          renderProfileDraftStatus();
+        });
+        return;
+      }
+      const homeKey = publishedAvatarKey(avatar);
+      if (!profileDraftState.humanAvatarClear && avatar && homeKey && homeHumanAvatarState.key === homeKey && homeHumanAvatarState.url) {
+        image.src = homeHumanAvatarState.url;
+        publicHumanAvatarPreview.dataset.loading = "false";
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", "关联人类公开头像");
+        return;
+      }
+      if (!profileDraftState.humanAvatarClear && avatar) {
+        image.src = "assets/raminga-mark-gradient.svg";
+        publicHumanAvatarPreview.dataset.loading = "true";
+        publicHumanAvatarPreview.dataset.empty = "false";
+        publicHumanAvatarPreview.setAttribute("aria-label", "正在读取已公开的关联人类头像");
+        return;
+      }
+      showPlaceholder(true, "尚未设置关联人类头像");
     }
 
     function renderHumanPreview() {
@@ -6596,6 +7066,9 @@ export function createRamingaApp(root, options = {}) {
           avatarPath: v2.avatarPath || "",
           avatarSha256: v2.avatarSha256 || "",
           avatarMime: v2.avatarMime || "",
+          humanAvatarPath: v2.humanAvatarPath || "",
+          humanAvatarSha256: v2.humanAvatarSha256 || "",
+          humanAvatarMime: v2.humanAvatarMime || "",
           updatedAt: v2.updatedAt || ""
         };
       }
@@ -6614,6 +7087,9 @@ export function createRamingaApp(root, options = {}) {
         avatarPath: card?.avatarPath || "",
         avatarSha256: card?.avatarSha256 || "",
         avatarMime: card?.avatarMime || "",
+        humanAvatarPath: "",
+        humanAvatarSha256: "",
+        humanAvatarMime: "",
         updatedAt: card?.updatedAt || ""
       };
     }
@@ -6625,8 +7101,16 @@ export function createRamingaApp(root, options = {}) {
       const readError = mineState.error || (mineState.data?.publicProfile?.state === "error" ? mineState.data.publicProfile.error : "");
       if (publicVersionPreview) publicVersionPreview.classList.toggle("is-empty", !published);
       publicRestorePublished.disabled = !published || profileDraftState.publishing || profileDraftState.saving;
+      if (publicVersionRetry) {
+        publicVersionRetry.hidden = !(mineCapable && readError.length > 0);
+        publicVersionRetry.disabled = mineState.retrying;
+        publicVersionRetry.textContent = mineState.retrying ? "正在重试…" : "重试读取公开资料";
+        publicVersionRetry.onclick = mineCapable ? () => {
+          void loadMine(true);
+        } : null;
+      }
       if (!published) {
-        publicVersionName.textContent = loading ? "正在读取公开版本…" : "尚无公开版本";
+        publicVersionName.textContent = loading ? "正在读取公开版本…" : readError ? "读取公开版本失败" : "尚无公开版本";
         publicVersionDescription.textContent = loading
           ? "读取完成后会在这里显示当前公开内容。"
           : readError ? "当前公开版本读取失败，详细诊断在「版本、路径与诊断」中。" : "发布成功后会在这里保留一份可恢复的公开内容预览。";
@@ -6651,14 +7135,21 @@ export function createRamingaApp(root, options = {}) {
       }
       publicVersionInterests.hidden = published.agentInterests.length === 0;
       publicVersionStyle.textContent = published.agentConversationStyle ? `公开交流风格 · ${published.agentConversationStyle}` : "";
+      const humanAvatarText = published.humanAvatarPath ? "（已设置公开头像）" : "";
       publicVersionHuman.textContent = published.humanName
-        ? `关联人类 · ${published.humanName}${published.humanBioMarkdown ? `：${plainSummary(published.humanBioMarkdown, 160)}` : ""}`
-        : "关联人类介绍尚未填写。";
-      publicVersionNote.textContent = `公开版本 · ${published.sourcePath}${published.updatedAt ? ` · 更新于 ${formatDateTime(published.updatedAt)}` : ""}`;
+        ? `关联人类 · ${published.humanName}${humanAvatarText}${published.humanBioMarkdown ? `：${plainSummary(published.humanBioMarkdown, 160)}` : ""}`
+        : published.humanAvatarPath ? "关联人类 · 已设置公开头像，介绍尚未填写。" : "关联人类介绍尚未填写。";
+      const stale = readError && Number(mineState.data?.at) > 0
+        ? ` 这是 ${refreshedText(mineState.data.at)} 成功读取的公开版本；最近一次刷新失败，可能不是最新。`
+        : "";
+      publicVersionNote.textContent = `公开版本 · ${published.sourcePath}${published.updatedAt ? ` · 更新于 ${formatDateTime(published.updatedAt)}` : ""}${stale}`;
       const image = publicVersionAvatar?.querySelector("img");
       const initial = publicVersionAvatar?.querySelector("span");
       if (image && initial) {
-        if (published.avatarPath && homeAvatarState.url) {
+        const publishedKey = publishedAvatarKey(published.avatarPath
+          ? { path: published.avatarPath, sha256: published.avatarSha256 }
+          : null);
+        if (published.avatarPath && publishedKey && homeAvatarState.key === publishedKey && homeAvatarState.url) {
           image.src = homeAvatarState.url;
           image.hidden = false;
           initial.hidden = true;
@@ -6761,9 +7252,13 @@ export function createRamingaApp(root, options = {}) {
       publicPublishCancel.hidden = !state.confirm || lock;
       publicPublishCancel.disabled = lock;
       publicAvatarInput.disabled = lock;
+      publicHumanAvatarInput.disabled = lock;
       const hasAvatar = !state.avatarClear && (state.avatarFile !== null || Boolean(state.avatarAssetId)
         || Boolean(state.draft?.avatar) || Boolean(homeAvatarState.url));
+      const hasHumanAvatar = !state.humanAvatarClear && (state.humanAvatarFile !== null || Boolean(state.humanAvatarAssetId)
+        || Boolean(state.draft?.humanAvatar) || Boolean(homeHumanAvatarState.url));
       publicAvatarClear.disabled = lock || !hasAvatar;
+      publicHumanAvatarClear.disabled = lock || !hasHumanAvatar;
       for (const input of [publicAgentName, publicAgentDescription, publicAgentInterests, publicAgentStyle, publicHumanName, publicHumanBio]) {
         input.disabled = lock;
       }
@@ -6781,6 +7276,21 @@ export function createRamingaApp(root, options = {}) {
           publicAvatarNote.hidden = true;
           publicAvatarNote.textContent = "";
           delete publicAvatarNote.dataset.tone;
+        }
+      }
+      if (publicHumanAvatarNote) {
+        if (state.humanAvatarError) {
+          publicHumanAvatarNote.hidden = false;
+          publicHumanAvatarNote.dataset.tone = "error";
+          publicHumanAvatarNote.textContent = state.humanAvatarError;
+        } else if (state.humanAvatarLoadingAssetId) {
+          publicHumanAvatarNote.hidden = false;
+          publicHumanAvatarNote.dataset.tone = "";
+          publicHumanAvatarNote.textContent = "正在读取本机关联人类草稿头像…";
+        } else {
+          publicHumanAvatarNote.hidden = true;
+          publicHumanAvatarNote.textContent = "";
+          delete publicHumanAvatarNote.dataset.tone;
         }
       }
       if (!publicDraftLoadCapable) {
@@ -6862,7 +7372,11 @@ export function createRamingaApp(root, options = {}) {
       if (state.confirm && !state.receipt) {
         publicPublishReceipt.hidden = false;
         publicPublishReceipt.dataset.tone = "unavailable";
-        publicPublishReceipt.textContent = `将以关联人类“${publicHumanName.value.trim() || "未填写"}”与 Agent“${publicAgentName.value.trim() || "未命名"}”发布当前内容。确认后才会公开。`;
+        const imageStateText = (clear, file, assetId, draftImage) => clear
+          ? "已移除"
+          : file ? "新图片待保存"
+            : assetId || draftImage ? "已设置" : "使用默认形象";
+        publicPublishReceipt.textContent = `将以关联人类“${publicHumanName.value.trim() || "未填写"}”与 Agent“${publicAgentName.value.trim() || "未命名"}”发布当前内容；Agent 头像：${imageStateText(state.avatarClear, state.avatarFile, state.avatarAssetId, state.draft?.avatar)}，关联人类头像：${imageStateText(state.humanAvatarClear, state.humanAvatarFile, state.humanAvatarAssetId, state.draft?.humanAvatar)}。确认后才会公开。`;
       } else if (state.receipt) {
         publicPublishReceipt.hidden = false;
         publicPublishReceipt.dataset.tone = state.receipt.status === "published" || state.receipt.status === "already_published" ? "ready" : "error";
@@ -6902,6 +7416,7 @@ export function createRamingaApp(root, options = {}) {
         return Promise.resolve(profileDraftState.draft);
       }
       const seq = ++profileDraftState.loadingSeq;
+      const formVersionAtStart = profileDraftState.formVersion;
       const promise = (async () => {
         try {
           const result = await options.onLoadPublicDraft("profile");
@@ -6922,6 +7437,13 @@ export function createRamingaApp(root, options = {}) {
           profileDraftState.error = "";
           profileDraftState.conflict = false;
           profileDraftState.reloadArmed = false;
+          // A late load must never overwrite input made while it was in flight.
+          // Keep the newer local form and mark the discrepancy instead of
+          // calling setProfileForm(), which would also reset the avatar picker.
+          if (profileDraftState.formVersion !== formVersionAtStart && profileDraftState.dirty) {
+            profileDraftState.confirmNotice = "草稿已在后台重新载入；载入期间的新输入仍保留，请再次保存。";
+            return profileDraftState.draft;
+          }
           setProfileForm(draft);
         } catch (error) {
           if (destroyed || seq !== profileDraftState.loadingSeq) return null;
@@ -6952,16 +7474,21 @@ export function createRamingaApp(root, options = {}) {
         avatarFile: profileDraftState.avatarFile,
         avatarAssetId: profileDraftState.avatarClear ? "" : profileDraftState.avatarAssetId,
         clearAvatar: profileDraftState.avatarClear === true,
+        humanAvatarFile: profileDraftState.humanAvatarFile,
+        humanAvatarAssetId: profileDraftState.humanAvatarClear ? "" : profileDraftState.humanAvatarAssetId,
+        clearHumanAvatar: profileDraftState.humanAvatarClear === true,
         version: profileDraftState.formVersion
       };
     }
 
-    async function saveProfileDraftOnce(expectedRevision, avatarAssetId, values, clearAvatar) {
+    async function saveProfileDraftOnce(expectedRevision, images, values) {
       const result = await options.onSavePublicDraft({
         draftId: "profile", kind: "profile", expectedRevision,
         ...values,
-        avatarAssetId: avatarAssetId || "",
-        clearAvatar: clearAvatar === true,
+        avatarAssetId: images.avatarAssetId || "",
+        clearAvatar: images.clearAvatar === true,
+        humanAvatarAssetId: images.humanAvatarAssetId || "",
+        clearHumanAvatar: images.clearHumanAvatar === true,
         imageAssetIds: [],
         tags: []
       });
@@ -6980,36 +7507,154 @@ export function createRamingaApp(root, options = {}) {
       return new FileCtor([bytes], name || "avatar.png", { type: mime || "image/png" });
     }
 
-    async function importPublishedAvatarForDraft() {
-      const draft = profileDraftState.draft;
-      const avatar = draft?.avatar;
-      if (!avatar?.path || avatar.assetId || profileDraftState.avatarFile
-        || profileDraftState.avatarAssetId || profileDraftState.avatarClear) return;
-      if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取；请重新选择头像或移除头像后再保存。");
-      const file = mineState.data?.files?.find((item) => item.path === avatar.path) ?? null;
-      if (!file) throw new Error("已公开头像不在本机发布清单中；请重新选择头像或移除头像后再保存。");
-      // A slow public-avatar read may finish after the user has typed, picked a
-      // different image or removed it. Only adopt it into the same edit state.
-      const version = profileDraftState.formVersion;
-      const avatarPath = avatar.path;
-      const avatarSha = String(avatar.sha256 || "");
-      const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
-      if (destroyed || profileDraftState.draft !== draft || version !== profileDraftState.formVersion) return;
-      if (profileDraftState.avatarFile || profileDraftState.avatarAssetId || profileDraftState.avatarClear) return;
-      const current = profileDraftState.draft?.avatar;
-      if (!current || current.path !== avatarPath || String(current.sha256 || "") !== avatarSha) return;
-      if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
-        throw new Error(preview?.error || "已公开头像读取失败；请重新选择头像或移除头像后再保存。");
+    function draftImageIsHuman(kind) {
+      return kind === "human";
+    }
+    function draftImageField(kind) {
+      return draftImageIsHuman(kind) ? "humanAvatar" : "avatar";
+    }
+    function draftImageSelection(kind) {
+      const human = draftImageIsHuman(kind);
+      return {
+        human,
+        file: human ? profileDraftState.humanAvatarFile : profileDraftState.avatarFile,
+        assetId: human ? profileDraftState.humanAvatarAssetId : profileDraftState.avatarAssetId,
+        clear: human ? profileDraftState.humanAvatarClear : profileDraftState.avatarClear,
+        loadingAssetId: human ? profileDraftState.humanAvatarLoadingAssetId : profileDraftState.avatarLoadingAssetId
+      };
+    }
+    function bumpDraftImageToken(kind) {
+      if (draftImageIsHuman(kind)) {
+        profileDraftState.humanAvatarRestoreToken += 1;
+        return profileDraftState.humanAvatarRestoreToken;
+      }
+      profileDraftState.avatarRestoreToken += 1;
+      return profileDraftState.avatarRestoreToken;
+    }
+    function draftImageToken(kind) {
+      return draftImageIsHuman(kind) ? profileDraftState.humanAvatarRestoreToken : profileDraftState.avatarRestoreToken;
+    }
+    function applyDraftImageFile(kind, { file, previewUrl, objectUrl = false, assetId = "" }) {
+      if (draftImageIsHuman(kind)) {
+        releaseProfileHumanAvatarPreview();
+        profileDraftState.humanAvatarFile = file;
+        profileDraftState.humanAvatarPreviewUrl = previewUrl;
+        profileDraftState.humanAvatarPreviewObject = objectUrl;
+        profileDraftState.humanAvatarPreviewAssetId = "";
+        profileDraftState.humanAvatarAssetId = assetId;
+        profileDraftState.humanAvatarClear = false;
+        profileDraftState.humanAvatarError = "";
+        profileDraftState.humanAvatarLoadingAssetId = "";
+        renderProfileHumanAvatar();
+        return;
       }
       releaseProfileAvatarPreview();
-      profileDraftState.avatarFile = dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime);
-      profileDraftState.avatarPreviewUrl = preview.dataUrl;
-      profileDraftState.avatarPreviewObject = false;
-      profileDraftState.avatarAssetId = "";
+      profileDraftState.avatarFile = file;
+      profileDraftState.avatarPreviewUrl = previewUrl;
+      profileDraftState.avatarPreviewObject = objectUrl;
+      profileDraftState.avatarPreviewAssetId = "";
+      profileDraftState.avatarAssetId = assetId;
       profileDraftState.avatarClear = false;
       profileDraftState.avatarError = "";
       profileDraftState.avatarLoadingAssetId = "";
       renderProfileAvatar();
+    }
+    async function readPublishedAvatarFile(avatar) {
+      if (!avatar?.path) throw new Error("已公开头像没有路径");
+      if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取；请重新选择头像或移除头像后再保存。");
+      const avatarSha = String(avatar.sha256 || "").toLowerCase();
+      const file = mineState.data?.files?.find((item) => item.path === avatar.path
+        && (!avatarSha || String(item.sha256 || "").toLowerCase() === avatarSha)) ?? null;
+      if (!file) throw new Error("已公开头像不在本机发布清单中；请重新选择头像或移除头像后再保存。");
+      const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
+      return { file, preview };
+    }
+
+    /** Import one independent published image into the same private draft.
+     * Agent and human images never share selection, preview or token state. */
+    async function importPublishedAvatarForDraft(kind = "agent") {
+      const human = draftImageIsHuman(kind);
+      const field = draftImageField(kind);
+      const draft = profileDraftState.draft;
+      const avatar = draft?.[field];
+      const selection = draftImageSelection(kind);
+      if (!avatar?.path || avatar.assetId || selection.file
+        || selection.assetId || selection.clear) return false;
+      const version = profileDraftState.formVersion;
+      const token = bumpDraftImageToken(kind);
+      const avatarPath = avatar.path;
+      const avatarSha = String(avatar.sha256 || "").toLowerCase();
+      const stillCurrent = () => !destroyed
+        && token === draftImageToken(kind)
+        && profileDraftState.draft === draft
+        && version === profileDraftState.formVersion
+        && !draftImageSelection(kind).file
+        && !draftImageSelection(kind).assetId
+        && !draftImageSelection(kind).clear
+        && String(profileDraftState.draft?.[field]?.path || "") === avatarPath
+        && String(profileDraftState.draft?.[field]?.sha256 || "").toLowerCase() === avatarSha;
+      try {
+        const { file, preview } = await readPublishedAvatarFile(avatar);
+        if (!stillCurrent()) return false;
+        if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
+          throw new Error(preview?.error || "已公开头像读取失败；请重新选择头像或移除头像后再保存。");
+        }
+        applyDraftImageFile(kind, {
+          file: dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime),
+          previewUrl: preview.dataUrl
+        });
+        return true;
+      } catch (error) {
+        if (stillCurrent()) throw error;
+        return false;
+      }
+    }
+
+    async function importPublishedAvatarsForDraft() {
+      const results = await Promise.allSettled([
+        importPublishedAvatarForDraft("agent"),
+        importPublishedAvatarForDraft("human")
+      ]);
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) throw failed.reason;
+    }
+
+    /** Restore one published image after `setProfileForm()`. The restore token
+     * is bumped by any newer form load, pick or removal, so a late success or
+     * rejection can only write into the exact edit state that requested it. */
+    async function restorePublishedAvatarForDraft(kind, avatar, token) {
+      if (!avatar?.path) return false;
+      const human = draftImageIsHuman(kind);
+      const field = draftImageField(kind);
+      const avatarPath = avatar.path;
+      const avatarSha = String(avatar.sha256 || "").toLowerCase();
+      const stillCurrent = () => !destroyed
+        && token === draftImageToken(kind)
+        && !draftImageSelection(kind).file
+        && !draftImageSelection(kind).assetId
+        && !draftImageSelection(kind).clear
+        && String(profileDraftState.draft?.[field]?.path || "") === avatarPath
+        && String(profileDraftState.draft?.[field]?.sha256 || "").toLowerCase() === avatarSha;
+      try {
+        const { file, preview } = await readPublishedAvatarFile(avatar);
+        if (!stillCurrent()) return false;
+        if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
+          throw new Error(preview?.error || "已公开头像读取失败");
+        }
+        applyDraftImageFile(kind, {
+          file: dataUrlToFile(preview.dataUrl, file.name || avatarPath.split("/").pop(), preview.mime || avatar.mime),
+          previewUrl: preview.dataUrl
+        });
+        return true;
+      } catch (error) {
+        if (!stillCurrent()) return false;
+        if (human) {
+          profileDraftState.humanAvatarError = `${errorText(error)}；请重新选择关联人类头像后再发布。`;
+        } else {
+          profileDraftState.avatarError = `${errorText(error)}；请重新选择头像后再发布。`;
+        }
+        return false;
+      }
     }
 
     async function saveProfileDraft({ manual = false } = {}) {
@@ -7042,29 +7687,71 @@ export function createRamingaApp(root, options = {}) {
         let request = null;
         let baseline = null;
         let beforeDraftAvatar = null;
+        let beforeDraftHumanAvatar = null;
+        let imagePhase = "";
         try {
-          await importPublishedAvatarForDraft();
+          await importPublishedAvatarsForDraft();
           if (destroyed) return profileDraftState.draft;
           request = profileRequestValues();
           beforeDraftAvatar = profileDraftState.draft?.avatar || null;
+          beforeDraftHumanAvatar = profileDraftState.draft?.humanAvatar || null;
           const draft = profileDraftState.draft;
-          let saved = await saveProfileDraftOnce(draft?.revision || 0, request.avatarAssetId, request.values, request.clearAvatar);
+          let agentAssetId = request.avatarAssetId;
+          let clearAgentAvatar = request.clearAvatar;
+          let humanAssetId = request.humanAvatarAssetId;
+          let clearHumanAvatar = request.clearHumanAvatar;
+          let saved = await saveProfileDraftOnce(draft?.revision || 0, {
+            avatarAssetId: agentAssetId,
+            clearAvatar: clearAgentAvatar,
+            humanAvatarAssetId: humanAssetId,
+            clearHumanAvatar
+          }, request.values);
           // The text save already advanced the server revision. Make it the
           // retry baseline before any upload/second save can fail.
           baseline = saved;
           adoptProfileDraftBaseline(saved);
           if (request.avatarFile) {
+            imagePhase = "agent";
             if (!publicDraftImageCapable) throw new Error("当前宿主不支持上传草稿头像");
             const base64 = await fileToBase64(request.avatarFile);
             const uploaded = await options.onPutPublicDraftImage(saved.draftId, "avatar", request.avatarFile.name, base64);
             if (!uploaded?.image?.assetId) throw new Error("头像上传没有返回资源");
-            saved = await saveProfileDraftOnce(saved.revision, uploaded.image.assetId, request.values, false);
+            agentAssetId = uploaded.image.assetId;
+            clearAgentAvatar = false;
+            saved = await saveProfileDraftOnce(saved.revision, {
+              avatarAssetId: agentAssetId,
+              clearAvatar: false,
+              humanAvatarAssetId: humanAssetId,
+              clearHumanAvatar
+            }, request.values);
             baseline = saved;
             adoptProfileDraftBaseline(saved);
             if (request.version === profileDraftState.formVersion && profileDraftState.avatarFile === request.avatarFile) {
-              profileDraftState.avatarAssetId = uploaded.image.assetId;
+              profileDraftState.avatarAssetId = agentAssetId;
               profileDraftState.avatarFile = null;
               profileDraftState.avatarClear = false;
+            }
+          }
+          if (request.humanAvatarFile) {
+            imagePhase = "human";
+            if (!publicDraftImageCapable) throw new Error("当前宿主不支持上传草稿人类头像");
+            const base64 = await fileToBase64(request.humanAvatarFile);
+            const uploaded = await options.onPutPublicDraftImage(saved.draftId, "human_avatar", request.humanAvatarFile.name, base64);
+            if (!uploaded?.image?.assetId) throw new Error("关联人类头像上传没有返回资源");
+            humanAssetId = uploaded.image.assetId;
+            clearHumanAvatar = false;
+            saved = await saveProfileDraftOnce(saved.revision, {
+              avatarAssetId: agentAssetId,
+              clearAvatar: clearAgentAvatar,
+              humanAvatarAssetId: humanAssetId,
+              clearHumanAvatar: false
+            }, request.values);
+            baseline = saved;
+            adoptProfileDraftBaseline(saved);
+            if (request.version === profileDraftState.formVersion && profileDraftState.humanAvatarFile === request.humanAvatarFile) {
+              profileDraftState.humanAvatarAssetId = humanAssetId;
+              profileDraftState.humanAvatarFile = null;
+              profileDraftState.humanAvatarClear = false;
             }
           }
           profileDraftState.draft = saved;
@@ -7075,7 +7762,9 @@ export function createRamingaApp(root, options = {}) {
           if (!profileDraftState.dirty) {
             profileDraftState.error = "";
             if (!profileDraftState.avatarFile) profileDraftState.avatarAssetId = saved.avatar?.assetId || "";
+            if (!profileDraftState.humanAvatarFile) profileDraftState.humanAvatarAssetId = saved.humanAvatar?.assetId || "";
             profileDraftState.avatarClear = false;
+            profileDraftState.humanAvatarClear = false;
           }
         } catch (error) {
           const message = profileDraftErrorText(error);
@@ -7083,12 +7772,23 @@ export function createRamingaApp(root, options = {}) {
           const imageFailure = /image_(?:type|decode|size|dimensions)|只支持 PNG|PNG 或 JPEG|图片.*(?:损坏|截断|解码|格式|尺寸|像素)/i.test(raw);
           profileDraftState.error = message;
           profileDraftState.conflict = /冲突|已在别处|conflict|failed_precondition/i.test(raw);
-          // Keep the old avatar on screen when a failed upload/second save
-          // happens under the same selection. A newer pick or removal wins.
+          // Keep the old image on screen when a failed upload/second save
+          // happens under the same selection. A newer pick or removal wins,
+          // and the two images recover independently.
           if (baseline && request && profileAvatarSelectionMatches(request)) {
             restoreProfileAvatarFromDraft(baseline, beforeDraftAvatar);
           }
-          if (imageFailure) profileDraftState.avatarError = message;
+          if (baseline && request && profileHumanAvatarSelectionMatches(request)) {
+            restoreProfileHumanAvatarFromDraft(baseline, beforeDraftHumanAvatar);
+          }
+          if (imageFailure) {
+            if (imagePhase === "human") profileDraftState.humanAvatarError = message;
+            else if (imagePhase === "agent") profileDraftState.avatarError = message;
+            else {
+              profileDraftState.avatarError = message;
+              profileDraftState.humanAvatarError = message;
+            }
+          }
           profileDraftState.dirty = !baseline || !profileDraftMatchesCurrent();
         } finally {
           profileDraftState.saving = false;
@@ -7097,6 +7797,7 @@ export function createRamingaApp(root, options = {}) {
           profileDraftState.queuedSave = false;
           if (!destroyed) {
             renderProfileAvatar();
+            renderProfileHumanAvatar();
             renderProfileDraftStatus();
             if (retry) queueProfileSave(350);
           }
@@ -7153,6 +7854,11 @@ export function createRamingaApp(root, options = {}) {
         avatarClear: profileDraftState.avatarClear === true,
         avatarFile: profileDraftState.avatarFile
           ? [profileDraftState.avatarFile.name, profileDraftState.avatarFile.size, profileDraftState.avatarFile.lastModified]
+          : null,
+        humanAvatarAssetId: profileDraftState.humanAvatarClear ? "" : profileDraftState.humanAvatarAssetId,
+        humanAvatarClear: profileDraftState.humanAvatarClear === true,
+        humanAvatarFile: profileDraftState.humanAvatarFile
+          ? [profileDraftState.humanAvatarFile.name, profileDraftState.humanAvatarFile.size, profileDraftState.humanAvatarFile.lastModified]
           : null
       });
     }
@@ -7169,11 +7875,11 @@ export function createRamingaApp(root, options = {}) {
         }
         if (profileDraftState.conflict) throw new Error("草稿已在别处更新，不能直接发布；请重新载入最新草稿后再检查。");
         try {
-          await importPublishedAvatarForDraft();
+          await importPublishedAvatarsForDraft();
         } catch (error) {
           throw new Error(`${errorText(error)} 未保存为草稿，发布也不会丢弃旧头像。`);
         }
-        if (profileDraftState.avatarFile) profileDraftState.dirty = true;
+        if (profileDraftState.avatarFile || profileDraftState.humanAvatarFile) profileDraftState.dirty = true;
         if (!profileDraftState.dirty && profileDraftState.draft) return profileDraftState.draft;
         await saveProfileDraft({ manual: true });
         if (profileDraftState.conflict) throw new Error("草稿已在别处更新，不能直接发布；本机输入已保留。");
@@ -7278,6 +7984,7 @@ export function createRamingaApp(root, options = {}) {
     function handleProfileReload() {
       if (!publicDraftLoadCapable || profileDraftState.saving || profileDraftState.publishing) return;
       const hasLocalChanges = profileDraftState.dirty || profileDraftState.avatarFile !== null
+        || profileDraftState.humanAvatarFile !== null
         || profileDraftState.confirm || profileDraftState.reloadArmed;
       if (hasLocalChanges && !profileDraftState.reloadArmed) {
         profileDraftState.reloadArmed = true;
@@ -7285,6 +7992,14 @@ export function createRamingaApp(root, options = {}) {
         renderProfileDraftStatus();
         return;
       }
+      // Confirmed discard: cancel the queued autosave, not only the visible
+      // dirty flag. Otherwise that timer can still write the abandoned text and
+      // advance the draft revision after the new copy has loaded.
+      if (profileSaveTimer !== null) {
+        win.clearTimeout(profileSaveTimer);
+        profileSaveTimer = null;
+      }
+      profileDraftState.queuedSave = false;
       profileDraftState.reloadArmed = false;
       profileDraftState.dirty = false;
       profileDraftState.error = "";
@@ -7316,39 +8031,34 @@ export function createRamingaApp(root, options = {}) {
         avatar: published.avatarPath
           ? { assetId: "", sha256: published.avatarSha256, mime: published.avatarMime, path: published.avatarPath }
           : null,
+        humanAvatar: published.humanAvatarPath
+          ? { assetId: "", sha256: published.humanAvatarSha256, mime: published.humanAvatarMime, path: published.humanAvatarPath }
+          : null,
         publishedSha256: profileDraftState.draft?.publishedSha256 || "",
         publishedRevision: profileDraftState.draft?.publishedRevision || 0,
         publishedPath: profileDraftState.draft?.publishedPath || ""
       };
+      const hadSavedDraft = Boolean(profileDraftState.draft && !profileDraftState.fromFallback);
       setProfileForm(restored);
-      if (published.avatarPath) {
-        try {
-          const avatar = restored.avatar;
-          if (!mineFileContentCapable) throw new Error("当前宿主没有提供本机公开头像读取");
-          const file = mineState.data?.files?.find((item) => item.path === avatar.path) ?? null;
-          if (!file) throw new Error("已公开头像不在本机发布清单中");
-          const preview = await options.onLoadMineFileContent(avatar.path, file.sha256 || avatar.sha256, file.sizeBytes);
-          if (destroyed) return;
-          if (preview?.status !== "ok" || preview.kind !== "image" || !preview.dataUrl) {
-            throw new Error(preview?.error || "已公开头像读取失败");
-          }
-          profileDraftState.avatarFile = dataUrlToFile(preview.dataUrl, file.name || avatar.path.split("/").pop(), preview.mime || avatar.mime);
-          profileDraftState.avatarPreviewUrl = preview.dataUrl;
-          profileDraftState.avatarPreviewObject = false;
-          profileDraftState.avatarAssetId = "";
-          profileDraftState.avatarClear = false;
-          renderProfileAvatar();
-        } catch (error) {
-          profileDraftState.avatarError = `${errorText(error)}；请重新选择头像后再发布。`;
-          profileDraftState.fromFallback = true;
-        }
-      } else {
+      profileDraftState.draft = {
+        ...(profileDraftState.draft || restored),
+        avatar: restored.avatar,
+        humanAvatar: restored.humanAvatar
+      };
+      // setProfileForm bumped both tokens. Capture fresh restore tokens before
+      // starting either read; any later load/pick/removal invalidates them.
+      const agentToken = bumpDraftImageToken("agent");
+      const humanToken = bumpDraftImageToken("human");
+      if (!restored.avatar) {
         profileDraftState.avatarClear = true;
         profileDraftState.avatarFile = null;
         profileDraftState.avatarAssetId = "";
       }
-      const hadSavedDraft = Boolean(profileDraftState.draft && !profileDraftState.fromFallback);
-      profileDraftState.draft = { ...profileDraftState.draft, avatar: restored.avatar };
+      if (!restored.humanAvatar) {
+        profileDraftState.humanAvatarClear = true;
+        profileDraftState.humanAvatarFile = null;
+        profileDraftState.humanAvatarAssetId = "";
+      }
       profileDraftState.formVersion += 1;
       profileDraftState.dirty = true;
       profileDraftState.fromFallback = !hadSavedDraft;
@@ -7357,9 +8067,17 @@ export function createRamingaApp(root, options = {}) {
       profileDraftState.confirmSnapshot = "";
       profileDraftState.confirmNotice = "已恢复公开版本；保存后成为本机草稿。";
       renderProfileAvatar();
+      renderProfileHumanAvatar();
       renderHumanPreview();
       renderProfileDraftStatus();
       publicDraftStatus.scrollIntoView?.({ block: "nearest" });
+      await Promise.all([
+        restorePublishedAvatarForDraft("agent", restored.avatar, agentToken),
+        restorePublishedAvatarForDraft("human", restored.humanAvatar, humanToken)
+      ]);
+      if (!destroyed && profileDraftState.draft) {
+        renderProfileDraftStatus();
+      }
     }
 
     function postFormValues() {
@@ -8730,10 +9448,16 @@ export function createRamingaApp(root, options = {}) {
           profileDraftState.draft = { ...refreshed, draftId: "profile", kind: "profile", revision: 0 };
           setProfileForm(profileDraftState.draft);
         } else if (profileDraftState.draft && profileDraftState.draft.revision === 0) {
-          profileDraftState.draft = { ...profileDraftState.draft, avatar: refreshed.avatar, publishedSha256: refreshed.publishedSha256 };
+          profileDraftState.draft = {
+            ...profileDraftState.draft,
+            avatar: refreshed.avatar,
+            humanAvatar: refreshed.humanAvatar,
+            publishedSha256: refreshed.publishedSha256
+          };
         }
         if (!destroyed && currentPage === "settings" && view.settings.tab === "public") {
           renderProfileAvatar();
+          renderProfileHumanAvatar();
           renderProfileDraftStatus();
         }
       }
@@ -10615,6 +11339,60 @@ export function createRamingaApp(root, options = {}) {
         refreshContactAvatar(peerId2);
       });
     }
+    function peerHumanAvatarKey(peerId2, data) {
+      const path = String(data?.humanAvatarPath ?? "");
+      const sha = String(data?.humanAvatarSha256 ?? "").toLowerCase();
+      const mime = String(data?.humanAvatarMime ?? "");
+      if (!path || !sha || !mime || !Array.isArray(data?.manifest?.entries)) return "";
+      const entry = data.manifest.entries.find((item) => item.path === path
+        && String(item.sha256 ?? "").toLowerCase() === sha);
+      if (!entry) return "";
+      return `${peerId2}\u0000${path}\u0000${sha}\u0000${Number(entry.sizeBytes) || 0}\u0000${mime}`;
+    }
+    function renderPeerHumanAvatar(peerId2, data, { displayName = "" } = {}) {
+      if (!profileHumanAvatar) return;
+      const initial = Array.from(displayName || "")[0] || "人";
+      if (profileHumanInitial) {
+        profileHumanInitial.textContent = initial;
+        profileHumanInitial.hidden = false;
+      }
+      const key = peerHumanAvatarKey(peerId2, data);
+      const cached = peerHumanAvatarState.get(peerId2);
+      const cachedMatches = Boolean(key && cached && cached.key === key && cached.state === "ready" && cached.url);
+      profileHumanAvatar.hidden = !cachedMatches;
+      if (cachedMatches) {
+        profileHumanAvatar.src = cached.url;
+        if (profileHumanInitial) profileHumanInitial.hidden = true;
+      } else {
+        profileHumanAvatar.src = "assets/raminga-mark-gradient.svg";
+      }
+      profileHumanStrip?.setAttribute("data-has-avatar", key ? "true" : "false");
+      if (!key || cachedMatches) return;
+      if (cached && cached.key === key && (cached.state === "loading" || cached.state === "error")) return;
+      const avatarPath = String(data.humanAvatarPath);
+      const avatarSha = String(data.humanAvatarSha256).toLowerCase();
+      const avatarMime = String(data.humanAvatarMime);
+      const entry = data.manifest.entries.find((item) => item.path === avatarPath
+        && String(item.sha256 ?? "").toLowerCase() === avatarSha);
+      if (!entry || typeof options.onLoadPeerFileContent !== "function") return;
+      peerHumanAvatarState.set(peerId2, { key, state: "loading", url: "" });
+      void options.onLoadPeerFileContent(peerId2, avatarPath, avatarSha, entry.sizeBytes).then((preview) => {
+        if (destroyed) return;
+        const valid = preview?.status === "ok"
+          && preview.kind === "image"
+          && preview.mime === avatarMime
+          && String(preview.sha256 ?? "").toLowerCase() === avatarSha
+          && Number(preview.sizeBytes) === Number(entry.sizeBytes)
+          && typeof preview.dataUrl === "string"
+          && preview.dataUrl.length > 0;
+        peerHumanAvatarState.set(peerId2, valid ? { key, state: "ready", url: preview.dataUrl } : { key, state: "error", url: "" });
+        if (!profileView.hidden && profileState.peerId === peerId2) rerenderProfileKeepingPosition();
+      }).catch(() => {
+        if (destroyed) return;
+        peerHumanAvatarState.set(peerId2, { key, state: "error", url: "" });
+        if (!profileView.hidden && profileState.peerId === peerId2) rerenderProfileKeepingPosition();
+      });
+    }
     function renderProfile() {
       const peerId2 = profileState.peerId;
       const data = profileState.data;
@@ -10704,6 +11482,15 @@ export function createRamingaApp(root, options = {}) {
       profileHumanHeadingLabel.textContent = "公开资料";
       profileHumanName.textContent = "";
       profileHumanName.hidden = true;
+      if (profileHumanAvatar) {
+        profileHumanAvatar.src = "assets/raminga-mark-gradient.svg";
+        profileHumanAvatar.hidden = true;
+      }
+      if (profileHumanInitial) {
+        profileHumanInitial.textContent = "人";
+        profileHumanInitial.hidden = false;
+      }
+      profileHumanStrip?.setAttribute("data-has-avatar", "false");
       const technicalErrors = [];
       const addTechnicalError = (label, raw) => {
         const value = String(raw ?? "").trim();
@@ -10848,14 +11635,16 @@ ${value}` : value);
       const humanName = String(data.remoteName ?? "").trim();
       const humanSummary = plainSummary(data.text);
       const humanDistinct = humanName.length > 0 && humanName !== agentName;
+      const hasHumanAvatar = Boolean(String(data.humanAvatarPath ?? "").trim());
       const sameIntro = humanSummary.length > 0 && bio.length > 0 && (humanSummary === bio || bio.startsWith(humanSummary) || humanSummary.startsWith(bio));
       const showHumanSummary = humanSummary.length > 0 && !sameIntro;
-      profileHumanHeadingLabel.textContent = humanDistinct ? "关联人类 · " : "公开资料";
+      renderPeerHumanAvatar(peerId2, data, { displayName: humanName });
+      profileHumanHeadingLabel.textContent = humanDistinct ? "关联人类 · " : hasHumanAvatar ? "关联人类" : "公开资料";
       profileHumanName.textContent = humanDistinct ? humanName : "";
       profileHumanName.hidden = !humanDistinct;
       profileHumanSummary.textContent = showHumanSummary ? humanSummary : "";
       profileHumanSummary.hidden = !showHumanSummary;
-      profileHumanStrip.hidden = !humanDistinct && !showHumanSummary && !data.text;
+      profileHumanStrip.hidden = !humanDistinct && !showHumanSummary && !data.text && !hasHumanAvatar;
       if (!data.found) {
         profileBodyNote.textContent = "对方没有公开用户档案。";
         profileBodyNote.hidden = false;
@@ -10959,6 +11748,7 @@ ${value}` : value);
         if (!destroyed && request === mineState.requestSeq) {
           mineState.retrying = false;
           refreshHomeAvatar();
+          refreshHomeHumanAvatar();
           renderMine();
           if (currentPage === "settings") renderSettingsFavorites();
           if (currentPage === "post") renderPostDetailPage();
@@ -11237,20 +12027,23 @@ ${value}` : value);
       publicPublishButton.focus?.({ preventScroll: true });
       renderProfileDraftStatus();
     }, { signal: controller.signal });
-    publicAvatarInput.addEventListener("change", () => {
-      const file = publicAvatarInput.files?.[0] ?? null;
-      publicAvatarInput.value = "";
-      if (!file || profileDraftState.publishing) return;
-      if (!["image/png", "image/jpeg"].includes(file.type)) {
-        profileDraftState.error = "头像只支持 PNG 或 JPEG。";
-        profileDraftState.avatarError = "头像只支持 PNG 或 JPEG。";
-        renderProfileDraftStatus();
-        return;
-      }
-      if (file.size > 4 * 1024 * 1024) {
-        profileDraftState.error = "头像超过 4 MiB。";
-        profileDraftState.avatarError = "头像超过 4 MiB。";
-        renderProfileDraftStatus();
+    function releaseDraftImageAsset(kind) {
+      const assetId = draftImageIsHuman(kind)
+        ? profileDraftState.humanAvatarAssetId
+        : profileDraftState.avatarAssetId;
+      if (assetId) releaseDraftAsset("profile", "profile", assetId);
+    }
+    function applyPickedDraftImage(kind, file) {
+      if (draftImageIsHuman(kind)) {
+        profileDraftState.humanAvatarFile = file;
+        profileDraftState.humanAvatarClear = false;
+        profileDraftState.humanAvatarAssetId = "";
+        profileDraftState.humanAvatarError = "";
+        profileDraftState.humanAvatarLoadingAssetId = "";
+        bumpDraftImageToken("human");
+        releaseDraftImageAsset("human");
+        releaseProfileHumanAvatarPreview();
+        renderProfileHumanAvatar();
         return;
       }
       profileDraftState.avatarFile = file;
@@ -11258,41 +12051,101 @@ ${value}` : value);
       profileDraftState.avatarAssetId = "";
       profileDraftState.avatarError = "";
       profileDraftState.avatarLoadingAssetId = "";
-      releaseDraftAssetScope("profile");
+      bumpDraftImageToken("agent");
+      releaseDraftImageAsset("agent");
       releaseProfileAvatarPreview();
       renderProfileAvatar();
-      const Reader = win.FileReader ?? globalThis.FileReader;
-      if (typeof Reader !== "function") {
-        profileDraftState.avatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
-        scheduleProfileSave();
+    }
+    function clearDraftImage(kind) {
+      if (draftImageIsHuman(kind)) {
+        profileDraftState.humanAvatarFile = null;
+        profileDraftState.humanAvatarAssetId = "";
+        profileDraftState.humanAvatarClear = true;
+        profileDraftState.humanAvatarError = "";
+        profileDraftState.humanAvatarLoadingAssetId = "";
+        bumpDraftImageToken("human");
+        releaseDraftImageAsset("human");
+        releaseProfileHumanAvatarPreview();
+        renderProfileHumanAvatar();
         return;
       }
-      const reader = new Reader();
-      reader.onload = () => {
-        if (destroyed || profileDraftState.avatarFile !== file) return;
-        profileDraftState.avatarPreviewUrl = String(reader.result ?? "");
-        profileDraftState.avatarPreviewObject = false;
-        renderProfileAvatar();
-      };
-      reader.onerror = () => {
-        if (destroyed || profileDraftState.avatarFile !== file) return;
-        profileDraftState.avatarError = "读取本地头像预览失败；保存时仍会重试上传。";
-        renderProfileDraftStatus();
-      };
-      reader.readAsDataURL(file);
-      profileDraftState.error = "";
-      scheduleProfileSave();
-    }, { signal: controller.signal });
-    publicAvatarClear.addEventListener("click", () => {
-      if (profileDraftState.publishing) return;
       profileDraftState.avatarFile = null;
       profileDraftState.avatarAssetId = "";
       profileDraftState.avatarClear = true;
       profileDraftState.avatarError = "";
       profileDraftState.avatarLoadingAssetId = "";
-      releaseDraftAssetScope("profile");
+      bumpDraftImageToken("agent");
+      releaseDraftImageAsset("agent");
       releaseProfileAvatarPreview();
       renderProfileAvatar();
+    }
+    function handleDraftImagePick(kind, input) {
+      const file = input.files?.[0] ?? null;
+      input.value = "";
+      const human = draftImageIsHuman(kind);
+      const label = human ? "关联人类头像" : "头像";
+      if (!file || profileDraftState.publishing) return;
+      if (!["image/png", "image/jpeg"].includes(file.type)) {
+        profileDraftState.error = `${label}只支持 PNG 或 JPEG。`;
+        if (human) profileDraftState.humanAvatarError = `${label}只支持 PNG 或 JPEG。`;
+        else profileDraftState.avatarError = `${label}只支持 PNG 或 JPEG。`;
+        renderProfileDraftStatus();
+        return;
+      }
+      if (file.size > 4 * 1024 * 1024) {
+        profileDraftState.error = `${label}超过 4 MiB。`;
+        if (human) profileDraftState.humanAvatarError = `${label}超过 4 MiB。`;
+        else profileDraftState.avatarError = `${label}超过 4 MiB。`;
+        renderProfileDraftStatus();
+        return;
+      }
+      applyPickedDraftImage(kind, file);
+      const Reader = win.FileReader ?? globalThis.FileReader;
+      if (typeof Reader !== "function") {
+        if (human) profileDraftState.humanAvatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
+        else profileDraftState.avatarError = "当前环境没有文件读取能力；保存时仍会重试上传。";
+        scheduleProfileSave();
+        return;
+      }
+      const reader = new Reader();
+      reader.onload = () => {
+        if (destroyed) return;
+        if (human ? profileDraftState.humanAvatarFile !== file : profileDraftState.avatarFile !== file) return;
+        if (human) {
+          profileDraftState.humanAvatarPreviewUrl = String(reader.result ?? "");
+          profileDraftState.humanAvatarPreviewObject = false;
+          renderProfileHumanAvatar();
+        } else {
+          profileDraftState.avatarPreviewUrl = String(reader.result ?? "");
+          profileDraftState.avatarPreviewObject = false;
+          renderProfileAvatar();
+        }
+      };
+      reader.onerror = () => {
+        if (destroyed) return;
+        if (human ? profileDraftState.humanAvatarFile !== file : profileDraftState.avatarFile !== file) return;
+        if (human) profileDraftState.humanAvatarError = "读取本地人类头像预览失败；保存时仍会重试上传。";
+        else profileDraftState.avatarError = "读取本地头像预览失败；保存时仍会重试上传。";
+        renderProfileDraftStatus();
+      };
+      reader.readAsDataURL(file);
+      profileDraftState.error = "";
+      scheduleProfileSave();
+    }
+    publicAvatarInput.addEventListener("change", () => {
+      handleDraftImagePick("agent", publicAvatarInput);
+    }, { signal: controller.signal });
+    publicAvatarClear.addEventListener("click", () => {
+      if (profileDraftState.publishing) return;
+      clearDraftImage("agent");
+      scheduleProfileSave();
+    }, { signal: controller.signal });
+    publicHumanAvatarInput.addEventListener("change", () => {
+      handleDraftImagePick("human", publicHumanAvatarInput);
+    }, { signal: controller.signal });
+    publicHumanAvatarClear.addEventListener("click", () => {
+      if (profileDraftState.publishing) return;
+      clearDraftImage("human");
       scheduleProfileSave();
     }, { signal: controller.signal });
     publicRestorePublished.addEventListener("click", () => {
@@ -11784,11 +12637,21 @@ ${value}` : value);
       if (statusBootstrap.open && bootstrapState.data === null && bootstrapState.request === null) void loadBootstrap(false);
     }, { signal: controller.signal });
     statusBootstrapRefresh.addEventListener("click", () => {
+      bootstrapFeedback("");
       void loadBootstrap(true);
     }, { signal: controller.signal });
+    statusBootstrapEdit.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void addBootstrapPeer();
+    }, { signal: controller.signal });
+    statusBootstrapList.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-bootstrap-remove]");
+      if (!button) return;
+      void removeBootstrapPeer(button.dataset.bootstrapRemove ?? "");
+    }, { signal: controller.signal });
     statusBootstrapCopy.addEventListener("click", () => {
-      const peers = bootstrapState.data?.peers ?? [];
-      void copyTextWithNotice(peers.join("\n"), statusBootstrapNote, "已复制引导节点列表。修改配置请编辑 config.toml。");
+      const addresses = bootstrapEntries().flatMap((entry) => entry.addrs);
+      void copyTextWithNotice(addresses.join("\n"), statusBootstrapFeedback, "已复制全部引导节点地址。");
     }, { signal: controller.signal });
     profileCopyPeer.addEventListener("click", () => {
       void copyTextWithNotice(profileState.peerId, profileNodeNote, "完整 Peer ID 已复制。");

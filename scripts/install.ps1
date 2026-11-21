@@ -35,6 +35,19 @@ try {
 }
 Unblock-File -LiteralPath $dest
 
+# Install the editable release preset next to the executable. Never overwrite
+# an existing sidecar: it may contain operator edits and upgrades must keep it.
+$presetSource = Join-Path $PSScriptRoot "bootstrap-preset.toml"
+$presetDest = Join-Path $destDir "bootstrap-preset.toml"
+if (Test-Path -LiteralPath $presetSource -PathType Leaf) {
+    if (Test-Path -LiteralPath $presetDest) {
+        Write-Host "保留已有 $presetDest（未覆盖）"
+    } else {
+        Copy-Item -LiteralPath $presetSource -Destination $presetDest
+        Write-Host "已安装 bootstrap 预置到 $presetDest"
+    }
+}
+
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($null -eq $userPath) {
     $userPath = ""

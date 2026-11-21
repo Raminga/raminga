@@ -7,7 +7,7 @@
 // It is served as Connect-RPC only on a Unix domain socket in the data dir,
 // never on a TCP or UDP network listener.
 
-import { ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DeletePublicDraftRequest, DeletePublicDraftResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, GetPublicDraftAssetRequest, GetPublicDraftAssetResponse, GetPublicDraftRequest, GetPublicDraftResponse, ImportPublicPostRequest, ImportPublicPostResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListFavoritesRequest, ListFavoritesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, ListPublicDraftsRequest, ListPublicDraftsResponse, MarkConversationReadRequest, MarkConversationReadResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, PublishPublicDraftRequest, PublishPublicDraftResponse, PutPublicDraftImageRequest, PutPublicDraftImageResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveFriendRequest, RemoveFriendResponse, SavePublicDraftRequest, SavePublicDraftResponse, SendChatRequest, SendChatResponse, SetFavoriteRequest, SetFavoriteResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
+import { AddBootstrapPeerRequest, AddBootstrapPeerResponse, ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DeletePublicDraftRequest, DeletePublicDraftResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, GetPublicDraftAssetRequest, GetPublicDraftAssetResponse, GetPublicDraftRequest, GetPublicDraftResponse, ImportPublicPostRequest, ImportPublicPostResponse, ListBootstrapPeersRequest, ListBootstrapPeersResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListFavoritesRequest, ListFavoritesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, ListPublicDraftsRequest, ListPublicDraftsResponse, MarkConversationReadRequest, MarkConversationReadResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, PublishPublicDraftRequest, PublishPublicDraftResponse, PutPublicDraftImageRequest, PutPublicDraftImageResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveBootstrapPeerRequest, RemoveBootstrapPeerResponse, RemoveFriendRequest, RemoveFriendResponse, SavePublicDraftRequest, SavePublicDraftResponse, SendChatRequest, SendChatResponse, SetFavoriteRequest, SetFavoriteResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -216,6 +216,42 @@ export const RamingaService = {
       name: "DhtAddPeer",
       I: DhtAddPeerRequest,
       O: DhtAddPeerResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListBootstrapPeers returns the saved DHT bootstrap roles. Adding or
+     * removing one is a local node setting, not a contact or chat action.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.ListBootstrapPeers
+     */
+    listBootstrapPeers: {
+      name: "ListBootstrapPeers",
+      I: ListBootstrapPeersRequest,
+      O: ListBootstrapPeersResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * AddBootstrapPeer saves one explicit Raminga bootstrap address and applies
+     * it to the live DHT. Persistence is the receipt; connectivity is separate.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.AddBootstrapPeer
+     */
+    addBootstrapPeer: {
+      name: "AddBootstrapPeer",
+      I: AddBootstrapPeerRequest,
+      O: AddBootstrapPeerResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * RemoveBootstrapPeer removes only the bootstrap role. Peer addresses,
+     * contact history, other roles and the explicit disconnect pause remain.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.RemoveBootstrapPeer
+     */
+    removeBootstrapPeer: {
+      name: "RemoveBootstrapPeer",
+      I: RemoveBootstrapPeerRequest,
+      O: RemoveBootstrapPeerResponse,
       kind: MethodKind.Unary,
     },
     /**

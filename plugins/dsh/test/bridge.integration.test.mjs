@@ -23,7 +23,7 @@ const canRun = process.platform !== 'win32' && fs.existsSync(binary);
 
 test('bridge reads real Status, opens one Events stream, and disposes it', { skip: !canRun ? `missing ${binary}` : false }, async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-bridge-'));
-  const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   const config = resolveConfig({ dataDir: dir, ramingaBin: binary });
   const api = new RamingaApi(config);
@@ -72,7 +72,7 @@ test('bridge reads real Status, opens one Events stream, and disposes it', { ski
 
 test('the plugin unload disposer stops an open panel subscription', { skip: !canRun ? `missing ${binary}` : false }, async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-unload-'));
-  const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   const previousProfile = process.env.DSH_PROFILE;
   process.env.DSH_PROFILE = 'headless'; // skip the unrelated tool event subscription in this focused test
@@ -136,7 +136,7 @@ function stopDir(dir) {
 
 test('bridge re-reads a full Status and resubscribes after a real daemon restart', { skip: !canRun ? `missing ${binary}` : false, timeout: 45000 }, async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-restart-'));
-  const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   const config = resolveConfig({ dataDir: dir, ramingaBin: binary });
   const api = new RamingaApi(config);
@@ -209,7 +209,7 @@ test('a real connection and disconnect produce Events and fresh Status reconcili
   const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-main-'));
   const peerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-peer-'));
   for (const dir of [mainDir, peerDir]) {
-    const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+    const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
     assert.equal(init.status, 0, init.stderr || init.stdout);
   }
   let mainDaemon = startDaemon(mainDir);
@@ -269,12 +269,12 @@ test('real contacts: connect, duplicate reuse, share addresses and persistence',
   const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-stage4-main-'));
   const peerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-stage4-peer-'));
   const initMain = spawnSync(binary, [
-    'init', '--data-dir', mainDir, '--listen', '/ip4/127.0.0.1/tcp/0',
+    'init', '--no-bootstrap-preset', '--data-dir', mainDir, '--listen', '/ip4/127.0.0.1/tcp/0',
     '--announce', '/ip4/203.0.113.10/tcp/4001',
     '--announce', '/ip4/192.168.1.10/tcp/4001', '--json',
   ], { encoding: 'utf8' });
   assert.equal(initMain.status, 0, initMain.stderr || initMain.stdout);
-  const initPeer = spawnSync(binary, ['init', '--data-dir', peerDir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const initPeer = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', peerDir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   assert.equal(initPeer.status, 0, initPeer.stderr || initPeer.stdout);
   let mainDaemon = startDaemon(mainDir);
   let peerDaemon = startDaemon(peerDir);
@@ -363,7 +363,7 @@ test('real peer manifest, manual file fetch and discovery provenance stay versio
   const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-files-main-'));
   const peerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-files-peer-'));
   for (const dir of [mainDir, peerDir]) {
-    const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+    const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
     assert.equal(init.status, 0, init.stderr || init.stdout);
   }
   fs.mkdirSync(path.join(peerDir, 'public', 'notes'), { recursive: true });
@@ -514,7 +514,7 @@ test('real dual-node public profile, avatar and user/Agent posts publish atomica
   const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-pub-main-'));
   const peerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-pub-peer-'));
   for (const dir of [mainDir, peerDir]) {
-    const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+    const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
     assert.equal(init.status, 0, init.stderr || init.stdout);
   }
   let mainDaemon = startDaemon(mainDir);

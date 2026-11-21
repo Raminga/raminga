@@ -20,6 +20,7 @@ import {
   readOwnAgentCard,
   readOwnPosts,
   readOwnPublic,
+  parsePublicProfile,
   saveContactImpression,
   savePrivateAgentFile,
   writeContactProjection,
@@ -265,6 +266,66 @@ test('public Agent card is separately parsed and placeholder content is rejected
   const badRead = await readDownloadedAgentCard(dir, PEER_A, 'profile/agent-card.json', '', bad.length);
   assert.equal(badRead.state, 'error');
   assert.match(badRead.error, /占位/);
+});
+
+test('profile.json v2 parses an Agent avatar and a human avatar independently', () => {
+  const agentSha = 'a'.repeat(64);
+  const humanSha = 'b'.repeat(64);
+  const profile = parsePublicProfile(Buffer.from(JSON.stringify({
+    schema_version: 2,
+    agent: {
+      name: 'Nova', description: 'Agent 介绍', interests: ['天文'], conversation_style: '简洁',
+      avatar: `avatar-${agentSha.slice(0, 8)}.png`, avatar_sha256: agentSha, avatar_mime: 'image/png',
+    },
+    human: {
+      name: 'JO JO', bio_markdown: '关联人类介绍。',
+      avatar: `human-avatar-${humanSha.slice(0, 8)}.jpg`, avatar_sha256: humanSha, avatar_mime: 'image/jpeg',
+    },
+    updated_at: '2026-11-18T10:00:00Z',
+  })));
+  assert.equal(profile.avatarPath, `profile/avatar-${agentSha.slice(0, 8)}.png`);
+  assert.equal(profile.avatarSha256, agentSha);
+  assert.equal(profile.avatarMime, 'image/png');
+  assert.equal(profile.humanAvatarPath, `profile/human-avatar-${humanSha.slice(0, 8)}.jpg`);
+  assert.equal(profile.humanAvatarSha256, humanSha);
+  assert.equal(profile.humanAvatarMime, 'image/jpeg');
+});
+
+test('old profile.json v2 without a human avatar parses unchanged', () => {
+  const agentSha = 'c'.repeat(64);
+  const profile = parsePublicProfile(Buffer.from(JSON.stringify({
+    schema_version: 2,
+    agent: {
+      name: 'Nova', description: '', interests: [], conversation_style: '',
+      avatar: `avatar-${agentSha.slice(0, 8)}.png`, avatar_sha256: agentSha, avatar_mime: 'image/png',
+    },
+    human: { name: 'Alice', bio_markdown: '旧资料。' },
+    updated_at: '2026-11-18T10:00:00Z',
+  })));
+  assert.equal(profile.humanName, 'Alice');
+  assert.equal(profile.avatarPath, `profile/avatar-${agentSha.slice(0, 8)}.png`);
+  assert.equal(profile.humanAvatarPath, '');
+  assert.equal(profile.humanAvatarSha256, '');
+  assert.equal(profile.humanAvatarMime, '');
+});
+
+test('invalid human-avatar filenames, hashes and MIME are rejected', () => {
+  const sha = 'd'.repeat(64);
+  const human = {
+    name: 'JO JO', bio_markdown: '',
+    avatar: `human-avatar-${sha.slice(0, 8)}.png`, avatar_sha256: sha, avatar_mime: 'image/png',
+  };
+  const build = (value) => Buffer.from(JSON.stringify({
+    schema_version: 2,
+    agent: { name: 'Nova', description: '', interests: [], conversation_style: '' },
+    human: value,
+    updated_at: '2026-11-18T10:00:00Z',
+  }));
+  assert.throws(() => parsePublicProfile(build({ ...human, avatar: `avatar-${sha.slice(0, 8)}.png` })), /人类头像文件名/);
+  assert.throws(() => parsePublicProfile(build({ ...human, avatar: `human-avatar-${'e'.repeat(8)}.png` })), /文件名与哈希/);
+  assert.throws(() => parsePublicProfile(build({ ...human, avatar_mime: '' })), /缺少哈希或 MIME/);
+  assert.throws(() => parsePublicProfile(build({ ...human, avatar_mime: 'image/jpeg' })), /扩展名与 MIME/);
+  assert.throws(() => parsePublicProfile(build({ ...human, avatar: `profile/human-avatar-${sha.slice(0, 8)}.png` })), /人类头像文件名/);
 });
 
 test('Journey reads existing schemas, preserves historical message evidence and reports damage', async () => {

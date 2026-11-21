@@ -82,6 +82,15 @@ const (
 	// RamingaServiceDhtAddPeerProcedure is the fully-qualified name of the RamingaService's DhtAddPeer
 	// RPC.
 	RamingaServiceDhtAddPeerProcedure = "/raminga.api.v1.RamingaService/DhtAddPeer"
+	// RamingaServiceListBootstrapPeersProcedure is the fully-qualified name of the RamingaService's
+	// ListBootstrapPeers RPC.
+	RamingaServiceListBootstrapPeersProcedure = "/raminga.api.v1.RamingaService/ListBootstrapPeers"
+	// RamingaServiceAddBootstrapPeerProcedure is the fully-qualified name of the RamingaService's
+	// AddBootstrapPeer RPC.
+	RamingaServiceAddBootstrapPeerProcedure = "/raminga.api.v1.RamingaService/AddBootstrapPeer"
+	// RamingaServiceRemoveBootstrapPeerProcedure is the fully-qualified name of the RamingaService's
+	// RemoveBootstrapPeer RPC.
+	RamingaServiceRemoveBootstrapPeerProcedure = "/raminga.api.v1.RamingaService/RemoveBootstrapPeer"
 	// RamingaServiceDhtFindPeerProcedure is the fully-qualified name of the RamingaService's
 	// DhtFindPeer RPC.
 	RamingaServiceDhtFindPeerProcedure = "/raminga.api.v1.RamingaService/DhtFindPeer"
@@ -206,6 +215,15 @@ type RamingaServiceClient interface {
 	DhtStatus(context.Context, *connect.Request[v1.DhtStatusRequest]) (*connect.Response[v1.DhtStatusResponse], error)
 	// DhtAddPeer manually adds one Raminga peer multiaddr to the PeerStore/cache.
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
+	// ListBootstrapPeers returns the saved DHT bootstrap roles. Adding or
+	// removing one is a local node setting, not a contact or chat action.
+	ListBootstrapPeers(context.Context, *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error)
+	// AddBootstrapPeer saves one explicit Raminga bootstrap address and applies
+	// it to the live DHT. Persistence is the receipt; connectivity is separate.
+	AddBootstrapPeer(context.Context, *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error)
+	// RemoveBootstrapPeer removes only the bootstrap role. Peer addresses,
+	// contact history, other roles and the explicit disconnect pause remain.
+	RemoveBootstrapPeer(context.Context, *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
 	// ListFriends lists local friend records. Names and descriptions are local
@@ -383,6 +401,24 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(ramingaServiceMethods.ByName("DhtAddPeer")),
 			connect.WithClientOptions(opts...),
 		),
+		listBootstrapPeers: connect.NewClient[v1.ListBootstrapPeersRequest, v1.ListBootstrapPeersResponse](
+			httpClient,
+			baseURL+RamingaServiceListBootstrapPeersProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListBootstrapPeers")),
+			connect.WithClientOptions(opts...),
+		),
+		addBootstrapPeer: connect.NewClient[v1.AddBootstrapPeerRequest, v1.AddBootstrapPeerResponse](
+			httpClient,
+			baseURL+RamingaServiceAddBootstrapPeerProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("AddBootstrapPeer")),
+			connect.WithClientOptions(opts...),
+		),
+		removeBootstrapPeer: connect.NewClient[v1.RemoveBootstrapPeerRequest, v1.RemoveBootstrapPeerResponse](
+			httpClient,
+			baseURL+RamingaServiceRemoveBootstrapPeerProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("RemoveBootstrapPeer")),
+			connect.WithClientOptions(opts...),
+		),
 		dhtFindPeer: connect.NewClient[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse](
 			httpClient,
 			baseURL+RamingaServiceDhtFindPeerProcedure,
@@ -555,6 +591,9 @@ type ramingaServiceClient struct {
 	relayStatus            *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
 	dhtStatus              *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
 	dhtAddPeer             *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
+	listBootstrapPeers     *connect.Client[v1.ListBootstrapPeersRequest, v1.ListBootstrapPeersResponse]
+	addBootstrapPeer       *connect.Client[v1.AddBootstrapPeerRequest, v1.AddBootstrapPeerResponse]
+	removeBootstrapPeer    *connect.Client[v1.RemoveBootstrapPeerRequest, v1.RemoveBootstrapPeerResponse]
 	dhtFindPeer            *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
 	listFriends            *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
 	setFriendName          *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
@@ -665,6 +704,21 @@ func (c *ramingaServiceClient) DhtStatus(ctx context.Context, req *connect.Reque
 // DhtAddPeer calls raminga.api.v1.RamingaService.DhtAddPeer.
 func (c *ramingaServiceClient) DhtAddPeer(ctx context.Context, req *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error) {
 	return c.dhtAddPeer.CallUnary(ctx, req)
+}
+
+// ListBootstrapPeers calls raminga.api.v1.RamingaService.ListBootstrapPeers.
+func (c *ramingaServiceClient) ListBootstrapPeers(ctx context.Context, req *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error) {
+	return c.listBootstrapPeers.CallUnary(ctx, req)
+}
+
+// AddBootstrapPeer calls raminga.api.v1.RamingaService.AddBootstrapPeer.
+func (c *ramingaServiceClient) AddBootstrapPeer(ctx context.Context, req *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error) {
+	return c.addBootstrapPeer.CallUnary(ctx, req)
+}
+
+// RemoveBootstrapPeer calls raminga.api.v1.RamingaService.RemoveBootstrapPeer.
+func (c *ramingaServiceClient) RemoveBootstrapPeer(ctx context.Context, req *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error) {
+	return c.removeBootstrapPeer.CallUnary(ctx, req)
 }
 
 // DhtFindPeer calls raminga.api.v1.RamingaService.DhtFindPeer.
@@ -841,6 +895,15 @@ type RamingaServiceHandler interface {
 	DhtStatus(context.Context, *connect.Request[v1.DhtStatusRequest]) (*connect.Response[v1.DhtStatusResponse], error)
 	// DhtAddPeer manually adds one Raminga peer multiaddr to the PeerStore/cache.
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
+	// ListBootstrapPeers returns the saved DHT bootstrap roles. Adding or
+	// removing one is a local node setting, not a contact or chat action.
+	ListBootstrapPeers(context.Context, *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error)
+	// AddBootstrapPeer saves one explicit Raminga bootstrap address and applies
+	// it to the live DHT. Persistence is the receipt; connectivity is separate.
+	AddBootstrapPeer(context.Context, *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error)
+	// RemoveBootstrapPeer removes only the bootstrap role. Peer addresses,
+	// contact history, other roles and the explicit disconnect pause remain.
+	RemoveBootstrapPeer(context.Context, *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
 	// ListFriends lists local friend records. Names and descriptions are local
@@ -1012,6 +1075,24 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		RamingaServiceDhtAddPeerProcedure,
 		svc.DhtAddPeer,
 		connect.WithSchema(ramingaServiceMethods.ByName("DhtAddPeer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListBootstrapPeersHandler := connect.NewUnaryHandler(
+		RamingaServiceListBootstrapPeersProcedure,
+		svc.ListBootstrapPeers,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListBootstrapPeers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceAddBootstrapPeerHandler := connect.NewUnaryHandler(
+		RamingaServiceAddBootstrapPeerProcedure,
+		svc.AddBootstrapPeer,
+		connect.WithSchema(ramingaServiceMethods.ByName("AddBootstrapPeer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceRemoveBootstrapPeerHandler := connect.NewUnaryHandler(
+		RamingaServiceRemoveBootstrapPeerProcedure,
+		svc.RemoveBootstrapPeer,
+		connect.WithSchema(ramingaServiceMethods.ByName("RemoveBootstrapPeer")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ramingaServiceDhtFindPeerHandler := connect.NewUnaryHandler(
@@ -1200,6 +1281,12 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServiceDhtStatusHandler.ServeHTTP(w, r)
 		case RamingaServiceDhtAddPeerProcedure:
 			ramingaServiceDhtAddPeerHandler.ServeHTTP(w, r)
+		case RamingaServiceListBootstrapPeersProcedure:
+			ramingaServiceListBootstrapPeersHandler.ServeHTTP(w, r)
+		case RamingaServiceAddBootstrapPeerProcedure:
+			ramingaServiceAddBootstrapPeerHandler.ServeHTTP(w, r)
+		case RamingaServiceRemoveBootstrapPeerProcedure:
+			ramingaServiceRemoveBootstrapPeerHandler.ServeHTTP(w, r)
 		case RamingaServiceDhtFindPeerProcedure:
 			ramingaServiceDhtFindPeerHandler.ServeHTTP(w, r)
 		case RamingaServiceListFriendsProcedure:
@@ -1325,6 +1412,18 @@ func (UnimplementedRamingaServiceHandler) DhtStatus(context.Context, *connect.Re
 
 func (UnimplementedRamingaServiceHandler) DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.DhtAddPeer is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListBootstrapPeers(context.Context, *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListBootstrapPeers is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) AddBootstrapPeer(context.Context, *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.AddBootstrapPeer is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) RemoveBootstrapPeer(context.Context, *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.RemoveBootstrapPeer is not implemented"))
 }
 
 func (UnimplementedRamingaServiceHandler) DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error) {

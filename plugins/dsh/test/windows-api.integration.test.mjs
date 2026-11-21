@@ -135,6 +135,7 @@ async function waitForUnixStatus(dir, daemon, timeoutMs = 20_000) {
 function initNode(dir) {
   const res = cli([
     'init',
+    '--no-bootstrap-preset',
     '--data-dir',
     dir,
     '--listen',

@@ -32,7 +32,7 @@ function stop(dir) {
 }
 function init(dir) {
   if (fs.existsSync(path.join(dir, 'api.token'))) return;
-  const result = spawnSync(bin, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const result = spawnSync(bin, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`init ${dir} failed: ${result.stderr || result.stdout}`);
 }
 function start(dir, name) {

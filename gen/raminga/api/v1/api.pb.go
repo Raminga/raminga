@@ -4297,7 +4297,9 @@ type DHTStatus struct {
 	Mode string `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
 	// protocol is /raminga/kad/1.0.0.
 	Protocol string `protobuf:"bytes,3,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	// bootstrap_peers are explicit Raminga bootstrap peers only.
+	// bootstrap_peers are the live saved Raminga bootstrap addresses. Paused
+	// peers are kept in the setting but are not dialed. Online state is not
+	// implied by this list.
 	BootstrapPeers []string `protobuf:"bytes,4,rep,name=bootstrap_peers,json=bootstrapPeers,proto3" json:"bootstrap_peers,omitempty"`
 	// public_bootstrap_configured is always false.
 	PublicBootstrapConfigured bool `protobuf:"varint,5,opt,name=public_bootstrap_configured,json=publicBootstrapConfigured,proto3" json:"public_bootstrap_configured,omitempty"`
@@ -5286,6 +5288,367 @@ func (x *DhtAddPeerResponse) GetPeer() *DhtPeer {
 	return nil
 }
 
+// BootstrapPeer is one ordinary peer record carrying the bootstrap role.
+type BootstrapPeer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// peer_id is the canonical remote Peer ID.
+	PeerId string `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	// addrs are stored peer-cache addresses. They are hints, not an online
+	// claim. The same Peer may have more than one address.
+	Addrs []string `protobuf:"bytes,2,rep,name=addrs,proto3" json:"addrs,omitempty"`
+	// online is true only for a current live connection.
+	Online bool `protobuf:"varint,3,opt,name=online,proto3" json:"online,omitempty"`
+	// paused is the existing explicit-disconnect state. Saving/removing the
+	// bootstrap role never clears or sets it.
+	Paused bool `protobuf:"varint,4,opt,name=paused,proto3" json:"paused,omitempty"`
+	// saved_at_unix_ms is when this role was first stored.
+	SavedAtUnixMs int64 `protobuf:"varint,5,opt,name=saved_at_unix_ms,json=savedAtUnixMs,proto3" json:"saved_at_unix_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BootstrapPeer) Reset() {
+	*x = BootstrapPeer{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BootstrapPeer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BootstrapPeer) ProtoMessage() {}
+
+func (x *BootstrapPeer) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BootstrapPeer.ProtoReflect.Descriptor instead.
+func (*BootstrapPeer) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *BootstrapPeer) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *BootstrapPeer) GetAddrs() []string {
+	if x != nil {
+		return x.Addrs
+	}
+	return nil
+}
+
+func (x *BootstrapPeer) GetOnline() bool {
+	if x != nil {
+		return x.Online
+	}
+	return false
+}
+
+func (x *BootstrapPeer) GetPaused() bool {
+	if x != nil {
+		return x.Paused
+	}
+	return false
+}
+
+func (x *BootstrapPeer) GetSavedAtUnixMs() int64 {
+	if x != nil {
+		return x.SavedAtUnixMs
+	}
+	return 0
+}
+
+// ListBootstrapPeersRequest has no fields.
+type ListBootstrapPeersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBootstrapPeersRequest) Reset() {
+	*x = ListBootstrapPeersRequest{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBootstrapPeersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBootstrapPeersRequest) ProtoMessage() {}
+
+func (x *ListBootstrapPeersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBootstrapPeersRequest.ProtoReflect.Descriptor instead.
+func (*ListBootstrapPeersRequest) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{60}
+}
+
+// ListBootstrapPeersResponse contains saved bootstrap roles.
+type ListBootstrapPeersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// peers are saved roles in stable order. An empty list is a normal
+	// "not configured" state, distinct from a read failure.
+	Peers         []*BootstrapPeer `protobuf:"bytes,1,rep,name=peers,proto3" json:"peers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBootstrapPeersResponse) Reset() {
+	*x = ListBootstrapPeersResponse{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBootstrapPeersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBootstrapPeersResponse) ProtoMessage() {}
+
+func (x *ListBootstrapPeersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBootstrapPeersResponse.ProtoReflect.Descriptor instead.
+func (*ListBootstrapPeersResponse) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *ListBootstrapPeersResponse) GetPeers() []*BootstrapPeer {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
+// AddBootstrapPeerRequest saves one address. The daemon requires a canonical
+// multiaddr including /p2p/<peer-id> and only applies it as a node setting.
+type AddBootstrapPeerRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// multiaddr is the complete address to save.
+	Multiaddr     string `protobuf:"bytes,1,opt,name=multiaddr,proto3" json:"multiaddr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddBootstrapPeerRequest) Reset() {
+	*x = AddBootstrapPeerRequest{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddBootstrapPeerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddBootstrapPeerRequest) ProtoMessage() {}
+
+func (x *AddBootstrapPeerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddBootstrapPeerRequest.ProtoReflect.Descriptor instead.
+func (*AddBootstrapPeerRequest) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *AddBootstrapPeerRequest) GetMultiaddr() string {
+	if x != nil {
+		return x.Multiaddr
+	}
+	return ""
+}
+
+// AddBootstrapPeerResponse reports the saved role and whether the list
+// changed. A repeated identical add is idempotent (added=false).
+type AddBootstrapPeerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Peer          *BootstrapPeer         `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
+	Added         bool                   `protobuf:"varint,2,opt,name=added,proto3" json:"added,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddBootstrapPeerResponse) Reset() {
+	*x = AddBootstrapPeerResponse{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddBootstrapPeerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddBootstrapPeerResponse) ProtoMessage() {}
+
+func (x *AddBootstrapPeerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddBootstrapPeerResponse.ProtoReflect.Descriptor instead.
+func (*AddBootstrapPeerResponse) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *AddBootstrapPeerResponse) GetPeer() *BootstrapPeer {
+	if x != nil {
+		return x.Peer
+	}
+	return nil
+}
+
+func (x *AddBootstrapPeerResponse) GetAdded() bool {
+	if x != nil {
+		return x.Added
+	}
+	return false
+}
+
+// RemoveBootstrapPeerRequest names the role to remove.
+type RemoveBootstrapPeerRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// peer_id is the remote Peer ID.
+	PeerId        string `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveBootstrapPeerRequest) Reset() {
+	*x = RemoveBootstrapPeerRequest{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveBootstrapPeerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveBootstrapPeerRequest) ProtoMessage() {}
+
+func (x *RemoveBootstrapPeerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveBootstrapPeerRequest.ProtoReflect.Descriptor instead.
+func (*RemoveBootstrapPeerRequest) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *RemoveBootstrapPeerRequest) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+// RemoveBootstrapPeerResponse reports role removal. A missing role is an
+// idempotent no-op (removed=false).
+type RemoveBootstrapPeerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Removed       bool                   `protobuf:"varint,1,opt,name=removed,proto3" json:"removed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveBootstrapPeerResponse) Reset() {
+	*x = RemoveBootstrapPeerResponse{}
+	mi := &file_raminga_api_v1_api_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveBootstrapPeerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveBootstrapPeerResponse) ProtoMessage() {}
+
+func (x *RemoveBootstrapPeerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_raminga_api_v1_api_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveBootstrapPeerResponse.ProtoReflect.Descriptor instead.
+func (*RemoveBootstrapPeerResponse) Descriptor() ([]byte, []int) {
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *RemoveBootstrapPeerResponse) GetRemoved() bool {
+	if x != nil {
+		return x.Removed
+	}
+	return false
+}
+
 // DhtFindPeerRequest asks for a DHT lookup.
 type DhtFindPeerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -5297,7 +5660,7 @@ type DhtFindPeerRequest struct {
 
 func (x *DhtFindPeerRequest) Reset() {
 	*x = DhtFindPeerRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[59]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5309,7 +5672,7 @@ func (x *DhtFindPeerRequest) String() string {
 func (*DhtFindPeerRequest) ProtoMessage() {}
 
 func (x *DhtFindPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[59]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5322,7 +5685,7 @@ func (x *DhtFindPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DhtFindPeerRequest.ProtoReflect.Descriptor instead.
 func (*DhtFindPeerRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{59}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *DhtFindPeerRequest) GetPeerId() string {
@@ -5343,7 +5706,7 @@ type DhtFindPeerResponse struct {
 
 func (x *DhtFindPeerResponse) Reset() {
 	*x = DhtFindPeerResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[60]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5355,7 +5718,7 @@ func (x *DhtFindPeerResponse) String() string {
 func (*DhtFindPeerResponse) ProtoMessage() {}
 
 func (x *DhtFindPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[60]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5368,7 +5731,7 @@ func (x *DhtFindPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DhtFindPeerResponse.ProtoReflect.Descriptor instead.
 func (*DhtFindPeerResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{60}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *DhtFindPeerResponse) GetPeer() *DhtPeer {
@@ -5400,7 +5763,7 @@ type Friend struct {
 
 func (x *Friend) Reset() {
 	*x = Friend{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[61]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5412,7 +5775,7 @@ func (x *Friend) String() string {
 func (*Friend) ProtoMessage() {}
 
 func (x *Friend) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[61]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5425,7 +5788,7 @@ func (x *Friend) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Friend.ProtoReflect.Descriptor instead.
 func (*Friend) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{61}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *Friend) GetPeerId() string {
@@ -5513,7 +5876,7 @@ type ListFriendsRequest struct {
 
 func (x *ListFriendsRequest) Reset() {
 	*x = ListFriendsRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[62]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5525,7 +5888,7 @@ func (x *ListFriendsRequest) String() string {
 func (*ListFriendsRequest) ProtoMessage() {}
 
 func (x *ListFriendsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[62]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5538,7 +5901,7 @@ func (x *ListFriendsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFriendsRequest.ProtoReflect.Descriptor instead.
 func (*ListFriendsRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{62}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{69}
 }
 
 type ListFriendsResponse struct {
@@ -5550,7 +5913,7 @@ type ListFriendsResponse struct {
 
 func (x *ListFriendsResponse) Reset() {
 	*x = ListFriendsResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[63]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5562,7 +5925,7 @@ func (x *ListFriendsResponse) String() string {
 func (*ListFriendsResponse) ProtoMessage() {}
 
 func (x *ListFriendsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[63]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5575,7 +5938,7 @@ func (x *ListFriendsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFriendsResponse.ProtoReflect.Descriptor instead.
 func (*ListFriendsResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{63}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ListFriendsResponse) GetFriends() []*Friend {
@@ -5597,7 +5960,7 @@ type SetFriendNameRequest struct {
 
 func (x *SetFriendNameRequest) Reset() {
 	*x = SetFriendNameRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[64]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5609,7 +5972,7 @@ func (x *SetFriendNameRequest) String() string {
 func (*SetFriendNameRequest) ProtoMessage() {}
 
 func (x *SetFriendNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[64]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5622,7 +5985,7 @@ func (x *SetFriendNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFriendNameRequest.ProtoReflect.Descriptor instead.
 func (*SetFriendNameRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{64}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *SetFriendNameRequest) GetPeerId() string {
@@ -5648,7 +6011,7 @@ type SetFriendNameResponse struct {
 
 func (x *SetFriendNameResponse) Reset() {
 	*x = SetFriendNameResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[65]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5660,7 +6023,7 @@ func (x *SetFriendNameResponse) String() string {
 func (*SetFriendNameResponse) ProtoMessage() {}
 
 func (x *SetFriendNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[65]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5673,7 +6036,7 @@ func (x *SetFriendNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFriendNameResponse.ProtoReflect.Descriptor instead.
 func (*SetFriendNameResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{65}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *SetFriendNameResponse) GetFriend() *Friend {
@@ -5695,7 +6058,7 @@ type SetFriendDescriptionRequest struct {
 
 func (x *SetFriendDescriptionRequest) Reset() {
 	*x = SetFriendDescriptionRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[66]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5707,7 +6070,7 @@ func (x *SetFriendDescriptionRequest) String() string {
 func (*SetFriendDescriptionRequest) ProtoMessage() {}
 
 func (x *SetFriendDescriptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[66]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5720,7 +6083,7 @@ func (x *SetFriendDescriptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFriendDescriptionRequest.ProtoReflect.Descriptor instead.
 func (*SetFriendDescriptionRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{66}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *SetFriendDescriptionRequest) GetPeerId() string {
@@ -5746,7 +6109,7 @@ type SetFriendDescriptionResponse struct {
 
 func (x *SetFriendDescriptionResponse) Reset() {
 	*x = SetFriendDescriptionResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[67]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5758,7 +6121,7 @@ func (x *SetFriendDescriptionResponse) String() string {
 func (*SetFriendDescriptionResponse) ProtoMessage() {}
 
 func (x *SetFriendDescriptionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[67]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5771,7 +6134,7 @@ func (x *SetFriendDescriptionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetFriendDescriptionResponse.ProtoReflect.Descriptor instead.
 func (*SetFriendDescriptionResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{67}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *SetFriendDescriptionResponse) GetFriend() *Friend {
@@ -5791,7 +6154,7 @@ type RemoveFriendRequest struct {
 
 func (x *RemoveFriendRequest) Reset() {
 	*x = RemoveFriendRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[68]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5803,7 +6166,7 @@ func (x *RemoveFriendRequest) String() string {
 func (*RemoveFriendRequest) ProtoMessage() {}
 
 func (x *RemoveFriendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[68]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5816,7 +6179,7 @@ func (x *RemoveFriendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveFriendRequest.ProtoReflect.Descriptor instead.
 func (*RemoveFriendRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{68}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *RemoveFriendRequest) GetPeerId() string {
@@ -5843,7 +6206,7 @@ type RemoveFriendResponse struct {
 
 func (x *RemoveFriendResponse) Reset() {
 	*x = RemoveFriendResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[69]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5855,7 +6218,7 @@ func (x *RemoveFriendResponse) String() string {
 func (*RemoveFriendResponse) ProtoMessage() {}
 
 func (x *RemoveFriendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[69]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5868,7 +6231,7 @@ func (x *RemoveFriendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveFriendResponse.ProtoReflect.Descriptor instead.
 func (*RemoveFriendResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{69}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *RemoveFriendResponse) GetRemoved() bool {
@@ -5893,7 +6256,7 @@ type SyncFriendsRequest struct {
 
 func (x *SyncFriendsRequest) Reset() {
 	*x = SyncFriendsRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[70]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5905,7 +6268,7 @@ func (x *SyncFriendsRequest) String() string {
 func (*SyncFriendsRequest) ProtoMessage() {}
 
 func (x *SyncFriendsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[70]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5918,7 +6281,7 @@ func (x *SyncFriendsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFriendsRequest.ProtoReflect.Descriptor instead.
 func (*SyncFriendsRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{70}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{77}
 }
 
 type SyncFriendsResponse struct {
@@ -5930,7 +6293,7 @@ type SyncFriendsResponse struct {
 
 func (x *SyncFriendsResponse) Reset() {
 	*x = SyncFriendsResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[71]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5942,7 +6305,7 @@ func (x *SyncFriendsResponse) String() string {
 func (*SyncFriendsResponse) ProtoMessage() {}
 
 func (x *SyncFriendsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[71]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5955,7 +6318,7 @@ func (x *SyncFriendsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncFriendsResponse.ProtoReflect.Descriptor instead.
 func (*SyncFriendsResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{71}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *SyncFriendsResponse) GetWritten() bool {
@@ -5973,7 +6336,7 @@ type PublishedRequest struct {
 
 func (x *PublishedRequest) Reset() {
 	*x = PublishedRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[72]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5985,7 +6348,7 @@ func (x *PublishedRequest) String() string {
 func (*PublishedRequest) ProtoMessage() {}
 
 func (x *PublishedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[72]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5998,7 +6361,7 @@ func (x *PublishedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishedRequest.ProtoReflect.Descriptor instead.
 func (*PublishedRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{72}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{79}
 }
 
 type PublishedFile struct {
@@ -6011,7 +6374,7 @@ type PublishedFile struct {
 
 func (x *PublishedFile) Reset() {
 	*x = PublishedFile{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[73]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6023,7 +6386,7 @@ func (x *PublishedFile) String() string {
 func (*PublishedFile) ProtoMessage() {}
 
 func (x *PublishedFile) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[73]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6036,7 +6399,7 @@ func (x *PublishedFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishedFile.ProtoReflect.Descriptor instead.
 func (*PublishedFile) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{73}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *PublishedFile) GetPath() string {
@@ -6063,7 +6426,7 @@ type PublishedSkip struct {
 
 func (x *PublishedSkip) Reset() {
 	*x = PublishedSkip{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[74]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6075,7 +6438,7 @@ func (x *PublishedSkip) String() string {
 func (*PublishedSkip) ProtoMessage() {}
 
 func (x *PublishedSkip) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[74]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6088,7 +6451,7 @@ func (x *PublishedSkip) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishedSkip.ProtoReflect.Descriptor instead.
 func (*PublishedSkip) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{74}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *PublishedSkip) GetPath() string {
@@ -6119,7 +6482,7 @@ type PublishedResponse struct {
 
 func (x *PublishedResponse) Reset() {
 	*x = PublishedResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[75]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6131,7 +6494,7 @@ func (x *PublishedResponse) String() string {
 func (*PublishedResponse) ProtoMessage() {}
 
 func (x *PublishedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[75]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6144,7 +6507,7 @@ func (x *PublishedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishedResponse.ProtoReflect.Descriptor instead.
 func (*PublishedResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{75}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *PublishedResponse) GetFiles() []*PublishedFile {
@@ -6200,7 +6563,7 @@ type ListDiscoveriesRequest struct {
 
 func (x *ListDiscoveriesRequest) Reset() {
 	*x = ListDiscoveriesRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[76]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6212,7 +6575,7 @@ func (x *ListDiscoveriesRequest) String() string {
 func (*ListDiscoveriesRequest) ProtoMessage() {}
 
 func (x *ListDiscoveriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[76]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6225,7 +6588,7 @@ func (x *ListDiscoveriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDiscoveriesRequest.ProtoReflect.Descriptor instead.
 func (*ListDiscoveriesRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{76}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *ListDiscoveriesRequest) GetLimit() uint32 {
@@ -6285,7 +6648,7 @@ type Discovery struct {
 
 func (x *Discovery) Reset() {
 	*x = Discovery{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[77]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6297,7 +6660,7 @@ func (x *Discovery) String() string {
 func (*Discovery) ProtoMessage() {}
 
 func (x *Discovery) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[77]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6310,7 +6673,7 @@ func (x *Discovery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Discovery.ProtoReflect.Descriptor instead.
 func (*Discovery) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{77}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *Discovery) GetId() string {
@@ -6380,7 +6743,7 @@ type ListDiscoveriesResponse struct {
 
 func (x *ListDiscoveriesResponse) Reset() {
 	*x = ListDiscoveriesResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[78]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6392,7 +6755,7 @@ func (x *ListDiscoveriesResponse) String() string {
 func (*ListDiscoveriesResponse) ProtoMessage() {}
 
 func (x *ListDiscoveriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[78]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6405,7 +6768,7 @@ func (x *ListDiscoveriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDiscoveriesResponse.ProtoReflect.Descriptor instead.
 func (*ListDiscoveriesResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{78}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *ListDiscoveriesResponse) GetDiscoveries() []*Discovery {
@@ -6440,7 +6803,7 @@ type DisconnectPeerRequest struct {
 
 func (x *DisconnectPeerRequest) Reset() {
 	*x = DisconnectPeerRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[79]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6452,7 +6815,7 @@ func (x *DisconnectPeerRequest) String() string {
 func (*DisconnectPeerRequest) ProtoMessage() {}
 
 func (x *DisconnectPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[79]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6465,7 +6828,7 @@ func (x *DisconnectPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectPeerRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectPeerRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{79}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *DisconnectPeerRequest) GetPeerId() string {
@@ -6487,7 +6850,7 @@ type DisconnectPeerResponse struct {
 
 func (x *DisconnectPeerResponse) Reset() {
 	*x = DisconnectPeerResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[80]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6499,7 +6862,7 @@ func (x *DisconnectPeerResponse) String() string {
 func (*DisconnectPeerResponse) ProtoMessage() {}
 
 func (x *DisconnectPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[80]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6512,7 +6875,7 @@ func (x *DisconnectPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectPeerResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectPeerResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{80}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *DisconnectPeerResponse) GetDisconnected() bool {
@@ -6531,7 +6894,7 @@ type ShutdownRequest struct {
 
 func (x *ShutdownRequest) Reset() {
 	*x = ShutdownRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[81]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6543,7 +6906,7 @@ func (x *ShutdownRequest) String() string {
 func (*ShutdownRequest) ProtoMessage() {}
 
 func (x *ShutdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[81]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6556,7 +6919,7 @@ func (x *ShutdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownRequest.ProtoReflect.Descriptor instead.
 func (*ShutdownRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{81}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{88}
 }
 
 // ShutdownResponse reports that the daemon accepted the graceful stop.
@@ -6570,7 +6933,7 @@ type ShutdownResponse struct {
 
 func (x *ShutdownResponse) Reset() {
 	*x = ShutdownResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[82]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6582,7 +6945,7 @@ func (x *ShutdownResponse) String() string {
 func (*ShutdownResponse) ProtoMessage() {}
 
 func (x *ShutdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[82]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6595,7 +6958,7 @@ func (x *ShutdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownResponse.ProtoReflect.Descriptor instead.
 func (*ShutdownResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{82}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *ShutdownResponse) GetAccepted() bool {
@@ -6616,7 +6979,7 @@ type TestDisconnectPeerRequest struct {
 
 func (x *TestDisconnectPeerRequest) Reset() {
 	*x = TestDisconnectPeerRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[83]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6628,7 +6991,7 @@ func (x *TestDisconnectPeerRequest) String() string {
 func (*TestDisconnectPeerRequest) ProtoMessage() {}
 
 func (x *TestDisconnectPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[83]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6641,7 +7004,7 @@ func (x *TestDisconnectPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestDisconnectPeerRequest.ProtoReflect.Descriptor instead.
 func (*TestDisconnectPeerRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{83}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *TestDisconnectPeerRequest) GetPeerId() string {
@@ -6662,7 +7025,7 @@ type TestDisconnectPeerResponse struct {
 
 func (x *TestDisconnectPeerResponse) Reset() {
 	*x = TestDisconnectPeerResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[84]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6674,7 +7037,7 @@ func (x *TestDisconnectPeerResponse) String() string {
 func (*TestDisconnectPeerResponse) ProtoMessage() {}
 
 func (x *TestDisconnectPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[84]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6687,7 +7050,7 @@ func (x *TestDisconnectPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestDisconnectPeerResponse.ProtoReflect.Descriptor instead.
 func (*TestDisconnectPeerResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{84}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *TestDisconnectPeerResponse) GetDisconnected() bool {
@@ -6708,7 +7071,7 @@ type TestPingRequest struct {
 
 func (x *TestPingRequest) Reset() {
 	*x = TestPingRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[85]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6720,7 +7083,7 @@ func (x *TestPingRequest) String() string {
 func (*TestPingRequest) ProtoMessage() {}
 
 func (x *TestPingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[85]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6733,7 +7096,7 @@ func (x *TestPingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestPingRequest.ProtoReflect.Descriptor instead.
 func (*TestPingRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{85}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *TestPingRequest) GetEcho() string {
@@ -6754,7 +7117,7 @@ type TestPingResponse struct {
 
 func (x *TestPingResponse) Reset() {
 	*x = TestPingResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[86]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6766,7 +7129,7 @@ func (x *TestPingResponse) String() string {
 func (*TestPingResponse) ProtoMessage() {}
 
 func (x *TestPingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[86]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6779,7 +7142,7 @@ func (x *TestPingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestPingResponse.ProtoReflect.Descriptor instead.
 func (*TestPingResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{86}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *TestPingResponse) GetEcho() string {
@@ -6800,7 +7163,7 @@ type GetPeerManifestRequest struct {
 
 func (x *GetPeerManifestRequest) Reset() {
 	*x = GetPeerManifestRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[87]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6812,7 +7175,7 @@ func (x *GetPeerManifestRequest) String() string {
 func (*GetPeerManifestRequest) ProtoMessage() {}
 
 func (x *GetPeerManifestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[87]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6825,7 +7188,7 @@ func (x *GetPeerManifestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerManifestRequest.ProtoReflect.Descriptor instead.
 func (*GetPeerManifestRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{87}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *GetPeerManifestRequest) GetPeerId() string {
@@ -6861,7 +7224,7 @@ type ManifestEntry struct {
 
 func (x *ManifestEntry) Reset() {
 	*x = ManifestEntry{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[88]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6873,7 +7236,7 @@ func (x *ManifestEntry) String() string {
 func (*ManifestEntry) ProtoMessage() {}
 
 func (x *ManifestEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[88]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6886,7 +7249,7 @@ func (x *ManifestEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ManifestEntry.ProtoReflect.Descriptor instead.
 func (*ManifestEntry) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{88}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *ManifestEntry) GetPath() string {
@@ -6931,7 +7294,7 @@ type GetPeerManifestResponse struct {
 
 func (x *GetPeerManifestResponse) Reset() {
 	*x = GetPeerManifestResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[89]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6943,7 +7306,7 @@ func (x *GetPeerManifestResponse) String() string {
 func (*GetPeerManifestResponse) ProtoMessage() {}
 
 func (x *GetPeerManifestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[89]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6956,7 +7319,7 @@ func (x *GetPeerManifestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerManifestResponse.ProtoReflect.Descriptor instead.
 func (*GetPeerManifestResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{89}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *GetPeerManifestResponse) GetVersion() int32 {
@@ -7010,7 +7373,7 @@ type GetPeerProfileRequest struct {
 
 func (x *GetPeerProfileRequest) Reset() {
 	*x = GetPeerProfileRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[90]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7022,7 +7385,7 @@ func (x *GetPeerProfileRequest) String() string {
 func (*GetPeerProfileRequest) ProtoMessage() {}
 
 func (x *GetPeerProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[90]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7035,7 +7398,7 @@ func (x *GetPeerProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerProfileRequest.ProtoReflect.Descriptor instead.
 func (*GetPeerProfileRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{90}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *GetPeerProfileRequest) GetPeerId() string {
@@ -7061,7 +7424,7 @@ type GetPeerProfileResponse struct {
 
 func (x *GetPeerProfileResponse) Reset() {
 	*x = GetPeerProfileResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[91]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7073,7 +7436,7 @@ func (x *GetPeerProfileResponse) String() string {
 func (*GetPeerProfileResponse) ProtoMessage() {}
 
 func (x *GetPeerProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[91]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7086,7 +7449,7 @@ func (x *GetPeerProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerProfileResponse.ProtoReflect.Descriptor instead.
 func (*GetPeerProfileResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{91}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *GetPeerProfileResponse) GetPeerId() string {
@@ -7148,14 +7511,19 @@ type PublicProfile struct {
 	SourcePath     string `protobuf:"bytes,10,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
 	LegacyFallback bool   `protobuf:"varint,11,opt,name=legacy_fallback,json=legacyFallback,proto3" json:"legacy_fallback,omitempty"`
 	// warning is bounded; it never contains a local absolute path.
-	Warning       string `protobuf:"bytes,12,opt,name=warning,proto3" json:"warning,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Warning string `protobuf:"bytes,12,opt,name=warning,proto3" json:"warning,omitempty"`
+	// human_avatar_* describe the linked human's optional public avatar. They
+	// are empty for older profiles that only have an Agent avatar.
+	HumanAvatarPath   string `protobuf:"bytes,13,opt,name=human_avatar_path,json=humanAvatarPath,proto3" json:"human_avatar_path,omitempty"`
+	HumanAvatarSha256 string `protobuf:"bytes,14,opt,name=human_avatar_sha256,json=humanAvatarSha256,proto3" json:"human_avatar_sha256,omitempty"`
+	HumanAvatarMime   string `protobuf:"bytes,15,opt,name=human_avatar_mime,json=humanAvatarMime,proto3" json:"human_avatar_mime,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PublicProfile) Reset() {
 	*x = PublicProfile{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[92]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7167,7 +7535,7 @@ func (x *PublicProfile) String() string {
 func (*PublicProfile) ProtoMessage() {}
 
 func (x *PublicProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[92]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7180,7 +7548,7 @@ func (x *PublicProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicProfile.ProtoReflect.Descriptor instead.
 func (*PublicProfile) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{92}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *PublicProfile) GetAgentName() string {
@@ -7267,6 +7635,27 @@ func (x *PublicProfile) GetWarning() string {
 	return ""
 }
 
+func (x *PublicProfile) GetHumanAvatarPath() string {
+	if x != nil {
+		return x.HumanAvatarPath
+	}
+	return ""
+}
+
+func (x *PublicProfile) GetHumanAvatarSha256() string {
+	if x != nil {
+		return x.HumanAvatarSha256
+	}
+	return ""
+}
+
+func (x *PublicProfile) GetHumanAvatarMime() string {
+	if x != nil {
+		return x.HumanAvatarMime
+	}
+	return ""
+}
+
 type PublicDraftImage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
@@ -7281,7 +7670,7 @@ type PublicDraftImage struct {
 
 func (x *PublicDraftImage) Reset() {
 	*x = PublicDraftImage{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[93]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7293,7 +7682,7 @@ func (x *PublicDraftImage) String() string {
 func (*PublicDraftImage) ProtoMessage() {}
 
 func (x *PublicDraftImage) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[93]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7306,7 +7695,7 @@ func (x *PublicDraftImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicDraftImage.ProtoReflect.Descriptor instead.
 func (*PublicDraftImage) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{93}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *PublicDraftImage) GetAssetId() string {
@@ -7372,14 +7761,15 @@ type PublicDraft struct {
 	PublishedRevision      uint64                 `protobuf:"varint,17,opt,name=published_revision,json=publishedRevision,proto3" json:"published_revision,omitempty"`
 	CreatedAtUnixMs        int64                  `protobuf:"varint,18,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
 	UpdatedAtUnixMs        int64                  `protobuf:"varint,19,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
-	AuthorKind             string                 `protobuf:"bytes,20,opt,name=author_kind,json=authorKind,proto3" json:"author_kind,omitempty"` // "user" | "agent"；profile 忽略
+	AuthorKind             string                 `protobuf:"bytes,20,opt,name=author_kind,json=authorKind,proto3" json:"author_kind,omitempty"`    // "user" | "agent"；profile 忽略
+	HumanAvatar            *PublicDraftImage      `protobuf:"bytes,21,opt,name=human_avatar,json=humanAvatar,proto3" json:"human_avatar,omitempty"` // 关联人类头像；与 Agent 头像独立
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
 
 func (x *PublicDraft) Reset() {
 	*x = PublicDraft{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[94]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7391,7 +7781,7 @@ func (x *PublicDraft) String() string {
 func (*PublicDraft) ProtoMessage() {}
 
 func (x *PublicDraft) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[94]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7404,7 +7794,7 @@ func (x *PublicDraft) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicDraft.ProtoReflect.Descriptor instead.
 func (*PublicDraft) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{94}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *PublicDraft) GetDraftId() string {
@@ -7547,6 +7937,13 @@ func (x *PublicDraft) GetAuthorKind() string {
 	return ""
 }
 
+func (x *PublicDraft) GetHumanAvatar() *PublicDraftImage {
+	if x != nil {
+		return x.HumanAvatar
+	}
+	return nil
+}
+
 type GetPublicDraftRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DraftId       string                 `protobuf:"bytes,1,opt,name=draft_id,json=draftId,proto3" json:"draft_id,omitempty"`
@@ -7556,7 +7953,7 @@ type GetPublicDraftRequest struct {
 
 func (x *GetPublicDraftRequest) Reset() {
 	*x = GetPublicDraftRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[95]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7568,7 +7965,7 @@ func (x *GetPublicDraftRequest) String() string {
 func (*GetPublicDraftRequest) ProtoMessage() {}
 
 func (x *GetPublicDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[95]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7581,7 +7978,7 @@ func (x *GetPublicDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicDraftRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicDraftRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{95}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *GetPublicDraftRequest) GetDraftId() string {
@@ -7601,7 +7998,7 @@ type GetPublicDraftResponse struct {
 
 func (x *GetPublicDraftResponse) Reset() {
 	*x = GetPublicDraftResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[96]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7613,7 +8010,7 @@ func (x *GetPublicDraftResponse) String() string {
 func (*GetPublicDraftResponse) ProtoMessage() {}
 
 func (x *GetPublicDraftResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[96]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7626,7 +8023,7 @@ func (x *GetPublicDraftResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicDraftResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicDraftResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{96}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *GetPublicDraftResponse) GetFound() bool {
@@ -7654,7 +8051,7 @@ type ListPublicDraftsRequest struct {
 
 func (x *ListPublicDraftsRequest) Reset() {
 	*x = ListPublicDraftsRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[97]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7666,7 +8063,7 @@ func (x *ListPublicDraftsRequest) String() string {
 func (*ListPublicDraftsRequest) ProtoMessage() {}
 
 func (x *ListPublicDraftsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[97]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7679,7 +8076,7 @@ func (x *ListPublicDraftsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPublicDraftsRequest.ProtoReflect.Descriptor instead.
 func (*ListPublicDraftsRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{97}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *ListPublicDraftsRequest) GetKind() string {
@@ -7714,7 +8111,7 @@ type ListPublicDraftsResponse struct {
 
 func (x *ListPublicDraftsResponse) Reset() {
 	*x = ListPublicDraftsResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[98]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7726,7 +8123,7 @@ func (x *ListPublicDraftsResponse) String() string {
 func (*ListPublicDraftsResponse) ProtoMessage() {}
 
 func (x *ListPublicDraftsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[98]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7739,7 +8136,7 @@ func (x *ListPublicDraftsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPublicDraftsResponse.ProtoReflect.Descriptor instead.
 func (*ListPublicDraftsResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{98}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *ListPublicDraftsResponse) GetDrafts() []*PublicDraft {
@@ -7781,13 +8178,18 @@ type SavePublicDraftRequest struct {
 	ImageAssetIds          []string               `protobuf:"bytes,14,rep,name=image_asset_ids,json=imageAssetIds,proto3" json:"image_asset_ids,omitempty"` // 整体替换；空表示清空
 	ClearAvatar            bool                   `protobuf:"varint,15,opt,name=clear_avatar,json=clearAvatar,proto3" json:"clear_avatar,omitempty"`
 	AuthorKind             *string                `protobuf:"bytes,16,opt,name=author_kind,json=authorKind,proto3,oneof" json:"author_kind,omitempty"` // post 必填；"user" | "agent"；profile 忽略
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// human_avatar_asset_id is an optional field: an old client that does not
+	// know about human avatars leaves it unset and the saved value is preserved.
+	// clear_human_avatar explicitly removes only the human avatar.
+	HumanAvatarAssetId *string `protobuf:"bytes,17,opt,name=human_avatar_asset_id,json=humanAvatarAssetId,proto3,oneof" json:"human_avatar_asset_id,omitempty"`
+	ClearHumanAvatar   bool    `protobuf:"varint,18,opt,name=clear_human_avatar,json=clearHumanAvatar,proto3" json:"clear_human_avatar,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SavePublicDraftRequest) Reset() {
 	*x = SavePublicDraftRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[99]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7799,7 +8201,7 @@ func (x *SavePublicDraftRequest) String() string {
 func (*SavePublicDraftRequest) ProtoMessage() {}
 
 func (x *SavePublicDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[99]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7812,7 +8214,7 @@ func (x *SavePublicDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SavePublicDraftRequest.ProtoReflect.Descriptor instead.
 func (*SavePublicDraftRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{99}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *SavePublicDraftRequest) GetDraftId() string {
@@ -7927,6 +8329,20 @@ func (x *SavePublicDraftRequest) GetAuthorKind() string {
 	return ""
 }
 
+func (x *SavePublicDraftRequest) GetHumanAvatarAssetId() string {
+	if x != nil && x.HumanAvatarAssetId != nil {
+		return *x.HumanAvatarAssetId
+	}
+	return ""
+}
+
+func (x *SavePublicDraftRequest) GetClearHumanAvatar() bool {
+	if x != nil {
+		return x.ClearHumanAvatar
+	}
+	return false
+}
+
 type SavePublicDraftResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Draft         *PublicDraft           `protobuf:"bytes,1,opt,name=draft,proto3" json:"draft,omitempty"`
@@ -7936,7 +8352,7 @@ type SavePublicDraftResponse struct {
 
 func (x *SavePublicDraftResponse) Reset() {
 	*x = SavePublicDraftResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[100]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7948,7 +8364,7 @@ func (x *SavePublicDraftResponse) String() string {
 func (*SavePublicDraftResponse) ProtoMessage() {}
 
 func (x *SavePublicDraftResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[100]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7961,7 +8377,7 @@ func (x *SavePublicDraftResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SavePublicDraftResponse.ProtoReflect.Descriptor instead.
 func (*SavePublicDraftResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{100}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *SavePublicDraftResponse) GetDraft() *PublicDraft {
@@ -7983,7 +8399,7 @@ type PutPublicDraftImageRequest struct {
 
 func (x *PutPublicDraftImageRequest) Reset() {
 	*x = PutPublicDraftImageRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[101]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7995,7 +8411,7 @@ func (x *PutPublicDraftImageRequest) String() string {
 func (*PutPublicDraftImageRequest) ProtoMessage() {}
 
 func (x *PutPublicDraftImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[101]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8008,7 +8424,7 @@ func (x *PutPublicDraftImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutPublicDraftImageRequest.ProtoReflect.Descriptor instead.
 func (*PutPublicDraftImageRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{101}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *PutPublicDraftImageRequest) GetDraftId() string {
@@ -8048,7 +8464,7 @@ type PutPublicDraftImageResponse struct {
 
 func (x *PutPublicDraftImageResponse) Reset() {
 	*x = PutPublicDraftImageResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[102]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8060,7 +8476,7 @@ func (x *PutPublicDraftImageResponse) String() string {
 func (*PutPublicDraftImageResponse) ProtoMessage() {}
 
 func (x *PutPublicDraftImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[102]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8073,7 +8489,7 @@ func (x *PutPublicDraftImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutPublicDraftImageResponse.ProtoReflect.Descriptor instead.
 func (*PutPublicDraftImageResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{102}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *PutPublicDraftImageResponse) GetImage() *PublicDraftImage {
@@ -8093,7 +8509,7 @@ type GetPublicDraftAssetRequest struct {
 
 func (x *GetPublicDraftAssetRequest) Reset() {
 	*x = GetPublicDraftAssetRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[103]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8105,7 +8521,7 @@ func (x *GetPublicDraftAssetRequest) String() string {
 func (*GetPublicDraftAssetRequest) ProtoMessage() {}
 
 func (x *GetPublicDraftAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[103]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8118,7 +8534,7 @@ func (x *GetPublicDraftAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicDraftAssetRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicDraftAssetRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{103}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *GetPublicDraftAssetRequest) GetDraftId() string {
@@ -8147,7 +8563,7 @@ type GetPublicDraftAssetResponse struct {
 
 func (x *GetPublicDraftAssetResponse) Reset() {
 	*x = GetPublicDraftAssetResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[104]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8159,7 +8575,7 @@ func (x *GetPublicDraftAssetResponse) String() string {
 func (*GetPublicDraftAssetResponse) ProtoMessage() {}
 
 func (x *GetPublicDraftAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[104]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8172,7 +8588,7 @@ func (x *GetPublicDraftAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicDraftAssetResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicDraftAssetResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{104}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *GetPublicDraftAssetResponse) GetImage() *PublicDraftImage {
@@ -8200,7 +8616,7 @@ type ImportPublicPostRequest struct {
 
 func (x *ImportPublicPostRequest) Reset() {
 	*x = ImportPublicPostRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[105]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8212,7 +8628,7 @@ func (x *ImportPublicPostRequest) String() string {
 func (*ImportPublicPostRequest) ProtoMessage() {}
 
 func (x *ImportPublicPostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[105]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8225,7 +8641,7 @@ func (x *ImportPublicPostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportPublicPostRequest.ProtoReflect.Descriptor instead.
 func (*ImportPublicPostRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{105}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *ImportPublicPostRequest) GetPath() string {
@@ -8244,7 +8660,7 @@ type ImportPublicPostResponse struct {
 
 func (x *ImportPublicPostResponse) Reset() {
 	*x = ImportPublicPostResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[106]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8256,7 +8672,7 @@ func (x *ImportPublicPostResponse) String() string {
 func (*ImportPublicPostResponse) ProtoMessage() {}
 
 func (x *ImportPublicPostResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[106]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8269,7 +8685,7 @@ func (x *ImportPublicPostResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportPublicPostResponse.ProtoReflect.Descriptor instead.
 func (*ImportPublicPostResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{106}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *ImportPublicPostResponse) GetDraft() *PublicDraft {
@@ -8289,7 +8705,7 @@ type DeletePublicDraftRequest struct {
 
 func (x *DeletePublicDraftRequest) Reset() {
 	*x = DeletePublicDraftRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[107]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8301,7 +8717,7 @@ func (x *DeletePublicDraftRequest) String() string {
 func (*DeletePublicDraftRequest) ProtoMessage() {}
 
 func (x *DeletePublicDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[107]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8314,7 +8730,7 @@ func (x *DeletePublicDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeletePublicDraftRequest.ProtoReflect.Descriptor instead.
 func (*DeletePublicDraftRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{107}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *DeletePublicDraftRequest) GetDraftId() string {
@@ -8340,7 +8756,7 @@ type DeletePublicDraftResponse struct {
 
 func (x *DeletePublicDraftResponse) Reset() {
 	*x = DeletePublicDraftResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[108]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8352,7 +8768,7 @@ func (x *DeletePublicDraftResponse) String() string {
 func (*DeletePublicDraftResponse) ProtoMessage() {}
 
 func (x *DeletePublicDraftResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[108]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8365,7 +8781,7 @@ func (x *DeletePublicDraftResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeletePublicDraftResponse.ProtoReflect.Descriptor instead.
 func (*DeletePublicDraftResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{108}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *DeletePublicDraftResponse) GetDeleted() bool {
@@ -8386,7 +8802,7 @@ type PublishFile struct {
 
 func (x *PublishFile) Reset() {
 	*x = PublishFile{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[109]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8398,7 +8814,7 @@ func (x *PublishFile) String() string {
 func (*PublishFile) ProtoMessage() {}
 
 func (x *PublishFile) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[109]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8411,7 +8827,7 @@ func (x *PublishFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishFile.ProtoReflect.Descriptor instead.
 func (*PublishFile) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{109}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *PublishFile) GetPath() string {
@@ -8448,7 +8864,7 @@ type PublishPublicDraftRequest struct {
 
 func (x *PublishPublicDraftRequest) Reset() {
 	*x = PublishPublicDraftRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[110]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8460,7 +8876,7 @@ func (x *PublishPublicDraftRequest) String() string {
 func (*PublishPublicDraftRequest) ProtoMessage() {}
 
 func (x *PublishPublicDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[110]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8473,7 +8889,7 @@ func (x *PublishPublicDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishPublicDraftRequest.ProtoReflect.Descriptor instead.
 func (*PublishPublicDraftRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{110}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *PublishPublicDraftRequest) GetDraftId() string {
@@ -8516,7 +8932,7 @@ type PublishPublicDraftResponse struct {
 
 func (x *PublishPublicDraftResponse) Reset() {
 	*x = PublishPublicDraftResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[111]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8528,7 +8944,7 @@ func (x *PublishPublicDraftResponse) String() string {
 func (*PublishPublicDraftResponse) ProtoMessage() {}
 
 func (x *PublishPublicDraftResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[111]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8541,7 +8957,7 @@ func (x *PublishPublicDraftResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishPublicDraftResponse.ProtoReflect.Descriptor instead.
 func (*PublishPublicDraftResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{111}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *PublishPublicDraftResponse) GetStatus() PublicPublishStatus {
@@ -8633,7 +9049,7 @@ type PeerFriendClaim struct {
 
 func (x *PeerFriendClaim) Reset() {
 	*x = PeerFriendClaim{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[112]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8645,7 +9061,7 @@ func (x *PeerFriendClaim) String() string {
 func (*PeerFriendClaim) ProtoMessage() {}
 
 func (x *PeerFriendClaim) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[112]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8658,7 +9074,7 @@ func (x *PeerFriendClaim) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerFriendClaim.ProtoReflect.Descriptor instead.
 func (*PeerFriendClaim) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{112}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *PeerFriendClaim) GetName() string {
@@ -8698,7 +9114,7 @@ type GetPeerFriendsRequest struct {
 
 func (x *GetPeerFriendsRequest) Reset() {
 	*x = GetPeerFriendsRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[113]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8710,7 +9126,7 @@ func (x *GetPeerFriendsRequest) String() string {
 func (*GetPeerFriendsRequest) ProtoMessage() {}
 
 func (x *GetPeerFriendsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[113]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8723,7 +9139,7 @@ func (x *GetPeerFriendsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerFriendsRequest.ProtoReflect.Descriptor instead.
 func (*GetPeerFriendsRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{113}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *GetPeerFriendsRequest) GetPeerId() string {
@@ -8744,7 +9160,7 @@ type GetPeerFriendsResponse struct {
 
 func (x *GetPeerFriendsResponse) Reset() {
 	*x = GetPeerFriendsResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[114]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8756,7 +9172,7 @@ func (x *GetPeerFriendsResponse) String() string {
 func (*GetPeerFriendsResponse) ProtoMessage() {}
 
 func (x *GetPeerFriendsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[114]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8769,7 +9185,7 @@ func (x *GetPeerFriendsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerFriendsResponse.ProtoReflect.Descriptor instead.
 func (*GetPeerFriendsResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{114}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *GetPeerFriendsResponse) GetPeerId() string {
@@ -8808,7 +9224,7 @@ type DownloadPeerFileRequest struct {
 
 func (x *DownloadPeerFileRequest) Reset() {
 	*x = DownloadPeerFileRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[115]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8820,7 +9236,7 @@ func (x *DownloadPeerFileRequest) String() string {
 func (*DownloadPeerFileRequest) ProtoMessage() {}
 
 func (x *DownloadPeerFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[115]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8833,7 +9249,7 @@ func (x *DownloadPeerFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadPeerFileRequest.ProtoReflect.Descriptor instead.
 func (*DownloadPeerFileRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{115}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *DownloadPeerFileRequest) GetPeerId() string {
@@ -8884,7 +9300,7 @@ type DownloadPeerFileResponse struct {
 
 func (x *DownloadPeerFileResponse) Reset() {
 	*x = DownloadPeerFileResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[116]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8896,7 +9312,7 @@ func (x *DownloadPeerFileResponse) String() string {
 func (*DownloadPeerFileResponse) ProtoMessage() {}
 
 func (x *DownloadPeerFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[116]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8909,7 +9325,7 @@ func (x *DownloadPeerFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadPeerFileResponse.ProtoReflect.Descriptor instead.
 func (*DownloadPeerFileResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{116}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *DownloadPeerFileResponse) GetPhase() string {
@@ -8999,7 +9415,7 @@ type ConnectListedPeerRequest struct {
 
 func (x *ConnectListedPeerRequest) Reset() {
 	*x = ConnectListedPeerRequest{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[117]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9011,7 +9427,7 @@ func (x *ConnectListedPeerRequest) String() string {
 func (*ConnectListedPeerRequest) ProtoMessage() {}
 
 func (x *ConnectListedPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[117]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9024,7 +9440,7 @@ func (x *ConnectListedPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectListedPeerRequest.ProtoReflect.Descriptor instead.
 func (*ConnectListedPeerRequest) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{117}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *ConnectListedPeerRequest) GetPeerId() string {
@@ -9062,7 +9478,7 @@ type ConnectListedPeerResponse struct {
 
 func (x *ConnectListedPeerResponse) Reset() {
 	*x = ConnectListedPeerResponse{}
-	mi := &file_raminga_api_v1_api_proto_msgTypes[118]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9074,7 +9490,7 @@ func (x *ConnectListedPeerResponse) String() string {
 func (*ConnectListedPeerResponse) ProtoMessage() {}
 
 func (x *ConnectListedPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raminga_api_v1_api_proto_msgTypes[118]
+	mi := &file_raminga_api_v1_api_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9087,7 +9503,7 @@ func (x *ConnectListedPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectListedPeerResponse.ProtoReflect.Descriptor instead.
 func (*ConnectListedPeerResponse) Descriptor() ([]byte, []int) {
-	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{118}
+	return file_raminga_api_v1_api_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *ConnectListedPeerResponse) GetPeerId() string {
@@ -9630,7 +10046,25 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x11DhtAddPeerRequest\x12\x1c\n" +
 	"\tmultiaddr\x18\x01 \x01(\tR\tmultiaddr\"A\n" +
 	"\x12DhtAddPeerResponse\x12+\n" +
-	"\x04peer\x18\x01 \x01(\v2\x17.raminga.api.v1.DhtPeerR\x04peer\"-\n" +
+	"\x04peer\x18\x01 \x01(\v2\x17.raminga.api.v1.DhtPeerR\x04peer\"\x97\x01\n" +
+	"\rBootstrapPeer\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x14\n" +
+	"\x05addrs\x18\x02 \x03(\tR\x05addrs\x12\x16\n" +
+	"\x06online\x18\x03 \x01(\bR\x06online\x12\x16\n" +
+	"\x06paused\x18\x04 \x01(\bR\x06paused\x12'\n" +
+	"\x10saved_at_unix_ms\x18\x05 \x01(\x03R\rsavedAtUnixMs\"\x1b\n" +
+	"\x19ListBootstrapPeersRequest\"Q\n" +
+	"\x1aListBootstrapPeersResponse\x123\n" +
+	"\x05peers\x18\x01 \x03(\v2\x1d.raminga.api.v1.BootstrapPeerR\x05peers\"7\n" +
+	"\x17AddBootstrapPeerRequest\x12\x1c\n" +
+	"\tmultiaddr\x18\x01 \x01(\tR\tmultiaddr\"c\n" +
+	"\x18AddBootstrapPeerResponse\x121\n" +
+	"\x04peer\x18\x01 \x01(\v2\x1d.raminga.api.v1.BootstrapPeerR\x04peer\x12\x14\n" +
+	"\x05added\x18\x02 \x01(\bR\x05added\"5\n" +
+	"\x1aRemoveBootstrapPeerRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\"7\n" +
+	"\x1bRemoveBootstrapPeerResponse\x12\x18\n" +
+	"\aremoved\x18\x01 \x01(\bR\aremoved\"-\n" +
 	"\x12DhtFindPeerRequest\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\"B\n" +
 	"\x13DhtFindPeerResponse\x12+\n" +
@@ -9745,7 +10179,7 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x04text\x18\x03 \x01(\tR\x04text\x12\x14\n" +
 	"\x05files\x18\x04 \x03(\tR\x05files\x12\x14\n" +
 	"\x05found\x18\x05 \x01(\bR\x05found\x127\n" +
-	"\aprofile\x18\x06 \x01(\v2\x1d.raminga.api.v1.PublicProfileR\aprofile\"\xd6\x03\n" +
+	"\aprofile\x18\x06 \x01(\v2\x1d.raminga.api.v1.PublicProfileR\aprofile\"\xde\x04\n" +
 	"\rPublicProfile\x12\x1d\n" +
 	"\n" +
 	"agent_name\x18\x01 \x01(\tR\tagentName\x12+\n" +
@@ -9764,7 +10198,10 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	" \x01(\tR\n" +
 	"sourcePath\x12'\n" +
 	"\x0flegacy_fallback\x18\v \x01(\bR\x0elegacyFallback\x12\x18\n" +
-	"\awarning\x18\f \x01(\tR\awarning\"\xa6\x01\n" +
+	"\awarning\x18\f \x01(\tR\awarning\x12*\n" +
+	"\x11human_avatar_path\x18\r \x01(\tR\x0fhumanAvatarPath\x12.\n" +
+	"\x13human_avatar_sha256\x18\x0e \x01(\tR\x11humanAvatarSha256\x12*\n" +
+	"\x11human_avatar_mime\x18\x0f \x01(\tR\x0fhumanAvatarMime\"\xa6\x01\n" +
 	"\x10PublicDraftImage\x12\x19\n" +
 	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x16\n" +
 	"\x06sha256\x18\x02 \x01(\tR\x06sha256\x12\x12\n" +
@@ -9772,7 +10209,7 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x05width\x18\x04 \x01(\rR\x05width\x12\x16\n" +
 	"\x06height\x18\x05 \x01(\rR\x06height\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\"\x93\x06\n" +
+	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\"\xd8\x06\n" +
 	"\vPublicDraft\x12\x19\n" +
 	"\bdraft_id\x18\x01 \x01(\tR\adraftId\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x1a\n" +
@@ -9797,7 +10234,8 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x12created_at_unix_ms\x18\x12 \x01(\x03R\x0fcreatedAtUnixMs\x12+\n" +
 	"\x12updated_at_unix_ms\x18\x13 \x01(\x03R\x0fupdatedAtUnixMs\x12\x1f\n" +
 	"\vauthor_kind\x18\x14 \x01(\tR\n" +
-	"authorKind\"2\n" +
+	"authorKind\x12C\n" +
+	"\fhuman_avatar\x18\x15 \x01(\v2 .raminga.api.v1.PublicDraftImageR\vhumanAvatar\"2\n" +
 	"\x15GetPublicDraftRequest\x12\x19\n" +
 	"\bdraft_id\x18\x01 \x01(\tR\adraftId\"a\n" +
 	"\x16GetPublicDraftResponse\x12\x14\n" +
@@ -9811,7 +10249,7 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x06drafts\x18\x01 \x03(\v2\x1b.raminga.api.v1.PublicDraftR\x06drafts\x12\x1f\n" +
 	"\vnext_before\x18\x02 \x01(\tR\n" +
 	"nextBefore\x12\x19\n" +
-	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\x8f\x06\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\x8f\a\n" +
 	"\x16SavePublicDraftRequest\x12\x19\n" +
 	"\bdraft_id\x18\x01 \x01(\tR\adraftId\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12+\n" +
@@ -9832,7 +10270,9 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x0fimage_asset_ids\x18\x0e \x03(\tR\rimageAssetIds\x12!\n" +
 	"\fclear_avatar\x18\x0f \x01(\bR\vclearAvatar\x12$\n" +
 	"\vauthor_kind\x18\x10 \x01(\tH\aR\n" +
-	"authorKind\x88\x01\x01B\r\n" +
+	"authorKind\x88\x01\x01\x126\n" +
+	"\x15human_avatar_asset_id\x18\x11 \x01(\tH\bR\x12humanAvatarAssetId\x88\x01\x01\x12,\n" +
+	"\x12clear_human_avatar\x18\x12 \x01(\bR\x10clearHumanAvatarB\r\n" +
 	"\v_agent_nameB\x14\n" +
 	"\x12_agent_descriptionB\x1b\n" +
 	"\x19_agent_conversation_styleB\r\n" +
@@ -9840,7 +10280,8 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x13_human_bio_markdownB\b\n" +
 	"\x06_titleB\x10\n" +
 	"\x0e_body_markdownB\x0e\n" +
-	"\f_author_kind\"L\n" +
+	"\f_author_kindB\x18\n" +
+	"\x16_human_avatar_asset_id\"L\n" +
 	"\x17SavePublicDraftResponse\x121\n" +
 	"\x05draft\x18\x01 \x01(\v2\x1b.raminga.api.v1.PublicDraftR\x05draft\"{\n" +
 	"\x1aPutPublicDraftImageRequest\x12\x19\n" +
@@ -9942,7 +10383,7 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"'PUBLIC_PUBLISH_STATUS_ALREADY_PUBLISHED\x10\x02\x12\"\n" +
 	"\x1ePUBLIC_PUBLISH_STATUS_CONFLICT\x10\x03\x12!\n" +
 	"\x1dPUBLIC_PUBLISH_STATUS_INVALID\x10\x04\x12!\n" +
-	"\x1dPUBLIC_PUBLISH_STATUS_PARTIAL\x10\x052\x95\x1f\n" +
+	"\x1dPUBLIC_PUBLISH_STATUS_PARTIAL\x10\x052\xd9!\n" +
 	"\x0eRamingaService\x12G\n" +
 	"\x06Status\x12\x1d.raminga.api.v1.StatusRequest\x1a\x1e.raminga.api.v1.StatusResponse\x12J\n" +
 	"\aConnect\x12\x1e.raminga.api.v1.ConnectRequest\x1a\x1f.raminga.api.v1.ConnectResponse\x12M\n" +
@@ -9962,7 +10403,10 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\vRelayStatus\x12\".raminga.api.v1.RelayStatusRequest\x1a#.raminga.api.v1.RelayStatusResponse\x12P\n" +
 	"\tDhtStatus\x12 .raminga.api.v1.DhtStatusRequest\x1a!.raminga.api.v1.DhtStatusResponse\x12S\n" +
 	"\n" +
-	"DhtAddPeer\x12!.raminga.api.v1.DhtAddPeerRequest\x1a\".raminga.api.v1.DhtAddPeerResponse\x12V\n" +
+	"DhtAddPeer\x12!.raminga.api.v1.DhtAddPeerRequest\x1a\".raminga.api.v1.DhtAddPeerResponse\x12k\n" +
+	"\x12ListBootstrapPeers\x12).raminga.api.v1.ListBootstrapPeersRequest\x1a*.raminga.api.v1.ListBootstrapPeersResponse\x12e\n" +
+	"\x10AddBootstrapPeer\x12'.raminga.api.v1.AddBootstrapPeerRequest\x1a(.raminga.api.v1.AddBootstrapPeerResponse\x12n\n" +
+	"\x13RemoveBootstrapPeer\x12*.raminga.api.v1.RemoveBootstrapPeerRequest\x1a+.raminga.api.v1.RemoveBootstrapPeerResponse\x12V\n" +
 	"\vDhtFindPeer\x12\".raminga.api.v1.DhtFindPeerRequest\x1a#.raminga.api.v1.DhtFindPeerResponse\x12V\n" +
 	"\vListFriends\x12\".raminga.api.v1.ListFriendsRequest\x1a#.raminga.api.v1.ListFriendsResponse\x12\\\n" +
 	"\rSetFriendName\x12$.raminga.api.v1.SetFriendNameRequest\x1a%.raminga.api.v1.SetFriendNameResponse\x12q\n" +
@@ -10002,7 +10446,7 @@ func file_raminga_api_v1_api_proto_rawDescGZIP() []byte {
 }
 
 var file_raminga_api_v1_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_raminga_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
+var file_raminga_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 126)
 var file_raminga_api_v1_api_proto_goTypes = []any{
 	(PublicPublishStatus)(0),               // 0: raminga.api.v1.PublicPublishStatus
 	(*StatusRequest)(nil),                  // 1: raminga.api.v1.StatusRequest
@@ -10064,66 +10508,73 @@ var file_raminga_api_v1_api_proto_goTypes = []any{
 	(*DhtStatusResponse)(nil),              // 57: raminga.api.v1.DhtStatusResponse
 	(*DhtAddPeerRequest)(nil),              // 58: raminga.api.v1.DhtAddPeerRequest
 	(*DhtAddPeerResponse)(nil),             // 59: raminga.api.v1.DhtAddPeerResponse
-	(*DhtFindPeerRequest)(nil),             // 60: raminga.api.v1.DhtFindPeerRequest
-	(*DhtFindPeerResponse)(nil),            // 61: raminga.api.v1.DhtFindPeerResponse
-	(*Friend)(nil),                         // 62: raminga.api.v1.Friend
-	(*ListFriendsRequest)(nil),             // 63: raminga.api.v1.ListFriendsRequest
-	(*ListFriendsResponse)(nil),            // 64: raminga.api.v1.ListFriendsResponse
-	(*SetFriendNameRequest)(nil),           // 65: raminga.api.v1.SetFriendNameRequest
-	(*SetFriendNameResponse)(nil),          // 66: raminga.api.v1.SetFriendNameResponse
-	(*SetFriendDescriptionRequest)(nil),    // 67: raminga.api.v1.SetFriendDescriptionRequest
-	(*SetFriendDescriptionResponse)(nil),   // 68: raminga.api.v1.SetFriendDescriptionResponse
-	(*RemoveFriendRequest)(nil),            // 69: raminga.api.v1.RemoveFriendRequest
-	(*RemoveFriendResponse)(nil),           // 70: raminga.api.v1.RemoveFriendResponse
-	(*SyncFriendsRequest)(nil),             // 71: raminga.api.v1.SyncFriendsRequest
-	(*SyncFriendsResponse)(nil),            // 72: raminga.api.v1.SyncFriendsResponse
-	(*PublishedRequest)(nil),               // 73: raminga.api.v1.PublishedRequest
-	(*PublishedFile)(nil),                  // 74: raminga.api.v1.PublishedFile
-	(*PublishedSkip)(nil),                  // 75: raminga.api.v1.PublishedSkip
-	(*PublishedResponse)(nil),              // 76: raminga.api.v1.PublishedResponse
-	(*ListDiscoveriesRequest)(nil),         // 77: raminga.api.v1.ListDiscoveriesRequest
-	(*Discovery)(nil),                      // 78: raminga.api.v1.Discovery
-	(*ListDiscoveriesResponse)(nil),        // 79: raminga.api.v1.ListDiscoveriesResponse
-	(*DisconnectPeerRequest)(nil),          // 80: raminga.api.v1.DisconnectPeerRequest
-	(*DisconnectPeerResponse)(nil),         // 81: raminga.api.v1.DisconnectPeerResponse
-	(*ShutdownRequest)(nil),                // 82: raminga.api.v1.ShutdownRequest
-	(*ShutdownResponse)(nil),               // 83: raminga.api.v1.ShutdownResponse
-	(*TestDisconnectPeerRequest)(nil),      // 84: raminga.api.v1.TestDisconnectPeerRequest
-	(*TestDisconnectPeerResponse)(nil),     // 85: raminga.api.v1.TestDisconnectPeerResponse
-	(*TestPingRequest)(nil),                // 86: raminga.api.v1.TestPingRequest
-	(*TestPingResponse)(nil),               // 87: raminga.api.v1.TestPingResponse
-	(*GetPeerManifestRequest)(nil),         // 88: raminga.api.v1.GetPeerManifestRequest
-	(*ManifestEntry)(nil),                  // 89: raminga.api.v1.ManifestEntry
-	(*GetPeerManifestResponse)(nil),        // 90: raminga.api.v1.GetPeerManifestResponse
-	(*GetPeerProfileRequest)(nil),          // 91: raminga.api.v1.GetPeerProfileRequest
-	(*GetPeerProfileResponse)(nil),         // 92: raminga.api.v1.GetPeerProfileResponse
-	(*PublicProfile)(nil),                  // 93: raminga.api.v1.PublicProfile
-	(*PublicDraftImage)(nil),               // 94: raminga.api.v1.PublicDraftImage
-	(*PublicDraft)(nil),                    // 95: raminga.api.v1.PublicDraft
-	(*GetPublicDraftRequest)(nil),          // 96: raminga.api.v1.GetPublicDraftRequest
-	(*GetPublicDraftResponse)(nil),         // 97: raminga.api.v1.GetPublicDraftResponse
-	(*ListPublicDraftsRequest)(nil),        // 98: raminga.api.v1.ListPublicDraftsRequest
-	(*ListPublicDraftsResponse)(nil),       // 99: raminga.api.v1.ListPublicDraftsResponse
-	(*SavePublicDraftRequest)(nil),         // 100: raminga.api.v1.SavePublicDraftRequest
-	(*SavePublicDraftResponse)(nil),        // 101: raminga.api.v1.SavePublicDraftResponse
-	(*PutPublicDraftImageRequest)(nil),     // 102: raminga.api.v1.PutPublicDraftImageRequest
-	(*PutPublicDraftImageResponse)(nil),    // 103: raminga.api.v1.PutPublicDraftImageResponse
-	(*GetPublicDraftAssetRequest)(nil),     // 104: raminga.api.v1.GetPublicDraftAssetRequest
-	(*GetPublicDraftAssetResponse)(nil),    // 105: raminga.api.v1.GetPublicDraftAssetResponse
-	(*ImportPublicPostRequest)(nil),        // 106: raminga.api.v1.ImportPublicPostRequest
-	(*ImportPublicPostResponse)(nil),       // 107: raminga.api.v1.ImportPublicPostResponse
-	(*DeletePublicDraftRequest)(nil),       // 108: raminga.api.v1.DeletePublicDraftRequest
-	(*DeletePublicDraftResponse)(nil),      // 109: raminga.api.v1.DeletePublicDraftResponse
-	(*PublishFile)(nil),                    // 110: raminga.api.v1.PublishFile
-	(*PublishPublicDraftRequest)(nil),      // 111: raminga.api.v1.PublishPublicDraftRequest
-	(*PublishPublicDraftResponse)(nil),     // 112: raminga.api.v1.PublishPublicDraftResponse
-	(*PeerFriendClaim)(nil),                // 113: raminga.api.v1.PeerFriendClaim
-	(*GetPeerFriendsRequest)(nil),          // 114: raminga.api.v1.GetPeerFriendsRequest
-	(*GetPeerFriendsResponse)(nil),         // 115: raminga.api.v1.GetPeerFriendsResponse
-	(*DownloadPeerFileRequest)(nil),        // 116: raminga.api.v1.DownloadPeerFileRequest
-	(*DownloadPeerFileResponse)(nil),       // 117: raminga.api.v1.DownloadPeerFileResponse
-	(*ConnectListedPeerRequest)(nil),       // 118: raminga.api.v1.ConnectListedPeerRequest
-	(*ConnectListedPeerResponse)(nil),      // 119: raminga.api.v1.ConnectListedPeerResponse
+	(*BootstrapPeer)(nil),                  // 60: raminga.api.v1.BootstrapPeer
+	(*ListBootstrapPeersRequest)(nil),      // 61: raminga.api.v1.ListBootstrapPeersRequest
+	(*ListBootstrapPeersResponse)(nil),     // 62: raminga.api.v1.ListBootstrapPeersResponse
+	(*AddBootstrapPeerRequest)(nil),        // 63: raminga.api.v1.AddBootstrapPeerRequest
+	(*AddBootstrapPeerResponse)(nil),       // 64: raminga.api.v1.AddBootstrapPeerResponse
+	(*RemoveBootstrapPeerRequest)(nil),     // 65: raminga.api.v1.RemoveBootstrapPeerRequest
+	(*RemoveBootstrapPeerResponse)(nil),    // 66: raminga.api.v1.RemoveBootstrapPeerResponse
+	(*DhtFindPeerRequest)(nil),             // 67: raminga.api.v1.DhtFindPeerRequest
+	(*DhtFindPeerResponse)(nil),            // 68: raminga.api.v1.DhtFindPeerResponse
+	(*Friend)(nil),                         // 69: raminga.api.v1.Friend
+	(*ListFriendsRequest)(nil),             // 70: raminga.api.v1.ListFriendsRequest
+	(*ListFriendsResponse)(nil),            // 71: raminga.api.v1.ListFriendsResponse
+	(*SetFriendNameRequest)(nil),           // 72: raminga.api.v1.SetFriendNameRequest
+	(*SetFriendNameResponse)(nil),          // 73: raminga.api.v1.SetFriendNameResponse
+	(*SetFriendDescriptionRequest)(nil),    // 74: raminga.api.v1.SetFriendDescriptionRequest
+	(*SetFriendDescriptionResponse)(nil),   // 75: raminga.api.v1.SetFriendDescriptionResponse
+	(*RemoveFriendRequest)(nil),            // 76: raminga.api.v1.RemoveFriendRequest
+	(*RemoveFriendResponse)(nil),           // 77: raminga.api.v1.RemoveFriendResponse
+	(*SyncFriendsRequest)(nil),             // 78: raminga.api.v1.SyncFriendsRequest
+	(*SyncFriendsResponse)(nil),            // 79: raminga.api.v1.SyncFriendsResponse
+	(*PublishedRequest)(nil),               // 80: raminga.api.v1.PublishedRequest
+	(*PublishedFile)(nil),                  // 81: raminga.api.v1.PublishedFile
+	(*PublishedSkip)(nil),                  // 82: raminga.api.v1.PublishedSkip
+	(*PublishedResponse)(nil),              // 83: raminga.api.v1.PublishedResponse
+	(*ListDiscoveriesRequest)(nil),         // 84: raminga.api.v1.ListDiscoveriesRequest
+	(*Discovery)(nil),                      // 85: raminga.api.v1.Discovery
+	(*ListDiscoveriesResponse)(nil),        // 86: raminga.api.v1.ListDiscoveriesResponse
+	(*DisconnectPeerRequest)(nil),          // 87: raminga.api.v1.DisconnectPeerRequest
+	(*DisconnectPeerResponse)(nil),         // 88: raminga.api.v1.DisconnectPeerResponse
+	(*ShutdownRequest)(nil),                // 89: raminga.api.v1.ShutdownRequest
+	(*ShutdownResponse)(nil),               // 90: raminga.api.v1.ShutdownResponse
+	(*TestDisconnectPeerRequest)(nil),      // 91: raminga.api.v1.TestDisconnectPeerRequest
+	(*TestDisconnectPeerResponse)(nil),     // 92: raminga.api.v1.TestDisconnectPeerResponse
+	(*TestPingRequest)(nil),                // 93: raminga.api.v1.TestPingRequest
+	(*TestPingResponse)(nil),               // 94: raminga.api.v1.TestPingResponse
+	(*GetPeerManifestRequest)(nil),         // 95: raminga.api.v1.GetPeerManifestRequest
+	(*ManifestEntry)(nil),                  // 96: raminga.api.v1.ManifestEntry
+	(*GetPeerManifestResponse)(nil),        // 97: raminga.api.v1.GetPeerManifestResponse
+	(*GetPeerProfileRequest)(nil),          // 98: raminga.api.v1.GetPeerProfileRequest
+	(*GetPeerProfileResponse)(nil),         // 99: raminga.api.v1.GetPeerProfileResponse
+	(*PublicProfile)(nil),                  // 100: raminga.api.v1.PublicProfile
+	(*PublicDraftImage)(nil),               // 101: raminga.api.v1.PublicDraftImage
+	(*PublicDraft)(nil),                    // 102: raminga.api.v1.PublicDraft
+	(*GetPublicDraftRequest)(nil),          // 103: raminga.api.v1.GetPublicDraftRequest
+	(*GetPublicDraftResponse)(nil),         // 104: raminga.api.v1.GetPublicDraftResponse
+	(*ListPublicDraftsRequest)(nil),        // 105: raminga.api.v1.ListPublicDraftsRequest
+	(*ListPublicDraftsResponse)(nil),       // 106: raminga.api.v1.ListPublicDraftsResponse
+	(*SavePublicDraftRequest)(nil),         // 107: raminga.api.v1.SavePublicDraftRequest
+	(*SavePublicDraftResponse)(nil),        // 108: raminga.api.v1.SavePublicDraftResponse
+	(*PutPublicDraftImageRequest)(nil),     // 109: raminga.api.v1.PutPublicDraftImageRequest
+	(*PutPublicDraftImageResponse)(nil),    // 110: raminga.api.v1.PutPublicDraftImageResponse
+	(*GetPublicDraftAssetRequest)(nil),     // 111: raminga.api.v1.GetPublicDraftAssetRequest
+	(*GetPublicDraftAssetResponse)(nil),    // 112: raminga.api.v1.GetPublicDraftAssetResponse
+	(*ImportPublicPostRequest)(nil),        // 113: raminga.api.v1.ImportPublicPostRequest
+	(*ImportPublicPostResponse)(nil),       // 114: raminga.api.v1.ImportPublicPostResponse
+	(*DeletePublicDraftRequest)(nil),       // 115: raminga.api.v1.DeletePublicDraftRequest
+	(*DeletePublicDraftResponse)(nil),      // 116: raminga.api.v1.DeletePublicDraftResponse
+	(*PublishFile)(nil),                    // 117: raminga.api.v1.PublishFile
+	(*PublishPublicDraftRequest)(nil),      // 118: raminga.api.v1.PublishPublicDraftRequest
+	(*PublishPublicDraftResponse)(nil),     // 119: raminga.api.v1.PublishPublicDraftResponse
+	(*PeerFriendClaim)(nil),                // 120: raminga.api.v1.PeerFriendClaim
+	(*GetPeerFriendsRequest)(nil),          // 121: raminga.api.v1.GetPeerFriendsRequest
+	(*GetPeerFriendsResponse)(nil),         // 122: raminga.api.v1.GetPeerFriendsResponse
+	(*DownloadPeerFileRequest)(nil),        // 123: raminga.api.v1.DownloadPeerFileRequest
+	(*DownloadPeerFileResponse)(nil),       // 124: raminga.api.v1.DownloadPeerFileResponse
+	(*ConnectListedPeerRequest)(nil),       // 125: raminga.api.v1.ConnectListedPeerRequest
+	(*ConnectListedPeerResponse)(nil),      // 126: raminga.api.v1.ConnectListedPeerResponse
 }
 var file_raminga_api_v1_api_proto_depIdxs = []int32{
 	4,   // 0: raminga.api.v1.StatusResponse.peers:type_name -> raminga.api.v1.PeerStatus
@@ -10159,116 +10610,125 @@ var file_raminga_api_v1_api_proto_depIdxs = []int32{
 	45,  // 30: raminga.api.v1.RelayStatusResponse.relays:type_name -> raminga.api.v1.RelayReservation
 	47,  // 31: raminga.api.v1.DhtStatusResponse.dht:type_name -> raminga.api.v1.DHTStatus
 	48,  // 32: raminga.api.v1.DhtAddPeerResponse.peer:type_name -> raminga.api.v1.DhtPeer
-	48,  // 33: raminga.api.v1.DhtFindPeerResponse.peer:type_name -> raminga.api.v1.DhtPeer
-	62,  // 34: raminga.api.v1.ListFriendsResponse.friends:type_name -> raminga.api.v1.Friend
-	62,  // 35: raminga.api.v1.SetFriendNameResponse.friend:type_name -> raminga.api.v1.Friend
-	62,  // 36: raminga.api.v1.SetFriendDescriptionResponse.friend:type_name -> raminga.api.v1.Friend
-	74,  // 37: raminga.api.v1.PublishedResponse.files:type_name -> raminga.api.v1.PublishedFile
-	75,  // 38: raminga.api.v1.PublishedResponse.skipped:type_name -> raminga.api.v1.PublishedSkip
-	78,  // 39: raminga.api.v1.ListDiscoveriesResponse.discoveries:type_name -> raminga.api.v1.Discovery
-	89,  // 40: raminga.api.v1.GetPeerManifestResponse.entries:type_name -> raminga.api.v1.ManifestEntry
-	93,  // 41: raminga.api.v1.GetPeerProfileResponse.profile:type_name -> raminga.api.v1.PublicProfile
-	94,  // 42: raminga.api.v1.PublicDraft.avatar:type_name -> raminga.api.v1.PublicDraftImage
-	94,  // 43: raminga.api.v1.PublicDraft.images:type_name -> raminga.api.v1.PublicDraftImage
-	95,  // 44: raminga.api.v1.GetPublicDraftResponse.draft:type_name -> raminga.api.v1.PublicDraft
-	95,  // 45: raminga.api.v1.ListPublicDraftsResponse.drafts:type_name -> raminga.api.v1.PublicDraft
-	95,  // 46: raminga.api.v1.SavePublicDraftResponse.draft:type_name -> raminga.api.v1.PublicDraft
-	94,  // 47: raminga.api.v1.PutPublicDraftImageResponse.image:type_name -> raminga.api.v1.PublicDraftImage
-	94,  // 48: raminga.api.v1.GetPublicDraftAssetResponse.image:type_name -> raminga.api.v1.PublicDraftImage
-	95,  // 49: raminga.api.v1.ImportPublicPostResponse.draft:type_name -> raminga.api.v1.PublicDraft
-	0,   // 50: raminga.api.v1.PublishPublicDraftResponse.status:type_name -> raminga.api.v1.PublicPublishStatus
-	110, // 51: raminga.api.v1.PublishPublicDraftResponse.files:type_name -> raminga.api.v1.PublishFile
-	113, // 52: raminga.api.v1.GetPeerFriendsResponse.friends:type_name -> raminga.api.v1.PeerFriendClaim
-	6,   // 53: raminga.api.v1.ConnectListedPeerResponse.attempts:type_name -> raminga.api.v1.DialAttempt
-	1,   // 54: raminga.api.v1.RamingaService.Status:input_type -> raminga.api.v1.StatusRequest
-	5,   // 55: raminga.api.v1.RamingaService.Connect:input_type -> raminga.api.v1.ConnectRequest
-	8,   // 56: raminga.api.v1.RamingaService.SendChat:input_type -> raminga.api.v1.SendChatRequest
-	10,  // 57: raminga.api.v1.RamingaService.RecentMessages:input_type -> raminga.api.v1.RecentMessagesRequest
-	14,  // 58: raminga.api.v1.RamingaService.ListConversations:input_type -> raminga.api.v1.ListConversationsRequest
-	16,  // 59: raminga.api.v1.RamingaService.ListMessages:input_type -> raminga.api.v1.ListMessagesRequest
-	18,  // 60: raminga.api.v1.RamingaService.MarkConversationRead:input_type -> raminga.api.v1.MarkConversationReadRequest
-	21,  // 61: raminga.api.v1.RamingaService.ListFavorites:input_type -> raminga.api.v1.ListFavoritesRequest
-	23,  // 62: raminga.api.v1.RamingaService.SetFavorite:input_type -> raminga.api.v1.SetFavoriteRequest
-	25,  // 63: raminga.api.v1.RamingaService.ListHumanOutboundPeers:input_type -> raminga.api.v1.ListHumanOutboundPeersRequest
-	28,  // 64: raminga.api.v1.RamingaService.OutboxList:input_type -> raminga.api.v1.OutboxListRequest
-	32,  // 65: raminga.api.v1.RamingaService.OutboxCancel:input_type -> raminga.api.v1.OutboxCancelRequest
-	35,  // 66: raminga.api.v1.RamingaService.Events:input_type -> raminga.api.v1.EventsRequest
-	51,  // 67: raminga.api.v1.RamingaService.Peers:input_type -> raminga.api.v1.PeersRequest
-	54,  // 68: raminga.api.v1.RamingaService.RelayStatus:input_type -> raminga.api.v1.RelayStatusRequest
-	56,  // 69: raminga.api.v1.RamingaService.DhtStatus:input_type -> raminga.api.v1.DhtStatusRequest
-	58,  // 70: raminga.api.v1.RamingaService.DhtAddPeer:input_type -> raminga.api.v1.DhtAddPeerRequest
-	60,  // 71: raminga.api.v1.RamingaService.DhtFindPeer:input_type -> raminga.api.v1.DhtFindPeerRequest
-	63,  // 72: raminga.api.v1.RamingaService.ListFriends:input_type -> raminga.api.v1.ListFriendsRequest
-	65,  // 73: raminga.api.v1.RamingaService.SetFriendName:input_type -> raminga.api.v1.SetFriendNameRequest
-	67,  // 74: raminga.api.v1.RamingaService.SetFriendDescription:input_type -> raminga.api.v1.SetFriendDescriptionRequest
-	69,  // 75: raminga.api.v1.RamingaService.RemoveFriend:input_type -> raminga.api.v1.RemoveFriendRequest
-	71,  // 76: raminga.api.v1.RamingaService.SyncFriends:input_type -> raminga.api.v1.SyncFriendsRequest
-	73,  // 77: raminga.api.v1.RamingaService.Published:input_type -> raminga.api.v1.PublishedRequest
-	77,  // 78: raminga.api.v1.RamingaService.ListDiscoveries:input_type -> raminga.api.v1.ListDiscoveriesRequest
-	96,  // 79: raminga.api.v1.RamingaService.GetPublicDraft:input_type -> raminga.api.v1.GetPublicDraftRequest
-	98,  // 80: raminga.api.v1.RamingaService.ListPublicDrafts:input_type -> raminga.api.v1.ListPublicDraftsRequest
-	100, // 81: raminga.api.v1.RamingaService.SavePublicDraft:input_type -> raminga.api.v1.SavePublicDraftRequest
-	102, // 82: raminga.api.v1.RamingaService.PutPublicDraftImage:input_type -> raminga.api.v1.PutPublicDraftImageRequest
-	104, // 83: raminga.api.v1.RamingaService.GetPublicDraftAsset:input_type -> raminga.api.v1.GetPublicDraftAssetRequest
-	106, // 84: raminga.api.v1.RamingaService.ImportPublicPost:input_type -> raminga.api.v1.ImportPublicPostRequest
-	108, // 85: raminga.api.v1.RamingaService.DeletePublicDraft:input_type -> raminga.api.v1.DeletePublicDraftRequest
-	111, // 86: raminga.api.v1.RamingaService.PublishPublicDraft:input_type -> raminga.api.v1.PublishPublicDraftRequest
-	88,  // 87: raminga.api.v1.RamingaService.GetPeerManifest:input_type -> raminga.api.v1.GetPeerManifestRequest
-	91,  // 88: raminga.api.v1.RamingaService.GetPeerProfile:input_type -> raminga.api.v1.GetPeerProfileRequest
-	114, // 89: raminga.api.v1.RamingaService.GetPeerFriends:input_type -> raminga.api.v1.GetPeerFriendsRequest
-	116, // 90: raminga.api.v1.RamingaService.DownloadPeerFile:input_type -> raminga.api.v1.DownloadPeerFileRequest
-	118, // 91: raminga.api.v1.RamingaService.ConnectListedPeer:input_type -> raminga.api.v1.ConnectListedPeerRequest
-	80,  // 92: raminga.api.v1.RamingaService.DisconnectPeer:input_type -> raminga.api.v1.DisconnectPeerRequest
-	82,  // 93: raminga.api.v1.RamingaService.Shutdown:input_type -> raminga.api.v1.ShutdownRequest
-	84,  // 94: raminga.api.v1.RamingaService.TestDisconnectPeer:input_type -> raminga.api.v1.TestDisconnectPeerRequest
-	86,  // 95: raminga.api.v1.RamingaService.TestPing:input_type -> raminga.api.v1.TestPingRequest
-	2,   // 96: raminga.api.v1.RamingaService.Status:output_type -> raminga.api.v1.StatusResponse
-	7,   // 97: raminga.api.v1.RamingaService.Connect:output_type -> raminga.api.v1.ConnectResponse
-	9,   // 98: raminga.api.v1.RamingaService.SendChat:output_type -> raminga.api.v1.SendChatResponse
-	11,  // 99: raminga.api.v1.RamingaService.RecentMessages:output_type -> raminga.api.v1.RecentMessagesResponse
-	15,  // 100: raminga.api.v1.RamingaService.ListConversations:output_type -> raminga.api.v1.ListConversationsResponse
-	17,  // 101: raminga.api.v1.RamingaService.ListMessages:output_type -> raminga.api.v1.ListMessagesResponse
-	19,  // 102: raminga.api.v1.RamingaService.MarkConversationRead:output_type -> raminga.api.v1.MarkConversationReadResponse
-	22,  // 103: raminga.api.v1.RamingaService.ListFavorites:output_type -> raminga.api.v1.ListFavoritesResponse
-	24,  // 104: raminga.api.v1.RamingaService.SetFavorite:output_type -> raminga.api.v1.SetFavoriteResponse
-	27,  // 105: raminga.api.v1.RamingaService.ListHumanOutboundPeers:output_type -> raminga.api.v1.ListHumanOutboundPeersResponse
-	29,  // 106: raminga.api.v1.RamingaService.OutboxList:output_type -> raminga.api.v1.OutboxListResponse
-	33,  // 107: raminga.api.v1.RamingaService.OutboxCancel:output_type -> raminga.api.v1.OutboxCancelResponse
-	36,  // 108: raminga.api.v1.RamingaService.Events:output_type -> raminga.api.v1.EventsResponse
-	52,  // 109: raminga.api.v1.RamingaService.Peers:output_type -> raminga.api.v1.PeersResponse
-	55,  // 110: raminga.api.v1.RamingaService.RelayStatus:output_type -> raminga.api.v1.RelayStatusResponse
-	57,  // 111: raminga.api.v1.RamingaService.DhtStatus:output_type -> raminga.api.v1.DhtStatusResponse
-	59,  // 112: raminga.api.v1.RamingaService.DhtAddPeer:output_type -> raminga.api.v1.DhtAddPeerResponse
-	61,  // 113: raminga.api.v1.RamingaService.DhtFindPeer:output_type -> raminga.api.v1.DhtFindPeerResponse
-	64,  // 114: raminga.api.v1.RamingaService.ListFriends:output_type -> raminga.api.v1.ListFriendsResponse
-	66,  // 115: raminga.api.v1.RamingaService.SetFriendName:output_type -> raminga.api.v1.SetFriendNameResponse
-	68,  // 116: raminga.api.v1.RamingaService.SetFriendDescription:output_type -> raminga.api.v1.SetFriendDescriptionResponse
-	70,  // 117: raminga.api.v1.RamingaService.RemoveFriend:output_type -> raminga.api.v1.RemoveFriendResponse
-	72,  // 118: raminga.api.v1.RamingaService.SyncFriends:output_type -> raminga.api.v1.SyncFriendsResponse
-	76,  // 119: raminga.api.v1.RamingaService.Published:output_type -> raminga.api.v1.PublishedResponse
-	79,  // 120: raminga.api.v1.RamingaService.ListDiscoveries:output_type -> raminga.api.v1.ListDiscoveriesResponse
-	97,  // 121: raminga.api.v1.RamingaService.GetPublicDraft:output_type -> raminga.api.v1.GetPublicDraftResponse
-	99,  // 122: raminga.api.v1.RamingaService.ListPublicDrafts:output_type -> raminga.api.v1.ListPublicDraftsResponse
-	101, // 123: raminga.api.v1.RamingaService.SavePublicDraft:output_type -> raminga.api.v1.SavePublicDraftResponse
-	103, // 124: raminga.api.v1.RamingaService.PutPublicDraftImage:output_type -> raminga.api.v1.PutPublicDraftImageResponse
-	105, // 125: raminga.api.v1.RamingaService.GetPublicDraftAsset:output_type -> raminga.api.v1.GetPublicDraftAssetResponse
-	107, // 126: raminga.api.v1.RamingaService.ImportPublicPost:output_type -> raminga.api.v1.ImportPublicPostResponse
-	109, // 127: raminga.api.v1.RamingaService.DeletePublicDraft:output_type -> raminga.api.v1.DeletePublicDraftResponse
-	112, // 128: raminga.api.v1.RamingaService.PublishPublicDraft:output_type -> raminga.api.v1.PublishPublicDraftResponse
-	90,  // 129: raminga.api.v1.RamingaService.GetPeerManifest:output_type -> raminga.api.v1.GetPeerManifestResponse
-	92,  // 130: raminga.api.v1.RamingaService.GetPeerProfile:output_type -> raminga.api.v1.GetPeerProfileResponse
-	115, // 131: raminga.api.v1.RamingaService.GetPeerFriends:output_type -> raminga.api.v1.GetPeerFriendsResponse
-	117, // 132: raminga.api.v1.RamingaService.DownloadPeerFile:output_type -> raminga.api.v1.DownloadPeerFileResponse
-	119, // 133: raminga.api.v1.RamingaService.ConnectListedPeer:output_type -> raminga.api.v1.ConnectListedPeerResponse
-	81,  // 134: raminga.api.v1.RamingaService.DisconnectPeer:output_type -> raminga.api.v1.DisconnectPeerResponse
-	83,  // 135: raminga.api.v1.RamingaService.Shutdown:output_type -> raminga.api.v1.ShutdownResponse
-	85,  // 136: raminga.api.v1.RamingaService.TestDisconnectPeer:output_type -> raminga.api.v1.TestDisconnectPeerResponse
-	87,  // 137: raminga.api.v1.RamingaService.TestPing:output_type -> raminga.api.v1.TestPingResponse
-	96,  // [96:138] is the sub-list for method output_type
-	54,  // [54:96] is the sub-list for method input_type
-	54,  // [54:54] is the sub-list for extension type_name
-	54,  // [54:54] is the sub-list for extension extendee
-	0,   // [0:54] is the sub-list for field type_name
+	60,  // 33: raminga.api.v1.ListBootstrapPeersResponse.peers:type_name -> raminga.api.v1.BootstrapPeer
+	60,  // 34: raminga.api.v1.AddBootstrapPeerResponse.peer:type_name -> raminga.api.v1.BootstrapPeer
+	48,  // 35: raminga.api.v1.DhtFindPeerResponse.peer:type_name -> raminga.api.v1.DhtPeer
+	69,  // 36: raminga.api.v1.ListFriendsResponse.friends:type_name -> raminga.api.v1.Friend
+	69,  // 37: raminga.api.v1.SetFriendNameResponse.friend:type_name -> raminga.api.v1.Friend
+	69,  // 38: raminga.api.v1.SetFriendDescriptionResponse.friend:type_name -> raminga.api.v1.Friend
+	81,  // 39: raminga.api.v1.PublishedResponse.files:type_name -> raminga.api.v1.PublishedFile
+	82,  // 40: raminga.api.v1.PublishedResponse.skipped:type_name -> raminga.api.v1.PublishedSkip
+	85,  // 41: raminga.api.v1.ListDiscoveriesResponse.discoveries:type_name -> raminga.api.v1.Discovery
+	96,  // 42: raminga.api.v1.GetPeerManifestResponse.entries:type_name -> raminga.api.v1.ManifestEntry
+	100, // 43: raminga.api.v1.GetPeerProfileResponse.profile:type_name -> raminga.api.v1.PublicProfile
+	101, // 44: raminga.api.v1.PublicDraft.avatar:type_name -> raminga.api.v1.PublicDraftImage
+	101, // 45: raminga.api.v1.PublicDraft.images:type_name -> raminga.api.v1.PublicDraftImage
+	101, // 46: raminga.api.v1.PublicDraft.human_avatar:type_name -> raminga.api.v1.PublicDraftImage
+	102, // 47: raminga.api.v1.GetPublicDraftResponse.draft:type_name -> raminga.api.v1.PublicDraft
+	102, // 48: raminga.api.v1.ListPublicDraftsResponse.drafts:type_name -> raminga.api.v1.PublicDraft
+	102, // 49: raminga.api.v1.SavePublicDraftResponse.draft:type_name -> raminga.api.v1.PublicDraft
+	101, // 50: raminga.api.v1.PutPublicDraftImageResponse.image:type_name -> raminga.api.v1.PublicDraftImage
+	101, // 51: raminga.api.v1.GetPublicDraftAssetResponse.image:type_name -> raminga.api.v1.PublicDraftImage
+	102, // 52: raminga.api.v1.ImportPublicPostResponse.draft:type_name -> raminga.api.v1.PublicDraft
+	0,   // 53: raminga.api.v1.PublishPublicDraftResponse.status:type_name -> raminga.api.v1.PublicPublishStatus
+	117, // 54: raminga.api.v1.PublishPublicDraftResponse.files:type_name -> raminga.api.v1.PublishFile
+	120, // 55: raminga.api.v1.GetPeerFriendsResponse.friends:type_name -> raminga.api.v1.PeerFriendClaim
+	6,   // 56: raminga.api.v1.ConnectListedPeerResponse.attempts:type_name -> raminga.api.v1.DialAttempt
+	1,   // 57: raminga.api.v1.RamingaService.Status:input_type -> raminga.api.v1.StatusRequest
+	5,   // 58: raminga.api.v1.RamingaService.Connect:input_type -> raminga.api.v1.ConnectRequest
+	8,   // 59: raminga.api.v1.RamingaService.SendChat:input_type -> raminga.api.v1.SendChatRequest
+	10,  // 60: raminga.api.v1.RamingaService.RecentMessages:input_type -> raminga.api.v1.RecentMessagesRequest
+	14,  // 61: raminga.api.v1.RamingaService.ListConversations:input_type -> raminga.api.v1.ListConversationsRequest
+	16,  // 62: raminga.api.v1.RamingaService.ListMessages:input_type -> raminga.api.v1.ListMessagesRequest
+	18,  // 63: raminga.api.v1.RamingaService.MarkConversationRead:input_type -> raminga.api.v1.MarkConversationReadRequest
+	21,  // 64: raminga.api.v1.RamingaService.ListFavorites:input_type -> raminga.api.v1.ListFavoritesRequest
+	23,  // 65: raminga.api.v1.RamingaService.SetFavorite:input_type -> raminga.api.v1.SetFavoriteRequest
+	25,  // 66: raminga.api.v1.RamingaService.ListHumanOutboundPeers:input_type -> raminga.api.v1.ListHumanOutboundPeersRequest
+	28,  // 67: raminga.api.v1.RamingaService.OutboxList:input_type -> raminga.api.v1.OutboxListRequest
+	32,  // 68: raminga.api.v1.RamingaService.OutboxCancel:input_type -> raminga.api.v1.OutboxCancelRequest
+	35,  // 69: raminga.api.v1.RamingaService.Events:input_type -> raminga.api.v1.EventsRequest
+	51,  // 70: raminga.api.v1.RamingaService.Peers:input_type -> raminga.api.v1.PeersRequest
+	54,  // 71: raminga.api.v1.RamingaService.RelayStatus:input_type -> raminga.api.v1.RelayStatusRequest
+	56,  // 72: raminga.api.v1.RamingaService.DhtStatus:input_type -> raminga.api.v1.DhtStatusRequest
+	58,  // 73: raminga.api.v1.RamingaService.DhtAddPeer:input_type -> raminga.api.v1.DhtAddPeerRequest
+	61,  // 74: raminga.api.v1.RamingaService.ListBootstrapPeers:input_type -> raminga.api.v1.ListBootstrapPeersRequest
+	63,  // 75: raminga.api.v1.RamingaService.AddBootstrapPeer:input_type -> raminga.api.v1.AddBootstrapPeerRequest
+	65,  // 76: raminga.api.v1.RamingaService.RemoveBootstrapPeer:input_type -> raminga.api.v1.RemoveBootstrapPeerRequest
+	67,  // 77: raminga.api.v1.RamingaService.DhtFindPeer:input_type -> raminga.api.v1.DhtFindPeerRequest
+	70,  // 78: raminga.api.v1.RamingaService.ListFriends:input_type -> raminga.api.v1.ListFriendsRequest
+	72,  // 79: raminga.api.v1.RamingaService.SetFriendName:input_type -> raminga.api.v1.SetFriendNameRequest
+	74,  // 80: raminga.api.v1.RamingaService.SetFriendDescription:input_type -> raminga.api.v1.SetFriendDescriptionRequest
+	76,  // 81: raminga.api.v1.RamingaService.RemoveFriend:input_type -> raminga.api.v1.RemoveFriendRequest
+	78,  // 82: raminga.api.v1.RamingaService.SyncFriends:input_type -> raminga.api.v1.SyncFriendsRequest
+	80,  // 83: raminga.api.v1.RamingaService.Published:input_type -> raminga.api.v1.PublishedRequest
+	84,  // 84: raminga.api.v1.RamingaService.ListDiscoveries:input_type -> raminga.api.v1.ListDiscoveriesRequest
+	103, // 85: raminga.api.v1.RamingaService.GetPublicDraft:input_type -> raminga.api.v1.GetPublicDraftRequest
+	105, // 86: raminga.api.v1.RamingaService.ListPublicDrafts:input_type -> raminga.api.v1.ListPublicDraftsRequest
+	107, // 87: raminga.api.v1.RamingaService.SavePublicDraft:input_type -> raminga.api.v1.SavePublicDraftRequest
+	109, // 88: raminga.api.v1.RamingaService.PutPublicDraftImage:input_type -> raminga.api.v1.PutPublicDraftImageRequest
+	111, // 89: raminga.api.v1.RamingaService.GetPublicDraftAsset:input_type -> raminga.api.v1.GetPublicDraftAssetRequest
+	113, // 90: raminga.api.v1.RamingaService.ImportPublicPost:input_type -> raminga.api.v1.ImportPublicPostRequest
+	115, // 91: raminga.api.v1.RamingaService.DeletePublicDraft:input_type -> raminga.api.v1.DeletePublicDraftRequest
+	118, // 92: raminga.api.v1.RamingaService.PublishPublicDraft:input_type -> raminga.api.v1.PublishPublicDraftRequest
+	95,  // 93: raminga.api.v1.RamingaService.GetPeerManifest:input_type -> raminga.api.v1.GetPeerManifestRequest
+	98,  // 94: raminga.api.v1.RamingaService.GetPeerProfile:input_type -> raminga.api.v1.GetPeerProfileRequest
+	121, // 95: raminga.api.v1.RamingaService.GetPeerFriends:input_type -> raminga.api.v1.GetPeerFriendsRequest
+	123, // 96: raminga.api.v1.RamingaService.DownloadPeerFile:input_type -> raminga.api.v1.DownloadPeerFileRequest
+	125, // 97: raminga.api.v1.RamingaService.ConnectListedPeer:input_type -> raminga.api.v1.ConnectListedPeerRequest
+	87,  // 98: raminga.api.v1.RamingaService.DisconnectPeer:input_type -> raminga.api.v1.DisconnectPeerRequest
+	89,  // 99: raminga.api.v1.RamingaService.Shutdown:input_type -> raminga.api.v1.ShutdownRequest
+	91,  // 100: raminga.api.v1.RamingaService.TestDisconnectPeer:input_type -> raminga.api.v1.TestDisconnectPeerRequest
+	93,  // 101: raminga.api.v1.RamingaService.TestPing:input_type -> raminga.api.v1.TestPingRequest
+	2,   // 102: raminga.api.v1.RamingaService.Status:output_type -> raminga.api.v1.StatusResponse
+	7,   // 103: raminga.api.v1.RamingaService.Connect:output_type -> raminga.api.v1.ConnectResponse
+	9,   // 104: raminga.api.v1.RamingaService.SendChat:output_type -> raminga.api.v1.SendChatResponse
+	11,  // 105: raminga.api.v1.RamingaService.RecentMessages:output_type -> raminga.api.v1.RecentMessagesResponse
+	15,  // 106: raminga.api.v1.RamingaService.ListConversations:output_type -> raminga.api.v1.ListConversationsResponse
+	17,  // 107: raminga.api.v1.RamingaService.ListMessages:output_type -> raminga.api.v1.ListMessagesResponse
+	19,  // 108: raminga.api.v1.RamingaService.MarkConversationRead:output_type -> raminga.api.v1.MarkConversationReadResponse
+	22,  // 109: raminga.api.v1.RamingaService.ListFavorites:output_type -> raminga.api.v1.ListFavoritesResponse
+	24,  // 110: raminga.api.v1.RamingaService.SetFavorite:output_type -> raminga.api.v1.SetFavoriteResponse
+	27,  // 111: raminga.api.v1.RamingaService.ListHumanOutboundPeers:output_type -> raminga.api.v1.ListHumanOutboundPeersResponse
+	29,  // 112: raminga.api.v1.RamingaService.OutboxList:output_type -> raminga.api.v1.OutboxListResponse
+	33,  // 113: raminga.api.v1.RamingaService.OutboxCancel:output_type -> raminga.api.v1.OutboxCancelResponse
+	36,  // 114: raminga.api.v1.RamingaService.Events:output_type -> raminga.api.v1.EventsResponse
+	52,  // 115: raminga.api.v1.RamingaService.Peers:output_type -> raminga.api.v1.PeersResponse
+	55,  // 116: raminga.api.v1.RamingaService.RelayStatus:output_type -> raminga.api.v1.RelayStatusResponse
+	57,  // 117: raminga.api.v1.RamingaService.DhtStatus:output_type -> raminga.api.v1.DhtStatusResponse
+	59,  // 118: raminga.api.v1.RamingaService.DhtAddPeer:output_type -> raminga.api.v1.DhtAddPeerResponse
+	62,  // 119: raminga.api.v1.RamingaService.ListBootstrapPeers:output_type -> raminga.api.v1.ListBootstrapPeersResponse
+	64,  // 120: raminga.api.v1.RamingaService.AddBootstrapPeer:output_type -> raminga.api.v1.AddBootstrapPeerResponse
+	66,  // 121: raminga.api.v1.RamingaService.RemoveBootstrapPeer:output_type -> raminga.api.v1.RemoveBootstrapPeerResponse
+	68,  // 122: raminga.api.v1.RamingaService.DhtFindPeer:output_type -> raminga.api.v1.DhtFindPeerResponse
+	71,  // 123: raminga.api.v1.RamingaService.ListFriends:output_type -> raminga.api.v1.ListFriendsResponse
+	73,  // 124: raminga.api.v1.RamingaService.SetFriendName:output_type -> raminga.api.v1.SetFriendNameResponse
+	75,  // 125: raminga.api.v1.RamingaService.SetFriendDescription:output_type -> raminga.api.v1.SetFriendDescriptionResponse
+	77,  // 126: raminga.api.v1.RamingaService.RemoveFriend:output_type -> raminga.api.v1.RemoveFriendResponse
+	79,  // 127: raminga.api.v1.RamingaService.SyncFriends:output_type -> raminga.api.v1.SyncFriendsResponse
+	83,  // 128: raminga.api.v1.RamingaService.Published:output_type -> raminga.api.v1.PublishedResponse
+	86,  // 129: raminga.api.v1.RamingaService.ListDiscoveries:output_type -> raminga.api.v1.ListDiscoveriesResponse
+	104, // 130: raminga.api.v1.RamingaService.GetPublicDraft:output_type -> raminga.api.v1.GetPublicDraftResponse
+	106, // 131: raminga.api.v1.RamingaService.ListPublicDrafts:output_type -> raminga.api.v1.ListPublicDraftsResponse
+	108, // 132: raminga.api.v1.RamingaService.SavePublicDraft:output_type -> raminga.api.v1.SavePublicDraftResponse
+	110, // 133: raminga.api.v1.RamingaService.PutPublicDraftImage:output_type -> raminga.api.v1.PutPublicDraftImageResponse
+	112, // 134: raminga.api.v1.RamingaService.GetPublicDraftAsset:output_type -> raminga.api.v1.GetPublicDraftAssetResponse
+	114, // 135: raminga.api.v1.RamingaService.ImportPublicPost:output_type -> raminga.api.v1.ImportPublicPostResponse
+	116, // 136: raminga.api.v1.RamingaService.DeletePublicDraft:output_type -> raminga.api.v1.DeletePublicDraftResponse
+	119, // 137: raminga.api.v1.RamingaService.PublishPublicDraft:output_type -> raminga.api.v1.PublishPublicDraftResponse
+	97,  // 138: raminga.api.v1.RamingaService.GetPeerManifest:output_type -> raminga.api.v1.GetPeerManifestResponse
+	99,  // 139: raminga.api.v1.RamingaService.GetPeerProfile:output_type -> raminga.api.v1.GetPeerProfileResponse
+	122, // 140: raminga.api.v1.RamingaService.GetPeerFriends:output_type -> raminga.api.v1.GetPeerFriendsResponse
+	124, // 141: raminga.api.v1.RamingaService.DownloadPeerFile:output_type -> raminga.api.v1.DownloadPeerFileResponse
+	126, // 142: raminga.api.v1.RamingaService.ConnectListedPeer:output_type -> raminga.api.v1.ConnectListedPeerResponse
+	88,  // 143: raminga.api.v1.RamingaService.DisconnectPeer:output_type -> raminga.api.v1.DisconnectPeerResponse
+	90,  // 144: raminga.api.v1.RamingaService.Shutdown:output_type -> raminga.api.v1.ShutdownResponse
+	92,  // 145: raminga.api.v1.RamingaService.TestDisconnectPeer:output_type -> raminga.api.v1.TestDisconnectPeerResponse
+	94,  // 146: raminga.api.v1.RamingaService.TestPing:output_type -> raminga.api.v1.TestPingResponse
+	102, // [102:147] is the sub-list for method output_type
+	57,  // [57:102] is the sub-list for method input_type
+	57,  // [57:57] is the sub-list for extension type_name
+	57,  // [57:57] is the sub-list for extension extendee
+	0,   // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_raminga_api_v1_api_proto_init() }
@@ -10282,16 +10742,16 @@ func file_raminga_api_v1_api_proto_init() {
 		(*EventsResponse_Connection)(nil),
 	}
 	file_raminga_api_v1_api_proto_msgTypes[43].OneofWrappers = []any{}
-	file_raminga_api_v1_api_proto_msgTypes[64].OneofWrappers = []any{}
-	file_raminga_api_v1_api_proto_msgTypes[66].OneofWrappers = []any{}
-	file_raminga_api_v1_api_proto_msgTypes[99].OneofWrappers = []any{}
+	file_raminga_api_v1_api_proto_msgTypes[71].OneofWrappers = []any{}
+	file_raminga_api_v1_api_proto_msgTypes[73].OneofWrappers = []any{}
+	file_raminga_api_v1_api_proto_msgTypes[106].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_raminga_api_v1_api_proto_rawDesc), len(file_raminga_api_v1_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   119,
+			NumMessages:   126,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

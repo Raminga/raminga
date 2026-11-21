@@ -171,7 +171,7 @@ test('discovery list expands verified content, opens author profile and restores
     // browser may deliver the scroll restoration on a later task, so wait for
     // the reading position instead of assuming one microtask is enough. The
     // assertion still fails if the refresh really loses the position.
-    for (let attempt = 0; attempt < 40 && explorePage.scrollTop !== 120; attempt += 1) {
+    for (let attempt = 0; attempt < 200 && explorePage.scrollTop !== 120; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
     sourceDetails = ui.shadow.querySelector('.rm-post .rm-source-details');

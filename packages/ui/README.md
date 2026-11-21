@@ -39,7 +39,8 @@ Public-file reads are explicit host capabilities, never browser paths:
 mountRamingaApp(host, {
   onLoadDiscoveries, onLoadDiscoveryContent,
   onLoadPeerProfile, onLoadPeerFriends, onLoadPeerManifest, onLoadPeerFileContent, onLoadPeerNodeInfo,
-  onLoadMine, onLoadMineFileContent, onLoadJourney, onSavePrivateAgent, onLoadBootstrap,
+  onLoadMine, onLoadMineFileContent, onLoadJourney, onSavePrivateAgent,
+  onLoadBootstrap, onAddBootstrap, onRemoveBootstrap, // daemon-local bootstrap role settings
   onLoadActivity, onLoadActivityDetail, // passive reads; only the host tool wrapper writes
   onRevealDiscovery,          // discovery id only; the host resolves and reveals
   onCopyText,

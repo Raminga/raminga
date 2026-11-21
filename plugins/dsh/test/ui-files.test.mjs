@@ -48,10 +48,12 @@ function rowFor(peerId, relative, bytes, { id, source = 'raminga_content_get', s
   };
 }
 
-function makeClient({ status = statusResponse(), rows = [], manifest = [], downloadFiles = new Map(), profiles = new Map(), bootstrapPeers = [], published = [] } = {}) {
+function makeClient({ status = statusResponse(), rows = [], manifest = [], downloadFiles = new Map(), profiles = new Map(), bootstrapPeers = [], bootstrapList = null, published = [] } = {}) {
   const downloads = [];
+  const bootstrapEdits = [];
   return {
     downloads,
+    bootstrapEdits,
     async status() { return status; },
     async listFriends() { return { friends: [] }; },
     async listDiscoveries() {
@@ -102,6 +104,20 @@ function makeClient({ status = statusResponse(), rows = [], manifest = [], downl
       })();
     },
     async dhtStatus() { return { dht: { bootstrapPeers } }; },
+    async listBootstrapPeers() {
+      if (bootstrapList === null) throw new Error('unimplemented: ListBootstrapPeers');
+      return { peers: bootstrapList };
+    },
+    async addBootstrapPeer(request) {
+      if (bootstrapList === null) throw new Error('unimplemented: AddBootstrapPeer');
+      bootstrapEdits.push({ action: 'add', multiaddr: request.multiaddr });
+      return { added: true, peer: { peerId: PEER_A, addrs: [request.multiaddr], online: false, paused: false, savedAtUnixMs: 2000 } };
+    },
+    async removeBootstrapPeer(request) {
+      if (bootstrapList === null) throw new Error('unimplemented: RemoveBootstrapPeer');
+      bootstrapEdits.push({ action: 'remove', peerId: request.peerId });
+      return { removed: true };
+    },
     events(_request, { signal }) {
       return (async function* stream() {
         yield { toJson: () => ({ heartbeat: true }) };
@@ -746,6 +762,58 @@ test('offline card metadata and images can be read from verified local copies wi
     const missing = await bridge.peerFilePreview('ui-offline-card', PEER_A, imagePath, 'f'.repeat(64), png.length);
     assert.equal(missing.ok, false);
     assert.match(missing.error, /历史下载副本|不在本机|离线/);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+
+test('bootstrap settings use the write-capable API and keep online/paused separate', async () => {
+  const dir = await tempDir();
+  const client = makeClient({
+    bootstrapList: [{ peerId: PEER_A, addrs: [`/ip4/127.0.0.1/tcp/44001/p2p/${PEER_A}`], online: false, paused: true, savedAtUnixMs: 1234 }],
+  });
+  const bridge = makeBridge(client, dir);
+  try {
+    await bridge.open('ui-bootstrap-edit');
+    const info = await bridge.bootstrap('ui-bootstrap-edit');
+    assert.equal(info.source, 'bootstrap-api');
+    assert.equal(info.editable, true);
+    assert.equal(info.requiresUpgrade, false);
+    assert.equal(info.entries.length, 1);
+    assert.equal(info.entries[0].paused, true);
+    assert.equal(info.entries[0].online, false);
+    assert.equal(info.entries[0].savedAt, 1234);
+    const added = await bridge.addBootstrap('ui-bootstrap-edit', `/ip4/127.0.0.1/tcp/44002/p2p/${PEER_A}`);
+    assert.equal(added.ok, true);
+    assert.equal(added.changed, true);
+    const removed = await bridge.removeBootstrap('ui-bootstrap-edit', PEER_A);
+    assert.equal(removed.ok, true);
+    assert.deepEqual(client.bootstrapEdits, [
+      { action: 'add', multiaddr: `/ip4/127.0.0.1/tcp/44002/p2p/${PEER_A}` },
+      { action: 'remove', peerId: PEER_A },
+    ]);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+test('old daemon bootstrap is readable but writes fail with an upgrade message', async () => {
+  const dir = await tempDir();
+  const client = makeClient({ bootstrapPeers: [`/ip4/127.0.0.1/tcp/44001/p2p/${PEER_A}`] });
+  const bridge = makeBridge(client, dir);
+  try {
+    await bridge.open('ui-bootstrap-old');
+    const info = await bridge.bootstrap('ui-bootstrap-old');
+    assert.equal(info.source, 'dht-status');
+    assert.equal(info.editable, false);
+    assert.equal(info.requiresUpgrade, true);
+    assert.deepEqual(info.peers, [`/ip4/127.0.0.1/tcp/44001/p2p/${PEER_A}`]);
+    await assert.rejects(
+      () => bridge.addBootstrap('ui-bootstrap-old', `/ip4/127.0.0.1/tcp/44002/p2p/${PEER_A}`),
+      /升级|不支持/,
+    );
+    assert.equal(client.bootstrapEdits.length, 0, 'old daemon must not report a false save');
   } finally {
     bridge.dispose();
   }

@@ -14,7 +14,7 @@ import (
 func TestInitCommandWritesPorts(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "node-a")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"init", "--data-dir", dir, "--tcp-port", "14101", "--quic-port", "14102"})
+	cmd.SetArgs([]string{"init", "--no-bootstrap-preset", "--data-dir", dir, "--tcp-port", "14101", "--quic-port", "14102"})
 	var out strings.Builder
 	cmd.SetOut(&out)
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
@@ -49,7 +49,7 @@ func TestInitForceKeepsPeerID(t *testing.T) {
 	run := func(args ...string) {
 		t.Helper()
 		cmd := newRootCmd()
-		cmd.SetArgs(append([]string{"init", "--data-dir", dir}, args...))
+		cmd.SetArgs(append([]string{"init", "--no-bootstrap-preset", "--data-dir", dir}, args...))
 		if err := cmd.ExecuteContext(context.Background()); err != nil {
 			t.Fatalf("init %v: %v", args, err)
 		}
@@ -77,7 +77,7 @@ func TestInitForceKeepsPeerID(t *testing.T) {
 func TestInitCommandDHTMode(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "node")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"init", "--data-dir", dir, "--dht-mode", "server"})
+	cmd.SetArgs([]string{"init", "--no-bootstrap-preset", "--data-dir", dir, "--dht-mode", "server"})
 	var out strings.Builder
 	cmd.SetOut(&out)
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
@@ -96,7 +96,7 @@ func TestInitCommandDHTMode(t *testing.T) {
 
 	defaultDir := filepath.Join(t.TempDir(), "default")
 	cmd = newRootCmd()
-	cmd.SetArgs([]string{"init", "--data-dir", defaultDir})
+	cmd.SetArgs([]string{"init", "--no-bootstrap-preset", "--data-dir", defaultDir})
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
 		t.Fatalf("default init: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestInitCommandDHTMode(t *testing.T) {
 
 	for _, mode := range []string{"bogus", ""} {
 		cmd = newRootCmd()
-		cmd.SetArgs([]string{"init", "--data-dir", filepath.Join(t.TempDir(), "bad"), "--dht-mode", mode})
+		cmd.SetArgs([]string{"init", "--no-bootstrap-preset", "--data-dir", filepath.Join(t.TempDir(), "bad"), "--dht-mode", mode})
 		if err := cmd.ExecuteContext(context.Background()); err == nil {
 			t.Fatalf("invalid --dht-mode %q unexpectedly succeeded", mode)
 		}
@@ -119,7 +119,7 @@ func TestInitCommandDHTMode(t *testing.T) {
 
 func TestInitCommandRejectsPortsWithListen(t *testing.T) {
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"init", "--data-dir", t.TempDir(), "--tcp-port", "14101", "--listen", "/ip4/127.0.0.1/tcp/14201"})
+	cmd.SetArgs([]string{"init", "--no-bootstrap-preset", "--data-dir", t.TempDir(), "--tcp-port", "14101", "--listen", "/ip4/127.0.0.1/tcp/14201"})
 	if err := cmd.ExecuteContext(context.Background()); err == nil {
 		t.Fatal("combined --listen and --tcp-port unexpectedly succeeded")
 	}
@@ -158,7 +158,7 @@ func TestInitCommandNetworkFlags(t *testing.T) {
 	peerB := "QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o"
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
-		"init", "--data-dir", dir,
+		"init", "--no-bootstrap-preset", "--data-dir", dir,
 		"--relay-provider",
 		"--announce", "/ip4/203.0.113.1/tcp/4001",
 		"--announce", "/ip6/2001:db8::1/udp/4001/quic-v1",
@@ -204,7 +204,7 @@ func TestInitCommandRejectsInvalidNetworkFlags(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := newRootCmd()
-			args := append([]string{"init", "--data-dir", t.TempDir()}, tc.args...)
+			args := append([]string{"init", "--no-bootstrap-preset", "--data-dir", t.TempDir()}, tc.args...)
 			cmd.SetArgs(args)
 			err := cmd.ExecuteContext(context.Background())
 			if err == nil {
@@ -220,7 +220,7 @@ func TestInitCommandRejectsInvalidNetworkFlags(t *testing.T) {
 func TestInitRelayProviderDefaultsOff(t *testing.T) {
 	dir := t.TempDir()
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"init", "--data-dir", dir})
+	cmd.SetArgs([]string{"init", "--no-bootstrap-preset", "--data-dir", dir})
 	if err := cmd.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}

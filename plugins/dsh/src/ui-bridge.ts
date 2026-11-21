@@ -19,8 +19,11 @@ import { multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
 import type { Friend, PublicDraft as ProtoPublicDraft, PublicDraftImage as ProtoPublicDraftImage, StatusResponse } from './gen/raminga/api/v1/api_pb.js';
 import {
+  AddBootstrapPeerRequest,
   ConnectRequest,
   DhtStatusRequest,
+  ListBootstrapPeersRequest,
+  RemoveBootstrapPeerRequest,
   DeletePublicDraftRequest,
   DownloadPeerFileRequest,
   GetPublicDraftAssetRequest,
@@ -92,6 +95,7 @@ import {
   type JourneyEvent,
   type OwnPublicData,
   type PrivateAgentSave,
+  type LocalOwnProfile,
   type LocalPublicProfile,
   type LocalPublicProfileRead,
 } from './local-data.js';
@@ -678,6 +682,8 @@ export interface UiPublicDraft {
   humanName: string;
   humanBioMarkdown: string;
   avatar: UiPublicDraftImage | null;
+  /** Linked human avatar; independent from the Agent avatar. */
+  humanAvatar: UiPublicDraftImage | null;
   title: string;
   bodyMarkdown: string;
   tags: string[];
@@ -707,6 +713,10 @@ export interface UiPublicDraftSave {
   humanBioMarkdown?: string;
   avatarAssetId?: string;
   clearAvatar?: boolean;
+  /** Only sent when provided; omitting it preserves the saved human avatar. */
+  humanAvatarAssetId?: string;
+  /** Only sent when true; removes only the human avatar. */
+  clearHumanAvatar?: boolean;
   title?: string;
   bodyMarkdown?: string;
   tags?: string[];
@@ -788,12 +798,36 @@ export interface UiPeerNodeInfo {
   error: string | null;
 }
 
+export interface UiBootstrapPeer {
+  peerId: string;
+  addrs: string[];
+  /** True only for a live connection; saved state never implies online. */
+  online: boolean;
+  /** Persistent explicit-disconnect state; adding/removing the role never changes it. */
+  paused: boolean;
+  savedAt: number | null;
+}
+
 export interface UiBootstrapInfo {
   at: number | null;
+  /** Flat address list retained for copy/legacy hosts. */
   peers: string[];
+  /** Saved roles with separate address, online and paused state. */
+  entries: UiBootstrapPeer[];
+  /** True when the daemon supports the write RPCs. */
+  editable: boolean;
+  /** True when an older daemon only supports the read-only DhtStatus view. */
+  requiresUpgrade: boolean;
   error: string | null;
   freshness: UiFreshness;
-  source: 'dht-status' | 'unavailable';
+  source: 'bootstrap-api' | 'dht-status' | 'unavailable';
+}
+
+export interface UiBootstrapEdit {
+  ok: boolean;
+  changed: boolean;
+  error: string | null;
+  requiresUpgrade: boolean;
 }
 
 export interface UiRevealResult {
@@ -819,6 +853,10 @@ export interface UiPeerProfile {
   agentCard: UiPeerAgentCard;
   manifest: UiPeerManifest;
   node: UiPeerNodeInfo;
+  /** Linked human avatar reported by profile.json v2; empty when absent. */
+  humanAvatarPath: string;
+  humanAvatarSha256: string;
+  humanAvatarMime: string;
 }
 
 export interface UiPeerFriendClaim {
@@ -1136,6 +1174,8 @@ type UiService = {
   revealDiscovery(sessionId: string, id: string): Promise<UiRevealResult>;
   revealFile(sessionId: string, subject: 'discovery' | 'peer' | 'mine', peerId: string, filePath: string, expectedSha: string, expectedSize: number): Promise<UiRevealResult>;
   bootstrap(sessionId: string): Promise<UiBootstrapInfo>;
+  addBootstrap(sessionId: string, multiaddr: string): Promise<UiBootstrapEdit>;
+  removeBootstrap(sessionId: string, peerId: string): Promise<UiBootstrapEdit>;
   journey(sessionId: string, force?: boolean): Promise<UiJourney>;
   activity(sessionId: string, limit?: number): Promise<UiActivity>;
   activityDetail(operationId: string): Promise<UiActivityDetail>;
@@ -1244,6 +1284,27 @@ function validSha256(value: unknown): string {
   return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : '';
 }
 
+/** Accept only the daemon's content-addressed human-avatar shape. Invalid or
+ * partial triples are reported as absent so the browser never gets a path
+ * that cannot be explained by the published profile. */
+function peerHumanAvatar(profile: {
+  humanAvatarPath?: string;
+  humanAvatarSha256?: string;
+  humanAvatarMime?: string;
+} | null | undefined): { path: string; sha256: string; mime: string } {
+  const empty = { path: '', sha256: '', mime: '' };
+  if (!profile) return empty;
+  const avatarPath = String(profile.humanAvatarPath ?? '');
+  const sha256 = validSha256(profile.humanAvatarSha256);
+  const avatarMime = profile.humanAvatarMime === 'image/png' || profile.humanAvatarMime === 'image/jpeg' ? profile.humanAvatarMime : '';
+  if (avatarPath === '' && sha256 === '' && avatarMime === '') return empty;
+  if (!/^profile\/human-avatar-[a-f0-9]{8}\.(?:png|jpg)$/.test(avatarPath)) return empty;
+  if (sha256 === '' || avatarMime === '') return empty;
+  if ((avatarMime === 'image/png') !== avatarPath.endsWith('.png')) return empty;
+  if (avatarPath !== `profile/human-avatar-${sha256.slice(0, 8)}${avatarPath.endsWith('.png') ? '.png' : '.jpg'}`) return empty;
+  return { path: avatarPath, sha256, mime: avatarMime };
+}
+
 function plainTextSummary(value: string): string {
   const text = String(value ?? '')
     .replace(/```[\s\S]*?```/g, ' ')
@@ -1278,6 +1339,7 @@ function draftFromProto(raw: ProtoPublicDraft): UiPublicDraft {
     humanName: String(raw.humanName ?? ''),
     humanBioMarkdown: String(raw.humanBioMarkdown ?? ''),
     avatar: draftImageFromProto(raw.avatar),
+    humanAvatar: draftImageFromProto(raw.humanAvatar),
     title: String(raw.title ?? ''),
     bodyMarkdown: String(raw.bodyMarkdown ?? ''),
     tags: (raw.tags ?? []).map((value) => String(value)),
@@ -1360,8 +1422,51 @@ function redactActivityReadError(error: unknown): string {
     .slice(0, 240);
 }
 
+/** Remove transport/internal code decorations from a local validation error. */
+function bootstrapErrorMessage(error: unknown): string {
+  return errorMessage(error)
+    .replace(/^Raminga RPC failed \([^)]*\):\s*/i, '')
+    .replace(/^Invalid argument:\s*/i, '')
+    .replace(/^\[[a-z_]+\]\s*/i, '')
+    .trim();
+}
+
+function isUnimplementedError(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase();
+  return message.includes('unimplemented') || message.includes('unknown method') || message.includes('not implemented');
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Whether profile/index.md contains real human-authored public content.
+ * The daemon always writes an index.md; when both v2 human fields are empty it
+ * contains only the default "# 关联人类" heading. That file is public, but it
+ * must not be presented as a completed human profile. Legacy profiles with a
+ * different heading, a body, or a saved human name keep working. An explicit
+ * v2 human name (even the literal default label) or human avatar is real data;
+ * only a profile without any v2 human field relies on the heading heuristic.
+ */
+function hasExplicitPublicHumanProfile(publicProfile: LocalPublicProfile): boolean {
+  return publicProfile.humanName.trim().length > 0
+    || publicProfile.humanBioMarkdown.trim().length > 0
+    || publicProfile.humanAvatarPath.trim().length > 0;
+}
+
+function hasPublicHumanContent(profile: LocalOwnProfile, publicProfile: LocalPublicProfile): boolean {
+  if (hasExplicitPublicHumanProfile(publicProfile)) return true;
+  if (profile.state !== 'available') return false;
+  const lines = profile.markdown.split(/\r?\n/).map((line) => line.trim());
+  const headingLine = lines.find((line) => line.length > 0) ?? '';
+  const heading = headingLine.replace(/^#+\s*/, '').replace(/[*_`]/g, '').trim();
+  const body = lines
+    .filter((line) => line.length > 0 && line !== headingLine)
+    .join('\n')
+    .trim();
+  if (body.length > 0) return true;
+  return heading.length > 0 && heading !== '关联人类';
 }
 
 function uncertaintyLabel(value: string): string {
@@ -1910,6 +2015,8 @@ export class RamingaUiBridge {
       revealDiscovery: (sessionId: string, id: string) => this.revealDiscovery(sessionId, id),
       revealFile: (sessionId: string, subject: 'discovery' | 'peer' | 'mine', peerId: string, filePath: string, expectedSha: string, expectedSize: number) => this.revealFile(sessionId, subject, peerId, filePath, expectedSha, expectedSize),
       bootstrap: (sessionId: string) => this.bootstrap(sessionId),
+      addBootstrap: (sessionId: string, multiaddr: string) => this.addBootstrap(sessionId, multiaddr),
+      removeBootstrap: (sessionId: string, peerId: string) => this.removeBootstrap(sessionId, peerId),
       journey: (sessionId: string, force?: boolean) => this.journey(sessionId, force === true),
       activity: (sessionId: string, limit?: number) => this.activity(sessionId, limit),
       activityDetail: (operationId: string) => this.activityDetail(operationId),
@@ -4517,7 +4624,12 @@ export class RamingaUiBridge {
     return this.revealControlledPath(actual.absolutePath, at);
   }
 
-  /** Read-only bootstrap configuration view (DHT status); no edit path. */
+  /**
+   * Bootstrap settings: the new daemon returns saved roles with separate online
+   * and paused state. An older daemon has only the read-only DhtStatus list, so
+   * it stays readable but is explicitly marked as requiring an upgrade; writes
+   * never report false success.
+   */
   async bootstrap(sessionId: string): Promise<UiBootstrapInfo> {
     this.assertOpen();
     const session = this.sessionFor(sessionId);
@@ -4525,17 +4637,94 @@ export class RamingaUiBridge {
     try {
       await this.ensureReady();
       const response = await this.api.call(
-        (client) => client.dhtStatus(new DhtStatusRequest(), { timeoutMs: 4000 }),
-        '读取引导节点配置',
+        (client) => client.listBootstrapPeers(new ListBootstrapPeersRequest(), { timeoutMs: 4000 }),
+        '读取引导节点设置',
       );
-      const peers = (response.dht?.bootstrapPeers ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
+      const entries = (response.peers ?? []).map((peer) => ({
+        peerId: String(peer.peerId ?? ''),
+        addrs: (peer.addrs ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0),
+        online: peer.online === true,
+        paused: peer.paused === true,
+        savedAt: Number(peer.savedAtUnixMs ?? 0) > 0 ? Number(peer.savedAtUnixMs) : null,
+      })).filter((peer) => peer.peerId.length > 0);
+      const peers = entries.flatMap((peer) => peer.addrs);
       return {
-        at: this.now(), peers, error: null,
+        at: this.now(), peers, entries, editable: true, requiresUpgrade: false, error: null,
         freshness: this.listFreshness(this.now(), null, peers.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
-        source: 'dht-status',
+        source: 'bootstrap-api',
       };
     } catch (error) {
-      return { at: null, peers: [], error: errorMessage(error), freshness: 'unavailable', source: 'unavailable' };
+      if (!isUnimplementedError(error)) {
+        return {
+          at: null, peers: [], entries: [], editable: false, requiresUpgrade: false,
+          error: errorMessage(error), freshness: 'unavailable', source: 'unavailable',
+        };
+      }
+      // Older daemon: keep the existing read-only DhtStatus view. This is an
+      // upgrade notice, not a load failure and not a writable surface.
+      try {
+        const response = await this.api.call(
+          (client) => client.dhtStatus(new DhtStatusRequest(), { timeoutMs: 4000 }),
+          '读取引导节点配置',
+        );
+        const peers = (response.dht?.bootstrapPeers ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
+        return {
+          at: this.now(), peers, entries: [], editable: false, requiresUpgrade: true, error: null,
+          freshness: this.listFreshness(this.now(), null, peers.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
+          source: 'dht-status',
+        };
+      } catch (fallbackError) {
+        return {
+          at: null, peers: [], entries: [], editable: false, requiresUpgrade: true,
+          error: errorMessage(fallbackError), freshness: 'unavailable', source: 'unavailable',
+        };
+      }
+    }
+  }
+
+  /** Add one saved bootstrap role. Persistence is the receipt; no dial wait. */
+  async addBootstrap(sessionId: string, multiaddr: string): Promise<UiBootstrapEdit> {
+    this.assertOpen();
+    const session = this.sessionFor(sessionId);
+    session.lastPollAt = this.now();
+    const raw = typeof multiaddr === 'string' ? multiaddr : '';
+    if (raw.trim().length === 0) throw new Error('请填写包含 /p2p/<peer-id> 的节点地址。');
+    try {
+      await this.ensureReady();
+      const response = await this.api.call(
+        (client) => client.addBootstrapPeer(new AddBootstrapPeerRequest({ multiaddr: raw }), { timeoutMs: 5000 }),
+        '保存引导节点',
+      );
+      this.assertSessionActive(session);
+      return { ok: true, changed: response.added === true, error: null, requiresUpgrade: false };
+    } catch (error) {
+      if (isUnimplementedError(error)) {
+        throw new Error('当前 daemon 版本不支持引导节点写入；请升级并重启 Raminga 节点，设置尚未保存。');
+      }
+      throw new Error(bootstrapErrorMessage(error) || '保存引导节点失败');
+    }
+  }
+
+  /** Remove only the bootstrap role; history, addresses and pause remain. */
+  async removeBootstrap(sessionId: string, peerId: string): Promise<UiBootstrapEdit> {
+    this.assertOpen();
+    const session = this.sessionFor(sessionId);
+    session.lastPollAt = this.now();
+    const canonical = canonicalPeerId(typeof peerId === 'string' ? peerId : '');
+    if (canonical === null) throw new Error('Peer ID 格式不正确。');
+    try {
+      await this.ensureReady();
+      const response = await this.api.call(
+        (client) => client.removeBootstrapPeer(new RemoveBootstrapPeerRequest({ peerId: canonical }), { timeoutMs: 5000 }),
+        '移除引导节点',
+      );
+      this.assertSessionActive(session);
+      return { ok: true, changed: response.removed === true, error: null, requiresUpgrade: false };
+    } catch (error) {
+      if (isUnimplementedError(error)) {
+        throw new Error('当前 daemon 版本不支持引导节点写入；请升级并重启 Raminga 节点，设置尚未修改。');
+      }
+      throw new Error(bootstrapErrorMessage(error) || '移除引导节点失败');
     }
   }
 
@@ -4640,7 +4829,9 @@ export class RamingaUiBridge {
     const session = this.sessionFor(sessionId);
     session.lastPollAt = this.now();
     const state = session.mine;
-    const need = force || state.at === 0 || this.now() - state.at > MINE_TTL_MS;
+    // A previous failure must not be hidden behind the TTL: the next panel poll
+    // or explicit retry should attempt the read again.
+    const need = force || state.at === 0 || state.errorAt > 0 || this.now() - state.at > MINE_TTL_MS;
     if (need) await this.loadMine(session);
     this.assertSessionActive(session);
     if (state.data !== null) return state.data;
@@ -4812,7 +5003,11 @@ export class RamingaUiBridge {
         let agentCard: UiPeerAgentCard = publishedPaths.has('profile/agent-card.json')
           ? local.agentCard
           : { state: 'missing', card: null, error: '本机公开 Agent 卡片不在节点当前发布清单中' };
-        if (publicProfile.state === 'available' && publicProfile.profile !== null && publicProfile.profile.agentName) {
+        // profile.json v2 is authoritative even when the Agent name is empty:
+        // an avatar-only public profile is still a real published Agent card.
+        // The UI supplies the default display name and lists the missing fields;
+        // the bridge must not re-label it as "no public profile".
+        if (publicProfile.state === 'available' && publicProfile.profile !== null) {
           const v2 = publicProfile.profile;
           agentCard = {
             state: 'available',
@@ -4839,7 +5034,15 @@ export class RamingaUiBridge {
             card: { ...local.agentCard.card, legacyFallback: true },
           };
         }
-        const publisherName = profile.displayName || publicProfile.profile?.humanName || shortPeer(peerId);
+        // profile/index.md is generated for every profile publish, including a
+        // profile with no human text (the default heading is "关联人类"). Do
+        // not project that placeholder as a completed human publication. A
+        // real legacy index.md with a different heading or body still counts.
+        const publicHuman = publicProfile.state === 'available' ? publicProfile.profile : null;
+        const projectedProfile = publicHuman !== null && profile.state !== 'error' && !hasPublicHumanContent(profile, publicHuman)
+          ? { ...profile, state: 'missing' as const, markdown: '', displayName: '', at: null }
+          : profile;
+        const publisherName = projectedProfile.displayName || publicProfile.profile?.humanName || shortPeer(peerId);
         const files = await this.mineFiles(listed, peerId, publisherName);
         session.mine.data = {
           peerId,
@@ -4847,7 +5050,7 @@ export class RamingaUiBridge {
           error: null,
           errorAt: null,
           freshness: this.listFreshness(at, null, true, this.streamEpoch, DISCOVERY_FRESH_MS),
-          profile,
+          profile: projectedProfile,
           posts,
           agentCard,
           publicProfile,
@@ -4858,8 +5061,22 @@ export class RamingaUiBridge {
         session.mine.errorAt = 0;
       } catch (error) {
         if (!this.isSessionActive(session)) return;
+        const message = errorMessage(error);
+        const previous = session.mine.data;
         session.mine.errorAt = this.now();
-        session.mine.data = this.emptyMine(session, errorMessage(error));
+        if (previous !== null && previous.at !== null) {
+          // Keep the last verified snapshot. The error and stale freshness are
+          // explicit, so the UI can show its read time and retry instead of
+          // claiming the published profile does not exist.
+          session.mine.data = {
+            ...previous,
+            error: message,
+            errorAt: session.mine.errorAt,
+            freshness: 'stale',
+          };
+        } else {
+          session.mine.data = this.emptyMine(session, message);
+        }
       } finally {
         if (session.mineBusy === promise) session.mineBusy = null;
       }
@@ -5123,6 +5340,9 @@ export class RamingaUiBridge {
         peerId, connectionState: 'unknown', directConnections: 0, relayConnections: 0,
         currentAddresses: [], knownAddresses: [], statusAt: null, freshness: 'unavailable', error,
       },
+      humanAvatarPath: '',
+      humanAvatarSha256: '',
+      humanAvatarMime: '',
     };
   }
 
@@ -5142,6 +5362,9 @@ export class RamingaUiBridge {
       const files = (response.files ?? []).slice(0, 200).map((file) => String(file)).filter((file) => file.length > 0 && file.length <= 256);
       let agentCard: UiPeerAgentCard = { state: 'missing', card: null, error: '对方没有公开 Agent 卡片' };
       const structured = response.profile;
+      // The human avatar is independent of the Agent card: a v2 profile may
+      // carry only a linked human avatar and no agent fields at all.
+      const humanAvatar = peerHumanAvatar(structured);
       if (structured && structured.agentName) {
         agentCard = {
           state: 'available',
@@ -5196,6 +5419,9 @@ export class RamingaUiBridge {
         agentCard,
         manifest: this.peerManifestSnapshot(session, peerId),
         node: this.peerNodeSnapshot(session, peerId),
+        humanAvatarPath: humanAvatar.path,
+        humanAvatarSha256: humanAvatar.sha256,
+        humanAvatarMime: humanAvatar.mime,
       };
       // Persist only facts this call really returned. This is a local,
       // private projection; it is never a trigger for another remote read.
@@ -5281,6 +5507,9 @@ export class RamingaUiBridge {
       agentCard,
       manifest,
       node: this.peerNodeSnapshot(session, peerId),
+      humanAvatarPath: '',
+      humanAvatarSha256: '',
+      humanAvatarMime: '',
     };
   }
 
@@ -5408,6 +5637,11 @@ export class RamingaUiBridge {
     if (typeof input?.agentConversationStyle === 'string') request.agentConversationStyle = input.agentConversationStyle;
     if (typeof input?.humanName === 'string') request.humanName = input.humanName;
     if (typeof input?.humanBioMarkdown === 'string') request.humanBioMarkdown = input.humanBioMarkdown;
+    // Presence matters: leaving this optional proto field unset preserves the
+    // saved human avatar, while clearHumanAvatar explicitly removes it. Never
+    // fall back to the Agent avatar.
+    if (typeof input?.humanAvatarAssetId === 'string') request.humanAvatarAssetId = input.humanAvatarAssetId;
+    if (input?.clearHumanAvatar === true) request.clearHumanAvatar = true;
     if (typeof input?.title === 'string') request.title = input.title;
     if (typeof input?.bodyMarkdown === 'string') request.bodyMarkdown = input.bodyMarkdown;
     if (input?.authorKind === 'user' || input?.authorKind === 'agent') request.authorKind = input.authorKind;

@@ -191,8 +191,8 @@ func TestStage6DiscoveryTableIsInVersionedMigration(t *testing.T) {
 	if err := s.DB().QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 11 {
-		t.Fatalf("schema version = %d, want 11", version)
+	if version != schemaVersion {
+		t.Fatalf("schema version = %d, want %d", version, schemaVersion)
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)

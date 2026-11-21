@@ -156,6 +156,10 @@ export interface LocalPublicProfile {
   avatarPath: string;
   avatarSha256: string;
   avatarMime: string;
+  /** Linked human's optional public avatar; empty when profile.json has none. */
+  humanAvatarPath: string;
+  humanAvatarSha256: string;
+  humanAvatarMime: string;
   updatedAt: string;
   path: string;
   sha256: string;
@@ -745,6 +749,31 @@ export async function readOwnPosts(dataDir: string, localPeerId: string): Promis
   return out;
 }
 
+/** Validate one content-addressed avatar triplet from profile.json v2. The
+ * Agent avatar and the human avatar use distinct filename prefixes but the
+ * same MIME/extension/hash-prefix rules. */
+function parseProfileAvatar(
+  source: Record<string, unknown>,
+  prefix: string,
+  label: string,
+): { path: string; sha256: string; mime: string } {
+  const avatarPath = text(source.avatar, 128);
+  const avatarSha256 = validSha(source.avatar_sha256);
+  const avatarMime = source.avatar_mime === 'image/png' || source.avatar_mime === 'image/jpeg' ? source.avatar_mime : '';
+  if (avatarPath === '' && avatarSha256 === '' && avatarMime === '') return { path: '', sha256: '', mime: '' };
+  if (!new RegExp(`^${prefix}-[a-f0-9]{8}\\.(?:png|jpg)$`).test(avatarPath)) {
+    throw new LocalDataError('invalid', `公开资料${label}文件名无效`);
+  }
+  if (avatarSha256 === '' || avatarMime === '') throw new LocalDataError('invalid', `公开资料${label}缺少哈希或 MIME`);
+  if ((avatarMime === 'image/png') !== avatarPath.endsWith('.png')) {
+    throw new LocalDataError('invalid', `公开资料${label}扩展名与 MIME 不一致`);
+  }
+  if (avatarPath !== `${prefix}-${avatarSha256.slice(0, 8)}${avatarPath.endsWith('.png') ? '.png' : '.jpg'}`) {
+    throw new LocalDataError('invalid', `公开资料${label}文件名与哈希不一致`);
+  }
+  return { path: `profile/${avatarPath}`, sha256: avatarSha256, mime: avatarMime };
+}
+
 /** Parse the canonical public profile.json v2. Invalid fields never become a
  * half-real profile: the caller falls back to agent-card.json/index.md. */
 export function parsePublicProfile(data: Buffer): LocalPublicProfile {
@@ -768,21 +797,8 @@ export function parsePublicProfile(data: Buffer): LocalPublicProfile {
   }
   const humanName = human === null ? '' : text(human.name, 64);
   const humanBioMarkdown = human === null ? '' : text(human.bio_markdown, 4000);
-  const avatarPath = text(agent.avatar, 128);
-  const avatarSha256 = validSha(agent.avatar_sha256);
-  const avatarMime = agent.avatar_mime === 'image/png' || agent.avatar_mime === 'image/jpeg' ? agent.avatar_mime : '';
-  if (avatarPath !== '' || avatarSha256 !== '' || avatarMime !== '') {
-    if (!/^avatar-[a-f0-9]{8}\.(?:png|jpg)$/.test(avatarPath)) {
-      throw new LocalDataError('invalid', '公开资料头像文件名无效');
-    }
-    if (avatarSha256 === '' || avatarMime === '') throw new LocalDataError('invalid', '公开资料头像缺少哈希或 MIME');
-    if ((avatarMime === 'image/png') !== avatarPath.endsWith('.png')) {
-      throw new LocalDataError('invalid', '公开资料头像扩展名与 MIME 不一致');
-    }
-    if (avatarPath !== `avatar-${avatarSha256.slice(0, 8)}${avatarPath.endsWith('.png') ? '.png' : '.jpg'}`) {
-      throw new LocalDataError('invalid', '公开资料头像文件名与哈希不一致');
-    }
-  }
+  const avatar = parseProfileAvatar(agent, 'avatar', '头像');
+  const humanAvatar = parseProfileAvatar(human ?? {}, 'human-avatar', '人类头像');
   return {
     schemaVersion: 2,
     agentName,
@@ -791,9 +807,12 @@ export function parsePublicProfile(data: Buffer): LocalPublicProfile {
     agentConversationStyle,
     humanName,
     humanBioMarkdown,
-    avatarPath: avatarPath === '' ? '' : `profile/${avatarPath}`,
-    avatarSha256,
-    avatarMime,
+    avatarPath: avatar.path,
+    avatarSha256: avatar.sha256,
+    avatarMime: avatar.mime,
+    humanAvatarPath: humanAvatar.path,
+    humanAvatarSha256: humanAvatar.sha256,
+    humanAvatarMime: humanAvatar.mime,
     updatedAt: rfc3339(value.updated_at),
     path: 'profile/profile.json',
     sha256: sha256(data),

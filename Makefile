@@ -102,6 +102,7 @@ generate:
 build:
 	mkdir -p bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "-s -w" -o bin/raminga ./cmd/raminga
+	cp internal/config/bootstrap-preset.toml bin/bootstrap-preset.toml
 
 PREFIX ?=
 install: build

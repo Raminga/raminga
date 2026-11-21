@@ -79,6 +79,17 @@ type PeerStatus struct {
 	OpenedAt    time.Time
 }
 
+// BootstrapPeer is one saved bootstrap role. Online is a live connection fact,
+// not a claim that the saved address is reachable; Paused is the persistent
+// explicit-disconnect flag, which add/remove/restart never clear.
+type BootstrapPeer struct {
+	PeerID  string
+	Addrs   []string
+	Online  bool
+	Paused  bool
+	SavedAt time.Time
+}
+
 // ConnectResult is the outcome of an explicit dial or a peer-ID dial.
 type ConnectResult struct {
 	PeerID             string
