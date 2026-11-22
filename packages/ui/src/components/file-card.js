@@ -1,7 +1,7 @@
 // Public-file card rendering shared by discovery, peer profile and own files.
 // Pure DOM construction; the caller owns preview state, focus and host actions.
 import { acquisitionSourcesLabel, acquisitionTone, contentStateText, fileKindLabel, formatBytes, previewStatusText } from '../public-files.js';
-import { formatDateTime, shortPeerText } from '../content.js';
+import { formatDateTime } from '../content.js';
 import { postImageKey, renderPostMedia } from './post-images.js';
 
 function element(tag, className) {
@@ -20,24 +20,115 @@ export function revealResultKey(subject, item) {
 }
 
 
+function applyPublisherAvatar(avatar, item, agentName) {
+  const initial = Array.from(agentName)[0] || '?';
+  const url = typeof item.publisherAvatarUrl === 'string' ? item.publisherAvatarUrl : '';
+  const mime = typeof item.publisherAvatarMime === 'string' ? item.publisherAvatarMime : '';
+  const expected = mime === 'image/jpeg' ? 'data:image/jpeg;base64,' : 'data:image/png;base64,';
+  avatar.replaceChildren();
+  if (agentName && url && url.startsWith(expected)) {
+    avatar.dataset.kind = 'image';
+    const image = element('img', 'rm-contact-avatar-img');
+    image.alt = '';
+    image.decoding = 'async';
+    image.src = url;
+    image.onerror = () => {
+      avatar.dataset.kind = 'initial';
+      avatar.replaceChildren(document.createTextNode(initial));
+    };
+    avatar.append(image);
+    return;
+  }
+  avatar.dataset.kind = 'initial';
+  avatar.textContent = initial;
+}
+
+function publisherHeader(item, subject, onOpenProfile, showAcquisition = false) {
+  const agentName = String(item.publisherAgentName ?? '').trim();
+  const header = element('header', 'rm-post-head');
+  const avatar = element(onOpenProfile ? 'button' : 'span', 'rm-contact-avatar rm-post-avatar');
+  const name = element(onOpenProfile ? 'button' : 'b', 'rm-post-name');
+  if (onOpenProfile) {
+    const label = agentName ? `查看 ${agentName} 所在节点的公开档案` : '查看发布节点的公开档案';
+    for (const button of [avatar, name]) {
+      button.type = 'button';
+      button.dataset.profilePeer = item.peerId;
+      button.dataset.profileRef = `${subject}:${item.id || item.path}`;
+      button.setAttribute('aria-label', label);
+    }
+  } else {
+    avatar.setAttribute('aria-hidden', 'true');
+  }
+  applyPublisherAvatar(avatar, item, agentName);
+  name.textContent = agentName || '发布 Agent 未公开';
+  const copy = element('div', 'rm-post-author');
+  copy.append(name);
+  if (agentName) {
+    const badge = element('span', 'rm-post-author-badge');
+    badge.dataset.kind = 'agent';
+    badge.textContent = '发布 Agent';
+    copy.append(badge);
+  }
+  const published = formatDateTime(item.publishedAt);
+  const modified = formatDateTime(item.modifiedAt);
+  const time = published ? `发布于 ${published}` : modified ? `更新于 ${modified}` : '';
+  const acquisition = showAcquisition ? acquisitionSourcesLabel(item.sources, item.source) : '';
+  if (time || acquisition) {
+    const meta = element('span', 'rm-post-meta');
+    meta.textContent = [time, acquisition].filter(Boolean).join(' · ');
+    if (showAcquisition) meta.dataset.tone = acquisitionTone(item.sources);
+    copy.append(meta);
+  }
+  header.append(avatar, copy);
+  return header;
+}
+
+const sourceGroupTitles = {
+  lead: '身份与时间',
+  technical: '来源与版本',
+};
+
 export function sourceDetails({ rows, note, focusKey = '', actions = [] }, { sourceOpen = {}, save = () => {} } = {}) {
   const details = element('details', 'rm-source-details');
   const summary = element('summary', 'rm-source-summary');
   summary.textContent = '来源详情';
   if (focusKey) summary.dataset.focusKey = focusKey;
   const body = element('div', 'rm-source-body');
-  const facts = element('dl', 'rm-source-facts');
-  for (const [label, value] of rows) {
+  // Lead with who published the card and the two distinct times; exact Peer
+  // ID/hash/diagnostics stay visible below without competing with them.
+  const groups = new Map();
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const [label, value, section = 'technical'] = row;
     if (!value) continue;
-    const row = element('div', 'rm-source-fact');
-    const term = element('dt');
-    term.textContent = label;
-    const detail = element('dd');
-    detail.textContent = value;
-    row.append(term, detail);
-    facts.append(row);
+    const key = section === 'lead' ? 'lead' : 'technical';
+    const entries = groups.get(key) ?? [];
+    entries.push([label, value]);
+    groups.set(key, entries);
   }
-  if (facts.childElementCount > 0) body.append(facts);
+  const showTitles = groups.size > 1;
+  for (const [section, entries] of groups) {
+    const group = element('section', 'rm-source-group');
+    group.dataset.section = section;
+    if (showTitles) {
+      const heading = element('h3', 'rm-source-group-title');
+      heading.textContent = sourceGroupTitles[section] ?? '技术信息';
+      group.append(heading);
+    }
+    const facts = element('dl', 'rm-source-facts');
+    facts.dataset.section = section;
+    for (const [label, value] of entries) {
+      const row = element('div', 'rm-source-fact');
+      const term = element('dt');
+      term.textContent = label;
+      const detail = element('dd');
+      detail.textContent = value;
+      row.append(term, detail);
+      facts.append(row);
+    }
+    group.append(facts);
+    body.append(group);
+  }
   if (note) {
     const noteEl = element('p', 'rm-source-note');
     noteEl.textContent = note;
@@ -188,20 +279,20 @@ export function previewFeedback(preview, item, { renderMarkdown = () => {} } = {
 function publicSourceRows(item) {
   const author = String(item.authorName ?? '').trim();
   return [
-    ['发布节点', item.peerId],
-    ['发布节点公开名', item.publisherName],
+    ['发布节点公开名', item.publisherName, 'lead'],
     ['原作者声明', author
       ? `${item.authorKind === 'agent' ? 'Agent' : item.authorKind === 'user' ? '用户' : '未注明类型'}署名 · ${author}`
-      : '未声明（按发布节点公开名显示）'],
-    ['发表时间', item.publishedAt ? formatDateTime(item.publishedAt) : ''],
+      : '作者未注明', 'lead'],
+    ['发表时间', item.publishedAt ? formatDateTime(item.publishedAt) : '', 'lead'],
+    ['文件更新时间', item.modifiedAt > 0 ? formatDateTime(item.modifiedAt) : '', 'lead'],
+    ['发布节点 Peer ID', item.peerId],
+    ['内容版本 SHA-256', item.sha256],
+    ['公共路径', item.path],
+    ['大小', formatBytes(item.sizeBytes)],
+    ['文件类型', fileKindLabel(item.kind, item.mime)],
     ['获取方式', acquisitionSourcesLabel(item.sources, item.source)],
     ['来源标识', (item.sources ?? [item.source]).filter(Boolean).join('、')],
     ['获取时间', item.fetchedAt > 0 ? formatDateTime(item.fetchedAt) : ''],
-    ['文件更新时间', item.modifiedAt > 0 ? formatDateTime(item.modifiedAt) : ''],
-    ['公共路径', item.path],
-    ['内容版本', item.sha256],
-    ['大小', formatBytes(item.sizeBytes)],
-    ['文件类型', fileKindLabel(item.kind, item.mime)],
     ['本地副本', contentStateText(item.contentState, item.contentError) || '可用'],
   ];
 }
@@ -237,6 +328,7 @@ export function renderPublicFileCard(rawItem, {
     summary: previewData.post?.summary || rawItem.summary,
     authorKind: previewData.post?.authorKind || rawItem.authorKind,
     authorName: previewData.post?.authorName || rawItem.authorName,
+    publishedAt: previewData.post?.publishedAt || rawItem.publishedAt,
     contentState: previewLocal ? 'available' : rawItem.contentState,
     contentError: previewLocal ? '' : rawItem.contentError,
   } : rawItem;
@@ -250,46 +342,7 @@ export function renderPublicFileCard(rawItem, {
   const article = element('article', `rm-post rm-file-card${subject === 'mine' ? ' rm-own-post' : ''}`);
   article.dataset.fileCard = previewKeyFor(subject, item);
   const opensDetail = typeof onOpenPost === 'function';
-  const header = element('header', 'rm-post-head');
-  const avatar = element(onOpenProfile ? 'button' : 'span', 'rm-contact-avatar rm-post-avatar');
-  if (onOpenProfile) {
-    avatar.type = 'button';
-    avatar.dataset.profilePeer = item.peerId;
-    avatar.dataset.profileRef = `${subject}:${item.id || item.path}`;
-    avatar.setAttribute('aria-label', `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
-  } else {
-    avatar.setAttribute('aria-hidden', 'true');
-  }
-  avatar.textContent = (item.publisherName || shortPeerText(item.peerId) || '?').slice(0, 1);
-  const copy = element('div', 'rm-post-author');
-  const name = element(onOpenProfile ? 'button' : 'b', 'rm-post-name');
-  if (onOpenProfile) {
-    name.type = 'button';
-    name.dataset.profilePeer = item.peerId;
-    name.dataset.profileRef = `${subject}:${item.id || item.path}`;
-    name.setAttribute('aria-label', `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
-  }
-  name.textContent = item.publisherName || shortPeerText(item.peerId) || '未知发布节点';
-  if (subject === 'mine') {
-    // Local public content may be signed by the human owner or by the Agent.
-    // Only the persisted declaration is shown; unknown stays unknown.
-    const kind = item.authorKind === 'agent' ? 'agent' : item.authorKind === 'user' ? 'user' : '';
-    const badge = element('span', 'rm-post-author-badge');
-    badge.dataset.kind = kind || 'unknown';
-    badge.textContent = kind === 'agent' ? 'Agent' : kind === 'user' ? '本人' : '来源未注明';
-    copy.append(name, badge);
-  } else {
-    copy.append(name);
-  }
-  const meta = element('span', 'rm-post-meta');
-  const acquisition = acquisitionSourcesLabel(item.sources, item.source);
-  const published = item.publishedAt ? formatDateTime(item.publishedAt) : '';
-  // Publication time belongs to the card body; acquisition time, version,
-  // file type, size and local copy state stay inside 来源详情.
-  meta.textContent = [published ? `发布于 ${published}` : '发表时间未记录', acquisition].join(' · ');
-  meta.dataset.tone = acquisitionTone(item.sources);
-  copy.append(meta);
-  header.append(avatar, copy);
+  const header = publisherHeader(item, subject, onOpenProfile, true);
   const localProblem = contentStateText(item.contentState, item.contentError);
   const titleText = item.title || item.name || item.path || localProblem;
   const summaryText = item.summary || (item.contentState === 'available' ? `${item.path}${item.sizeBytes >= 0 ? ` · ${formatBytes(item.sizeBytes)}` : ''}` : '');
@@ -510,6 +563,7 @@ export function renderPostDetail(rawItem, {
     summary: previewData.post?.summary || rawItem.summary,
     authorKind: previewData.post?.authorKind || rawItem.authorKind,
     authorName: previewData.post?.authorName || rawItem.authorName,
+    publishedAt: previewData.post?.publishedAt || rawItem.publishedAt,
     contentState: previewLocal ? 'available' : rawItem.contentState,
     contentError: previewLocal ? '' : rawItem.contentError,
   } : rawItem;
@@ -526,40 +580,7 @@ export function renderPostDetail(rawItem, {
   // A stable focus anchor when an async preview/fetch replaces its own button.
   article.tabIndex = -1;
   article.dataset.detailFocus = 'post-detail';
-  const header = element('header', 'rm-post-head');
-  const avatar = element(onOpenProfile ? 'button' : 'span', 'rm-contact-avatar rm-post-avatar');
-  if (onOpenProfile) {
-    avatar.type = 'button';
-    avatar.dataset.profilePeer = item.peerId;
-    avatar.dataset.profileRef = `${subject}:${item.id || item.path}`;
-    avatar.setAttribute('aria-label', `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
-  } else {
-    avatar.setAttribute('aria-hidden', 'true');
-  }
-  avatar.textContent = (item.publisherName || shortPeerText(item.peerId) || '?').slice(0, 1);
-  const copy = element('div', 'rm-post-author');
-  const name = element(onOpenProfile ? 'button' : 'b', 'rm-post-name');
-  if (onOpenProfile) {
-    name.type = 'button';
-    name.dataset.profilePeer = item.peerId;
-    name.dataset.profileRef = `${subject}:${item.id || item.path}`;
-    name.setAttribute('aria-label', `查看 ${item.publisherName || shortPeerText(item.peerId)} 的个人首页`);
-  }
-  name.textContent = item.publisherName || shortPeerText(item.peerId) || '未知发布节点';
-  if (subject === 'mine') {
-    const kind = item.authorKind === 'agent' ? 'agent' : item.authorKind === 'user' ? 'user' : '';
-    const badge = element('span', 'rm-post-author-badge');
-    badge.dataset.kind = kind || 'unknown';
-    badge.textContent = kind === 'agent' ? 'Agent' : kind === 'user' ? '本人' : '来源未注明';
-    copy.append(name, badge);
-  } else {
-    copy.append(name);
-  }
-  const meta = element('span', 'rm-post-meta');
-  const at = item.publishedAt ? formatDateTime(item.publishedAt) : '';
-  meta.textContent = at ? `发布于 ${at}` : '发表时间未记录';
-  copy.append(meta);
-  header.append(avatar, copy);
+  const header = publisherHeader(item, subject, onOpenProfile);
 
   const title = element('h1', 'rm-post-detail-title');
   title.textContent = item.title || item.name || item.path || '公开动态';

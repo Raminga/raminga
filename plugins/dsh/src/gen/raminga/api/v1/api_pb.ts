@@ -5676,7 +5676,9 @@ export class ListDiscoveriesRequest extends Message<ListDiscoveriesRequest> {
 
   /**
    * familiar_only restricts the page to authors with a durable human-outbound
-   * relation, independent of the bounded message retention window.
+   * relation or a retained real Agent outbound message, independent of the
+   * bounded message text window. Contacts, inbound-only rows and
+   * last_interaction never qualify.
    *
    * @generated from field: bool familiar_only = 3;
    */
@@ -5867,6 +5869,190 @@ export class ListDiscoveriesResponse extends Message<ListDiscoveriesResponse> {
 
   static equals(a: ListDiscoveriesResponse | PlainMessage<ListDiscoveriesResponse> | undefined, b: ListDiscoveriesResponse | PlainMessage<ListDiscoveriesResponse> | undefined): boolean {
     return proto3.util.equals(ListDiscoveriesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListDiscoveryRefreshPeersRequest
+ */
+export class ListDiscoveryRefreshPeersRequest extends Message<ListDiscoveryRefreshPeersRequest> {
+  /**
+   * limit is 1..100 (default 40). Older daemons may not implement this RPC.
+   *
+   * @generated from field: uint32 limit = 1;
+   */
+  limit = 0;
+
+  /**
+   * familiar_only keeps only peers with a durable human outbound or retained
+   * real Agent outbound message. It never substitutes contacts, inbound
+   * messages, profile visits or last_interaction for an actual send.
+   *
+   * @generated from field: bool familiar_only = 2;
+   */
+  familiarOnly = false;
+
+  /**
+   * after is an opaque cursor from a previous response's next_after. It lets a
+   * repeated bounded refresh advance through the complete eligible peer set
+   * instead of always rechecking the first page. Older daemons ignore the
+   * field and return their first page; clients stay bounded and must not loop.
+   *
+   * @generated from field: string after = 3;
+   */
+  after = "";
+
+  constructor(data?: PartialMessage<ListDiscoveryRefreshPeersRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListDiscoveryRefreshPeersRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "limit", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 2, name: "familiar_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "after", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDiscoveryRefreshPeersRequest {
+    return new ListDiscoveryRefreshPeersRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDiscoveryRefreshPeersRequest {
+    return new ListDiscoveryRefreshPeersRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDiscoveryRefreshPeersRequest {
+    return new ListDiscoveryRefreshPeersRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDiscoveryRefreshPeersRequest | PlainMessage<ListDiscoveryRefreshPeersRequest> | undefined, b: ListDiscoveryRefreshPeersRequest | PlainMessage<ListDiscoveryRefreshPeersRequest> | undefined): boolean {
+    return proto3.util.equals(ListDiscoveryRefreshPeersRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.DiscoveryRefreshPeer
+ */
+export class DiscoveryRefreshPeer extends Message<DiscoveryRefreshPeer> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * from_discovery means this peer has at least one recorded versioned-post
+   * acquisition. from_outbound means this peer has a durable human outbound
+   * relation or a retained real Agent outbound message.
+   *
+   * @generated from field: bool from_discovery = 2;
+   */
+  fromDiscovery = false;
+
+  /**
+   * @generated from field: bool from_outbound = 3;
+   */
+  fromOutbound = false;
+
+  constructor(data?: PartialMessage<DiscoveryRefreshPeer>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.DiscoveryRefreshPeer";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "from_discovery", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "from_outbound", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoveryRefreshPeer {
+    return new DiscoveryRefreshPeer().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoveryRefreshPeer {
+    return new DiscoveryRefreshPeer().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoveryRefreshPeer {
+    return new DiscoveryRefreshPeer().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DiscoveryRefreshPeer | PlainMessage<DiscoveryRefreshPeer> | undefined, b: DiscoveryRefreshPeer | PlainMessage<DiscoveryRefreshPeer> | undefined): boolean {
+    return proto3.util.equals(DiscoveryRefreshPeer, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.ListDiscoveryRefreshPeersResponse
+ */
+export class ListDiscoveryRefreshPeersResponse extends Message<ListDiscoveryRefreshPeersResponse> {
+  /**
+   * @generated from field: repeated raminga.api.v1.DiscoveryRefreshPeer peers = 1;
+   */
+  peers: DiscoveryRefreshPeer[] = [];
+
+  /**
+   * total is the full local candidate count before the bounded limit.
+   *
+   * @generated from field: int32 total = 2;
+   */
+  total = 0;
+
+  /**
+   * truncated is true when total exceeds the returned peer list.
+   *
+   * @generated from field: bool truncated = 3;
+   */
+  truncated = false;
+
+  /**
+   * has_more is true when peers remain after this page in the stable
+   * newest-activity/Peer-ID order.
+   *
+   * @generated from field: bool has_more = 4;
+   */
+  hasMore = false;
+
+  /**
+   * next_after is the opaque cursor for the next page. Empty means wrap to the
+   * beginning on the next refresh. Older daemons omit it.
+   *
+   * @generated from field: string next_after = 5;
+   */
+  nextAfter = "";
+
+  constructor(data?: PartialMessage<ListDiscoveryRefreshPeersResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.ListDiscoveryRefreshPeersResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peers", kind: "message", T: DiscoveryRefreshPeer, repeated: true },
+    { no: 2, name: "total", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "truncated", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "has_more", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "next_after", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDiscoveryRefreshPeersResponse {
+    return new ListDiscoveryRefreshPeersResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDiscoveryRefreshPeersResponse {
+    return new ListDiscoveryRefreshPeersResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDiscoveryRefreshPeersResponse {
+    return new ListDiscoveryRefreshPeersResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDiscoveryRefreshPeersResponse | PlainMessage<ListDiscoveryRefreshPeersResponse> | undefined, b: ListDiscoveryRefreshPeersResponse | PlainMessage<ListDiscoveryRefreshPeersResponse> | undefined): boolean {
+    return proto3.util.equals(ListDiscoveryRefreshPeersResponse, a, b);
   }
 }
 

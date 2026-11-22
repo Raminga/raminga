@@ -77,7 +77,7 @@ function makeClient({ status = statusResponse(), rows = [], manifest = [], downl
         version: 1, peerId: request.peerId, generatedAtUnixMs: 1,
         entries: page.map((entry) => ({
           path: entry.path, size: entry.data.length,
-          modifiedUnixMs: 1,
+          modifiedUnixMs: entry.modifiedAt ?? 1,
           sha256: crypto.createHash('sha256').update(entry.data).digest('hex'),
         })),
         total: manifest.length, limited: false,
@@ -348,13 +348,23 @@ test('offline peer homepage recovers persisted discovery copies after a bridge r
   await write(path.join(dir, 'downloads', PEER_A, 'notes/hello.md'), hello);
   await write(path.join(dir, 'downloads', PEER_A, 'profile/index.md'), '# 离线节点\n\n历史资料');
   const row = rowFor(PEER_A, 'notes/hello.md', hello);
-  const client = makeClient({ rows: [row] });
-  client.getPeerManifest = async () => { throw new Error('peer offline'); };
+  const modifiedAt = Date.parse('2026-11-14T10:00:00Z');
+  const legacyPath = 'profile/agent-card.json';
+  const legacy = Buffer.from(JSON.stringify({ schema_version: 1, display_name: '旧版 Agent' }));
+  await write(path.join(dir, 'downloads', PEER_A, legacyPath), legacy);
+  const client = makeClient({ rows: [row], manifest: [
+    { path: row.path, data: hello, modifiedAt },
+    { path: legacyPath, data: legacy, modifiedAt },
+  ] });
   client.getPeerProfile = async () => { throw new Error('peer offline'); };
   const revealed = [];
   const firstBridge = makeBridge(client, dir, async (absolute) => { revealed.push(absolute); });
   try {
     await firstBridge.open('ui-offline-1');
+    const manifest = await firstBridge.peerManifest('ui-offline-1', PEER_A, true);
+    assert.equal(manifest.entries[0].modifiedAt, modifiedAt);
+    assert.equal(manifest.entries[0].publisherAgentName, '旧版 Agent');
+    client.getPeerManifest = async () => { throw new Error('peer offline'); };
     const profile = await firstBridge.peerProfile('ui-offline-1', PEER_A, true);
     assert.equal(profile.source, 'local-copy');
     assert.equal(profile.found, true);
@@ -364,6 +374,7 @@ test('offline peer homepage recovers persisted discovery copies after a bridge r
     const helloEntry = profile.manifest.entries.find((entry) => entry.path === 'notes/hello.md');
     assert.ok(helloEntry);
     assert.equal(helloEntry.contentState, 'available');
+    assert.equal(helloEntry.modifiedAt, modifiedAt, 'retains the last public time for the same SHA');
     assert.equal(helloEntry.sources[0], 'raminga_content_get');
     assert.equal(client.downloads.length, 0, 'building the local history does not download');
 
@@ -397,6 +408,7 @@ test('offline peer homepage recovers persisted discovery copies after a bridge r
     const entry = profile.manifest.entries.find((item) => item.path === 'notes/hello.md');
     assert.ok(entry);
     assert.equal(entry.sha256, row.sha256);
+    assert.equal(entry.modifiedAt, 0, 'a downloaded copy has no public modification time');
     const preview = await secondBridge.peerFilePreview('ui-offline-2', PEER_A, 'notes/hello.md', entry.sha256, entry.sizeBytes);
     assert.equal(preview.status, 'ok');
     assert.match(preview.text, /仍然可读/);

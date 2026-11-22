@@ -146,7 +146,7 @@ func contactMemoryLeakReason(dataDir, message string) string {
 		}
 		return unreadable
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	for _, dir := range []string{"agent", "agent/contacts"} {
 		info, err := root.Lstat(dir)
 		if errors.Is(err, os.ErrNotExist) {
@@ -160,9 +160,9 @@ func contactMemoryLeakReason(dataDir, message string) string {
 	if err != nil {
 		return unreadable
 	}
-	children, err := dir.ReadDir(-1)
-	dir.Close()
-	if err != nil {
+	children, readErr := dir.ReadDir(-1)
+	closeErr := dir.Close()
+	if readErr != nil || closeErr != nil {
 		return unreadable
 	}
 	for _, child := range children {
@@ -185,9 +185,9 @@ func contactMemoryLeakReason(dataDir, message string) string {
 		if err != nil {
 			return unreadable
 		}
-		raw, err := io.ReadAll(io.LimitReader(file, limit+1))
-		file.Close()
-		if err != nil || len(raw) > limit {
+		raw, readErr := io.ReadAll(io.LimitReader(file, limit+1))
+		closeErr := file.Close()
+		if readErr != nil || closeErr != nil || len(raw) > limit {
 			return unreadable
 		}
 		if containsLongNormalizedSubstring(message, normalizeWhitespace(privateLeakText("memory.json", raw, nil)), agentLeakMinRunes) {

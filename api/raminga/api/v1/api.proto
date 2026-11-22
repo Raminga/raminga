@@ -117,6 +117,12 @@ service RamingaService {
   // It is not a directory listing, manifest scan or network-wide recommendation.
   rpc ListDiscoveries(ListDiscoveriesRequest) returns (ListDiscoveriesResponse);
 
+  // ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+  // explicit Feed refresh: authors with a recorded versioned-post acquisition
+  // plus peers with a durable human outbound or retained real Agent outbound
+  // message. It performs no network request and is not a recommendation.
+  rpc ListDiscoveryRefreshPeers(ListDiscoveryRefreshPeersRequest) returns (ListDiscoveryRefreshPeersResponse);
+
   // Public drafts are private SQLite rows; they are never published until an
   // explicit PublishPublicDraft call.
   rpc GetPublicDraft(GetPublicDraftRequest) returns (GetPublicDraftResponse);
@@ -1432,7 +1438,9 @@ message ListDiscoveriesRequest {
   // before is an opaque cursor from a previous response's next_before.
   string before = 2;
   // familiar_only restricts the page to authors with a durable human-outbound
-  // relation, independent of the bounded message retention window.
+  // relation or a retained real Agent outbound message, independent of the
+  // bounded message text window. Contacts, inbound-only rows and
+  // last_interaction never qualify.
   bool familiar_only = 3;
 
   // peer_id optionally restricts the page to one author. Empty preserves the
@@ -1470,6 +1478,43 @@ message ListDiscoveriesResponse {
   repeated Discovery discoveries = 1;
   string next_before = 2;
   bool has_more = 3;
+}
+
+message ListDiscoveryRefreshPeersRequest {
+  // limit is 1..100 (default 40). Older daemons may not implement this RPC.
+  uint32 limit = 1;
+  // familiar_only keeps only peers with a durable human outbound or retained
+  // real Agent outbound message. It never substitutes contacts, inbound
+  // messages, profile visits or last_interaction for an actual send.
+  bool familiar_only = 2;
+  // after is an opaque cursor from a previous response's next_after. It lets a
+  // repeated bounded refresh advance through the complete eligible peer set
+  // instead of always rechecking the first page. Older daemons ignore the
+  // field and return their first page; clients stay bounded and must not loop.
+  string after = 3;
+}
+
+message DiscoveryRefreshPeer {
+  string peer_id = 1;
+  // from_discovery means this peer has at least one recorded versioned-post
+  // acquisition. from_outbound means this peer has a durable human outbound
+  // relation or a retained real Agent outbound message.
+  bool from_discovery = 2;
+  bool from_outbound = 3;
+}
+
+message ListDiscoveryRefreshPeersResponse {
+  repeated DiscoveryRefreshPeer peers = 1;
+  // total is the full local candidate count before the bounded limit.
+  int32 total = 2;
+  // truncated is true when total exceeds the returned peer list.
+  bool truncated = 3;
+  // has_more is true when peers remain after this page in the stable
+  // newest-activity/Peer-ID order.
+  bool has_more = 4;
+  // next_after is the opaque cursor for the next page. Empty means wrap to the
+  // beginning on the next refresh. Older daemons omit it.
+  string next_after = 5;
 }
 
 // DisconnectPeerRequest asks the node to close all connections to a peer.

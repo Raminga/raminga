@@ -55,7 +55,11 @@ open a dismissible explanation instead of pretending to work. Message bodies
 are rendered as plain text. Conversation and message pages merge by stable
 `(Peer ID, direction, message ID)`; ACK wording never claims a human read.
 Discovery cards keep public paths, hashes, byte counts and acquisition tool
-names inside a closeable "来源详情" disclosure. "我的动态" and "他的动态" list
+names inside a closeable "来源详情" disclosure. That disclosure leads with the
+publishing node's public name, the post's original author declaration and the
+separate publish/update times, then groups Peer ID, version hash and other
+diagnostics underneath. Search reports the real filtered match count; the
+custom accessible clear button is the only clear control. "我的动态" and "他的动态" list
 published files under `public/posts/`, with full cards for structured posts
 and verified preview or acquisition for standalone files. A contact’s
 "他的通讯录" reads the peer’s public `friends.json` through `GetPeerFriends`
@@ -65,6 +69,13 @@ Discovery reads are explicit page/filter/refresh actions, not a poll. A cached
 filter is revalidated after 15 seconds or by the visible refresh action; a
 daemon-persisted human send invalidates only the familiar filter, including a
 pending row (an unknown RPC result waits until the persisted row is read).
+Only the visible refresh action may call the host's separate
+`onRefreshDiscoveries` capability and start a bounded remote check; page entry,
+TTL, search and passive re-reads stay local. Feed avatars follow the displayed
+publisher identity: a known human public name uses that human's verified local
+avatar, an Agent public name uses the Agent avatar, and the post's authorKind
+never decides the image. Missing, unknown, corrupt or stale-version avatars fall
+back to the original initial glyph; Mine reuses the local public profile avatar.
 The three Feed filters contain only recognized versioned posts (existing v1
 posts and current v2 image posts). Host bridge reads skip contacts, profiles,
 post-image assets, ordinary attachments and other non-post rows before

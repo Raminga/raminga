@@ -10,9 +10,9 @@ import (
 	libp2pnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/Raminga/raminga/internal/bootstrapaddr"
 	"github.com/Raminga/raminga/internal/p2phttp"
 	"github.com/Raminga/raminga/internal/storage"
+	"github.com/Raminga/raminga/pkg/bootstrapaddr"
 )
 
 // Friend sentinel errors are stable API-facing aliases for the storage errors.

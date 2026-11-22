@@ -267,6 +267,9 @@ test('search, refresh and write share one toolbar and the search stays visible w
     ui.click('#exploreRefresh');
     await settle();
     assert.ok(reads.length >= 2, 'refresh still re-reads the current filter');
+    const css = fs.readFileSync(path.resolve(here, '..', 'src', 'styles', 'workspace.css'), 'utf8');
+    assert.match(css, /::-webkit-search-cancel-button[\s\S]*?display: none/,
+      'the native search clear control is hidden, leaving the accessible custom one');
   } finally {
     ui.close();
   }
@@ -1123,6 +1126,47 @@ test('editing a card imports that post, keeps identity and version, updates the 
     assert.match(after[0].textContent, /改过的标题/);
     assert.doesNotMatch(after[0].textContent, /自己的动态/);
     assert.match(ui.activeKey(), /mine-feed:posts\/own-one\/post\.json:9+.*:edit/, 'focus returns to the replaced card edit action');
+  } finally {
+    ui.close();
+  }
+});
+
+
+test('Feed search totals are the real filtered matches and source details lead with identity then technical facts', async () => {
+  const ui = mountUi({
+    viewState: { page: 'explore', pages: { explore: { filter: 'all', query: '地图', searchOpen: true, scroll: 0, expanded: {}, sourceOpen: {} } } },
+    onLoadDiscoveries: async (familiar) => discoveries([
+      post({ modifiedAt: Date.parse('2026-11-18T09:30:00Z') }),
+      post({
+        id: 'post-other', path: 'posts/other/post.json', title: '别的动态',
+        summary: '和搜索无关。', tags: [], publisherName: '另一位发布者',
+      }),
+    ], familiar),
+    onLoadDiscoveryContent: async () => ({ ok: true, post: { ...post(), bodyMarkdown: '正文' }, error: null }),
+  });
+  try {
+    await settle();
+    const scope = ui.q('#discoveryScope');
+    assert.equal(scope.hidden, false);
+    assert.match(ui.text('#discoverySearchCount'), /匹配搜索的公开内容共 1 条/);
+    assert.doesNotMatch(ui.text('#discoveryMeta'), /匹配搜索的公开内容/,
+      'search count is secondary disclosure, not a first-screen diagnostic banner');
+    assert.equal(ui.shadow.querySelectorAll('#discoveryList .rm-post').length, 1);
+
+    const details = ui.q('#discoveryList .rm-source-details');
+    details.querySelector('summary').click();
+    await settle();
+    const groups = [...details.querySelectorAll('.rm-source-group')];
+    assert.deepEqual(groups.map((group) => group.dataset.section), ['lead', 'technical']);
+    assert.match(groups[0].textContent, /发布节点公开名/);
+    assert.match(groups[0].textContent, /原作者声明/);
+    assert.match(groups[0].textContent, /发表时间/);
+    assert.match(groups[0].textContent, /文件更新时间/);
+    assert.match(groups[1].textContent, /发布节点 Peer ID/);
+    assert.match(groups[1].textContent, /内容版本 SHA-256/);
+    const labels = [...groups[0].querySelectorAll('dt'), ...groups[1].querySelectorAll('dt')].map((node) => node.textContent);
+    assert.deepEqual(labels.slice(0, 4), ['发布节点公开名', '原作者声明', '发表时间', '文件更新时间']);
+    assert.equal(groups[0].querySelectorAll('dt').length, 4, 'identity and both distinct times lead the disclosure');
   } finally {
     ui.close();
   }

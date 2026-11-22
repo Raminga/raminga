@@ -31,6 +31,10 @@ export const MAX_POSTS = 200;
 export const MAX_CONTACT_PROJECTION_BYTES = 1024 * 1024;
 export const MAX_CONTACT_PROJECTION_PROFILES = 128;
 export const MAX_CONTACT_PROJECTION_CLUES = 80;
+// Dynamic Feed/Mine avatars follow the daemon's published-avatar contract:
+// one avatar may be up to 4 MiB (internal/publication/image.go). The contact
+// list keeps its smaller 512 KiB display cap below and is never raised by this.
+export const MAX_PUBLISHED_AVATAR_BYTES = 4 * 1024 * 1024;
 export const MAX_CONTACT_PROJECTION_AVATAR_BYTES = 512 * 1024;
 export const MAX_CONTACT_PROJECTION_AVATAR_TOTAL = 8 * 1024 * 1024;
 const MAX_TEXT = 120;
@@ -1456,6 +1460,55 @@ export async function readDownloadedProfile(dataDir, peerId) {
 export async function readDownloadedProfileName(dataDir, peerId) {
     const profile = await readDownloadedProfile(dataDir, peerId);
     return profile.state === 'available' ? profile.displayName : '';
+}
+/** Read a downloaded profile.json v2 without touching the network. The
+ * content-addressed avatar path/hash/MIME rules are parsed by the same
+ * validator used for this node's own public profile. */
+export async function readDownloadedPublicProfile(dataDir, peerId) {
+    const peer = canonicalPeer(peerId);
+    if (peer === '')
+        return { state: 'error', profile: null, error: 'Peer ID 无效' };
+    try {
+        const data = await readDownloadedFile(dataDir, peer, 'profile/profile.json', 128 * 1024);
+        return { state: 'available', profile: parsePublicProfile(data), error: '' };
+    }
+    catch (error) {
+        if (error instanceof LocalDataError && error.code === 'missing') {
+            return { state: 'missing', profile: null, error: '本机没有对方 profile.json 的已核对副本' };
+        }
+        return { state: 'error', profile: null, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+/** Re-verify one downloaded avatar against profile.json metadata before it
+ * becomes a data URL. Paths are content-addressed; size, SHA-256, MIME and the
+ * PNG/JPEG signature are checked on every read. */
+export async function readVerifiedDownloadedAvatar(dataDir, peerId, avatar) {
+    const peer = canonicalPeer(peerId);
+    if (peer === '')
+        throw new LocalDataError('invalid', 'Peer ID 无效');
+    if (!/^profile\/(?:human-)?avatar-[a-f0-9]{8}\.(?:png|jpg)$/.test(avatar.path)) {
+        throw new LocalDataError('invalid', '公开头像路径无效');
+    }
+    if (!Number.isSafeInteger(avatar.sizeBytes) || avatar.sizeBytes <= 0 || avatar.sizeBytes > MAX_PUBLISHED_AVATAR_BYTES) {
+        throw new LocalDataError('too_large', '公开头像大小超过展示上限');
+    }
+    const data = await readDownloadedFile(dataDir, peer, avatar.path, MAX_PUBLISHED_AVATAR_BYTES);
+    if (data.length !== avatar.sizeBytes) {
+        throw new LocalDataError('invalid', '本地头像大小与已核对版本不一致，未展示');
+    }
+    if (sha256(data) !== avatar.sha256) {
+        throw new LocalDataError('invalid', '本地头像哈希与已核对版本不一致，未展示');
+    }
+    const signatureError = avatarSignatureError(avatar, data);
+    if (signatureError !== '')
+        throw new LocalDataError('invalid', signatureError);
+    return {
+        key: `${peer}\u0000${avatar.path}\u0000${avatar.sha256}\u0000${avatar.sizeBytes}`,
+        dataUrl: `data:${avatar.mime};base64,${data.toString('base64')}`,
+        mime: avatar.mime,
+        sha256: avatar.sha256,
+        sizeBytes: avatar.sizeBytes,
+    };
 }
 // --- Contact-list local projection ----------------------------------------
 //

@@ -33,6 +33,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	circuitv2proto "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/proto"
 	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
@@ -328,8 +329,6 @@ type Network struct {
 	started          bool
 	totalDialTimeout time.Duration
 	knownDialBudget  time.Duration
-	candidateTimeout time.Duration
-	testDial         func(context.Context, peer.ID, ma.Multiaddr) error
 
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -401,6 +400,7 @@ func New(cfg Config) (*Network, error) {
 		libp2p.ResourceManager(rm),
 		libp2p.ConnectionGater(&pauseGater{paused: paused}),
 		libp2p.DisableMetrics(),
+		libp2p.SwarmOpts(swarm.WithDialRanker(rankDialAddresses)),
 	}
 	if len(cfg.ListenAddrs) == 0 {
 		opts = append(opts, libp2p.NoListenAddrs)
@@ -473,7 +473,6 @@ func New(cfg Config) (*Network, error) {
 		bootstrap:        bootstrap,
 		totalDialTimeout: 30 * time.Second,
 		knownDialBudget:  15 * time.Second,
-		candidateTimeout: candidateDialTimeout,
 		httpMux:          httpMux,
 		httpClient:       httpClient,
 	}

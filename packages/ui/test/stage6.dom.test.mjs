@@ -248,11 +248,29 @@ test('familiar filter and empty/error states are distinct', async () => {
     ui.close();
   }
 
-  const empty = mountUi({ onLoadDiscoveries: async () => discoveries([]) });
+  let emptyManualReads = 0;
+  const empty = mountUi({
+    onLoadDiscoveries: async () => discoveries([]),
+    onRefreshDiscoveries: async (filter) => {
+      emptyManualReads += 1;
+      assert.equal(filter, false);
+      return discoveries([post({ title: '刷新后带回的新帖', source: 'raminga_ui_refresh', sources: ['raminga_ui_refresh'] })]);
+    },
+  });
   try {
     await settle();
     assert.match(empty.text('#exploreStateTitle'), /还没有获取到公开帖子/);
     assert.match(empty.text('#exploreStateBody'), /两种来源会分别标注/);
+    assert.equal(empty.text('#exploreStateAction'), '刷新动态');
+    empty.click('#exploreStateAction');
+    for (let attempt = 0; attempt < 50 && !empty.text('#discoveryList').includes('刷新后带回的新帖'); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(emptyManualReads, 1, 'the empty-state refresh uses the same manual host entry as the toolbar');
+    assert.match(empty.text('#discoveryList'), /刷新后带回的新帖/);
+    const cardMeta = empty.shadow.querySelector('#discoveryList .rm-post-meta').textContent;
+    assert.match(cardMeta, /手动刷新/, 'the refresh source is shown as clear Chinese');
+    assert.doesNotMatch(cardMeta, /raminga_ui_refresh/);
   } finally {
     empty.close();
   }
@@ -915,6 +933,280 @@ test('Journey and mine report missing host records without inventing activity', 
     assert.match(ui.text('#ramingaStateTitle'), /这次没有刷新到 Agent 记录/);
     assert.match(ui.text('#ramingaStateBody'), /模拟读取失败/);
     assert.equal(ui.text('#ramingaRefresh'), '重试刷新');
+  } finally {
+    ui.close();
+  }
+});
+
+const HUMAN_AVATAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nGsAAAAASUVORK5CYII=';
+const HUMAN_AVATAR_V2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAQAAABFaP0WAAAADUlEQVR42mNk+M/wHwAEAQH/2VZqNwAAAABJRU5ErkJggg==';
+
+test('feed cards and their detail use the publisher avatar chosen by the header identity', async () => {
+  let listReads = 0;
+  let profileReads = 0;
+  let contentReads = 0;
+  let current = post({
+    publisherName: '阿岸',
+    publisherAgentName: '小澜',
+    publisherAvatarKey: 'human:an',
+    publisherAvatarUrl: HUMAN_AVATAR,
+    publisherAvatarMime: 'image/png',
+    authorKind: 'agent',
+    authorName: '小澜',
+  });
+  const ui = mountUi({
+    onLoadDiscoveries: async () => {
+      listReads += 1;
+      return discoveries([current]);
+    },
+    onLoadPeerProfile: async () => {
+      profileReads += 1;
+      throw new Error('the list must not read a remote profile');
+    },
+    onLoadDiscoveryContent: async () => {
+      contentReads += 1;
+      throw new Error('the list must not read post content just to paint an avatar');
+    },
+  });
+  try {
+    await settle();
+    assert.equal(listReads, 1);
+    assert.equal(profileReads, 0);
+    assert.equal(contentReads, 0, 'painting a card avatar must not add a remote read');
+    const avatar = ui.shadow.querySelector('#discoveryList .rm-post-avatar');
+    assert.ok(avatar);
+    assert.equal(avatar.dataset.kind, 'image');
+    assert.equal(avatar.dataset.profilePeer, PEER_A, 'avatar remains the existing profile button');
+    assert.match(avatar.getAttribute('aria-label'), /小澜/);
+    assert.equal(avatar.querySelector('img')?.getAttribute('src'), HUMAN_AVATAR);
+    assert.equal(ui.shadow.querySelector('#discoveryList .rm-post-name').textContent, '小澜', 'the header shows the publishing Agent');
+    assert.doesNotMatch(ui.shadow.querySelector('#discoveryList .rm-post-open').textContent, /小澜/);
+    assert.match(ui.shadow.querySelector('#discoveryList .rm-source-details').textContent, /Agent署名 · 小澜/, 'the original author declaration stays in source details');
+    const contentReadsBeforeDetail = contentReads;
+
+    ui.click('#discoveryList .rm-post-open');
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    const detailAvatar = ui.shadow.querySelector('#postDetail .rm-post-avatar');
+    assert.ok(detailAvatar);
+    assert.equal(detailAvatar.querySelector('img')?.getAttribute('src'), HUMAN_AVATAR, 'detail uses the same publisher avatar');
+    assert.equal(detailAvatar.dataset.profilePeer, PEER_A);
+    assert.equal(profileReads, 0);
+    assert.ok(contentReads >= contentReadsBeforeDetail, 'only the explicit detail open may read post content');
+    const contentReadsAfterDetail = contentReads;
+    ui.click('#postBack');
+    await settle();
+
+    // A changed avatar version must be repainted from the fresh item, not hidden
+    // by an old per-card cache.
+    current = { ...current, publisherAvatarKey: 'human:an:v2', publisherAvatarUrl: HUMAN_AVATAR_V2 };
+    ui.click('#exploreRefresh');
+    await settle();
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const src = ui.shadow.querySelector('#discoveryList .rm-post-avatar img')?.getAttribute('src');
+      if (src === HUMAN_AVATAR_V2) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(ui.shadow.querySelector('#discoveryList .rm-post-avatar img')?.getAttribute('src'), HUMAN_AVATAR_V2);
+    assert.equal(profileReads, 0);
+    assert.equal(contentReads, contentReadsAfterDetail, 'repainting the list avatar must not read post content');
+
+    // A missing or corrupt avatar falls back to the original initial glyph and
+    // keeps the profile-button semantics.
+    current = { ...current, publisherAvatarKey: 'human:missing', publisherAvatarUrl: '', publisherAvatarMime: '' };
+    ui.click('#exploreRefresh');
+    await settle();
+    const fallback = ui.shadow.querySelector('#discoveryList .rm-post-avatar');
+    assert.equal(fallback.dataset.kind, 'initial');
+    assert.equal(fallback.querySelector('img'), null);
+    assert.equal(fallback.textContent, '小');
+    assert.equal(fallback.dataset.profilePeer, PEER_A);
+    assert.match(fallback.getAttribute('aria-label'), /小澜/);
+
+    current = { ...current, publisherAvatarKey: 'human:broken', publisherAvatarUrl: HUMAN_AVATAR, publisherAvatarMime: 'image/png' };
+    ui.click('#exploreRefresh');
+    await settle();
+    const broken = ui.shadow.querySelector('#discoveryList .rm-post-avatar');
+    assert.equal(broken.dataset.kind, 'image');
+    broken.querySelector('img').dispatchEvent(new ui.dom.window.Event('error'));
+    assert.equal(broken.dataset.kind, 'initial');
+    assert.equal(broken.textContent, '小');
+
+    current = { ...current, publisherAgentName: '', publishedAt: '', modifiedAt: 0 };
+    ui.click('#exploreRefresh');
+    await settle();
+    assert.equal(ui.text('#discoveryList .rm-post-name'), '发布 Agent 未公开');
+    assert.equal(ui.shadow.querySelector('#discoveryList .rm-post-avatar img'), null);
+    assert.doesNotMatch(ui.text('#discoveryList .rm-post-meta'), /发布于|更新于/);
+    assert.equal(profileReads, 0);
+    assert.equal(contentReads, contentReadsAfterDetail);
+  } finally {
+    ui.close();
+  }
+});
+
+test('discovery list expands one shared avatar table into the existing card fields', async () => {
+  const item = post({
+    publisherName: '阿岸',
+    publisherAgentName: '小澜',
+    publisherAvatarKey: 'shared:human:an',
+    publisherAvatarUrl: '',
+    publisherAvatarMime: 'image/png',
+  });
+  const data = discoveries([item], {
+    avatars: { 'shared:human:an': { url: HUMAN_AVATAR, mime: 'image/png' } },
+  });
+  const ui = mountUi({ onLoadDiscoveries: async () => data });
+  try {
+    await settle();
+    const avatar = ui.shadow.querySelector('#discoveryList .rm-post-avatar img');
+    assert.ok(avatar);
+    assert.equal(avatar.getAttribute('src'), HUMAN_AVATAR, 'top-level table bytes reach the existing card renderer');
+  } finally {
+    ui.close();
+  }
+});
+
+test('only the explicit Feed refresh starts a bounded host refresh and merges repeated clicks', async () => {
+  let localReads = 0;
+  let manualReads = 0;
+  let resolveManual;
+  let current = discoveries([post({ title: '旧动态' })]);
+  const ui = mountUi({
+    onLoadDiscoveries: async () => {
+      localReads += 1;
+      return current;
+    },
+    onRefreshDiscoveries: async (familiar) => {
+      manualReads += 1;
+      assert.equal(familiar, false);
+      return new Promise((resolve) => { resolveManual = resolve; });
+    },
+  });
+  try {
+    await settle();
+    assert.equal(localReads, 1);
+    assert.equal(manualReads, 0, 'page entry does not start a remote check');
+
+    const query = ui.shadow.querySelector('#exploreQuery');
+    query.value = '动';
+    query.dispatchEvent(new ui.dom.window.Event('input', { bubbles: true }));
+    await settle();
+    assert.equal(manualReads, 0, 'search only re-renders or re-reads the local index');
+
+    ui.click('#exploreRefresh');
+    await settle();
+    assert.equal(manualReads, 1, 'the visible refresh button starts the host refresh');
+    ui.click('#exploreRefresh');
+    await settle();
+    assert.equal(manualReads, 1, 'a second click while one refresh is in flight is coalesced');
+    assert.match(ui.text('#exploreRefresh'), /刷新中/);
+
+    resolveManual({
+      ...discoveries([post({ id: '18', title: '新动态' })], {
+        refresh: {
+          familiar: false, at: Date.now(), checkedPeers: 2, totalPeers: 4,
+          imported: 1, skipped: 1, invalid: 0, failed: 1, notCovered: 2,
+          truncated: true, coalesced: false, unsupported: false, durationMs: 90,
+          error: null, peers: [
+            { peerId: '12D3KooWCU5mTmYUM99MTejrAGiGhKQDQxLq6M26RnAmXKH9XoSR', peerName: '小澜', status: 'partial', error: '一条动态获取超时' },
+            { peerId: '12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6', peerName: '', status: 'not-covered', error: '预算已用完' },
+          ],
+        },
+      }),
+    });
+    await settle();
+    for (let attempt = 0; attempt < 50 && !ui.text('#discoveryList').includes('新动态'); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.match(ui.text('#discoveryList'), /新动态/);
+    assert.equal(localReads, 1, 'the host refresh already returned the fresh local index');
+    const meta = ui.text('#discoveryMeta');
+    assert.match(meta, /本次检查了 2 个节点/);
+    assert.match(meta, /收录 1 条新动态/);
+    assert.match(meta, /1 个节点失败/);
+    assert.match(meta, /1 个节点部分完成（部分内容未收录）/);
+    assert.match(meta, /共 4 个候选，2 个本次未检查/);
+    const report = ui.shadow.querySelector('#discoveryRefreshReport');
+    assert.equal(report.hidden, false, 'per-node refresh results are visible beside the summary');
+    assert.equal(report.querySelector('summary').textContent, '本次刷新节点结果（2）');
+    const rows = [...report.querySelectorAll('.rm-refresh-peer')];
+    assert.equal(rows.length, 2);
+    assert.match(rows[0].textContent, /小澜.*部分完成 · 一条动态获取超时/);
+    assert.match(rows[1].textContent, /12D3KooW.*未覆盖 · 预算已用完/);
+  } finally {
+    ui.close();
+  }
+});
+
+test('a failed manual refresh keeps the previous discovery cards and says why', async () => {
+  let manualReads = 0;
+  const ui = mountUi({
+    onLoadDiscoveries: async () => discoveries([post({ title: '保留下来的旧帖' })]),
+    onRefreshDiscoveries: async () => {
+      manualReads += 1;
+      throw new Error('远端检查超时');
+    },
+  });
+  try {
+    await settle();
+    assert.match(ui.text('#discoveryList'), /保留下来的旧帖/);
+    ui.click('#exploreRefresh');
+    await settle();
+    for (let attempt = 0; attempt < 50 && !ui.text('#discoveryMeta').includes('超时'); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(manualReads, 1);
+    assert.match(ui.text('#discoveryList'), /保留下来的旧帖/);
+    assert.match(ui.text('#discoveryMeta'), /远端检查超时/);
+    assert.doesNotMatch(ui.text('#exploreRefresh'), /刷新中/);
+  } finally {
+    ui.close();
+  }
+});
+
+
+test('my Feed reuses the local public profile avatar for list and detail', async () => {
+  const data = {
+    peerId: PEER_A,
+    at: Date.now(),
+    error: null,
+    errorAt: null,
+    freshness: 'live',
+    profile: { state: 'available', markdown: '# 阿岸\n\n本人公开资料。', displayName: '阿岸', error: '', path: 'profile/index.md', at: Date.now() },
+    posts: {
+      state: 'available', error: '', unattributed: 0, agentAuthored: 0, invalid: 0, truncated: false,
+      errors: [], posts: [{
+        schemaVersion: 2, title: '我的本机动态', summary: '本人署名', bodyMarkdown: '# 我的本机动态\n\n正文',
+        tags: [], publishedAt: '2026-11-22T08:00:00Z', authorPeerId: PEER_A, authorKind: 'user',
+        authorName: '阿岸', path: 'posts/mine-feed/post.json', sha256: 'e'.repeat(64), sizeBytes: 42,
+      }],
+    },
+    files: [],
+    filesTruncated: false,
+    publisherAgentName: '小澜',
+    publisherAvatarKey: 'mine:agent',
+    publisherAvatarUrl: HUMAN_AVATAR,
+    publisherAvatarMime: 'image/png',
+  };
+  let mineReads = 0;
+  const ui = mountUi({
+    viewState: { page: 'explore', pages: { explore: { filter: 'mine', query: '', searchOpen: false, scroll: 0, expanded: {}, sourceOpen: {} } } },
+    onLoadMine: async () => { mineReads += 1; return data; },
+  });
+  try {
+    await settle();
+    assert.equal(mineReads, 1);
+    const card = ui.shadow.querySelector('#mineFeedList .rm-own-post');
+    assert.ok(card, 'the Feed Mine filter is rendered');
+    assert.equal(card.querySelector('.rm-post-avatar img')?.getAttribute('src'), HUMAN_AVATAR);
+    assert.match(card.querySelector('.rm-source-details').textContent, /用户署名 · 阿岸/);
+    assert.match(card.querySelector('.rm-post-author-badge').textContent, /发布 Agent/, 'the header labels the publishing Agent');
+    ui.click('#mineFeedList .rm-post-open');
+    await settle();
+    const detail = ui.shadow.querySelector('#postDetail .rm-post-avatar');
+    assert.equal(detail.querySelector('img')?.getAttribute('src'), HUMAN_AVATAR, 'Mine detail reuses the same local public avatar');
+    assert.equal(mineReads, 1, 'repainting does not issue another Mine read');
   } finally {
     ui.close();
   }

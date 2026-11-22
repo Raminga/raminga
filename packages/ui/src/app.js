@@ -292,6 +292,7 @@ export function createRamingaApp(root, options = {}) {
     };
     let conversationsRetrying = false;
     const discoveriesCapable = typeof options.onLoadDiscoveries === "function";
+    const manualDiscoveriesCapable = typeof options.onRefreshDiscoveries === "function";
     const discoveryContentCapable = typeof options.onLoadDiscoveryContent === "function";
     const revealCapable = typeof options.onRevealDiscovery === "function";
     const fileRevealCapable = typeof options.onRevealFile === "function";
@@ -330,6 +331,7 @@ export function createRamingaApp(root, options = {}) {
     const contactConnectState = /* @__PURE__ */ new Map();
     const emptyDiscoveries = (familiar = false) => ({
       items: [],
+      avatars: {},
       at: null,
       error: null,
       errorAt: null,
@@ -342,6 +344,7 @@ export function createRamingaApp(root, options = {}) {
     });
     const discoveryByFilter = /* @__PURE__ */ new Map();
     const discoveryRequests = /* @__PURE__ */ new Map();
+    const manualRefreshRequests = /* @__PURE__ */ new Map();
     const discoveryStale = /* @__PURE__ */ new Set();
     const DISCOVERY_REVALIDATE_MS = 15e3;
     const DISCOVERY_SCAN_LIMIT = 500;
@@ -743,6 +746,8 @@ export function createRamingaApp(root, options = {}) {
     const mineRetry = $("#mineRetry");
     const discoveryMeta = $("#discoveryMeta");
     const discoveryMetaRetry = $("#discoveryMetaRetry");
+    const discoverySearchCount = $("#discoverySearchCount");
+    const discoveryRefreshReport = $("#discoveryRefreshReport");
     const discoveryScope = $("#discoveryScope");
     const discoveryScopeBody = $("#discoveryScopeBody");
     const discoveryList = $("#discoveryList");
@@ -1135,7 +1140,8 @@ export function createRamingaApp(root, options = {}) {
       return familiar ? "familiar" : "all";
     }
     function discoveryRefreshing() {
-      return discoveryRequests.has(discoveryKeyFor(view.pages.explore.filter === "familiar"));
+      const key2 = discoveryKeyFor(view.pages.explore.filter === "familiar");
+      return discoveryRequests.has(key2) || manualRefreshRequests.has(key2);
     }
     function discoveryCacheNeedsRead(familiar) {
       const key2 = discoveryKeyFor(familiar);
@@ -1175,12 +1181,33 @@ export function createRamingaApp(root, options = {}) {
     }
     function updateDiscoveryMeta(data, state) {
       const notes = [];
+      const manual = data?.refresh;
+      if (manual) {
+        const parts = [`本次检查了 ${Number(manual.checkedPeers) || 0} 个节点`];
+        if (Number(manual.imported) > 0) parts.push(`收录 ${Number(manual.imported)} 条新动态`);
+        if (Number(manual.skipped) > 0) parts.push(`${Number(manual.skipped)} 条已是最新`);
+        if (Number(manual.invalid) > 0) parts.push(`${Number(manual.invalid)} 条内容无效未展示`);
+        if (Number(manual.failed) > 0) parts.push(`${Number(manual.failed)} 个节点失败`);
+        const partialPeers = Number(manual.partial) || (Array.isArray(manual.peers)
+          ? manual.peers.filter((peer) => peer?.status === "partial" || (peer?.status === "checked" && peer.error)).length
+          : 0);
+        if (partialPeers > 0) parts.push(`${partialPeers} 个节点部分完成（部分内容未收录）`);
+        if (Number(manual.notCovered) > 0) parts.push(`共 ${Number(manual.totalPeers) || 0} 个候选，${Number(manual.notCovered)} 个本次未检查`);
+        if (manual.unsupported) parts.push("当前节点版本不支持远端检查，只重读了本地已有内容");
+        else if (manual.truncated && Number(manual.notCovered) === 0) {
+          parts.push("部分清单或内容未检查完");
+        }
+        notes.push(`${parts.join("，")}。`);
+        if (manual.error && !manual.unsupported && Number(manual.failed) === 0 && partialPeers === 0 && Number(manual.invalid) === 0) {
+          notes.push(manual.error);
+        }
+      }
       if (data?.error) {
         notes.push(`上次刷新没有完成：${data.error}`);
       }
-      if (state.kind === "ready" && state.total !== state.items.length) {
-        notes.push(`当前显示 ${state.items.length} 条，匹配搜索的公开内容共 ${state.total} 条。`);
-      }
+      const showMatchCount = state.kind === "ready" && exploreQuery.value.trim().length > 0;
+      discoverySearchCount.hidden = !showMatchCount;
+      discoverySearchCount.textContent = showMatchCount ? `匹配搜索的公开内容共 ${state.total} 条` : "";
       if (favoritesState.actionError) notes.push(favoritesState.actionError);
       const note = notes.join(" ");
       discoveryMeta.textContent = note;
@@ -1190,11 +1217,41 @@ export function createRamingaApp(root, options = {}) {
       discoveryMetaRetry.onclick = discoveriesCapable ? () => {
         void refreshDiscoveries(true);
       } : null;
-      updateDiscoveryScope(data, state);
+      updateDiscoveryRefreshReport(manual);
+      updateDiscoveryScope(data);
     }
-    function updateDiscoveryScope(data, state) {
+    function updateDiscoveryRefreshReport(manual) {
+      const peers = Array.isArray(manual?.peers) ? manual.peers : [];
+      discoveryRefreshReport.hidden = peers.length === 0;
+      if (peers.length === 0) discoveryRefreshReport.open = false;
+      const list = discoveryRefreshReport.querySelector("ul");
+      list.replaceChildren();
+      discoveryRefreshReport.querySelector("summary").textContent = peers.length
+        ? `本次刷新节点结果（${peers.length}）` : "本次刷新节点结果";
+      const labels = {
+        checked: "已检查",
+        partial: "部分完成",
+        failed: "失败",
+        "not-covered": "未覆盖",
+        skipped: "已跳过",
+      };
+      for (const peer of peers) {
+        const item = element("li", "rm-refresh-peer");
+        const peerId = String(peer?.peerId ?? "");
+        const name = String(peer?.peerName ?? "").trim();
+        const who = name ? `${name}（${shortPeer(peerId)}）` : shortPeer(peerId);
+        const stateText = labels[peer?.status] ?? "已检查";
+        const reason = String(peer?.error ?? "").trim()
+          || (Number(peer?.imported) > 0 ? `收录 ${Number(peer.imported)} 条` : "没有新内容");
+        item.dataset.status = String(peer?.status ?? "");
+        item.title = peerId;
+        item.textContent = `${who} · ${stateText} · ${reason}`;
+        list.append(item);
+      }
+    }
+    function updateDiscoveryScope(data) {
       if (!discoveryScope || !discoveryScopeBody) return;
-      if (view.pages.explore.filter === "mine" || state.kind !== "ready" || !data) {
+      if (view.pages.explore.filter === "mine" || !data) {
         discoveryScope.hidden = true;
         discoveryScopeBody.replaceChildren();
         return;
@@ -1620,6 +1677,26 @@ export function createRamingaApp(root, options = {}) {
       }
       closeDialog(imagePreviewDialog);
     }
+    /** New list snapshots share one avatar payload per key at the top level.
+     * Expand it into the existing item fields so card rendering and old hosts
+     * keep using the same display path. */
+    function hydrateListAvatars(items, source) {
+      if (!Array.isArray(items)) return [];
+      const avatars = source?.avatars;
+      if (!avatars || typeof avatars !== "object" || Array.isArray(avatars)) return items;
+      return items.map((item) => {
+        const key2 = item?.publisherAvatarKey;
+        if (typeof key2 !== "string" || !key2 || item.publisherAvatarUrl || !Object.prototype.hasOwnProperty.call(avatars, key2)) return item;
+        const asset = avatars[key2];
+        const url = typeof asset?.url === "string" ? asset.url : "";
+        if (!/^data:image\/(?:png|jpeg);base64,/i.test(url)) return item;
+        return {
+          ...item,
+          publisherAvatarUrl: url,
+          publisherAvatarMime: String(asset.mime ?? item.publisherAvatarMime ?? "")
+        };
+      });
+    }
     function renderFileCard(item, options2) {
       return renderPublicFileCard(item, {
         ...options2,
@@ -1674,7 +1751,13 @@ export function createRamingaApp(root, options = {}) {
         const shown = itemWithPostMeta(item);
         const key = publicVersionKey(shown);
         const previous = versions.get(key);
-        if (!previous || (previous.kind === "json" && shown.kind === "markdown")) versions.set(key, shown);
+        if (!previous) {
+          versions.set(key, shown);
+        } else {
+          const selected = previous.kind === "json" && shown.kind === "markdown" ? shown : previous;
+          const modifiedAt = shown.modifiedAt || previous.modifiedAt;
+          versions.set(key, modifiedAt && !selected.modifiedAt ? { ...selected, modifiedAt } : selected);
+        }
         if (isPostPath(shown.path) && shown.kind === "markdown") {
           for (const image of shown.images || []) {
             if (image.publicPath && image.sha256) {
@@ -1684,6 +1767,20 @@ export function createRamingaApp(root, options = {}) {
         }
       }
       return [...versions.values()].filter((item) => !attachments.has(publicVersionKey(item)));
+    }
+    function withMinePublisher(item, data) {
+      const publisherAgentName = item.publisherAgentName ?? data?.publisherAgentName ?? "";
+      const avatarKey = data?.publisherAvatarKey;
+      if (!item.publisherAvatarUrl && avatarKey && (!item.publisherAvatarKey || item.publisherAvatarKey === avatarKey)) {
+        return {
+          ...item,
+          publisherAgentName,
+          publisherAvatarKey: avatarKey,
+          publisherAvatarUrl: data.publisherAvatarUrl,
+          publisherAvatarMime: data.publisherAvatarMime
+        };
+      }
+      return { ...item, publisherAgentName };
     }
     function mineFeedItems(data) {
       if (!data) return [];
@@ -1715,7 +1812,7 @@ export function createRamingaApp(root, options = {}) {
           contentError: ""
         }));
       }
-      return publicPostEntries(files);
+      return publicPostEntries(files).map((item) => withMinePublisher(item, data));
     }
     function mineFeedCard(item, query) {
       if (!postMatchesQuery(item, query)) return null;
@@ -1748,6 +1845,8 @@ export function createRamingaApp(root, options = {}) {
       discoveryList.replaceChildren();
       discoveryMeta.hidden = true;
       discoveryMetaRetry.hidden = true;
+      discoverySearchCount.hidden = true;
+      updateDiscoveryRefreshReport(null);
       discoveryScope.hidden = true;
       discoveryScopeBody.replaceChildren();
       $("#exploreState").hidden = true;
@@ -1862,9 +1961,9 @@ export function createRamingaApp(root, options = {}) {
         stateCard(title, body, action2, {
           tone: "unavailable",
           title: "正在整理公开动态",
-          body: "正在整理本机记录的手动获取与 Agent 获取公开内容。",
+          body: "正在整理本机记录的手动获取与 Agent 获取公开内容。「刷新动态」会联网检查相关节点的公开清单。",
           action: discoveriesCapable ? { label: refreshing ? "正在刷新…" : "刷新动态", run: () => {
-            void refreshDiscoveries(true);
+            void refreshDiscoveriesManually();
           } } : null
         });
         return;
@@ -1876,7 +1975,7 @@ export function createRamingaApp(root, options = {}) {
         stateCard(title, body, action2, {
           tone: "error",
           title: "这次没有读到公开动态",
-          body: data?.error ? `${data.error} 这不代表没有任何公开内容。` : "公开内容索引读取失败。这不代表没有任何公开内容。",
+          body: data?.error ? `${data.error} 这不代表没有任何公开内容。「重试读取」只重读本机索引。` : "公开内容索引读取失败。这不代表没有任何公开内容。「重试读取」只重读本机索引。",
           action: { label: refreshing ? "正在重试…" : "重试读取", run: () => {
             void refreshDiscoveries(true);
           } }
@@ -1902,11 +2001,11 @@ export function createRamingaApp(root, options = {}) {
         stateCard(title, body, action2, {
           tone: "unavailable",
           title: familiar ? "有过交流的节点还没有公开帖子" : "还没有获取到公开帖子",
-          body: Number(data?.ignored) > 0 ? `本机获取记录里有 ${Number(data.ignored)} 个文件不是可识别的公开帖子，不算动态，也不会进入搜索或计数；posts/ 下的普通文件可到对应联系人的「他的动态」查看。` : familiar ? "这里只显示本人或 Agent 实际发过消息的节点所带回的可识别公开帖子。仅建立联系、浏览档案或 last_interaction 不算有过交流。" : "当你在对方主页手动获取帖子，或 Agent 获取并核对公开帖子后，会出现在这里；两种来源会分别标注。",
+          body: Number(data?.ignored) > 0 ? `本机获取记录里有 ${Number(data.ignored)} 个文件不是可识别的公开帖子，不算动态，也不会进入搜索或计数；posts/ 下的普通文件可到对应联系人的「他的动态」查看。` : familiar ? "这里只显示本人或 Agent 实际发过消息的节点所带回的可识别公开帖子。仅建立联系、浏览档案或 last_interaction 不算有过交流。" : "当你在对方主页手动获取帖子，或 Agent 获取并核对公开帖子后，会出现在这里；两种来源会分别标注。点击「刷新动态」会联网检查相关节点的公开清单。",
           action: {
             label: familiar ? "返回发现" : "刷新动态",
             run: familiar ? () => setFilter("all") : () => {
-              void refreshDiscoveries(true);
+              void refreshDiscoveriesManually();
             }
           }
         });
@@ -1953,12 +2052,12 @@ export function createRamingaApp(root, options = {}) {
     }
     function profileFeedState() {
       const data = profileState.posts.data;
-      const localItems = Array.isArray(data?.items) ? data.items : [];
+      const localItems = hydrateListAvatars(data?.items, data);
       const profileManifest = profileState.data?.manifest;
       const refreshedManifest = profileState.posts.manifest;
       const manifest = refreshedManifest && (!profileManifest || (refreshedManifest.at ?? 0) >= (profileManifest.at ?? 0))
         ? refreshedManifest : profileManifest;
-      const manifestEntries = Array.isArray(manifest?.entries) ? manifest.entries : [];
+      const manifestEntries = hydrateListAvatars(manifest?.entries, manifest);
       const currentEntries = manifest?.source === "remote" ? publicPostEntries(manifestEntries) : [];
       const items = publicPostEntries([...localItems, ...manifestEntries]);
       const candidateParents = new Set(manifestEntries
@@ -2444,7 +2543,7 @@ export function createRamingaApp(root, options = {}) {
         }
         discoveryByFilter.set(key2, {
           ...value,
-          items: Array.isArray(value.items) ? value.items : [],
+          items: hydrateListAvatars(value.items, value),
           familiar,
           relationComplete: familiar ? value.relationComplete === true : true
         });
@@ -2468,6 +2567,51 @@ export function createRamingaApp(root, options = {}) {
         if (discoveryKeyFor(view.pages.explore.filter === "familiar") === key2) updateExploreState();
         if (request.forceQueued) refreshDiscoveries(true);
       });
+    }
+    /** Only the visible refresh button calls this. Page entry, search, TTL and
+     * passive re-reads keep using the local-index-only refreshDiscoveries. */
+    async function refreshDiscoveriesManually() {
+      if (destroyed || !discoveriesCapable) {
+        updateExploreState();
+        return;
+      }
+      if (!hostReady) return;
+      const familiar = view.pages.explore.filter === "familiar";
+      const key2 = discoveryKeyFor(familiar);
+      if (manualRefreshRequests.has(key2)) return;
+      if (!manualDiscoveriesCapable) {
+        void refreshDiscoveries(true);
+        return;
+      }
+      const request = {};
+      manualRefreshRequests.set(key2, request);
+      updateExploreState();
+      try {
+        const value = await options.onRefreshDiscoveries(familiar);
+        if (destroyed || manualRefreshRequests.get(key2) !== request) return;
+        if (value === null || typeof value !== "object") throw new Error("远端动态检查没有返回结果");
+        discoveryByFilter.set(key2, {
+          ...value,
+          items: hydrateListAvatars(value.items, value),
+          familiar,
+          relationComplete: familiar ? value.relationComplete === true : true
+        });
+        resetPostContentCache();
+        discoveryStale.delete(key2);
+      } catch (error) {
+        if (destroyed || manualRefreshRequests.get(key2) !== request) return;
+        const previous = discoveryByFilter.get(key2);
+        const failure = previous ?? emptyDiscoveries(familiar);
+        console.warn("[raminga-ui] manual discovery refresh failed", errorText(error));
+        discoveryByFilter.set(key2, {
+          ...failure,
+          error: errorText(error) || "远端动态检查失败",
+          errorAt: Date.now()
+        });
+      } finally {
+        if (manualRefreshRequests.get(key2) === request) manualRefreshRequests.delete(key2);
+        if (!destroyed && discoveryKeyFor(view.pages.explore.filter === "familiar") === key2) updateExploreState();
+      }
     }
     function favoriteKeyFor(item) {
       return `${String(item?.peerId ?? "")}\0${String(item?.path ?? "")}\0${String(item?.sha256 ?? "").toLowerCase()}`;
@@ -8525,11 +8669,11 @@ export function createRamingaApp(root, options = {}) {
       const draft = postEditorState.draft;
       if (draft?.publishedPath) {
         const kind = draft.authorKind === "agent" ? `Agent${agentName ? ` · ${agentName}` : ""}` : `本人${humanName ? ` · ${humanName}` : ""}`;
-        postAuthorNote.textContent = `正在编辑已公开动态；署名来源保留为${kind}，发布会更新原帖。`;
+        postAuthorNote.textContent = `正在编辑已公开动态。发布会更新原帖，并在「来源详情」保留${kind}署名。页头显示发布节点公开的 Agent 名称和头像。`;
       } else if (postAuthorKind.value === "agent") {
-        postAuthorNote.textContent = `将以 Agent${agentName ? ` · ${agentName}` : ""} 署名发布。`;
+        postAuthorNote.textContent = `「来源详情」将显示 Agent${agentName ? ` · ${agentName}` : ""} 的署名。页头显示发布节点公开的 Agent 名称和头像。`;
       } else {
-        postAuthorNote.textContent = `将以本人${humanName ? ` · ${humanName}` : ""} 署名发布。`;
+        postAuthorNote.textContent = `「来源详情」将显示本人${humanName ? ` · ${humanName}` : ""} 的署名。页头显示发布节点公开的 Agent 名称和头像。`;
       }
       if (isLegacyV1PostPath(draft?.publishedPath)) {
         postAuthorNote.textContent += " 旧版动态保持原格式，本次只更新文字，不能加入图片。";
@@ -9497,7 +9641,7 @@ export function createRamingaApp(root, options = {}) {
         const identity = draft2.authorKind === "agent" ? `Agent${mineState.data?.agentCard?.state === "available" && mineState.data.agentCard.card?.displayName ? ` · ${mineState.data.agentCard.card.displayName}` : ""}` : `本人${mineState.data?.profile?.displayName ? ` · ${mineState.data.profile.displayName}` : ""}`;
         postPublishReceipt.hidden = false;
         postPublishReceipt.dataset.tone = "unavailable";
-        postPublishReceipt.textContent = `将以${identity}署名发布到 ${target}${draft2.images?.length ? ` 与 ${draft2.images.length} 张图片` : ""}。确认后才会公开。`;
+        postPublishReceipt.textContent = `将以${identity}作为实际署名发布到 ${target}${draft2.images?.length ? ` 与 ${draft2.images.length} 张图片` : ""}。页头显示发布节点公开的 Agent 名称和头像，实际署名显示在「来源详情」。确认后才会公开。`;
         postPublishButton.focus({ preventScroll: true });
         renderPostEditorStatus();
         postPublishReceipt.scrollIntoView?.({ block: "nearest" });
@@ -9734,7 +9878,7 @@ export function createRamingaApp(root, options = {}) {
       }
       if (posts?.truncated || data?.filesTruncated) notes.push("公开内容超过本次有界扫描上限，列表可能不完整。");
       if (posts?.invalid > 0) notes.push(`有 ${posts.invalid} 个文件无法完整解析；如属于支持格式，仍会按文件信息显示。`);
-      if (posts?.unattributed > 0) notes.push(`其中 ${posts.unattributed} 个文件缺少明确的本人作者声明；仍按发布节点公开名列出，原作者声明只在详情保留。`);
+      if (posts?.unattributed > 0) notes.push(`其中 ${posts.unattributed} 个文件缺少明确的本人作者声明；仍按发布 Agent 列出，原作者声明只在来源详情保留。`);
       if (posts?.agentAuthored > 0) notes.push(`另有 ${posts.agentAuthored} 个 Agent 署名文件也按公开内容列出，不再按用户作者身份排除。`);
       mineContentNote.textContent = notes.join(" ");
       mineContentNote.hidden = notes.length === 0;
@@ -9747,7 +9891,7 @@ export function createRamingaApp(root, options = {}) {
         for (const item of files) {
           const key2 = previewKeyFor("mine", item);
           const expanded = mineExpanded.has(key2);
-          const card = renderFileCard(itemWithPostMeta(item), {
+          const card = renderFileCard(withMinePublisher(itemWithPostMeta(item), data), {
             subject: "mine",
             expanded,
             onToggle: (next) => toggleMineFile(item, next),
@@ -12703,7 +12847,7 @@ ${value}` : value);
         void loadMine(true);
         return;
       }
-      void refreshDiscoveries(true);
+      void refreshDiscoveriesManually();
     }, { signal: controller.signal });
     exploreQuery.addEventListener("input", () => {
       updateExploreSearchState();

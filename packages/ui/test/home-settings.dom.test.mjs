@@ -802,7 +802,8 @@ test('manual post editor defaults to the human and never silently uses Agent', a
     ui.click('#composePost');
     await settle();
     assert.equal(ui.shadow.querySelector('#postAuthorKind').value, 'user');
-    assert.match(ui.text('#postAuthorNote'), /将以本人/);
+    assert.match(ui.text('#postAuthorNote'), /来源详情.*本人.*署名/);
+    assert.match(ui.text('#postAuthorNote'), /页头显示发布节点公开的 Agent 名称和头像/);
     assert.doesNotMatch(ui.text('#postAuthorNote'), /不会默认|默认标成|Agent 等/);
     ui.shadow.querySelector('#postTitleInput').value = '手写动态';
     ui.shadow.querySelector('#postBodyInput').value = '正文';
@@ -1271,9 +1272,9 @@ test('legacy mine and raminga view states restore home without losing drafts', a
   }
 });
 
-test('my dynamics show both authors from the real declaration and never guess unknown', async () => {
+test('my dynamics show publishing Agent for both authors and keep the original declaration', async () => {
   const baseFile = {
-    peerId: 'local-peer-id', publisherName: 'Alice', name: 'post.json', sha256: 'f'.repeat(64),
+    peerId: 'local-peer-id', publisherName: 'Alice', publisherAgentName: 'Nova', name: 'post.json', sha256: 'f'.repeat(64),
     sizeBytes: 100, modifiedAt: 0, fetchedAt: 0, source: 'local-public', sources: ['local-public'],
     kind: 'markdown', mime: 'text/markdown', previewable: true, summary: '摘要', tags: [],
     publishedAt: '2026-11-14T10:00:00Z', contentState: 'available', contentError: '',
@@ -1294,10 +1295,11 @@ test('my dynamics show both authors from the real declaration and never guess un
     const cards = [...ui.shadow.querySelectorAll('#mineFeedList .rm-post')];
     assert.equal(cards.length, 3);
     const badges = [...ui.shadow.querySelectorAll('#mineFeedList .rm-post-author-badge')].map((node) => node.textContent);
-    assert.deepEqual(badges, ['本人', 'Agent', '来源未注明']);
-    assert.equal(ui.shadow.querySelector('#mineFeedList .rm-post-author-badge[data-kind="user"]').textContent, '本人');
-    assert.equal(ui.shadow.querySelector('#mineFeedList .rm-post-author-badge[data-kind="agent"]').textContent, 'Agent');
-    assert.equal(ui.shadow.querySelector('#mineFeedList .rm-post-author-badge[data-kind="unknown"]').textContent, '来源未注明');
+    assert.deepEqual(badges, ['发布 Agent', '发布 Agent', '发布 Agent']);
+    assert.deepEqual(cards.map((card) => card.querySelector('.rm-post-name').textContent), ['Nova', 'Nova', 'Nova']);
+    assert.match(cards[0].querySelector('.rm-source-details').textContent, /用户署名 · Alice/);
+    assert.match(cards[1].querySelector('.rm-source-details').textContent, /Agent署名 · Nova/);
+    assert.match(cards[2].querySelector('.rm-source-details').textContent, /作者未注明/);
     assert.match(ui.text('#mineFeedList'), /本人发布/);
     assert.match(ui.text('#mineFeedList'), /Agent 发布/);
   } finally {
@@ -1585,7 +1587,7 @@ test('saved draft images and avatar use controlled asset reads, survive remount 
 
 test('my post cards import existing local v1/v2 posts for controlled editing and remote cards have no edit entry', async () => {
   const baseFile = {
-    peerId: 'local-peer-id', publisherName: 'Alice', name: 'post.json', sha256: 'f'.repeat(64),
+    peerId: 'local-peer-id', publisherName: 'Alice', publisherAgentName: 'Nova', name: 'post.json', sha256: 'f'.repeat(64),
     sizeBytes: 100, modifiedAt: 0, fetchedAt: 0, source: 'local-public', sources: ['local-public'],
     kind: 'markdown', mime: 'text/markdown', previewable: true, summary: '摘要', tags: [],
     publishedAt: '2026-11-14T10:00:00Z', contentState: 'available', contentError: '',
@@ -1626,7 +1628,7 @@ test('my post cards import existing local v1/v2 posts for controlled editing and
     assert.deepEqual(imported, [v2Path]);
     assert.equal(ui.shadow.querySelector('#postTitleInput').value, 'Agent 标题');
     assert.equal(ui.shadow.querySelector('#postAuthorKind').disabled, true);
-    assert.match(ui.text('#postAuthorNote'), /署名来源保留为Agent/);
+    assert.match(ui.text('#postAuthorNote'), /来源详情.*保留Agent.*署名/);
     assert.equal(ui.shadow.querySelector('#postPanel, #postEditorPanel')?.hidden, false);
 
     cards[1].querySelector('.rm-post-edit').click();
@@ -1759,7 +1761,7 @@ test('write post with the published editor still expanded starts a new form with
     author.value = 'agent';
     author.dispatchEvent(new ui.dom.window.Event('change', { bubbles: true }));
     await settle();
-    assert.match(ui.text('#postAuthorNote'), /将以 Agent.*署名发布/);
+    assert.match(ui.text('#postAuthorNote'), /来源详情.*Agent.*署名.*页头显示发布节点公开的 Agent 名称和头像/);
   } finally {
     ui.close();
   }

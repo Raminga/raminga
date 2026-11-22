@@ -12,13 +12,14 @@
 // panels (or an event racing a manual refresh) share one daemon call, and the
 // trailing event is reconciled instead of being lost.
 import { createHash, randomUUID } from 'node:crypto';
+import { lstat } from 'node:fs/promises';
 import { protoInt64 } from '@bufbuild/protobuf';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
-import { AddBootstrapPeerRequest, ConnectRequest, DhtStatusRequest, ListBootstrapPeersRequest, RemoveBootstrapPeerRequest, DeletePublicDraftRequest, DownloadPeerFileRequest, GetPublicDraftAssetRequest, GetPublicDraftRequest, GetPeerManifestRequest, GetPeerFriendsRequest, ListPublicDraftsRequest, PublishedRequest, GetPeerProfileRequest, ImportPublicPostRequest, PublishPublicDraftRequest, PutPublicDraftImageRequest, SavePublicDraftRequest, ListConversationsRequest, ListDiscoveriesRequest, ListFavoritesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, MarkConversationReadRequest, OutboxCancelRequest, PublicPublishStatus, SendChatRequest, SetFavoriteRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
-import { MAX_CONTACT_PROJECTION_AVATAR_BYTES, MAX_CONTACT_PROJECTION_CLUES, MAX_CONTACT_PROJECTION_PROFILES, MAX_MINE_FILES, MAX_MINE_HASH_BYTES, MAX_POST_BYTES, downloadedFileInfo, hashDownloadedFile, hashPublicFile, isVersionedPostPath, isPostImagePublicPath, parsePublicPost, postImagePublicPath, readDiscoveryFile, readDiscoveryPost, readDownloadedAgentCard, readDownloadedFile, readDownloadedProfile, readContactProjection, readContactNotes, readDownloadedProfileName, readJourney, readJourneyReportFile, readOwnPublic, saveContactImpression, savePrivateAgentFile, writeContactProjection, readPublicFile, LocalDataError, } from './local-data.js';
+import { AddBootstrapPeerRequest, ConnectRequest, DhtStatusRequest, ListBootstrapPeersRequest, RemoveBootstrapPeerRequest, DeletePublicDraftRequest, DownloadPeerFileRequest, GetPublicDraftAssetRequest, GetPublicDraftRequest, GetPeerManifestRequest, GetPeerFriendsRequest, ListPublicDraftsRequest, PublishedRequest, GetPeerProfileRequest, ImportPublicPostRequest, PublishPublicDraftRequest, PutPublicDraftImageRequest, SavePublicDraftRequest, ListConversationsRequest, ListDiscoveriesRequest, ListDiscoveryRefreshPeersRequest, ListFavoritesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, MarkConversationReadRequest, OutboxCancelRequest, PublicPublishStatus, SendChatRequest, SetFavoriteRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
+import { MAX_CONTACT_PROJECTION_AVATAR_BYTES, MAX_CONTACT_PROJECTION_CLUES, MAX_CONTACT_PROJECTION_PROFILES, MAX_MINE_FILES, MAX_MINE_HASH_BYTES, MAX_POST_BYTES, MAX_PUBLISHED_AVATAR_BYTES, downloadedFileInfo, hashDownloadedFile, hashPublicFile, isVersionedPostPath, isPostImagePublicPath, parsePublicPost, postImagePublicPath, publicOriginalPath, readDiscoveryFile, readDiscoveryPost, readDownloadedAgentCard, readDownloadedFile, readDownloadedProfile, readDownloadedPublicProfile, readVerifiedDownloadedAvatar, readContactProjection, readContactNotes, readDownloadedProfileName, readJourney, readJourneyReportFile, readOwnPublic, saveContactImpression, savePrivateAgentFile, writeContactProjection, readPublicFile, LocalDataError, } from './local-data.js';
 import { MAX_HTML_SOURCE, MAX_MEDIA_PREVIEW, MAX_ZIP_ARCHIVE, PublicFileError, buildFilePreview, buildHtmlFilePreview, buildSandboxedHtml, buildZipFilePreview, fileTypeOf, firstMarkdownHeading, titleFallback, } from './public-files.js';
 import { subscribeEvents, } from './events.js';
 import { UI_INVOCATIONS, UI_SERVICE_KEY } from './ui-typert.js';
@@ -56,6 +57,7 @@ const DISCOVERY_FRESH_MS = 30_000;
 const DISCOVERY_PAGE_LIMIT = 100;
 const MAX_DISCOVERY_SCAN = 500;
 const MAX_DISCOVERY_PARSE = 200;
+const MAX_DISCOVERY_MANIFEST_TIMES = 4 * MAX_DISCOVERY_SCAN;
 const MAX_HUMAN_RELATION_SCAN = 10_000;
 const HUMAN_RELATION_PAGE_LIMIT = 500;
 const PROFILE_TTL_MS = 30_000;
@@ -63,6 +65,19 @@ const PROFILE_TTL_MS = 30_000;
 // copies stay honestly labelled unverified until an explicit read/reveal.
 const MAX_MANIFEST_HASH_FILE = 8 * 1024 * 1024;
 const MAX_MANIFEST_HASH_TOTAL = 48 * 1024 * 1024;
+// Explicit Feed refresh budgets. The candidate set is bounded before any dial;
+// posts and avatars have separate caps so a large peer list cannot fan out.
+const REFRESH_PEER_LIMIT = 8;
+const REFRESH_POSTS_PER_PEER = 12;
+const REFRESH_POSTS_TOTAL = 24;
+const REFRESH_CONCURRENCY = 2;
+const REFRESH_TOTAL_TIMEOUT_MS = 25_000;
+const REFRESH_MANIFEST_PAGE_LIMIT = 100;
+const REFRESH_MANIFEST_PAGES = 2;
+const FEED_AVATAR_READS = 12;
+// One published avatar may be 4 MiB; a single round also carries a combined
+// raw-byte cap so a peer list cannot fan out unbounded avatar reads.
+const FEED_AVATAR_BYTES = 8 * 1024 * 1024;
 // Explicit preview/reveal must verify the complete requested version. The
 // daemon publishes at most 100 MiB per file, so this covers a local original.
 const MAX_LOCAL_COPY_HASH = 128 * 1024 * 1024;
@@ -166,6 +181,31 @@ function shortPeer(value) {
 }
 function validSha256(value) {
     return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : '';
+}
+function discoveryVersionKey(filePath, sha256, sizeBytes) {
+    return `${filePath}\u0000${sha256}\u0000${sizeBytes}`;
+}
+function manifestVersionKey(peerId, filePath, sha256, sizeBytes) {
+    return `${peerId}\u0000${filePath}\u0000${sha256.toLowerCase()}\u0000${sizeBytes}`;
+}
+/** One verified avatar payload per key, so a page of posts by the same author
+ * does not repeat the same base64 data URL in every list item. */
+function publicAvatarTable(items) {
+    const table = {};
+    for (const item of items) {
+        const key = item.publisherAvatarKey;
+        if (key.length === 0 || item.publisherAvatarUrl.length === 0)
+            continue;
+        if (Object.prototype.hasOwnProperty.call(table, key))
+            continue;
+        table[key] = { url: item.publisherAvatarUrl, mime: item.publisherAvatarMime };
+    }
+    return table;
+}
+function itemsWithSharedAvatars(items, avatars) {
+    return items.map((item) => (Object.prototype.hasOwnProperty.call(avatars, item.publisherAvatarKey)
+        ? { ...item, publisherAvatarUrl: '' }
+        : item));
 }
 /** Accept only the daemon's content-addressed human-avatar shape. Invalid or
  * partial triples are reported as absent so the browser never gets a path
@@ -275,6 +315,21 @@ function maxPreviewRead(kind) {
         default:
             return 1;
     }
+}
+/** Feed avatars are PNG/JPEG only. Re-check the magic bytes before a data URL
+ * is placed in the DOM, independently of the declared MIME. */
+function avatarImageSignatureError(mime, data) {
+    if (mime === 'image/png') {
+        const png = data.length >= 8
+            && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47
+            && data[4] === 0x0d && data[5] === 0x0a && data[6] === 0x1a && data[7] === 0x0a;
+        return png ? '' : '公开头像字节与声明的 PNG 类型不一致';
+    }
+    if (mime === 'image/jpeg') {
+        return data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff
+            ? '' : '公开头像字节与声明的 JPEG 类型不一致';
+    }
+    return '公开头像 MIME 只允许 PNG 或 JPEG';
 }
 /** P2 only publishes PNG/JPEG post images. Verify the bytes actually match the
  * content-addressed extension before the browser receives a data URL. */
@@ -762,6 +817,11 @@ export class RamingaUiBridge {
     messagesFreshMs;
     dataDir;
     publisherNameCache = new Map();
+    // Agent and human avatar caches are deliberately separate. Each entry is
+    // keyed by the exact content-addressed version, so a profile update cannot
+    // reuse the other identity's bytes.
+    feedAgentAvatarCache = new Map();
+    publisherProfileCache = new Map();
     // Serialize host-owned projection updates so two profile/directory reads
     // cannot lose each other's entries. The file itself is written atomically.
     contactProjectionQueue = Promise.resolve();
@@ -867,6 +927,7 @@ export class RamingaUiBridge {
             send: (sessionId, peerId, text, requestId) => this.send(sessionId, peerId, text, requestId),
             cancelOutbox: (sessionId, messageId) => this.cancelOutbox(sessionId, messageId),
             discoveries: (sessionId, familiar, force) => this.discoveries(sessionId, familiar === true, force === true),
+            refreshDiscoveries: (sessionId, familiar) => this.refreshDiscoveries(sessionId, familiar === true),
             discoveryContent: (sessionId, id) => this.discoveryContent(sessionId, id),
             humanOutbound: (sessionId, force) => this.humanOutbound(sessionId, force === true),
             mine: (sessionId, force) => this.mine(sessionId, force === true),
@@ -942,6 +1003,10 @@ export class RamingaUiBridge {
                 messagesBusy: new Map(),
                 discoveries: new Map(),
                 discoveryBusy: new Map(),
+                discoveryRefreshBusy: new Map(),
+                manifestTimes: new Map(),
+                refreshCursors: new Map(),
+                pendingRefreshPages: new Map(),
                 humanOutbound: { peers: [], at: 0, error: null, errorAt: 0, streamEpoch: -1, complete: false, scanned: 0 },
                 humanOutboundBusy: null,
                 mine: { data: null, at: 0, errorAt: 0 },
@@ -1569,24 +1634,16 @@ export class RamingaUiBridge {
                     truncated = true;
             }
             const postRows = rows.filter((row) => isVersionedPostPath(row.path));
-            const toParse = postRows.slice(0, MAX_DISCOVERY_PARSE);
-            if (postRows.length > toParse.length)
-                truncated = true;
-            const names = await this.resolvePublisherNames([canonical]);
-            const budget = { reads: 0, bytes: 0 };
-            const items = [];
-            let ignored = rows.length - postRows.length;
-            for (const row of toParse) {
-                const item = await this.discoveryItem(row, names.get(canonical) ?? '', budget);
-                if (item === null)
-                    ignored += 1;
-                else
-                    items.push(item);
-            }
+            const built = await this.discoveryItemsForRows(session, postRows);
+            truncated ||= built.truncated;
+            const items = built.items;
+            const ignored = rows.length - postRows.length + built.ignored;
             this.assertSessionActive(session);
+            const avatars = publicAvatarTable(items);
             return {
                 peerId: canonical,
-                items,
+                items: itemsWithSharedAvatars(items, avatars),
+                avatars,
                 at,
                 error: null,
                 errorAt: null,
@@ -1600,7 +1657,7 @@ export class RamingaUiBridge {
         }
         catch (error) {
             return {
-                peerId: canonical, items: [], at: null, error: errorMessage(error), errorAt: this.now(),
+                peerId: canonical, items: [], avatars: {}, at: null, error: errorMessage(error), errorAt: this.now(),
                 freshness: 'unavailable', familiar: false, scanned: 0, truncated: false, relationComplete: false, ignored: 0,
             };
         }
@@ -2090,20 +2147,10 @@ export class RamingaUiBridge {
                 // files never consume this page budget. The local filter below remains
                 // a compatibility guard for older daemons that ignore the new field.
                 const postRows = rows.filter((row) => isVersionedPostPath(row.path));
-                const toParse = postRows.slice(0, MAX_DISCOVERY_PARSE);
-                if (postRows.length > toParse.length)
-                    truncated = true;
-                const names = await this.resolvePublisherNames(toParse.map((row) => row.peerId));
-                const metaBudget = { reads: 0, bytes: 0 };
-                const items = [];
-                let ignored = rows.length - postRows.length;
-                for (const row of toParse) {
-                    const item = await this.discoveryItem(row, names.get(row.peerId) ?? '', metaBudget);
-                    if (item === null)
-                        ignored += 1;
-                    else
-                        items.push(item);
-                }
+                const built = await this.discoveryItemsForRows(session, postRows);
+                truncated ||= built.truncated;
+                const items = built.items;
+                const ignored = rows.length - postRows.length + built.ignored;
                 if (!this.isSessionActive(session))
                     return;
                 const state = session.discoveries.get(key);
@@ -2132,24 +2179,23 @@ export class RamingaUiBridge {
         session.discoveryBusy.set(key, promise);
         return promise;
     }
-    /**
-     * Verify one discovery row as a recognizable versioned post (v1 or v2).
-     * Non-post public files are not Feed items at all. A post row whose local
-     * copy is missing or no longer matches its recorded version stays visible
-     * with an explicit error so the reader is not silently told it vanished.
-     */
-    async discoveryItem(row, publisherName, budget) {
-        if (!isVersionedPostPath(row.path))
-            return null;
-        const item = {
+    /** Build the public card shell before checking the local copy. */
+    discoveryItemBase(row, publisher, modifiedAt) {
+        return {
             id: row.id,
             peerId: row.peerId,
-            publisherName: publisherName || shortPeer(row.peerId),
+            publisherName: publisher?.name || shortPeer(row.peerId),
+            publisherAgentName: publisher?.agentName ?? '',
+            publisherAvatarKey: publisher?.avatarKey ?? '',
+            publisherAvatarUrl: publisher?.avatarUrl ?? '',
+            publisherAvatarMime: publisher?.avatarMime ?? '',
             path: row.path,
             name: path.posix.basename(row.path),
             sha256: row.sha256,
             sizeBytes: row.sizeBytes,
-            modifiedAt: 0,
+            // This is the remote public original's observed time. A local download
+            // mtime is a different fact and must never fill this field.
+            modifiedAt,
             fetchedAt: row.fetchedAt,
             source: row.source,
             sources: [...row.sources],
@@ -2166,57 +2212,148 @@ export class RamingaUiBridge {
             contentError: '',
             images: [],
         };
+    }
+    /** Record only exact manifest versions observed for this peer. Recording is
+     * additive and session-local: after a restart without a manifest there is no
+     * public time to show, even if the downloaded copy still exists. */
+    recordManifestTimes(session, peerId, entries) {
+        for (const entry of entries) {
+            const sha = validSha256(entry.sha256);
+            if (sha === '' || !isVersionedPostPath(entry.path) || entry.sizeBytes < 0)
+                continue;
+            const key = manifestVersionKey(peerId, entry.path, sha, entry.sizeBytes);
+            const at = numberOf(entry.modifiedAt);
+            session.manifestTimes.delete(key);
+            if (at > 0)
+                session.manifestTimes.set(key, at);
+        }
+        while (session.manifestTimes.size > MAX_DISCOVERY_MANIFEST_TIMES) {
+            const oldest = session.manifestTimes.keys().next().value;
+            if (oldest === undefined)
+                break;
+            session.manifestTimes.delete(oldest);
+        }
+    }
+    manifestModifiedAt(session, row) {
+        const sha = validSha256(row.sha256);
+        if (sha === '')
+            return 0;
+        return session.manifestTimes.get(manifestVersionKey(row.peerId, row.path, sha, row.sizeBytes)) ?? 0;
+    }
+    /** One Feed entry per (Peer ID, path). The daemon keeps every exact version
+     * row as evidence, but the single download slot for a path can only hold one
+     * version. A readable row always wins, even if a newer evidence row is
+     * corrupt or missing, so a stale index row cannot hide a usable card. When
+     * no row is readable the newest evidence supplies the honest diagnostic. */
+    async discoveryPathItem(session, rows, publisher, budget) {
+        const ordered = [...rows].sort((left, right) => right.fetchedAt - left.fetchedAt
+            || right.id.localeCompare(left.id));
+        const newest = ordered[0];
+        const diagnostic = (row, state, error) => {
+            const item = this.discoveryItemBase(row, publisher, this.manifestModifiedAt(session, row));
+            item.contentState = state;
+            item.contentError = error;
+            return item;
+        };
+        let info;
         try {
-            const info = await downloadedFileInfo(this.dataDir, row.peerId, row.path);
-            item.modifiedAt = info.modifiedAt;
-            if (info.size !== row.sizeBytes) {
-                item.contentState = 'hash-mismatch';
-                item.contentError = `本地副本大小 ${info.size} 字节与发现记录 ${row.sizeBytes} 字节不一致，不能当作同一版本`;
-                return item;
-            }
+            info = await downloadedFileInfo(this.dataDir, newest.peerId, newest.path);
         }
         catch (error) {
-            item.contentState = error instanceof Error && /不存在/.test(error.message) ? 'copy-missing' : 'unreadable';
-            item.contentError = error instanceof Error ? error.message : String(error);
-            return item;
+            const message = errorMessage(error);
+            return diagnostic(newest, /不存在/.test(message) ? 'copy-missing' : 'unreadable', message);
         }
-        // Reading every post body on a feed refresh is bounded: beyond the budget
-        // the row still stays recognizable by its versioned path and can be read
-        // from the detail page, but no title/summary is invented from the path.
-        if (budget.reads >= 40 || budget.bytes >= 8 * 1024 * 1024 || row.sizeBytes > 512 * 1024) {
-            item.contentState = 'downloaded-unverified';
-            item.contentError = '本次只读取了有界数量的帖子正文；打开详情时会再核对。';
-            return item;
+        const sameSize = ordered.filter((row) => row.sizeBytes === info.size);
+        if (sameSize.length === 0) {
+            return diagnostic(newest, 'hash-mismatch', `本地副本大小 ${info.size} 字节与发现记录 ${newest.sizeBytes} 字节不一致，不能当作同一版本`);
         }
+        // Reading every post body on a feed refresh is bounded. The newest
+        // evidence remains visible with an explicit unverified state; older rows
+        // for the same path are superseded rather than rendered as extra cards.
+        if (budget.reads >= 40 || budget.bytes >= 8 * 1024 * 1024 || info.size > 512 * 1024) {
+            return diagnostic(sameSize[0], 'downloaded-unverified', '本次只读取了有界数量的帖子正文；打开详情时会再核对。');
+        }
+        if (info.size > MAX_POST_BYTES) {
+            // A real post is bounded well below this; an oversized file is not a
+            // recognizable versioned post and must not become a generic Feed card.
+            return null;
+        }
+        let data;
         budget.reads += 1;
-        budget.bytes += row.sizeBytes;
+        budget.bytes += info.size;
         try {
-            const post = await readDiscoveryPost(this.dataDir, row);
+            data = await readDownloadedFile(this.dataDir, newest.peerId, newest.path, MAX_POST_BYTES);
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            if (/不存在/.test(message))
+                return diagnostic(newest, 'copy-missing', message);
+            if (/大小|哈希/.test(message))
+                return diagnostic(newest, 'hash-mismatch', message);
+            if (/超过|上限|too_large/.test(message))
+                return null;
+            return diagnostic(newest, 'unreadable', message);
+        }
+        const actualSha = createHash('sha256').update(data).digest('hex');
+        const matched = sameSize.find((row) => row.sha256.toLowerCase() === actualSha);
+        if (!matched) {
+            return diagnostic(newest, 'hash-mismatch', '本地副本的 SHA-256 与发现记录不一致，不能把已覆盖的旧版本当作这一版');
+        }
+        try {
+            const post = parsePublicPost(data, matched.path, matched.peerId);
+            const item = this.discoveryItemBase(matched, publisher, this.manifestModifiedAt(session, matched));
             item.title = post.title;
             item.summary = post.summary;
             item.tags = [...post.tags];
             item.publishedAt = post.publishedAt;
             item.authorKind = post.authorKind;
             item.authorName = post.authorName;
-            item.images = postImagesFromPost(post, row.path);
+            item.images = postImagesFromPost(post, matched.path);
             return item;
         }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+        catch {
             // A well-formed file that is not a versioned post (wrong schema,
-            // reserved-looking path, invalid author) is not a Feed item; count it as
-            // ignored instead of disguising it as a text post.
-            if (!/不存在|大小|哈希/.test(message))
-                return null;
-            item.contentState = /大小|哈希/.test(message) ? 'hash-mismatch' : 'copy-missing';
-            item.contentError = message;
-            return item;
+            // reserved-looking path, invalid author) is not a Feed item.
+            return null;
         }
+    }
+    /** Collapse same-path version evidence into one card per path. The hidden
+     * rows remain in the private index for favorites and exact version reads. */
+    async discoveryItemsForRows(session, rows) {
+        const groups = new Map();
+        let truncated = false;
+        for (const row of rows) {
+            const key = `${row.peerId}\u0000${row.path}`;
+            const group = groups.get(key);
+            if (group !== undefined)
+                group.push(row);
+            else if (groups.size < MAX_DISCOVERY_PARSE)
+                groups.set(key, [row]);
+            else
+                truncated = true;
+        }
+        const publishers = await this.resolvePublisherIdentities([...groups.values()].map((group) => group[0].peerId));
+        const budget = { reads: 0, bytes: 0 };
+        const items = [];
+        let ignored = 0;
+        for (const group of groups.values()) {
+            const item = await this.discoveryPathItem(session, group, publishers.get(group[0].peerId) ?? null, budget);
+            if (item === null)
+                ignored += 1;
+            else
+                items.push(item);
+        }
+        // Order cards by the observed retrieval time of the rendered versions.
+        items.sort((left, right) => right.fetchedAt - left.fetchedAt);
+        return { items, ignored, truncated };
     }
     discoveriesSnapshot(session, familiar) {
         const state = session.discoveries.get(familiar ? 'familiar' : 'all') ?? this.emptyDiscoveriesState(familiar);
+        const items = state.items.map((item) => ({ ...item, sources: [...item.sources], tags: [...item.tags] }));
+        const avatars = publicAvatarTable(items);
         return {
-            items: state.items.map((item) => ({ ...item, sources: [...item.sources], tags: [...item.tags] })),
+            items: itemsWithSharedAvatars(items, avatars),
+            avatars,
             at: state.at > 0 ? state.at : null,
             error: state.error,
             errorAt: state.errorAt > 0 ? state.errorAt : null,
@@ -2227,6 +2364,383 @@ export class RamingaUiBridge {
             relationComplete: state.relationComplete,
             ignored: state.ignored,
         };
+    }
+    /**
+     * Explicit Feed refresh. Only this path starts bounded remote manifest
+     * checks; page entry, TTL, search, passive event re-reads and an explicit
+     * local retry all stay on `discoveries()` and never download a post.
+     *
+     * One panel shares an in-flight refresh per filter. Each run first asks the
+     * daemon for its local candidate set, then checks those peers independently
+     * so one offline peer cannot stop the others. Existing verified rows are
+     * skipped; a missing local copy is re-fetched even when its index row exists.
+     */
+    async refreshDiscoveries(sessionId, familiar = false) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        session.lastPollAt = this.now();
+        const key = familiar ? 'familiar' : 'all';
+        const existing = session.discoveryRefreshBusy.get(key);
+        if (existing !== undefined) {
+            const result = await existing;
+            return { ...result, refresh: { ...result.refresh, coalesced: true } };
+        }
+        const started = this.now();
+        const summary = this.emptyRefreshSummary(familiar);
+        const budget = { posts: 0, deadline: started + REFRESH_TOTAL_TIMEOUT_MS, truncated: false };
+        let promise;
+        promise = (async () => {
+            try {
+                if (this.dataDir.length === 0)
+                    throw new Error('宿主没有提供受控数据目录，无法核对公开内容来源');
+                await this.ensureReady();
+                let page = session.pendingRefreshPages.get(key);
+                if (page === undefined) {
+                    const requestPage = (after) => this.api.call((client) => client.listDiscoveryRefreshPeers(new ListDiscoveryRefreshPeersRequest({
+                        limit: REFRESH_PEER_LIMIT,
+                        familiarOnly: familiar,
+                        after,
+                    }), { timeoutMs: 5000 }), '读取可检查的公开动态节点');
+                    const parsePage = (peers) => {
+                        const seen = new Set();
+                        for (const row of peers) {
+                            const peerId = canonicalPeerId(String(row?.peerId ?? ''));
+                            if (peerId !== null)
+                                seen.add(peerId);
+                        }
+                        return [...seen];
+                    };
+                    try {
+                        const after = session.refreshCursors.get(key) ?? '';
+                        let response = await requestPage(after);
+                        let peerIds = parsePage(response.peers ?? []);
+                        if (peerIds.length === 0 && after !== '') {
+                            // The candidate set can change between requests. Wrap at most
+                            // once when the cursor no longer has any peers after it.
+                            session.refreshCursors.delete(key);
+                            response = await requestPage('');
+                            peerIds = parsePage(response.peers ?? []);
+                        }
+                        page = {
+                            peerIds: peerIds.slice(0, REFRESH_PEER_LIMIT),
+                            totalPeers: Math.max(numberOf(response.total), peerIds.length),
+                            nextAfter: String(response.nextAfter ?? ''),
+                            truncated: response.truncated === true,
+                        };
+                    }
+                    catch (error) {
+                        if (isUnimplementedError(error)) {
+                            summary.unsupported = true;
+                            summary.error = '当前节点版本不支持远端动态检查。已保留并重读本地已有内容。';
+                        }
+                        else {
+                            summary.error = `读取可检查节点失败：${redactActivityReadError(error)}`;
+                        }
+                        throw error;
+                    }
+                }
+                const boundedTargets = page.peerIds;
+                summary.totalPeers = page.totalPeers;
+                const results = [];
+                let next = 0;
+                const worker = async () => {
+                    while (next < boundedTargets.length) {
+                        const index = next;
+                        next += 1;
+                        const peerId = boundedTargets[index];
+                        const peerName = this.refreshPeerName(session, peerId);
+                        if (this.now() >= budget.deadline) {
+                            results[index] = {
+                                peerId, peerName, status: 'not-covered', imported: 0, skipped: 0, invalid: 0,
+                                manifestChanged: false, error: '本次刷新总时长预算已用完，未检查该节点。',
+                            };
+                            continue;
+                        }
+                        results[index] = await this.refreshOnePeer(session, peerId, peerName, budget);
+                    }
+                };
+                const workers = Array.from({ length: Math.min(REFRESH_CONCURRENCY, boundedTargets.length) }, () => worker());
+                await Promise.all(workers);
+                let attempted = 0;
+                summary.peers = [];
+                for (const result of results) {
+                    if (result === undefined)
+                        continue;
+                    summary.peers.push(result);
+                    summary.imported += result.imported;
+                    summary.skipped += result.skipped;
+                    summary.invalid += result.invalid;
+                    if (result.status === 'not-covered')
+                        continue;
+                    attempted += 1;
+                    if (result.status === 'failed')
+                        summary.failed += 1;
+                    else if (result.status === 'partial')
+                        summary.partial += 1;
+                }
+                summary.checkedPeers = attempted;
+                summary.notCovered = Math.max(0, summary.totalPeers - attempted);
+                summary.truncated = summary.notCovered > 0 || budget.truncated || page.truncated;
+                // Resume the unattempted portion of this bounded page first. Reissuing
+                // its query would spend the next budget on the same slow peers again.
+                const remaining = results.filter((result) => result.status === 'not-covered').map((result) => result.peerId);
+                if (remaining.length > 0) {
+                    session.pendingRefreshPages.set(key, { ...page, peerIds: remaining });
+                }
+                else {
+                    session.pendingRefreshPages.delete(key);
+                    if (page.nextAfter.length > 0)
+                        session.refreshCursors.set(key, page.nextAfter);
+                    else
+                        session.refreshCursors.delete(key);
+                }
+                if (summary.failed > 0 && summary.error === null) {
+                    summary.error = `${summary.failed} 个节点这次没有检查完成；旧帖保留，在线节点仍会继续更新。`;
+                }
+                this.assertSessionActive(session);
+            }
+            catch (error) {
+                if (summary.error === null)
+                    summary.error = `远端检查没有完成：${redactActivityReadError(error)}`;
+                if (!this.isSessionActive(session))
+                    throw error;
+            }
+            summary.at = this.now();
+            summary.durationMs = Math.max(0, summary.at - started);
+            let discoveries;
+            try {
+                discoveries = await this.discoveries(sessionId, familiar, true);
+            }
+            catch (error) {
+                // A failed remote check must never erase the old filter snapshot. The
+                // UI keeps its previous items when this final local re-read also fails.
+                this.assertSessionActive(session);
+                discoveries = this.discoveriesSnapshot(session, familiar);
+                if (summary.error === null)
+                    summary.error = `重读本地动态失败：${redactActivityReadError(error)}`;
+            }
+            return { ...discoveries, refresh: summary };
+        })().finally(() => {
+            if (session.discoveryRefreshBusy.get(key) === promise)
+                session.discoveryRefreshBusy.delete(key);
+        });
+        session.discoveryRefreshBusy.set(key, promise);
+        return promise;
+    }
+    emptyRefreshSummary(familiar) {
+        return {
+            familiar, at: 0, checkedPeers: 0, totalPeers: 0, imported: 0, skipped: 0,
+            invalid: 0, failed: 0, partial: 0, notCovered: 0, truncated: false, coalesced: false,
+            unsupported: false, durationMs: 0, error: null, peers: [],
+        };
+    }
+    async loadRefreshDiscoveryRows(peerId) {
+        const rows = [];
+        let before = '';
+        for (let pageIndex = 0; pageIndex < 2 && rows.length < REFRESH_MANIFEST_PAGE_LIMIT * 2; pageIndex += 1) {
+            const response = await this.api.call((client) => client.listDiscoveries(new ListDiscoveriesRequest({
+                peerId, limit: REFRESH_MANIFEST_PAGE_LIMIT, before, postCandidatesOnly: true,
+            }), { timeoutMs: 4000 }), '读取节点已收录帖子');
+            for (const raw of response.discoveries ?? []) {
+                rows.push({
+                    id: String(raw.id ?? ''),
+                    peerId: String(raw.peerId ?? ''),
+                    path: String(raw.path ?? ''),
+                    sha256: String(raw.sha256 ?? '').toLowerCase(),
+                    sizeBytes: numberOf(raw.sizeBytes),
+                    fetchedAt: numberOf(raw.fetchedAtUnixMs),
+                    source: String(raw.source ?? ''),
+                    sources: (raw.sources ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0),
+                });
+            }
+            if (response.hasMore !== true)
+                break;
+            const next = String(response.nextBefore ?? '');
+            if (next.length === 0 || next === before)
+                break;
+            before = next;
+        }
+        return rows;
+    }
+    async fetchRefreshManifest(peerId, deadline) {
+        const entries = [];
+        let total = 0;
+        let truncated = false;
+        let offset = 0;
+        for (let pageIndex = 0; pageIndex < REFRESH_MANIFEST_PAGES; pageIndex += 1) {
+            const remaining = deadline - this.now();
+            if (remaining <= 0) {
+                truncated = true;
+                break;
+            }
+            const response = await this.api.call((client) => client.getPeerManifest(new GetPeerManifestRequest({ peerId, offset, limit: REFRESH_MANIFEST_PAGE_LIMIT }), { timeoutMs: Math.max(500, Math.min(8000, remaining)) }), '检查远端公开清单');
+            total = numberOf(response.total);
+            const page = response.entries ?? [];
+            for (const entry of page) {
+                const filePath = String(entry.path ?? '');
+                if (filePath.length === 0)
+                    continue;
+                entries.push({
+                    path: filePath,
+                    sha256: String(entry.sha256 ?? '').toLowerCase(),
+                    sizeBytes: numberOf(entry.size),
+                    modifiedAt: numberOf(entry.modifiedUnixMs),
+                });
+            }
+            if (response.limited === true)
+                truncated = true;
+            offset += page.length;
+            if (page.length === 0 || offset >= total)
+                break;
+            if (entries.length >= REFRESH_MANIFEST_PAGE_LIMIT * REFRESH_MANIFEST_PAGES) {
+                truncated = true;
+                break;
+            }
+        }
+        if (entries.length < total)
+            truncated = true;
+        return { entries, total, truncated };
+    }
+    /** Local-only display name for a refresh result. No profile/manifest read is
+     * started just to label the bounded report. */
+    refreshPeerName(session, peerId) {
+        return session.peerProfiles.get(peerId)?.data.remoteName
+            || this.publisherNameCache.get(peerId)?.name
+            || '';
+    }
+    async refreshOnePeer(session, peerId, peerName, budget) {
+        const result = {
+            peerId, peerName, status: 'checked', imported: 0, skipped: 0, invalid: 0,
+            manifestChanged: false, error: '',
+        };
+        let rows = [];
+        let indexError = '';
+        try {
+            rows = await this.loadRefreshDiscoveryRows(peerId);
+        }
+        catch (error) {
+            indexError = redactActivityReadError(error);
+        }
+        let manifest;
+        try {
+            manifest = await this.fetchRefreshManifest(peerId, budget.deadline);
+        }
+        catch (error) {
+            result.status = 'failed';
+            result.error = [indexError ? `本地收录记录读取失败：${indexError}` : '', redactActivityReadError(error)]
+                .filter(Boolean).join('；').slice(0, 400);
+            return result;
+        }
+        if (manifest.truncated)
+            budget.truncated = true;
+        // This exact observation is the only source for a public original time on
+        // the Feed card; the local download mtime is never substituted for it.
+        this.recordManifestTimes(session, peerId, manifest.entries);
+        if (indexError.length > 0)
+            result.error = `本地收录记录读取失败：${indexError}`;
+        // Path order is publication order, not recency. Filter and order by the
+        // remote modified time first, then let already-verified versions pass
+        // without consuming the per-peer/total download budget. Otherwise a page
+        // of old posts can hide every newer post behind the same path prefix.
+        const candidates = manifest.entries.filter((entry) => isVersionedPostPath(entry.path));
+        const valid = candidates.filter((entry) => {
+            if (validSha256(entry.sha256) && entry.sizeBytes > 0 && entry.sizeBytes <= MAX_POST_BYTES)
+                return true;
+            result.invalid += 1;
+            return false;
+        });
+        const versionSeen = new Set();
+        const ordered = valid
+            .filter((entry) => {
+            const key = discoveryVersionKey(entry.path, entry.sha256, entry.sizeBytes);
+            if (versionSeen.has(key))
+                return false;
+            versionSeen.add(key);
+            return true;
+        })
+            .sort((left, right) => right.modifiedAt - left.modifiedAt
+            || left.path.localeCompare(right.path)
+            || left.sha256.localeCompare(right.sha256));
+        // Exact path+SHA+size identity. A path keyed map would let an older index
+        // row for the same path hide the newer version that is actually cached.
+        const known = new Set(rows.map((row) => discoveryVersionKey(row.path, row.sha256, row.sizeBytes)));
+        let attempted = 0;
+        for (const entry of ordered) {
+            if (this.now() >= budget.deadline) {
+                budget.truncated = true;
+                break;
+            }
+            const versionKey = discoveryVersionKey(entry.path, entry.sha256, entry.sizeBytes);
+            if (known.has(versionKey)) {
+                let localMatches = false;
+                try {
+                    const local = await hashDownloadedFile(this.dataDir, peerId, entry.path, MAX_POST_BYTES);
+                    localMatches = local.size === entry.sizeBytes && local.sha256 === entry.sha256;
+                }
+                catch {
+                    // An index row without its verified copy must be repaired by this
+                    // explicit refresh; it is not a duplicate merely because evidence exists.
+                }
+                if (localMatches) {
+                    result.skipped += 1;
+                    continue;
+                }
+            }
+            if (attempted >= REFRESH_POSTS_PER_PEER || budget.posts >= REFRESH_POSTS_TOTAL) {
+                budget.truncated = true;
+                break;
+            }
+            const remaining = budget.deadline - this.now();
+            if (remaining <= 0) {
+                budget.truncated = true;
+                break;
+            }
+            attempted += 1;
+            budget.posts += 1;
+            let verifying = false;
+            try {
+                const last = await this.downloadPeerFile(peerId, entry.path, { recordDiscovery: true, discoverySource: 'raminga_ui_refresh', timeoutMs: Math.max(500, Math.min(30_000, remaining)) }, '手动刷新公开动态');
+                if (last === null || last.phase !== 'complete' || last.error.length > 0) {
+                    throw new Error(last?.error || '下载没有完成');
+                }
+                if (last.path !== entry.path)
+                    throw new Error('下载结果的公开路径与清单不一致');
+                if (!last.discoveryRecorded) {
+                    throw new Error(last.discoveryError || '下载完成但没有写入本机发现索引');
+                }
+                verifying = true;
+                const sha = validSha256(last.sha256);
+                if (sha === '')
+                    throw new Error('下载结果缺少有效 SHA-256');
+                if (sha !== entry.sha256)
+                    result.manifestChanged = true;
+                if (last.totalBytes <= 0 || last.totalBytes > MAX_POST_BYTES)
+                    throw new Error('下载帖子超过动态读取上限');
+                await readDiscoveryPost(this.dataDir, {
+                    peerId, path: entry.path, sha256: sha, sizeBytes: last.totalBytes,
+                });
+                result.imported += 1;
+                // A later success makes this a partial failure, not a failed node.
+                result.status = 'checked';
+            }
+            catch (error) {
+                if (verifying) {
+                    // The bytes were fetched and recorded, but the controlled parser
+                    // rejected them. The Feed reader filters such rows; count them as
+                    // invalid rather than pretending the node check itself failed.
+                    result.invalid += 1;
+                    result.status = 'checked';
+                }
+                else {
+                    result.status = result.imported > 0 ? 'partial' : 'failed';
+                }
+                result.error = [result.error, redactActivityReadError(error)].filter(Boolean).join('；').slice(0, 400);
+            }
+        }
+        if (result.imported > 0 && result.error.length > 0 && result.status !== 'failed') {
+            result.status = 'partial';
+        }
+        return result;
     }
     async discoveryContent(sessionId, id) {
         this.assertOpen();
@@ -2330,26 +2844,126 @@ export class RamingaUiBridge {
             post: preview.post ? { ...preview.post, contentState: 'available' } : null,
         };
     }
-    async resolvePublisherNames(peerIds) {
-        const names = new Map();
+    /** Resolve the name and the matching local avatar for each publisher.
+     * Neither names nor avatar bytes trigger a remote read here: only a profile
+     * already learned/downloaded on this node and a hash/size/MIME/signature
+     * checked local copy can be used. */
+    async resolvePublisherIdentities(peerIds) {
+        const identities = new Map();
         const unique = [...new Set(peerIds.filter((value) => value.length > 0))].slice(0, 200);
+        const budget = { reads: 0, bytes: 0 };
+        let projection;
         for (const peerId of unique) {
-            const cached = this.publisherNameCache.get(peerId);
-            if (cached && this.now() - cached.at < 5 * 60_000) {
-                if (cached.name.length > 0)
-                    names.set(peerId, cached.name);
-                continue;
-            }
-            // Discovery cards must not turn one feed read into up to hundreds of
-            // remote profile downloads. Use a name already learned from a profile
-            // visit or the locally downloaded profile/index.md; otherwise the card
-            // keeps the short Peer ID fallback.
-            const name = (await readDownloadedProfileName(this.dataDir, peerId)).trim().slice(0, 120);
-            this.publisherNameCache.set(peerId, { at: this.now(), name });
-            if (name.length > 0)
-                names.set(peerId, name);
+            identities.set(peerId, await this.resolvePublisherIdentity(peerId, budget, async () => {
+                projection ??= readContactProjection(this.dataDir, { avatars: false });
+                return (await projection).profiles.find((item) => item.peerId === peerId)?.displayName ?? '';
+            }));
         }
-        return names;
+        return identities;
+    }
+    async publisherName(peerId) {
+        const cached = this.publisherNameCache.get(peerId);
+        if (cached && this.now() - cached.at < 5 * 60_000)
+            return cached.name;
+        // Discovery cards must not turn one feed read into up to hundreds of
+        // remote profile downloads. Use the name already present in the local
+        // profile/index.md copy; otherwise the card keeps the short Peer ID.
+        const name = (await readDownloadedProfileName(this.dataDir, peerId)).trim().slice(0, 120);
+        this.publisherNameCache.set(peerId, { at: this.now(), name });
+        return name;
+    }
+    async downloadedPublisherProfile(peerId) {
+        let info;
+        try {
+            info = await downloadedFileInfo(this.dataDir, peerId, 'profile/profile.json');
+        }
+        catch {
+            this.publisherProfileCache.delete(peerId);
+            return null;
+        }
+        const cached = this.publisherProfileCache.get(peerId);
+        if (cached && cached.mtime === info.modifiedAt && cached.size === info.size)
+            return cached;
+        const read = await readDownloadedPublicProfile(this.dataDir, peerId);
+        if (read.state !== 'available' || read.profile === null) {
+            this.publisherProfileCache.delete(peerId);
+            return null;
+        }
+        const profile = read.profile;
+        const snapshot = {
+            at: this.now(),
+            mtime: info.modifiedAt,
+            size: info.size,
+            agentName: profile.agentName.trim().slice(0, 120),
+            avatar: profile.avatarPath && profile.avatarSha256 && profile.avatarMime
+                ? { path: profile.avatarPath, sha256: profile.avatarSha256, mime: profile.avatarMime, sizeBytes: 0 }
+                : null,
+        };
+        this.publisherProfileCache.set(peerId, snapshot);
+        if (this.publisherProfileCache.size > 256) {
+            const oldest = this.publisherProfileCache.keys().next().value;
+            if (oldest !== undefined)
+                this.publisherProfileCache.delete(oldest);
+        }
+        return snapshot;
+    }
+    async resolvePublisherIdentity(peerId, budget, legacyName, preferredName = '') {
+        const name = preferredName || await this.publisherName(peerId);
+        const profile = await this.downloadedPublisherProfile(peerId);
+        const agentName = profile === null ? (await legacyName()).trim().slice(0, 120) : profile.agentName;
+        const identity = { name, agentName, avatarKey: '', avatarUrl: '', avatarMime: '' };
+        if (!agentName || !profile?.avatar)
+            return identity;
+        const verified = await this.feedAvatar(peerId, profile.avatar, budget);
+        return verified === null ? identity
+            : { ...identity, avatarKey: verified.key, avatarUrl: verified.url, avatarMime: verified.mime };
+    }
+    async feedAvatar(peerId, avatar, budget) {
+        const cache = this.feedAgentAvatarCache;
+        let info;
+        try {
+            info = await downloadedFileInfo(this.dataDir, peerId, avatar.path);
+        }
+        catch {
+            cache.delete(peerId);
+            return null;
+        }
+        if (info.size !== avatar.sizeBytes && avatar.sizeBytes > 0) {
+            cache.delete(peerId);
+            return null;
+        }
+        if (info.size <= 0 || info.size > MAX_PUBLISHED_AVATAR_BYTES)
+            return null;
+        // The modified time is part of the identity: an overwritten file can keep
+        // the same size/hash metadata while its bytes are damaged. A warmed entry
+        // must then be re-read and fall back instead of serving the old data URL.
+        const key = `${peerId}\u0000${avatar.path}\u0000${avatar.sha256}\u0000${info.size}\u0000${info.modifiedAt}\u0000${avatar.mime}`;
+        if (budget.reads >= FEED_AVATAR_READS || budget.bytes + info.size > FEED_AVATAR_BYTES)
+            return null;
+        // Bound both disk reads and the size of the snapshot, including cache hits.
+        budget.reads += 1;
+        budget.bytes += info.size;
+        const cached = cache.get(peerId);
+        if (cached && cached.key === key)
+            return cached;
+        try {
+            const verified = await readVerifiedDownloadedAvatar(this.dataDir, peerId, {
+                path: avatar.path, sha256: avatar.sha256, mime: avatar.mime, sizeBytes: info.size,
+            });
+            const entry = { key, url: verified.dataUrl, mime: verified.mime };
+            cache.delete(peerId);
+            cache.set(peerId, entry);
+            if (cache.size > 256) {
+                const oldest = cache.keys().next().value;
+                if (oldest !== undefined)
+                    cache.delete(oldest);
+            }
+            return entry;
+        }
+        catch {
+            cache.delete(peerId);
+            return null;
+        }
     }
     previewFailure(subject, peerId, filePath, sha256, sizeBytes, status, error, source = '', sources = [], fetchedAt = 0, localCopy = 'unreadable', acquisition = 'none') {
         const type = fileTypeOf(filePath);
@@ -2408,7 +3022,7 @@ export class RamingaUiBridge {
     // --- Peer public manifest, node information and manual content reads -----
     emptyPeerManifest(peerId, publisherName, error) {
         return {
-            peerId, publisherName: publisherName || shortPeer(peerId), entries: [], source: 'unavailable',
+            peerId, publisherName: publisherName || shortPeer(peerId), entries: [], avatars: {}, source: 'unavailable',
             at: null, error, errorAt: error.length > 0 ? this.now() : null,
             freshness: error.length > 0 ? 'unavailable' : 'loading', truncated: false, total: 0,
         };
@@ -2419,9 +3033,12 @@ export class RamingaUiBridge {
             return this.emptyPeerManifest(peerId, '', '正在读取对方公开清单');
         const data = state.data;
         const freshness = this.listFreshness(state.at, data.error, data.entries.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS);
+        const entries = data.entries.map((entry) => ({ ...entry, sources: [...entry.sources], tags: [...entry.tags] }));
+        const avatars = publicAvatarTable(entries);
         return {
             ...data,
-            entries: data.entries.map((entry) => ({ ...entry, sources: [...entry.sources], tags: [...entry.tags] })),
+            entries: itemsWithSharedAvatars(entries, avatars),
+            avatars,
             at: data.at,
             freshness,
         };
@@ -2504,12 +3121,16 @@ export class RamingaUiBridge {
             truncated = true;
         return { rows, truncated };
     }
-    peerFileEntry(peerId, publisherName, row) {
+    peerFileEntry(peerId, publisherName, row, publisher = null) {
         const type = fileTypeOf(row.path);
         return {
             id: `${peerId}\u0000${row.sha256}\u0000${row.path}`,
             peerId,
             publisherName,
+            publisherAgentName: publisher?.agentName ?? '',
+            publisherAvatarKey: publisher?.avatarKey ?? '',
+            publisherAvatarUrl: publisher?.avatarUrl ?? '',
+            publisherAvatarMime: publisher?.avatarMime ?? '',
             path: row.path,
             name: path.posix.basename(row.path),
             sha256: row.sha256,
@@ -2534,7 +3155,10 @@ export class RamingaUiBridge {
     }
     /** Rebuild a partial manifest only from local copies whose bytes match a
      * recorded discovery hash. It is explicitly history, not a current list. */
-    async localHistoryEntries(peerId, publisherName, rows) {
+    async localHistoryEntries(peerId, publisherName, rows, publisher, previousEntries) {
+        const publicTimes = new Map(previousEntries.map((item) => [
+            discoveryVersionKey(item.path, item.sha256, item.sizeBytes), item.modifiedAt,
+        ]));
         const byPath = new Map();
         for (const row of rows) {
             if (row.path.length === 0)
@@ -2574,13 +3198,13 @@ export class RamingaUiBridge {
                 path: filePath,
                 sha256: matched.sha256,
                 sizeBytes: matched.sizeBytes,
-                modifiedAt: version.modifiedAt,
+                modifiedAt: publicTimes.get(discoveryVersionKey(filePath, matched.sha256, matched.sizeBytes)) ?? 0,
                 fetchedAt: matched.fetchedAt,
                 source: matched.source || 'local-copy',
                 sources: matched.sources.length > 0 ? matched.sources : ['local-copy'],
                 contentState: 'available',
                 contentError: '',
-            }));
+            }, publisher));
         }
         return { entries, truncated };
     }
@@ -2658,6 +3282,10 @@ export class RamingaUiBridge {
             || this.publisherNameCache.get(peerId)?.name
             || (await readDownloadedProfileName(this.dataDir, peerId))
             || shortPeer(peerId);
+        const legacyFromProjection = async () => {
+            const projection = await readContactProjection(this.dataDir, { avatars: false });
+            return projection.profiles.find((item) => item.peerId === peerId)?.displayName ?? '';
+        };
         let remoteError = null;
         try {
             await this.ensureReady();
@@ -2699,6 +3327,7 @@ export class RamingaUiBridge {
                     break;
                 }
             }
+            this.recordManifestTimes(session, peerId, entries);
             let evidence = { rows: [], truncated: false };
             try {
                 evidence = await this.loadDiscoveryEvidence(peerId);
@@ -2707,13 +3336,26 @@ export class RamingaUiBridge {
                 // The remote manifest is still usable. Without evidence, local copies
                 // can still be stat/hash-checked below but keep unknown provenance.
             }
+            const publisher = await this.resolvePublisherIdentity(peerId, { reads: 0, bytes: 0 }, async () => {
+                const entry = entries.find((item) => item.path === 'profile/agent-card.json');
+                if (!entry || !validSha256(entry.sha256) || entry.sizeBytes <= 0)
+                    return '';
+                const legacy = await readDownloadedAgentCard(this.dataDir, peerId, entry.path, entry.sha256, entry.sizeBytes);
+                return legacy.card?.displayName ?? '';
+            }, publisherName);
+            for (const entry of entries) {
+                entry.publisherAgentName = publisher.agentName;
+                entry.publisherAvatarKey = publisher.avatarKey;
+                entry.publisherAvatarUrl = publisher.avatarUrl;
+                entry.publisherAvatarMime = publisher.avatarMime;
+            }
             await this.decorateRemoteEntries(peerId, entries, evidence.rows);
             if (!this.isSessionActive(session))
                 return;
             session.peerManifests.set(peerId, {
                 at,
                 data: {
-                    peerId, publisherName, entries, source: 'remote', at, error: null, errorAt: null,
+                    peerId, publisherName, entries, avatars: {}, source: 'remote', at, error: null, errorAt: null,
                     freshness: 'live', truncated: truncated || evidence.truncated || entries.length < total, total,
                 },
             });
@@ -2732,7 +3374,8 @@ export class RamingaUiBridge {
         catch (error) {
             evidenceError = errorMessage(error);
         }
-        const local = await this.localHistoryEntries(peerId, publisherName, evidence.rows);
+        const publisher = await this.resolvePublisherIdentity(peerId, { reads: 0, bytes: 0 }, legacyFromProjection, publisherName);
+        const local = await this.localHistoryEntries(peerId, publisherName, evidence.rows, publisher, previous?.data.entries ?? []);
         if (!this.isSessionActive(session))
             return;
         if (local.entries.length > 0) {
@@ -2740,7 +3383,7 @@ export class RamingaUiBridge {
             session.peerManifests.set(peerId, {
                 at,
                 data: {
-                    peerId, publisherName, entries: local.entries, source: 'local-history', at,
+                    peerId, publisherName, entries: local.entries, avatars: {}, source: 'local-history', at,
                     error: evidenceError.length > 0 ? `${message} 获取记录读取也失败：${evidenceError}` : message,
                     errorAt: this.now(), freshness: 'stale',
                     truncated: local.truncated || evidence.truncated, total: local.entries.length,
@@ -2899,7 +3542,7 @@ export class RamingaUiBridge {
                             path: wanted,
                             sha256: localSha,
                             sizeBytes: local.size,
-                            modifiedAt: local.modifiedAt,
+                            modifiedAt: 0,
                             fetchedAt: 0,
                             source: 'local-copy',
                             sources: ['local-copy'],
@@ -3590,9 +4233,44 @@ export class RamingaUiBridge {
             publicProfile: { state: 'missing', profile: null, error: '本机还没有公开资料 profile.json' },
             files: [],
             filesTruncated: false,
+            publisherAgentName: '',
+            publisherAvatarKey: '',
+            publisherAvatarUrl: '',
+            publisherAvatarMime: '',
         };
     }
-    async mineFiles(listed, peerId, publisherName) {
+    /** Resolve Mine's own avatar from the current published profile and public
+     * manifest. This is a local read only; it never calls the daemon or a peer. */
+    async resolveLocalPublishedPublisher(peerId, agentCard, profile, publishedSizes) {
+        const agentName = (agentCard.card?.displayName ?? '').trim().slice(0, 120);
+        const identity = { agentName, avatarKey: '', avatarUrl: '', avatarMime: '' };
+        if (!agentName || !profile)
+            return identity;
+        const avatar = { path: profile.avatarPath, sha256: profile.avatarSha256, mime: profile.avatarMime };
+        const size = publishedSizes.get(avatar.path) ?? 0;
+        if (!avatar.path || !avatar.sha256 || !avatar.mime || size <= 0 || size > MAX_PUBLISHED_AVATAR_BYTES)
+            return identity;
+        try {
+            const version = await hashPublicFile(this.dataDir, avatar.path, MAX_PUBLISHED_AVATAR_BYTES);
+            if (version.size !== size || version.sha256 !== avatar.sha256)
+                return identity;
+            const data = await readPublicFile(this.dataDir, avatar.path, MAX_PUBLISHED_AVATAR_BYTES);
+            if (data.length !== size || createHash('sha256').update(data).digest('hex') !== avatar.sha256)
+                return identity;
+            if (avatarImageSignatureError(avatar.mime, data) !== '')
+                return identity;
+            return {
+                ...identity,
+                avatarKey: `${peerId}\u0000${avatar.path}\u0000${avatar.sha256}\u0000${size}\u0000${avatar.mime}`,
+                avatarUrl: `data:${avatar.mime};base64,${data.toString('base64')}`,
+                avatarMime: avatar.mime,
+            };
+        }
+        catch {
+            return identity;
+        }
+    }
+    async mineFiles(listed, peerId, publisherName, publisher) {
         const files = [];
         let metaReads = 0;
         let metaBytes = 0;
@@ -3600,32 +4278,50 @@ export class RamingaUiBridge {
         for (const info of listed) {
             const type = fileTypeOf(info.path);
             let version = null;
+            let modifiedAt = 0;
             let contentState = 'available';
             let contentError = '';
-            if (info.size <= MAX_LOCAL_COPY_HASH && hashedBytes + info.size <= MAX_MINE_HASH_BYTES) {
-                try {
+            try {
+                let actualSize;
+                if (info.size <= MAX_LOCAL_COPY_HASH && hashedBytes + info.size <= MAX_MINE_HASH_BYTES) {
                     version = await hashPublicFile(this.dataDir, info.path, MAX_LOCAL_COPY_HASH);
                     hashedBytes += version.size;
-                    if (version.size !== info.size) {
-                        contentState = 'hash-mismatch';
-                        contentError = `本机文件大小 ${version.size} 字节与本次发布清单 ${info.size} 字节不一致；请刷新后重试。`;
-                    }
+                    actualSize = version.size;
+                    modifiedAt = version.modifiedAt;
                 }
-                catch (error) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    contentState = /不存在/.test(message) ? 'copy-missing' : 'unreadable';
-                    contentError = message;
+                else {
+                    const stat = await lstat(await publicOriginalPath(this.dataDir, info.path));
+                    if (!stat.isFile())
+                        throw new Error('公开路径不再是普通文件');
+                    actualSize = stat.size;
+                    modifiedAt = stat.mtimeMs;
                 }
+                if (actualSize !== info.size) {
+                    modifiedAt = 0;
+                    contentState = 'hash-mismatch';
+                    contentError = `本机文件大小 ${actualSize} 字节与本次发布清单 ${info.size} 字节不一致；请刷新后重试。`;
+                }
+            }
+            catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                contentState = /不存在/.test(message) ? 'copy-missing' : 'unreadable';
+                contentError = message;
             }
             const file = {
                 id: `mine\u0000${version?.sha256 ?? ''}\u0000${info.path}`,
                 peerId,
                 publisherName,
+                publisherAgentName: publisher.agentName,
+                publisherAvatarKey: publisher.avatarKey,
+                // Reuse Mine's one top-level avatar below instead of embedding the
+                // same data URL in every published post.
+                publisherAvatarUrl: '',
+                publisherAvatarMime: publisher.avatarMime,
                 path: info.path,
                 name: path.posix.basename(info.path),
                 sha256: version?.sha256 ?? '',
                 sizeBytes: version?.size ?? info.size,
-                modifiedAt: version?.modifiedAt ?? 0,
+                modifiedAt,
                 fetchedAt: 0,
                 source: 'local-public',
                 sources: ['local-public'],
@@ -3770,10 +4466,10 @@ export class RamingaUiBridge {
                         error: '',
                     };
                 }
-                else if (local.agentCard.state === 'available' && local.agentCard.card !== null) {
+                else if (agentCard.state === 'available' && agentCard.card !== null) {
                     agentCard = {
-                        ...local.agentCard,
-                        card: { ...local.agentCard.card, legacyFallback: true },
+                        ...agentCard,
+                        card: { ...agentCard.card, legacyFallback: true },
                     };
                 }
                 // profile/index.md is generated for every profile publish, including a
@@ -3785,7 +4481,9 @@ export class RamingaUiBridge {
                     ? { ...profile, state: 'missing', markdown: '', displayName: '', at: null }
                     : profile;
                 const publisherName = projectedProfile.displayName || publicProfile.profile?.humanName || shortPeer(peerId);
-                const files = await this.mineFiles(listed, peerId, publisherName);
+                const publishedSizes = new Map(publishedFiles.map((file) => [file.path, file.size]));
+                const publisher = await this.resolveLocalPublishedPublisher(peerId, agentCard, publicHuman, publishedSizes);
+                const files = await this.mineFiles(listed, peerId, publisherName, publisher);
                 session.mine.data = {
                     peerId,
                     at,
@@ -3798,6 +4496,10 @@ export class RamingaUiBridge {
                     publicProfile,
                     files,
                     filesTruncated: publishedFiles.length > MAX_MINE_FILES,
+                    publisherAgentName: publisher.agentName,
+                    publisherAvatarKey: publisher.avatarKey,
+                    publisherAvatarUrl: publisher.avatarUrl,
+                    publisherAvatarMime: publisher.avatarMime,
                 };
                 session.mine.at = at;
                 session.mine.errorAt = 0;

@@ -249,6 +249,22 @@ type PublicDiscoveryPage struct {
 	HasMore     bool
 }
 
+// DiscoveryRefreshPeer is one bounded local Feed refresh candidate.
+type DiscoveryRefreshPeer struct {
+	PeerID        string
+	FromDiscovery bool
+	FromOutbound  bool
+}
+
+// DiscoveryRefreshPeerPage is one bounded local refresh candidate snapshot.
+type DiscoveryRefreshPeerPage struct {
+	Peers     []DiscoveryRefreshPeer
+	Total     int
+	Truncated bool
+	HasMore   bool
+	NextAfter string
+}
+
 // MessagePage is one keyset page of retained messages, newest first.
 type MessagePage struct {
 	Messages   []StoredMessage

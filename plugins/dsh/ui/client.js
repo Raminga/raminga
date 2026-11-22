@@ -121,6 +121,7 @@ window.__ModuleLoader__.load({
       ['send', 'UiSendResult', [sessionParam, param.peerId, param.text, param.requestId]],
       ['cancelOutbox', 'UiCancelResult', [sessionParam, param.messageId]],
       ['discoveries', 'UiDiscoveries', [sessionParam, param.familiar, param.force]],
+      ['refreshDiscoveries', 'UiManualDiscoveries', [sessionParam, param.familiar]],
       ['discoveryContent', 'UiDiscoveryContent', [sessionParam, param.contentId]],
       ['humanOutbound', 'UiHumanOutbound', [sessionParam, param.force]],
       ['mine', 'UiMine', [sessionParam, param.force]],

@@ -584,6 +584,26 @@ func (n *Node) DownloadPeerFile(ctx context.Context, peerID, path string, progre
 	return n.DownloadWithOptions(ctx, peerID, path, progress, options)
 }
 
+// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+// explicit Feed refresh. It reads only local SQLite facts and performs no
+// network request.
+func (n *Node) ListDiscoveryRefreshPeers(ctx context.Context, familiarOnly bool, limit int, after string) (DiscoveryRefreshPeerPage, error) {
+	if n.store == nil {
+		return DiscoveryRefreshPeerPage{}, errors.New("discovery index is unavailable")
+	}
+	page, err := n.store.ListDiscoveryRefreshPeers(ctx, familiarOnly, limit, after)
+	if err != nil {
+		return DiscoveryRefreshPeerPage{}, err
+	}
+	out := DiscoveryRefreshPeerPage{Total: page.Total, Truncated: page.Truncated, HasMore: page.HasMore, NextAfter: page.NextAfter}
+	for _, peer := range page.Peers {
+		out.Peers = append(out.Peers, DiscoveryRefreshPeer{
+			PeerID: peer.PeerID, FromDiscovery: peer.FromDiscovery, FromOutbound: peer.FromOutbound,
+		})
+	}
+	return out, nil
+}
+
 // ListDiscoveries returns the private discovery index page. It is served
 // only on the local API; the remote content protocol does not expose it.
 func (n *Node) ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool, peerID string, postCandidatesOnly bool) (PublicDiscoveryPage, error) {

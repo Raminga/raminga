@@ -180,17 +180,25 @@ test('draft bridge maps revisions, optional fields, images and publish receipts'
 
 test('mine prefers profile.json v2 and includes user and Agent posts', async () => {
   const dir = await tempDir();
+  const humanAvatar = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nGsAAAAASUVORK5CYII=', 'base64');
+  const humanAvatarSha = crypto.createHash('sha256').update(humanAvatar).digest('hex');
+  const humanAvatarName = `human-avatar-${humanAvatarSha.slice(0, 8)}.png`;
+  const avatar = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const agentSha = crypto.createHash('sha256').update(avatar).digest('hex');
+  const avatarName = `avatar-${agentSha.slice(0, 8)}.png`;
   const profile = {
     schema_version: 2,
     agent: {
       name: 'Nebula', description: '喜欢星空', interests: ['天文'],
-      conversation_style: '好奇', avatar: 'avatar-12345678.png',
-      avatar_sha256: '12345678' + 'a'.repeat(56), avatar_mime: 'image/png',
+      conversation_style: '好奇', avatar: avatarName,
+      avatar_sha256: agentSha, avatar_mime: 'image/png',
     },
-    human: { name: 'JO JO', bio_markdown: '喜欢创造' },
+    human: {
+      name: 'JO JO', bio_markdown: '喜欢创造',
+      avatar: humanAvatarName, avatar_sha256: humanAvatarSha, avatar_mime: 'image/png',
+    },
     updated_at: '2026-11-18T10:00:00Z',
   };
-  const avatar = Buffer.from('fake-png');
   const postV2 = (kind, title) => ({
     schema_version: 2, id: `post-${kind}`, title, format: 'markdown',
     author: { peer_id: PEER_A, kind, display_name: kind === 'agent' ? 'Nebula' : 'JO JO' },
@@ -200,7 +208,8 @@ test('mine prefers profile.json v2 and includes user and Agent posts', async () 
   const files = {
     'profile/profile.json': Buffer.from(JSON.stringify(profile)),
     'profile/index.md': Buffer.from('# JO JO\n\n喜欢创造'),
-    [`profile/avatar-12345678.png`]: avatar,
+    [`profile/${avatarName}`]: avatar,
+    [`profile/${humanAvatarName}`]: humanAvatar,
     'posts/post-user/post.json': Buffer.from(JSON.stringify(postV2('user', '本人动态'))),
     'posts/post-agent/post.json': Buffer.from(JSON.stringify(postV2('agent', 'Agent 动态'))),
   };
@@ -223,12 +232,22 @@ test('mine prefers profile.json v2 and includes user and Agent posts', async () 
     assert.equal(mine.publicProfile.profile.agentName, 'Nebula');
     assert.equal(mine.agentCard.state, 'available');
     assert.equal(mine.agentCard.card.displayName, 'Nebula');
-    assert.equal(mine.agentCard.card.avatarPath, 'profile/avatar-12345678.png');
+    assert.equal(mine.agentCard.card.avatarPath, `profile/${avatarName}`);
     assert.equal(mine.posts.posts.length, 2);
     assert.deepEqual(mine.posts.posts.map((post) => post.authorKind).sort(), ['agent', 'user']);
     assert.equal(mine.posts.agentAuthored, 1);
     assert.equal(mine.profile.state, 'available');
     assert.equal(mine.profile.displayName, 'JO JO');
+    const expectedAvatar = `data:image/png;base64,${avatar.toString('base64')}`;
+    assert.equal(mine.publisherAvatarUrl, expectedAvatar, 'Mine reuses the published Agent avatar');
+    assert.equal(mine.publisherAvatarKey.includes(agentSha), true);
+    assert.equal(mine.publisherAgentName, 'Nebula');
+    assert.equal(mine.publisherAvatarMime, 'image/png');
+    for (const file of mine.files.filter((entry) => entry.path.startsWith('posts/'))) {
+      assert.equal(file.publisherAvatarUrl, '', 'Mine files reuse the one top-level avatar instead of repeating it');
+      assert.equal(file.publisherAvatarKey, mine.publisherAvatarKey);
+      assert.equal(file.publisherAvatarMime, mine.publisherAvatarMime);
+    }
   } finally {
     bridge.dispose();
   }

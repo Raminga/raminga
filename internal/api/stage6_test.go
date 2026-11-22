@@ -52,6 +52,26 @@ func TestStage6ListDiscoveriesAndDownloadEvidenceRPC(t *testing.T) {
 	if ts.backend.discoveryPostCandidatesOnly {
 		t.Fatal("legacy ListDiscoveries must keep the mixed-file contract")
 	}
+	ts.backend.discoveryRefreshPage = node.DiscoveryRefreshPeerPage{
+		Peers: []node.DiscoveryRefreshPeer{
+			{PeerID: "peer-a", FromDiscovery: true, FromOutbound: true},
+			{PeerID: "peer-b", FromOutbound: true},
+		},
+		Total: 3, Truncated: true, HasMore: true, NextAfter: "next-page",
+	}
+	refresh, err := c.ListDiscoveryRefreshPeers(context.Background(), true, 2, "opaque-after")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ts.backend.lastRefreshFamiliar != true || ts.backend.lastRefreshLimit != 2 || ts.backend.lastRefreshAfter != "opaque-after" {
+		t.Fatalf("refresh peers request not forwarded: familiar=%v limit=%d after=%q", ts.backend.lastRefreshFamiliar, ts.backend.lastRefreshLimit, ts.backend.lastRefreshAfter)
+	}
+	if refresh.GetTotal() != 3 || !refresh.GetTruncated() || !refresh.GetHasMore() || refresh.GetNextAfter() != "next-page" || len(refresh.GetPeers()) != 2 {
+		t.Fatalf("refresh peers = %+v", refresh)
+	}
+	if !refresh.GetPeers()[0].GetFromDiscovery() || !refresh.GetPeers()[0].GetFromOutbound() || refresh.GetPeers()[1].GetFromDiscovery() {
+		t.Fatalf("refresh peer flags = %+v", refresh.GetPeers())
+	}
 	if _, err := c.ListPostCandidateDiscoveries(context.Background(), "", 20, false, "peer-b"); err != nil {
 		t.Fatal(err)
 	}

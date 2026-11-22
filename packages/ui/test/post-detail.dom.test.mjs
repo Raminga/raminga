@@ -259,7 +259,7 @@ test('pure text post detail has no media placeholder, and view state restores th
 test('own post detail exposes edit while a remote discovery post does not', async () => {
   const own = post({
     id: 'mine-1', peerId: '12D3KooWSelfNode111111111111111111111111111111111', path: 'posts/own/post.json',
-    publisherName: '我', sources: ['local-public'], source: 'local-public', authorKind: 'agent', authorName: 'Nova',
+    publisherName: '我', publisherAgentName: 'Nova', sources: ['local-public'], source: 'local-public', authorKind: 'agent', authorName: 'Nova',
   });
   const ui = mountUi({
     onLoadMine: async () => ({
@@ -487,9 +487,9 @@ test('a late detail read does not pull the reader back from another page', async
 
 test('a profile posts detail survives remount and returns to the same tab, scroll and card', async () => {
   const entry = {
-    id: 'profile-standalone', peerId: PEER_A, publisherName: '澄野',
+    id: 'profile-standalone', peerId: PEER_A, publisherName: '澄野', publisherAgentName: 'Nova',
     path: 'posts/tide.md', name: 'tide.md', sha256: 'e'.repeat(64), sizeBytes: 44,
-    modifiedAt: 0, fetchedAt: 0, source: 'peer-manifest', sources: ['peer-manifest'],
+    modifiedAt: Date.parse('2026-11-22T07:25:00Z'), fetchedAt: 0, source: 'peer-manifest', sources: ['peer-manifest'],
     kind: 'markdown', mime: 'text/markdown', previewable: true, title: '潮汐笔记', summary: '远端独立文件',
     tags: [], publishedAt: '', authorKind: 'unknown', authorName: '',
     contentState: 'not-downloaded', contentError: '本机尚未下载这个文件；打开动态后可手动获取。',
@@ -530,6 +530,8 @@ test('a profile posts detail survives remount and returns to the same tab, scrol
     await wait();
     assert.equal(ui.shadow.querySelector('#page-post').hidden, false);
     viewState = ui.viewState;
+    assert.match(ui.shadow.querySelector('#postDetail .rm-post-meta').textContent, /^更新于 /);
+    assert.match(ui.shadow.querySelector('#postDetail .rm-source-details').textContent, /作者未注明/);
     assert.equal(viewState.post.source, 'peer');
     assert.equal(viewState.post.profileScroll, 77);
     ui.app.destroy();

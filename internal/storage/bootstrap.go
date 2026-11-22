@@ -11,7 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 
-	"github.com/Raminga/raminga/internal/bootstrapaddr"
+	"github.com/Raminga/raminga/pkg/bootstrapaddr"
 )
 
 // BootstrapPeer is one ordinary peer record carrying the bootstrap role.

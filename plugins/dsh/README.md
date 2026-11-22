@@ -186,7 +186,7 @@ the existing local Connect-RPC client. The token and transport details stay on t
 Host; the browser calls the typed `ramingaUi` Remote (`open`, `poll`, `refresh`,
 `close`, `contacts`, `connect`, `checkContact`, `share`, `conversations`,
 `messages`, `markRead`, `favorites`, `setFavorite`, `peerDiscoveries`, `contactMemory`, `saveContactImpression`,
-`send`, `cancelOutbox`, `discoveries`, `discoveryContent`, `humanOutbound`, `mine`,
+`send`, `cancelOutbox`, `discoveries`, `refreshDiscoveries`, `discoveryContent`, `humanOutbound`, `mine`,
 `mineFilePreview`, `peerProfile`, `peerFriends`, `contactProjection`, `peerManifest`, `peerFilePreview`, `peerNodeInfo`,
 `revealDiscovery`, `revealFile`, `bootstrap`, `journey`, `activity`, `activityDetail`, `savePrivateAgent`, `locateMessage`). Human sends always use the explicit
 `origin=human` path; the Agent tools continue to set `agent_origin`. Message/list
@@ -526,3 +526,29 @@ acquisition times separate, and preserves the Feed filter/search/scroll/focus
 on return. Read-only public files remain under the contact profile's
 `公开文件` and settings' `我的公开文件`; a checksum-mismatched local copy is
 reported instead of being silently replaced by a new download.
+
+`refreshDiscoveries()` is reachable only from the visible Feed refresh action.
+It asks the daemon for the bounded local candidate set (recorded versioned-post
+authors plus peers with a durable human outbound or retained real Agent
+outbound message), checks manifests independently with a small concurrency and
+total deadline, skips the same Peer+path+SHA when its local copy still verifies,
+and fetches only versioned posts. Same-path new SHA is a new version; a manifest
+race is accepted only after the actual downloaded bytes are re-parsed. One
+offline peer leaves other peers and old cards intact, and the summary reports
+checked/partial/imported/skipped/invalid/failed/not-covered counts plus a
+collapsible per-peer result. Candidate pages use a stable `after` cursor per
+filter: a deadline-shortened page resumes its unattempted peers first, and a
+repeat refresh continues past the old 40/100 page boundary. Page entry, TTL,
+search, passive event re-reads and retries never call this method, so they
+cannot turn into background downloads. Feed avatars use the current page-header
+identity: human public name -> locally verified human avatar, Agent public name
+-> Agent avatar, never the post's authorKind; unknown/missing/corrupt/stale
+versions fall back to the initial. Mine reuses its local public profile avatar.
+
+A same-peer/path revision renders one Feed card. The readable exact version
+wins even when a newer evidence row is missing or corrupt; only when no version
+is readable does the newest row supply the diagnostic. Older index rows stay
+for favorites and exact-version errors. `modifiedAt` on a discovery card is
+only the remote manifest time for an exact Peer ID + path + SHA-256 + size
+observed in this session; local download mtime is never used, so offline copies
+and restarted panels show no public time until a matching manifest is read.

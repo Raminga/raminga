@@ -1169,16 +1169,17 @@ func (r *runner) scenarioContentFlow() (string, error) {
 		r.addCheck("no .part stitched for big file", strings.TrimSpace(parts) == "", strings.TrimSpace(parts))
 	}
 
-	// Step 4: removal is visible only after explicit sync; reading never adds C.
+	// Step 4: removal is auto-synced by RemoveFriend, so it is visible on the
+	// next read; an explicit sync is idempotent. Reading never adds C.
 	if out, code := r.exec(a, "raminga", "friends", "remove", cID, "--data-dir", "/data"); code != 0 {
 		r.addCheck("remove C from A", false, out)
 		return "FAIL", nil
 	}
 	afterRemove, err := r.contentFriends(b, aID)
-	if !r.require("B rereads A before sync", err) {
+	if !r.require("B rereads A after automatic removal sync", err) {
 		return "FAIL", nil
 	}
-	r.addCheck("removal not visible before sync", listedByID(afterRemove, cID) != nil, fmt.Sprintf("C_present=%t", listedByID(afterRemove, cID) != nil))
+	r.addCheck("removal visible immediately after auto sync", listedByID(afterRemove, cID) == nil, fmt.Sprintf("C_present=%t", listedByID(afterRemove, cID) != nil))
 	if out, code := r.exec(a, "raminga", "friends", "sync", "--data-dir", "/data"); code != 0 {
 		r.addCheck("A friends sync after remove", false, out)
 		return "FAIL", nil
@@ -1187,6 +1188,6 @@ func (r *runner) scenarioContentFlow() (string, error) {
 	if !r.require("B rereads A after sync", err) {
 		return "FAIL", nil
 	}
-	r.addCheck("removed C absent after sync", listedByID(afterSync, cID) == nil, fmt.Sprintf("C_present=%t", listedByID(afterSync, cID) != nil))
+	r.addCheck("removed C still absent after idempotent sync", listedByID(afterSync, cID) == nil, fmt.Sprintf("C_present=%t", listedByID(afterSync, cID) != nil))
 	return "PASS", nil
 }

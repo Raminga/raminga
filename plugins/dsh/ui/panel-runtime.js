@@ -412,6 +412,12 @@ export function createPanelRuntime({
     return remoteValue(await rpc.discoveries(sessionId, familiar === true, force === true));
   }
 
+  async function refreshDiscoveries(familiar) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.refreshDiscoveries !== 'function') throw new Error('Raminga discovery refresh is unavailable');
+    return remoteValue(await rpc.refreshDiscoveries(sessionId, familiar === true));
+  }
+
   async function readDiscoveryContent(id) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.discoveryContent !== 'function') throw new Error('Raminga content is unavailable');
@@ -802,6 +808,9 @@ export function createPanelRuntime({
       }
       if (typeof rpc.discoveries === 'function') {
         mountOptions.onLoadDiscoveries = (familiar, force) => readDiscoveries(familiar, force);
+      }
+      if (typeof rpc.refreshDiscoveries === 'function') {
+        mountOptions.onRefreshDiscoveries = (familiar) => refreshDiscoveries(familiar);
       }
       if (typeof rpc.discoveryContent === 'function') {
         mountOptions.onLoadDiscoveryContent = (id) => readDiscoveryContent(id);

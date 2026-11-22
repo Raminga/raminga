@@ -33,6 +33,59 @@ type PublicDiscoveryPage struct {
 	HasMore    bool
 }
 
+// DiscoveryRefreshPeer is one bounded local Feed refresh candidate. It is a
+// local relation/index fact, not a remote recommendation or online claim.
+type DiscoveryRefreshPeer struct {
+	PeerID        string
+	FromDiscovery bool
+	FromOutbound  bool
+}
+
+// DiscoveryRefreshPeerPage is one bounded snapshot of refresh candidates.
+// Total is the complete count before Limit; Truncated means the returned page
+// is smaller than Total. HasMore and NextAfter let a repeat refresh advance
+// through the complete set instead of always rechecking the first page.
+type DiscoveryRefreshPeerPage struct {
+	Peers     []DiscoveryRefreshPeer
+	Total     int
+	Truncated bool
+	HasMore   bool
+	NextAfter string
+}
+
+type discoveryRefreshCursorEnvelope struct {
+	V    int    `json:"v"`
+	At   int64  `json:"at"`
+	Peer string `json:"peer"`
+}
+
+// EncodeDiscoveryRefreshCursor serializes the stable (last_at, peer_id)
+// position used by the refresh candidate scheduler.
+func EncodeDiscoveryRefreshCursor(at int64, peerID string) string {
+	raw, _ := json.Marshal(discoveryRefreshCursorEnvelope{V: 1, At: at, Peer: peerID})
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
+// DecodeDiscoveryRefreshCursor validates an opaque cursor produced by this
+// package. An empty cursor starts at the newest candidate.
+func DecodeDiscoveryRefreshCursor(raw string) (at int64, peerID string, err error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, "", nil
+	}
+	if len(raw) > 256 {
+		return 0, "", ErrInvalidCursor
+	}
+	data, decodeErr := base64.RawURLEncoding.DecodeString(raw)
+	if decodeErr != nil {
+		return 0, "", ErrInvalidCursor
+	}
+	var env discoveryRefreshCursorEnvelope
+	if json.Unmarshal(data, &env) != nil || env.V != 1 || env.At < 0 || env.Peer == "" || len(env.Peer) > 128 {
+		return 0, "", ErrInvalidCursor
+	}
+	return env.At, env.Peer, nil
+}
+
 type discoveryCursorEnvelope struct {
 	V  int   `json:"v"`
 	At int64 `json:"at"`
@@ -262,6 +315,95 @@ func (s *Store) ListPublicDiscoveries(ctx context.Context, before string, limit 
 	if page.HasMore && len(page.Items) > 0 {
 		last := page.Items[len(page.Items)-1]
 		page.NextBefore = EncodeDiscoveryCursor(last.FetchedAtMS, last.ID)
+	}
+	return page, nil
+}
+
+// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+// explicit Feed refresh. The discovery branch only counts versioned-post
+// acquisitions; the outbound branch reuses the same durable human relation and
+// retained real Agent outbound evidence as familiarPeerCondition. Contacts,
+// inbound messages, profile visits and last_interaction never qualify.
+func (s *Store) ListDiscoveryRefreshPeers(ctx context.Context, familiarOnly bool, limit int, after string) (DiscoveryRefreshPeerPage, error) {
+	if limit <= 0 {
+		limit = 40
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	afterAt, afterPeer, err := DecodeDiscoveryRefreshCursor(after)
+	if err != nil {
+		return DiscoveryRefreshPeerPage{}, err
+	}
+	base := `
+		SELECT peer_id,
+		       MAX(from_discovery) AS from_discovery,
+		       MAX(from_outbound) AS from_outbound,
+		       MAX(last_at) AS last_at
+		FROM (
+			SELECT d.peer_id AS peer_id, d.fetched_at_ms AS last_at,
+			       1 AS from_discovery, 0 AS from_outbound
+			FROM public_discoveries d
+			WHERE ` + postCandidateCondition + `
+			UNION ALL
+			SELECT h.peer_id, h.last_at_ms, 0, 1
+			FROM human_outbound_peers h
+			UNION ALL
+			SELECT m.peer_id, MAX(m.created_at_ms), 0, 1
+			FROM messages m
+			WHERE m.direction = 'out' AND m.origin = 'agent'
+			GROUP BY m.peer_id
+		)
+		GROUP BY peer_id`
+	if familiarOnly {
+		base += ` HAVING MAX(from_outbound) = 1`
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM (`+base+`)`).Scan(&total); err != nil {
+		return DiscoveryRefreshPeerPage{}, fmt.Errorf("count discovery refresh peers: %w", err)
+	}
+	query := `SELECT peer_id, from_discovery, from_outbound, last_at FROM (` + base + `)`
+	args := make([]any, 0, 4)
+	if afterPeer != "" {
+		// Stable keyset order: newest local activity first, Peer ID ascending as
+		// the tie-breaker. A repeat refresh resumes strictly after this position.
+		query += ` WHERE last_at < ? OR (last_at = ? AND peer_id > ?)`
+		args = append(args, afterAt, afterAt, afterPeer)
+	}
+	query += ` ORDER BY last_at DESC, peer_id ASC LIMIT ?`
+	args = append(args, limit+1)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return DiscoveryRefreshPeerPage{}, fmt.Errorf("list discovery refresh peers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	page := DiscoveryRefreshPeerPage{Peers: make([]DiscoveryRefreshPeer, 0, limit), Total: total}
+	var lastAt int64
+	for rows.Next() {
+		var (
+			peer          DiscoveryRefreshPeer
+			fromDiscovery int
+			fromOutbound  int
+			peerLastAt    int64
+		)
+		if err := rows.Scan(&peer.PeerID, &fromDiscovery, &fromOutbound, &peerLastAt); err != nil {
+			return DiscoveryRefreshPeerPage{}, fmt.Errorf("scan discovery refresh peer: %w", err)
+		}
+		peer.FromDiscovery = fromDiscovery == 1
+		peer.FromOutbound = fromOutbound == 1
+		if len(page.Peers) >= limit {
+			page.HasMore = true
+			break
+		}
+		page.Peers = append(page.Peers, peer)
+		lastAt = peerLastAt
+	}
+	if err := rows.Err(); err != nil {
+		return DiscoveryRefreshPeerPage{}, fmt.Errorf("iterate discovery refresh peers: %w", err)
+	}
+	page.Truncated = total > len(page.Peers)
+	if page.HasMore {
+		page.NextAfter = EncodeDiscoveryRefreshCursor(lastAt, page.Peers[len(page.Peers)-1].PeerID)
 	}
 	return page, nil
 }

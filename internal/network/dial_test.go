@@ -108,3 +108,20 @@ func TestHolePunchTracerTerminalEventStopsWatchdog(t *testing.T) {
 		t.Fatalf("terminal success status = %+v", status)
 	}
 }
+
+func TestRankDialAddressesGivesDirectAHeadStart(t *testing.T) {
+	relay := mustMA(t, "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr/p2p-circuit")
+	for _, raw := range []string{"/ip4/127.0.0.1/tcp/4002", "/ip6/2001:4860::10/udp/4002/quic-v1"} {
+		direct := mustMA(t, raw)
+		delays := map[string]time.Duration{}
+		for _, addr := range rankDialAddresses([]ma.Multiaddr{relay, direct}) {
+			delays[addr.Addr.String()] = addr.Delay
+		}
+		if got := delays[relay.String()] - delays[direct.String()]; got != 500*time.Millisecond {
+			t.Fatalf("direct %s head start = %s, want 500ms", direct, got)
+		}
+	}
+	if got := rankDialAddresses([]ma.Multiaddr{relay})[0].Delay; got != 0 {
+		t.Fatalf("relay-only dial delayed by %s", got)
+	}
+}

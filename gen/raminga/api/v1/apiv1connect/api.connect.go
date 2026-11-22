@@ -115,6 +115,9 @@ const (
 	// RamingaServiceListDiscoveriesProcedure is the fully-qualified name of the RamingaService's
 	// ListDiscoveries RPC.
 	RamingaServiceListDiscoveriesProcedure = "/raminga.api.v1.RamingaService/ListDiscoveries"
+	// RamingaServiceListDiscoveryRefreshPeersProcedure is the fully-qualified name of the
+	// RamingaService's ListDiscoveryRefreshPeers RPC.
+	RamingaServiceListDiscoveryRefreshPeersProcedure = "/raminga.api.v1.RamingaService/ListDiscoveryRefreshPeers"
 	// RamingaServiceGetPublicDraftProcedure is the fully-qualified name of the RamingaService's
 	// GetPublicDraft RPC.
 	RamingaServiceGetPublicDraftProcedure = "/raminga.api.v1.RamingaService/GetPublicDraft"
@@ -248,6 +251,11 @@ type RamingaServiceClient interface {
 	// Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
 	// It is not a directory listing, manifest scan or network-wide recommendation.
 	ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error)
+	// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+	// explicit Feed refresh: authors with a recorded versioned-post acquisition
+	// plus peers with a durable human outbound or retained real Agent outbound
+	// message. It performs no network request and is not a recommendation.
+	ListDiscoveryRefreshPeers(context.Context, *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error)
 	// Public drafts are private SQLite rows; they are never published until an
 	// explicit PublishPublicDraft call.
 	GetPublicDraft(context.Context, *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error)
@@ -467,6 +475,12 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveries")),
 			connect.WithClientOptions(opts...),
 		),
+		listDiscoveryRefreshPeers: connect.NewClient[v1.ListDiscoveryRefreshPeersRequest, v1.ListDiscoveryRefreshPeersResponse](
+			httpClient,
+			baseURL+RamingaServiceListDiscoveryRefreshPeersProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveryRefreshPeers")),
+			connect.WithClientOptions(opts...),
+		),
 		getPublicDraft: connect.NewClient[v1.GetPublicDraftRequest, v1.GetPublicDraftResponse](
 			httpClient,
 			baseURL+RamingaServiceGetPublicDraftProcedure,
@@ -574,51 +588,52 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // ramingaServiceClient implements RamingaServiceClient.
 type ramingaServiceClient struct {
-	status                 *connect.Client[v1.StatusRequest, v1.StatusResponse]
-	connect                *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
-	sendChat               *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
-	recentMessages         *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
-	listConversations      *connect.Client[v1.ListConversationsRequest, v1.ListConversationsResponse]
-	listMessages           *connect.Client[v1.ListMessagesRequest, v1.ListMessagesResponse]
-	markConversationRead   *connect.Client[v1.MarkConversationReadRequest, v1.MarkConversationReadResponse]
-	listFavorites          *connect.Client[v1.ListFavoritesRequest, v1.ListFavoritesResponse]
-	setFavorite            *connect.Client[v1.SetFavoriteRequest, v1.SetFavoriteResponse]
-	listHumanOutboundPeers *connect.Client[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse]
-	outboxList             *connect.Client[v1.OutboxListRequest, v1.OutboxListResponse]
-	outboxCancel           *connect.Client[v1.OutboxCancelRequest, v1.OutboxCancelResponse]
-	events                 *connect.Client[v1.EventsRequest, v1.EventsResponse]
-	peers                  *connect.Client[v1.PeersRequest, v1.PeersResponse]
-	relayStatus            *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
-	dhtStatus              *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
-	dhtAddPeer             *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
-	listBootstrapPeers     *connect.Client[v1.ListBootstrapPeersRequest, v1.ListBootstrapPeersResponse]
-	addBootstrapPeer       *connect.Client[v1.AddBootstrapPeerRequest, v1.AddBootstrapPeerResponse]
-	removeBootstrapPeer    *connect.Client[v1.RemoveBootstrapPeerRequest, v1.RemoveBootstrapPeerResponse]
-	dhtFindPeer            *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
-	listFriends            *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
-	setFriendName          *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
-	setFriendDescription   *connect.Client[v1.SetFriendDescriptionRequest, v1.SetFriendDescriptionResponse]
-	removeFriend           *connect.Client[v1.RemoveFriendRequest, v1.RemoveFriendResponse]
-	syncFriends            *connect.Client[v1.SyncFriendsRequest, v1.SyncFriendsResponse]
-	published              *connect.Client[v1.PublishedRequest, v1.PublishedResponse]
-	listDiscoveries        *connect.Client[v1.ListDiscoveriesRequest, v1.ListDiscoveriesResponse]
-	getPublicDraft         *connect.Client[v1.GetPublicDraftRequest, v1.GetPublicDraftResponse]
-	listPublicDrafts       *connect.Client[v1.ListPublicDraftsRequest, v1.ListPublicDraftsResponse]
-	savePublicDraft        *connect.Client[v1.SavePublicDraftRequest, v1.SavePublicDraftResponse]
-	putPublicDraftImage    *connect.Client[v1.PutPublicDraftImageRequest, v1.PutPublicDraftImageResponse]
-	getPublicDraftAsset    *connect.Client[v1.GetPublicDraftAssetRequest, v1.GetPublicDraftAssetResponse]
-	importPublicPost       *connect.Client[v1.ImportPublicPostRequest, v1.ImportPublicPostResponse]
-	deletePublicDraft      *connect.Client[v1.DeletePublicDraftRequest, v1.DeletePublicDraftResponse]
-	publishPublicDraft     *connect.Client[v1.PublishPublicDraftRequest, v1.PublishPublicDraftResponse]
-	getPeerManifest        *connect.Client[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse]
-	getPeerProfile         *connect.Client[v1.GetPeerProfileRequest, v1.GetPeerProfileResponse]
-	getPeerFriends         *connect.Client[v1.GetPeerFriendsRequest, v1.GetPeerFriendsResponse]
-	downloadPeerFile       *connect.Client[v1.DownloadPeerFileRequest, v1.DownloadPeerFileResponse]
-	connectListedPeer      *connect.Client[v1.ConnectListedPeerRequest, v1.ConnectListedPeerResponse]
-	disconnectPeer         *connect.Client[v1.DisconnectPeerRequest, v1.DisconnectPeerResponse]
-	shutdown               *connect.Client[v1.ShutdownRequest, v1.ShutdownResponse]
-	testDisconnectPeer     *connect.Client[v1.TestDisconnectPeerRequest, v1.TestDisconnectPeerResponse]
-	testPing               *connect.Client[v1.TestPingRequest, v1.TestPingResponse]
+	status                    *connect.Client[v1.StatusRequest, v1.StatusResponse]
+	connect                   *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	sendChat                  *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
+	recentMessages            *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
+	listConversations         *connect.Client[v1.ListConversationsRequest, v1.ListConversationsResponse]
+	listMessages              *connect.Client[v1.ListMessagesRequest, v1.ListMessagesResponse]
+	markConversationRead      *connect.Client[v1.MarkConversationReadRequest, v1.MarkConversationReadResponse]
+	listFavorites             *connect.Client[v1.ListFavoritesRequest, v1.ListFavoritesResponse]
+	setFavorite               *connect.Client[v1.SetFavoriteRequest, v1.SetFavoriteResponse]
+	listHumanOutboundPeers    *connect.Client[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse]
+	outboxList                *connect.Client[v1.OutboxListRequest, v1.OutboxListResponse]
+	outboxCancel              *connect.Client[v1.OutboxCancelRequest, v1.OutboxCancelResponse]
+	events                    *connect.Client[v1.EventsRequest, v1.EventsResponse]
+	peers                     *connect.Client[v1.PeersRequest, v1.PeersResponse]
+	relayStatus               *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
+	dhtStatus                 *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
+	dhtAddPeer                *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
+	listBootstrapPeers        *connect.Client[v1.ListBootstrapPeersRequest, v1.ListBootstrapPeersResponse]
+	addBootstrapPeer          *connect.Client[v1.AddBootstrapPeerRequest, v1.AddBootstrapPeerResponse]
+	removeBootstrapPeer       *connect.Client[v1.RemoveBootstrapPeerRequest, v1.RemoveBootstrapPeerResponse]
+	dhtFindPeer               *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
+	listFriends               *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
+	setFriendName             *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
+	setFriendDescription      *connect.Client[v1.SetFriendDescriptionRequest, v1.SetFriendDescriptionResponse]
+	removeFriend              *connect.Client[v1.RemoveFriendRequest, v1.RemoveFriendResponse]
+	syncFriends               *connect.Client[v1.SyncFriendsRequest, v1.SyncFriendsResponse]
+	published                 *connect.Client[v1.PublishedRequest, v1.PublishedResponse]
+	listDiscoveries           *connect.Client[v1.ListDiscoveriesRequest, v1.ListDiscoveriesResponse]
+	listDiscoveryRefreshPeers *connect.Client[v1.ListDiscoveryRefreshPeersRequest, v1.ListDiscoveryRefreshPeersResponse]
+	getPublicDraft            *connect.Client[v1.GetPublicDraftRequest, v1.GetPublicDraftResponse]
+	listPublicDrafts          *connect.Client[v1.ListPublicDraftsRequest, v1.ListPublicDraftsResponse]
+	savePublicDraft           *connect.Client[v1.SavePublicDraftRequest, v1.SavePublicDraftResponse]
+	putPublicDraftImage       *connect.Client[v1.PutPublicDraftImageRequest, v1.PutPublicDraftImageResponse]
+	getPublicDraftAsset       *connect.Client[v1.GetPublicDraftAssetRequest, v1.GetPublicDraftAssetResponse]
+	importPublicPost          *connect.Client[v1.ImportPublicPostRequest, v1.ImportPublicPostResponse]
+	deletePublicDraft         *connect.Client[v1.DeletePublicDraftRequest, v1.DeletePublicDraftResponse]
+	publishPublicDraft        *connect.Client[v1.PublishPublicDraftRequest, v1.PublishPublicDraftResponse]
+	getPeerManifest           *connect.Client[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse]
+	getPeerProfile            *connect.Client[v1.GetPeerProfileRequest, v1.GetPeerProfileResponse]
+	getPeerFriends            *connect.Client[v1.GetPeerFriendsRequest, v1.GetPeerFriendsResponse]
+	downloadPeerFile          *connect.Client[v1.DownloadPeerFileRequest, v1.DownloadPeerFileResponse]
+	connectListedPeer         *connect.Client[v1.ConnectListedPeerRequest, v1.ConnectListedPeerResponse]
+	disconnectPeer            *connect.Client[v1.DisconnectPeerRequest, v1.DisconnectPeerResponse]
+	shutdown                  *connect.Client[v1.ShutdownRequest, v1.ShutdownResponse]
+	testDisconnectPeer        *connect.Client[v1.TestDisconnectPeerRequest, v1.TestDisconnectPeerResponse]
+	testPing                  *connect.Client[v1.TestPingRequest, v1.TestPingResponse]
 }
 
 // Status calls raminga.api.v1.RamingaService.Status.
@@ -759,6 +774,11 @@ func (c *ramingaServiceClient) Published(ctx context.Context, req *connect.Reque
 // ListDiscoveries calls raminga.api.v1.RamingaService.ListDiscoveries.
 func (c *ramingaServiceClient) ListDiscoveries(ctx context.Context, req *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error) {
 	return c.listDiscoveries.CallUnary(ctx, req)
+}
+
+// ListDiscoveryRefreshPeers calls raminga.api.v1.RamingaService.ListDiscoveryRefreshPeers.
+func (c *ramingaServiceClient) ListDiscoveryRefreshPeers(ctx context.Context, req *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error) {
+	return c.listDiscoveryRefreshPeers.CallUnary(ctx, req)
 }
 
 // GetPublicDraft calls raminga.api.v1.RamingaService.GetPublicDraft.
@@ -928,6 +948,11 @@ type RamingaServiceHandler interface {
 	// Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
 	// It is not a directory listing, manifest scan or network-wide recommendation.
 	ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error)
+	// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+	// explicit Feed refresh: authors with a recorded versioned-post acquisition
+	// plus peers with a durable human outbound or retained real Agent outbound
+	// message. It performs no network request and is not a recommendation.
+	ListDiscoveryRefreshPeers(context.Context, *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error)
 	// Public drafts are private SQLite rows; they are never published until an
 	// explicit PublishPublicDraft call.
 	GetPublicDraft(context.Context, *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error)
@@ -1143,6 +1168,12 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ramingaServiceListDiscoveryRefreshPeersHandler := connect.NewUnaryHandler(
+		RamingaServiceListDiscoveryRefreshPeersProcedure,
+		svc.ListDiscoveryRefreshPeers,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveryRefreshPeers")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ramingaServiceGetPublicDraftHandler := connect.NewUnaryHandler(
 		RamingaServiceGetPublicDraftProcedure,
 		svc.GetPublicDraft,
@@ -1303,6 +1334,8 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServicePublishedHandler.ServeHTTP(w, r)
 		case RamingaServiceListDiscoveriesProcedure:
 			ramingaServiceListDiscoveriesHandler.ServeHTTP(w, r)
+		case RamingaServiceListDiscoveryRefreshPeersProcedure:
+			ramingaServiceListDiscoveryRefreshPeersHandler.ServeHTTP(w, r)
 		case RamingaServiceGetPublicDraftProcedure:
 			ramingaServiceGetPublicDraftHandler.ServeHTTP(w, r)
 		case RamingaServiceListPublicDraftsProcedure:
@@ -1456,6 +1489,10 @@ func (UnimplementedRamingaServiceHandler) Published(context.Context, *connect.Re
 
 func (UnimplementedRamingaServiceHandler) ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListDiscoveries is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListDiscoveryRefreshPeers(context.Context, *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListDiscoveryRefreshPeers is not implemented"))
 }
 
 func (UnimplementedRamingaServiceHandler) GetPublicDraft(context.Context, *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error) {

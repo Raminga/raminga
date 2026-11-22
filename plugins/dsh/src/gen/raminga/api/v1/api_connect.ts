@@ -7,7 +7,7 @@
 // It is served as Connect-RPC only on a Unix domain socket in the data dir,
 // never on a TCP or UDP network listener.
 
-import { AddBootstrapPeerRequest, AddBootstrapPeerResponse, ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DeletePublicDraftRequest, DeletePublicDraftResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, GetPublicDraftAssetRequest, GetPublicDraftAssetResponse, GetPublicDraftRequest, GetPublicDraftResponse, ImportPublicPostRequest, ImportPublicPostResponse, ListBootstrapPeersRequest, ListBootstrapPeersResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListFavoritesRequest, ListFavoritesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, ListPublicDraftsRequest, ListPublicDraftsResponse, MarkConversationReadRequest, MarkConversationReadResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, PublishPublicDraftRequest, PublishPublicDraftResponse, PutPublicDraftImageRequest, PutPublicDraftImageResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveBootstrapPeerRequest, RemoveBootstrapPeerResponse, RemoveFriendRequest, RemoveFriendResponse, SavePublicDraftRequest, SavePublicDraftResponse, SendChatRequest, SendChatResponse, SetFavoriteRequest, SetFavoriteResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
+import { AddBootstrapPeerRequest, AddBootstrapPeerResponse, ConnectListedPeerRequest, ConnectListedPeerResponse, ConnectRequest, ConnectResponse, DeletePublicDraftRequest, DeletePublicDraftResponse, DhtAddPeerRequest, DhtAddPeerResponse, DhtFindPeerRequest, DhtFindPeerResponse, DhtStatusRequest, DhtStatusResponse, DisconnectPeerRequest, DisconnectPeerResponse, DownloadPeerFileRequest, DownloadPeerFileResponse, EventsRequest, EventsResponse, GetPeerFriendsRequest, GetPeerFriendsResponse, GetPeerManifestRequest, GetPeerManifestResponse, GetPeerProfileRequest, GetPeerProfileResponse, GetPublicDraftAssetRequest, GetPublicDraftAssetResponse, GetPublicDraftRequest, GetPublicDraftResponse, ImportPublicPostRequest, ImportPublicPostResponse, ListBootstrapPeersRequest, ListBootstrapPeersResponse, ListConversationsRequest, ListConversationsResponse, ListDiscoveriesRequest, ListDiscoveriesResponse, ListDiscoveryRefreshPeersRequest, ListDiscoveryRefreshPeersResponse, ListFavoritesRequest, ListFavoritesResponse, ListFriendsRequest, ListFriendsResponse, ListHumanOutboundPeersRequest, ListHumanOutboundPeersResponse, ListMessagesRequest, ListMessagesResponse, ListPublicDraftsRequest, ListPublicDraftsResponse, MarkConversationReadRequest, MarkConversationReadResponse, OutboxCancelRequest, OutboxCancelResponse, OutboxListRequest, OutboxListResponse, PeersRequest, PeersResponse, PublishedRequest, PublishedResponse, PublishPublicDraftRequest, PublishPublicDraftResponse, PutPublicDraftImageRequest, PutPublicDraftImageResponse, RecentMessagesRequest, RecentMessagesResponse, RelayStatusRequest, RelayStatusResponse, RemoveBootstrapPeerRequest, RemoveBootstrapPeerResponse, RemoveFriendRequest, RemoveFriendResponse, SavePublicDraftRequest, SavePublicDraftResponse, SendChatRequest, SendChatResponse, SetFavoriteRequest, SetFavoriteResponse, SetFriendDescriptionRequest, SetFriendDescriptionResponse, SetFriendNameRequest, SetFriendNameResponse, ShutdownRequest, ShutdownResponse, StatusRequest, StatusResponse, SyncFriendsRequest, SyncFriendsResponse, TestDisconnectPeerRequest, TestDisconnectPeerResponse, TestPingRequest, TestPingResponse } from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -348,6 +348,20 @@ export const RamingaService = {
       name: "ListDiscoveries",
       I: ListDiscoveriesRequest,
       O: ListDiscoveriesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+     * explicit Feed refresh: authors with a recorded versioned-post acquisition
+     * plus peers with a durable human outbound or retained real Agent outbound
+     * message. It performs no network request and is not a recommendation.
+     *
+     * @generated from rpc raminga.api.v1.RamingaService.ListDiscoveryRefreshPeers
+     */
+    listDiscoveryRefreshPeers: {
+      name: "ListDiscoveryRefreshPeers",
+      I: ListDiscoveryRefreshPeersRequest,
+      O: ListDiscoveryRefreshPeersResponse,
       kind: MethodKind.Unary,
     },
     /**

@@ -78,9 +78,10 @@ function emptyMessages(peerId) {
   return { peerId, messages: [], at: Date.now(), error: null, errorAt: null, freshness: 'live', hasMore: false, nextBefore: '', retention: { retainedMessages: 0, oldestRetainedAt: null, maxStoredMessages: 1000 } };
 }
 
-test('discovery cards use the publisher public name, keep author claims in details and label acquisition sources', async () => {
+test('discovery cards use the publishing Agent name, keep author claims in details and label acquisition sources', async () => {
   const item = baseItem({
     path: 'posts/hello/post.json', name: 'post.json',
+    publisherAgentName: '发布 Agent 丙',
     sources: ['raminga_content_get', 'raminga_ui_manual'], source: 'raminga_ui_manual',
   });
   const ui = mountUi({
@@ -94,10 +95,11 @@ test('discovery cards use the publisher public name, keep author claims in detai
   try {
     await settle();
     const card = ui.shadow.querySelector('#discoveryList .rm-post');
-    assert.match(card.querySelector('.rm-post-name').textContent, /发布节点甲/);
+    assert.match(card.querySelector('.rm-post-name').textContent, /发布 Agent 丙/);
     assert.match(card.querySelector('.rm-post-meta').textContent, /Agent 获取 \+ 手动获取/);
     assert.doesNotMatch([...card.querySelectorAll('.rm-post-name, .rm-post-title, .rm-post-summary')].map((node) => node.textContent).join(' '), /原作者乙/);
     card.querySelector('.rm-source-summary').click();
+    assert.match(card.querySelector('.rm-source-details').textContent, /发布节点甲/);
     assert.match(card.querySelector('.rm-source-details').textContent, /原作者乙/);
     assert.match(card.querySelector('.rm-source-details').textContent, /raminga_content_get/);
     assert.match(card.querySelector('.rm-source-details').textContent, /raminga_ui_manual/);

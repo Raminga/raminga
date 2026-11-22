@@ -36,8 +36,13 @@
           <button type="button" class="rm-primary rm-explore-compose" id="composePost" aria-haspopup="dialog" aria-controls="postEditorPanel">写动态</button>
         </div>
       </div>
+      <p class="rm-discovery-count" id="discoverySearchCount" role="status" hidden></p>
       <p class="rm-list-note" id="discoveryMeta" role="status" hidden></p>
       <button type="button" class="rm-list-retry" id="discoveryMetaRetry" hidden>重试读取</button>
+      <details class="rm-refresh-report" id="discoveryRefreshReport" hidden>
+        <summary class="rm-refresh-report-summary">本次刷新节点结果</summary>
+        <ul class="rm-refresh-peer-list" aria-label="本次刷新节点结果"></ul>
+      </details>
       <div class="rm-post-list" id="discoveryList" aria-label="发现的公开内容" hidden></div>
       <details class="rm-discovery-scope" id="discoveryScope" hidden>
         <summary>发现范围与来源</summary>
@@ -819,7 +824,7 @@
     <label class="rm-field" for="postAuthorKind"><span>署名身份</span>
       <select id="postAuthorKind"><option value="user">本人</option><option value="agent">Agent</option></select>
     </label>
-    <p class="rm-list-note" id="postAuthorNote">署名身份会显示在公开动态上。</p>
+    <p class="rm-list-note" id="postAuthorNote">实际署名来源只在「来源详情」保留；动态卡片页头显示发布节点的公开 Agent 名。</p>
     <label class="rm-field" for="postImageInput"><span>图片（最多 4 张，PNG/JPEG，单张 ≤8 MiB）</span>
       <input type="file" id="postImageInput" accept="image/png,image/jpeg" multiple>
     </label>

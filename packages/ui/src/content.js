@@ -25,7 +25,7 @@ export function postMatchesQuery(post, rawQuery) {
   const query = String(rawQuery ?? '').trim().toLowerCase();
   if (query.length === 0) return true;
   const fields = [
-    post?.title, post?.summary, post?.publisherName, post?.authorName, post?.authorPeerId, post?.path,
+    post?.title, post?.summary, post?.publisherAgentName, post?.publisherName, post?.authorName, post?.authorPeerId, post?.path,
     ...(Array.isArray(post?.tags) ? post.tags : []),
   ];
   return fields.some((field) => String(field ?? '').toLowerCase().includes(query));
@@ -38,10 +38,12 @@ export function discoveryListState(data, query) {
   if (data.at === null && data.error) return { kind: 'error', items: [], total: 0 };
   if (data.at === null) return { kind: 'loading', items: [], total: 0 };
   if (filtered.length === 0 && String(query ?? '').trim().length > 0 && items.length > 0) {
-    return { kind: 'search-empty', items: [], total: items.length };
+    return { kind: 'search-empty', items: [], total: 0 };
   }
   if (items.length === 0) return { kind: 'empty', items: [], total: 0 };
-  return { kind: 'ready', items: filtered, total: items.length };
+  // total is the real filtered match count, so search never labels a subset
+  // with the unfiltered index size.
+  return { kind: 'ready', items: filtered, total: filtered.length };
 }
 
 export function discoverySourceText(source) {

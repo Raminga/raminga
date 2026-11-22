@@ -42,6 +42,7 @@ export function acquisitionSourceLabel(source) {
   const value = String(source ?? '').trim();
   if (value === 'raminga_content_get') return 'Agent 获取';
   if (value === 'raminga_ui_manual') return '手动获取';
+  if (value === 'raminga_ui_refresh') return '手动刷新';
   if (value === 'local-public') return '本机公开目录';
   if (value === 'peer-manifest') return '对方公开清单';
   if (value === 'local-copy') return '本机历史副本';
@@ -62,7 +63,7 @@ export function acquisitionSourcesLabel(sources, fallback = '') {
 export function acquisitionTone(sources) {
   const list = Array.isArray(sources) ? sources : [];
   const agent = list.includes('raminga_content_get');
-  const manual = list.includes('raminga_ui_manual');
+  const manual = list.includes('raminga_ui_manual') || list.includes('raminga_ui_refresh');
   if (agent && manual) return 'mixed';
   if (manual) return 'manual';
   if (agent) return 'agent';

@@ -574,6 +574,18 @@ func (c *Client) ListDiscoveriesForPeer(ctx context.Context, before string, limi
 	return resp.Msg, nil
 }
 
+// ListDiscoveryRefreshPeers reads the bounded local candidate set for an
+// explicit Feed refresh. It is a local read; it never dials a peer.
+func (c *Client) ListDiscoveryRefreshPeers(ctx context.Context, familiarOnly bool, limit int32, after string) (*apiv1.ListDiscoveryRefreshPeersResponse, error) {
+	resp, err := c.svc.ListDiscoveryRefreshPeers(ctx, connect.NewRequest(&apiv1.ListDiscoveryRefreshPeersRequest{
+		Limit: uint32(limit), FamiliarOnly: familiarOnly, After: after,
+	}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
 // ListPostCandidateDiscoveries asks the daemon to apply its versioned-post
 // path prefilter before the keyset LIMIT. It is additive: ListDiscoveries keeps
 // the legacy mixed-file contract for old callers.

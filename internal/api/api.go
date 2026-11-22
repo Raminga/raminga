@@ -913,6 +913,39 @@ func (s *Server) ListDiscoveries(ctx context.Context, req *connect.Request[apiv1
 	return connect.NewResponse(resp), nil
 }
 
+// discoveryRefreshPeersBackend is optional so older test backends keep
+// compiling; a daemon without it returns Unimplemented and the UI degrades to
+// a local-only re-read without hiding existing content.
+type discoveryRefreshPeersBackend interface {
+	ListDiscoveryRefreshPeers(ctx context.Context, familiarOnly bool, limit int, after string) (node.DiscoveryRefreshPeerPage, error)
+}
+
+// ListDiscoveryRefreshPeers returns only local relation/index facts for an
+// explicit Feed refresh. It never dials a peer and never records a discovery.
+func (s *Server) ListDiscoveryRefreshPeers(ctx context.Context, req *connect.Request[apiv1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[apiv1.ListDiscoveryRefreshPeersResponse], error) {
+	backend, ok := s.backend.(discoveryRefreshPeersBackend)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("discovery refresh peers are unavailable"))
+	}
+	page, err := backend.ListDiscoveryRefreshPeers(ctx, req.Msg.GetFamiliarOnly(), int(req.Msg.GetLimit()), req.Msg.GetAfter())
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListDiscoveryRefreshPeersResponse{
+		Peers:     make([]*apiv1.DiscoveryRefreshPeer, 0, len(page.Peers)),
+		Total:     int32(page.Total),
+		Truncated: page.Truncated,
+		HasMore:   page.HasMore,
+		NextAfter: page.NextAfter,
+	}
+	for _, peer := range page.Peers {
+		resp.Peers = append(resp.Peers, &apiv1.DiscoveryRefreshPeer{
+			PeerId: peer.PeerID, FromDiscovery: peer.FromDiscovery, FromOutbound: peer.FromOutbound,
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (s *Server) GetPeerManifest(ctx context.Context, req *connect.Request[apiv1.GetPeerManifestRequest]) (*connect.Response[apiv1.GetPeerManifestResponse], error) {
 	page, err := s.backend.GetPeerManifest(ctx, req.Msg.GetPeerId(), int(req.Msg.GetOffset()), int(req.Msg.GetLimit()))
 	if err != nil {

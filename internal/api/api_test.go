@@ -36,6 +36,10 @@ type fakeBackend struct {
 	removePending               int
 	sendCalls                   int
 	discoveryPage               node.PublicDiscoveryPage
+	discoveryRefreshPage        node.DiscoveryRefreshPeerPage
+	lastRefreshFamiliar         bool
+	lastRefreshLimit            int
+	lastRefreshAfter            string
 	downloadOption              node.DownloadOptions
 	draftAsset                  node.PublicDraftAsset
 	draftAssetFound             bool
@@ -47,6 +51,13 @@ type fakeBackend struct {
 	bootstrapPeers              []node.BootstrapPeer
 	lastBootstrapAdd            string
 	removedBootstrap            []string
+}
+
+func (f *fakeBackend) ListDiscoveryRefreshPeers(_ context.Context, familiarOnly bool, limit int, after string) (node.DiscoveryRefreshPeerPage, error) {
+	f.lastRefreshFamiliar = familiarOnly
+	f.lastRefreshLimit = limit
+	f.lastRefreshAfter = after
+	return f.discoveryRefreshPage, nil
 }
 
 func (f *fakeBackend) MarkConversationRead(_ context.Context, peerID, messageID string) (node.MarkReadResult, error) {
