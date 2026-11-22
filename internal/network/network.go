@@ -90,6 +90,9 @@ type Config struct {
 	PeerCache       PeerCache
 	PeerCacheTTL    time.Duration
 	PeerCacheMax    int
+	// HTTPRateLimitNow overrides the clock used by the per-peer HTTP token
+	// buckets. Nil keeps time.Now; tests inject a deterministic clock.
+	HTTPRateLimitNow func() time.Time
 	// PausedPeers seeds the in-memory pause set from persisted paused_peers.
 	PausedPeers []string
 	// Paused is the in-memory predicate; New replaces it with its own set.
@@ -562,6 +565,7 @@ func (n *Network) Start(ctx context.Context) error {
 	// Chat owns its dedupe-before-rate budget; other future routes can opt in
 	// to the generic limiter explicitly.
 	httpOpts.DisableRateLimit = true
+	httpOpts.RateLimitNow = n.cfg.HTTPRateLimitNow
 	httpServer, err := p2phttp.NewServer(n.host, n.httpMux, httpOpts)
 	if err != nil {
 		_ = d.Close()

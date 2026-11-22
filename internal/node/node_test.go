@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func newTestNode(t *testing.T, dir string) *testNode {
 	return newTestNodeWithConfig(t, dir, nil)
 }
 
-func newTestNodeWithConfig(t *testing.T, dir string, mutate func(*config.Config)) *testNode {
+func newTestNodeWithConfig(t *testing.T, dir string, mutate func(*config.Config), netOpts ...func(*network.Config)) *testNode {
 	t.Helper()
 	ctx := context.Background()
 	id, err := identity.Open(dir)
@@ -57,11 +58,17 @@ func newTestNodeWithConfig(t *testing.T, dir string, mutate func(*config.Config)
 	if err != nil {
 		t.Fatalf("storage.Open: %v", err)
 	}
-	netw, err := network.New(network.Config{
+	netCfg := network.Config{
 		PrivateKey:  id.PrivateKey(),
 		ListenAddrs: cfg.Network.ListenAddrs,
 		Logger:      slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-	})
+	}
+	for _, opt := range netOpts {
+		if opt != nil {
+			opt(&netCfg)
+		}
+	}
+	netw, err := network.New(netCfg)
 	if err != nil {
 		t.Fatalf("network.New: %v", err)
 	}
@@ -747,7 +754,16 @@ func TestForgetThenChatReads(t *testing.T) {
 func TestHelloRouteRateLimited(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	b := newTestNode(t, t.TempDir())
+	// Freeze the token-bucket clock: on a loaded CI host the request time
+	// budget must not refill the bucket between the burst and the 11th call.
+	// The route still uses the production 5/s rate and burst of 10, and the
+	// refill assertions below advance the clock explicitly.
+	base := time.Unix(1, 0)
+	var clock atomic.Int64
+	clock.Store(base.UnixNano())
+	b := newTestNodeWithConfig(t, t.TempDir(), nil, func(nc *network.Config) {
+		nc.HTTPRateLimitNow = func() time.Time { return time.Unix(0, clock.Load()) }
+	})
 	key, _, _ := crypto.GenerateEd25519Key(rand.Reader)
 	h, err := libp2p.New(libp2p.Identity(key), libp2p.NoListenAddrs)
 	if err != nil {
@@ -772,18 +788,32 @@ func TestHelloRouteRateLimited(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cl.Close()
-	statuses := make(map[int]int)
-	for i := 0; i < 11; i++ {
+	hello := func() int {
+		t.Helper()
 		req, _ := http.NewRequest(http.MethodPost, "http://"+b.status(t).PeerID+"/hello", nil)
 		res, err := cl.Do(ctx, bpid, req, 1024)
 		if err != nil {
 			t.Fatal(err)
 		}
-		statuses[res.Response.StatusCode]++
-		_ = res.Response.Body.Close()
+		defer func() { _ = res.Response.Body.Close() }()
+		return res.Response.StatusCode
+	}
+	statuses := make(map[int]int)
+	for i := 0; i < 11; i++ {
+		statuses[hello()]++
 	}
 	if statuses[http.StatusOK] != 10 || statuses[http.StatusTooManyRequests] != 1 {
 		t.Fatalf("hello statuses=%v", statuses)
+	}
+	// At the production 5/s refill rate one token needs 200ms. Just before
+	// that the bucket is still empty; after it the next request succeeds.
+	clock.Store(base.Add(100 * time.Millisecond).UnixNano())
+	if status := hello(); status != http.StatusTooManyRequests {
+		t.Fatalf("hello status after 100ms refill=%d, want 429", status)
+	}
+	clock.Store(base.Add(250 * time.Millisecond).UnixNano())
+	if status := hello(); status != http.StatusOK {
+		t.Fatalf("hello status after 250ms refill=%d, want 200", status)
 	}
 }
 
