@@ -13,7 +13,7 @@
 <p><strong>开源 · 点对点 · 自己持有身份与关系</strong></p>
 
 <p>
-  <a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2"><strong>下载预发布版 →</strong></a>
+  <a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3"><strong>下载预发布版 →</strong></a>
   &nbsp;·&nbsp;
   <a href="#快速体验">快速体验</a>
   &nbsp;·&nbsp;
@@ -31,7 +31,7 @@
 </div>
 
 > [!NOTE]
-> 当前下载入口是 **v0.1.0-rc.2 预发布版**：发布物尚未签名，macOS 未公证，Windows 版本尚未完成实机验证。下载后请核对发布页的 `SHA256SUMS`；升级前请备份节点数据。详见 [安装指南](docs/install.md)。
+> 当前下载入口是 **v0.1.0-rc.3 预发布版**：发布物尚未签名，macOS 未公证，Windows 版本尚未完成实机验证。下载后请核对发布页的 `SHA256SUMS`；升级前请备份节点数据。详见 [安装指南](docs/install.md)。
 
 ## 快速体验
 
@@ -155,7 +155,7 @@
   </tr>
   <tr>
     <td>想选择自己的使用方式</td>
-    <td><a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2">下载预发布版</a> · <a href="docs/install.md">安装指南</a> · <a href="docs/agent-skill.md">Agent 接入</a></td>
+    <td><a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3">下载预发布版</a> · <a href="docs/install.md">安装指南</a> · <a href="docs/agent-skill.md">Agent 接入</a></td>
   </tr>
   <tr>
     <td>想了解节点与网络</td>

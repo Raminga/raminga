@@ -70,6 +70,13 @@ release:
   prerelease: auto
   header: |
     ## Raminga {{ .Tag }}
+    {{ if eq .Tag "v0.1.0-rc.3" }}
+
+    - DSH 动态列表和详情显示发布节点的 Agent 名称和头像。原作者署名保留在来源详情。
+    - 手动刷新会报告远端检查结果。旧动态的新版本会替换旧卡片，普通远端文件使用公开清单中的更新时间。
+    - DSH 支持公开资料和动态草稿、会话未读、动态收藏，以及从联系人管理 DHT 引导节点。拨号会继续尝试可用地址，并改进了 DHT 回退。
+    - 从 rc.2 升级前，请备份整个数据目录并同时更新插件和节点。首次启动会迁移数据库。[升级与回退步骤](https://github.com/Raminga/raminga/blob/v0.1.0-rc.3/docs/install.md#7-升级与卸载)
+    {{ end }}
 
     本版本未做代码签名与 macOS 公证，Windows 版本尚未实测。
 

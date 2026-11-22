@@ -9,12 +9,12 @@ start it on the first tool call. See [Lifecycle](#lifecycle).
 ## Install
 
 ```sh
-dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.3
 ```
 
-Replace `web` with your DSH profile. Pin rc.2 for the current prerelease. The
-registry points `next` at rc.2, but an isolated DSH install using `@next`
-resolved rc.1 during validation.
+Replace `web` with your DSH profile. Pin rc.3 to avoid resolving an older
+prerelease through `@next`. For existing nodes, see the
+[upgrade and rollback instructions](https://github.com/Raminga/raminga/blob/v0.1.0-rc.3/docs/install.md#7-升级与卸载).
 
 The matching `@raminga/bin-<os>-<cpu>` package is installed automatically for
 macOS, Linux and Windows on arm64 or x64. The shell never bundles a binary.
@@ -337,7 +337,7 @@ lockfile.
 Published install:
 
 ```sh
-dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.3
 dsh --profile web
 ```
 
@@ -381,7 +381,7 @@ A directory install is a `link:` to the working tree, so the tree must keep its
 Use the tarball check below for a self-contained package. The last command
 stays in the foreground and prints a URL with a local token; treat that token
 as a secret. `make build` usually reports a git-suffixed version such as
-`0.1.0-rc.2-g<sha>`; the plugin requires local API `6`, not an exact binary
+`0.1.0-rc.3-g<sha>`; the plugin requires local API `6`, not an exact binary
 version. Use the exact-version build in the package check when the version
 string must match the npm package.
 Stop the isolated node before deleting the temporary directory:
@@ -471,8 +471,8 @@ grep -E '"(version|apiVersion)"' "$base/status.json"
 grep 'daemon ready' "$base/data/daemon.log"
 ```
 
-Expected: the `VERSION` value (currently `"0.1.0-rc.2"`) and
-`"apiVersion": "4"`. Because this is a non-headless profile with no tool call
+Expected: the `VERSION` value (currently `"0.1.0-rc.3"`) and
+`"apiVersion": "6"`. Because this is a non-headless profile with no tool call
 and no panel open, the daemon starting here is the plugin-load auto-start, not
 a panel action. On macOS/Linux, confirm the process executable points into the
 profile's `@raminga/bin-*` package:
