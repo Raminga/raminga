@@ -258,4 +258,3 @@ function journeyCheckNode(tone, text) {
   node.textContent = text;
   return node;
 }
-

@@ -46,4 +46,3 @@ export function renderSettingsNode(nodes, { phase = 'loading', status = null, su
   if (nodes.statusButton) nodes.statusButton.disabled = false;
   if (nodes.shareButton) nodes.shareButton.disabled = false;
 }
-

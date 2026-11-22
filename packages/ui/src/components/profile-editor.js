@@ -67,4 +67,3 @@ export function renderSettingsPublic(doc, nodes, { mine = null, agent = null, er
     }
   }
 }
-

@@ -216,4 +216,3 @@ window.cancelAnimationFrame = (id) => clearTimeout(id);
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
-
