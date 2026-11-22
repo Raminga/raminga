@@ -73,6 +73,7 @@ export function createPanelRuntime({
   contactsPollMs = 4000,
   conversationsPollMs = 4000,
   messagesPollMs = 3000,
+  activityPollMs = 1500,
   copyText = defaultCopyText,
 }) {
   let disposed = false;
@@ -88,6 +89,11 @@ export function createPanelRuntime({
   let conversationsTimer = null;
   let messagesTimer = null;
   let eventRefreshTimer = null;
+  let activityTimer = null;
+  let activityInFlight = false;
+  // A disposed runtime must ignore late activity reads even if a host promise
+  // resolves after its timers were cleared.
+  let activityGeneration = 0;
   let inFlight = false;
   let contactsInFlight = false;
   let contactsQueuedForce = false;
@@ -406,10 +412,52 @@ export function createPanelRuntime({
     return remoteValue(await rpc.discoveries(sessionId, familiar === true, force === true));
   }
 
+  async function refreshDiscoveries(familiar) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.refreshDiscoveries !== 'function') throw new Error('Raminga discovery refresh is unavailable');
+    return remoteValue(await rpc.refreshDiscoveries(sessionId, familiar === true));
+  }
+
   async function readDiscoveryContent(id) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.discoveryContent !== 'function') throw new Error('Raminga content is unavailable');
     return remoteValue(await rpc.discoveryContent(sessionId, id));
+  }
+
+  async function markConversationRead(peerId, messageId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.markRead !== 'function') throw new Error('Raminga read cursor is unavailable');
+    return remoteValue(await rpc.markRead(sessionId, peerId, messageId));
+  }
+
+  async function readFavorites(before, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.favorites !== 'function') throw new Error('Raminga favorites are unavailable');
+    return remoteValue(await rpc.favorites(sessionId, before || '', force === true));
+  }
+
+  async function setFavorite(peerId, filePath, sha256, title, favorite) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.setFavorite !== 'function') throw new Error('Raminga favorites are unavailable');
+    return remoteValue(await rpc.setFavorite(sessionId, peerId, filePath, sha256, title, favorite === true));
+  }
+
+  async function readPeerDiscoveries(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerDiscoveries !== 'function') throw new Error('Raminga peer discoveries are unavailable');
+    return remoteValue(await rpc.peerDiscoveries(sessionId, peerId, force === true));
+  }
+
+  async function readContactMemory(peerId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.contactMemory !== 'function') throw new Error('Raminga contact memory is unavailable');
+    return remoteValue(await rpc.contactMemory(sessionId, peerId));
+  }
+
+  async function saveContactImpression(input) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.saveContactImpression !== 'function') throw new Error('Raminga contact memory editing is unavailable');
+    return remoteValue(await rpc.saveContactImpression(sessionId, input));
   }
 
   async function readHumanOutbound(force) {
@@ -430,10 +478,142 @@ export function createPanelRuntime({
     return remoteValue(await rpc.peerProfile(sessionId, peerId, force === true));
   }
 
+  async function readPeerFriends(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerFriends !== 'function') throw new Error('Raminga peer address book is unavailable');
+    return remoteValue(await rpc.peerFriends(sessionId, peerId, force === true));
+  }
+
+  async function readContactProjection() {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.contactProjection !== 'function') throw new Error('Raminga contact projection is unavailable');
+    return remoteValue(await rpc.contactProjection(sessionId));
+  }
+
+  async function readPeerManifest(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerManifest !== 'function') throw new Error('Raminga peer manifest is unavailable');
+    return remoteValue(await rpc.peerManifest(sessionId, peerId, force === true));
+  }
+
+  async function readPeerFilePreview(peerId, filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerFilePreview !== 'function') throw new Error('Raminga peer content is unavailable');
+    return remoteValue(await rpc.peerFilePreview(sessionId, peerId, filePath, sha256, sizeBytes));
+  }
+
+  async function readPeerPostMeta(peerId, filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerPostMeta !== 'function') throw new Error('Raminga post image metadata is unavailable');
+    return remoteValue(await rpc.peerPostMeta(sessionId, peerId, filePath, sha256, sizeBytes));
+  }
+
+  async function readMineFilePreview(filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.mineFilePreview !== 'function') throw new Error('Raminga local public content is unavailable');
+    return remoteValue(await rpc.mineFilePreview(sessionId, filePath, sha256, sizeBytes));
+  }
+
+  async function readPeerNodeInfo(peerId, force) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.peerNodeInfo !== 'function') throw new Error('Raminga peer node information is unavailable');
+    return remoteValue(await rpc.peerNodeInfo(sessionId, peerId, force === true));
+  }
+
+  async function revealDiscovery(id) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.revealDiscovery !== 'function') throw new Error('Raminga reveal is unavailable');
+    return remoteValue(await rpc.revealDiscovery(sessionId, id));
+  }
+
+  async function revealFile(subject, peerId, filePath, sha256, sizeBytes) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.revealFile !== 'function') throw new Error('Raminga file reveal is unavailable');
+    return remoteValue(await rpc.revealFile(sessionId, subject, peerId, filePath, sha256, sizeBytes));
+  }
+
+  async function readBootstrap() {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.bootstrap !== 'function') throw new Error('Raminga bootstrap view is unavailable');
+    return remoteValue(await rpc.bootstrap(sessionId));
+  }
+
+  async function addBootstrap(multiaddr) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.addBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
+    return remoteValue(await rpc.addBootstrap(sessionId, multiaddr));
+  }
+
+  async function removeBootstrap(peerId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.removeBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
+    return remoteValue(await rpc.removeBootstrap(sessionId, peerId));
+  }
+
   async function readJourney(force) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.journey !== 'function') throw new Error('Raminga journey is unavailable');
     return remoteValue(await rpc.journey(sessionId, force === true));
+  }
+
+  async function readPublicDraft(draftId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publicDraft !== 'function') throw new Error('Raminga public draft read is unavailable');
+    return remoteValue(await rpc.publicDraft(sessionId, draftId));
+  }
+
+  async function readPublicDrafts(kind) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publicDrafts !== 'function') throw new Error('Raminga public draft list is unavailable');
+    return remoteValue(await rpc.publicDrafts(sessionId, kind));
+  }
+
+  async function savePublicDraft(input) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.savePublicDraft !== 'function') throw new Error('Raminga public draft save is unavailable');
+    return remoteValue(await rpc.savePublicDraft(sessionId, input));
+  }
+
+  async function putPublicDraftImage(draftId, role, filename, dataBase64) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.putPublicDraftImage !== 'function') throw new Error('Raminga draft image upload is unavailable');
+    return remoteValue(await rpc.putPublicDraftImage(sessionId, draftId, role, filename, dataBase64));
+  }
+
+  async function readPublicDraftAsset(draftId, assetId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publicDraftAsset !== 'function') throw new Error('Raminga private draft image is unavailable');
+    return remoteValue(await rpc.publicDraftAsset(sessionId, draftId, assetId));
+  }
+
+  async function importPublicPost(filePath) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.importPublicPost !== 'function') throw new Error('Raminga post editing is unavailable');
+    return remoteValue(await rpc.importPublicPost(sessionId, filePath));
+  }
+
+  async function deletePublicDraft(draftId, expectedRevision) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.deletePublicDraft !== 'function') throw new Error('Raminga draft delete is unavailable');
+    return remoteValue(await rpc.deletePublicDraft(sessionId, draftId, expectedRevision));
+  }
+
+  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.publishPublicDraft !== 'function') throw new Error('Raminga publication is unavailable');
+    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256));
+    if (result && (result.status === 'published' || result.status === 'already_published' || result.status === 'partial')) {
+      // The daemon already returned the same-snapshot files/digest. Refresh the
+      // local published list only after that response, never before.
+      if (typeof app?.reloadMine === 'function') void app.reloadMine();
+    }
+    return result;
+  }
+
+  async function savePrivateAgent(field, content, expectedSha256) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.savePrivateAgent !== 'function') throw new Error('Raminga private Agent save is unavailable');
+    return remoteValue(await rpc.savePrivateAgent(sessionId, field, content, expectedSha256));
   }
 
   async function readLocatedMessage(peerId, messageId) {
@@ -452,6 +632,38 @@ export function createPanelRuntime({
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.setFriendDescription !== 'function') throw new Error('Raminga contact editing is unavailable');
     return remoteValue(await rpc.setFriendDescription(sessionId, peerId, description));
+  }
+
+  /**
+   * Passive activity read. This never writes a terminal event; the host store
+   * only records real tool execute calls. A failed read clears stale live
+   * marks in the app instead of leaving the previous "running" card.
+   */
+  async function loadActivity(force = false) {
+    if (disposed || app === null || typeof rpc.activity !== 'function') return null;
+    if (activityInFlight) return null;
+    activityInFlight = true;
+    const generation = activityGeneration;
+    try {
+      const value = remoteValue(await rpc.activity(sessionId, 100));
+      if (disposed || generation !== activityGeneration || app === null) return null;
+      if (typeof app.setActivity === 'function') app.setActivity(value);
+      return value;
+    } catch (error) {
+      if (!disposed && generation === activityGeneration && app !== null && typeof app.setActivityError === 'function') {
+        app.setActivityError(errorText(error));
+      }
+      return null;
+    } finally {
+      activityInFlight = false;
+      void force;
+    }
+  }
+
+  async function readActivityDetail(operationId) {
+    if (disposed) throw new Error('Raminga panel is closed');
+    if (typeof rpc.activityDetail !== 'function') throw new Error('Raminga activity detail is unavailable');
+    return remoteValue(await rpc.activityDetail(operationId));
   }
 
   async function open() {
@@ -487,8 +699,12 @@ export function createPanelRuntime({
           if (peer.length > 0) void loadMessages(peer, { force: false });
         }, messagesPollMs);
       }
+      if (activityTimer === null && typeof rpc.activity === 'function') {
+        activityTimer = timers.setInterval(() => { void loadActivity(false); }, activityPollMs);
+      }
       if (typeof rpc.contacts === 'function') void loadContacts(false);
       void loadConversations(false);
+      if (typeof rpc.activity === 'function') void loadActivity(true);
       const restoredPeer = activeConversationPeer();
       if (restoredPeer.length > 0) void loadMessages(restoredPeer, { force: true });
     } catch (error) {
@@ -519,6 +735,7 @@ export function createPanelRuntime({
       if (force) {
         if (typeof rpc.contacts === 'function') void loadContacts(true);
         void loadConversations(true);
+        if (typeof rpc.activity === 'function') void loadActivity(true);
         const peer = activeConversationPeer();
         if (peer.length > 0) void loadMessages(peer, { force: true });
       }
@@ -567,12 +784,33 @@ export function createPanelRuntime({
           token: context?.token,
         });
       }
+      if (typeof rpc.markRead === 'function') {
+        mountOptions.onMarkRead = (peerId, messageId) => markConversationRead(peerId, messageId);
+      }
+      if (typeof rpc.favorites === 'function') {
+        mountOptions.onLoadFavorites = (before, force) => readFavorites(before, force);
+      }
+      if (typeof rpc.setFavorite === 'function') {
+        mountOptions.onSetFavorite = (input) => setFavorite(input.peerId, input.path, input.sha256, input.title, input.favorite);
+      }
+      if (typeof rpc.peerDiscoveries === 'function') {
+        mountOptions.onLoadPeerDiscoveries = (peerId, force) => readPeerDiscoveries(peerId, force);
+      }
+      if (typeof rpc.contactMemory === 'function') {
+        mountOptions.onLoadContactMemory = (peerId) => readContactMemory(peerId);
+      }
+      if (typeof rpc.saveContactImpression === 'function') {
+        mountOptions.onSaveContactImpression = (input) => saveContactImpression(input);
+      }
       if (typeof rpc.send === 'function') mountOptions.onSend = (peerId, text, requestId) => sendMessage(peerId, text, requestId);
       if (typeof rpc.cancelOutbox === 'function') {
         mountOptions.onCancelOutbox = (peerId, messageId) => cancelMessage(peerId, messageId);
       }
       if (typeof rpc.discoveries === 'function') {
         mountOptions.onLoadDiscoveries = (familiar, force) => readDiscoveries(familiar, force);
+      }
+      if (typeof rpc.refreshDiscoveries === 'function') {
+        mountOptions.onRefreshDiscoveries = (familiar) => refreshDiscoveries(familiar);
       }
       if (typeof rpc.discoveryContent === 'function') {
         mountOptions.onLoadDiscoveryContent = (id) => readDiscoveryContent(id);
@@ -586,8 +824,83 @@ export function createPanelRuntime({
       if (typeof rpc.peerProfile === 'function') {
         mountOptions.onLoadPeerProfile = (peerId, force) => readPeerProfile(peerId, force);
       }
+      if (typeof rpc.peerFriends === 'function') {
+        mountOptions.onLoadPeerFriends = (peerId, force) => readPeerFriends(peerId, force);
+      }
+      if (typeof rpc.contactProjection === 'function') {
+        mountOptions.onLoadContactProjection = () => readContactProjection();
+      }
+      if (typeof rpc.peerManifest === 'function') {
+        mountOptions.onLoadPeerManifest = (peerId, force) => readPeerManifest(peerId, force);
+      }
+      if (typeof rpc.peerFilePreview === 'function') {
+        mountOptions.onLoadPeerFileContent = (peerId, filePath, sha256, sizeBytes) => readPeerFilePreview(peerId, filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.peerPostMeta === 'function') {
+        mountOptions.onLoadPeerPostMeta = (peerId, filePath, sha256, sizeBytes) => readPeerPostMeta(peerId, filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.mineFilePreview === 'function') {
+        mountOptions.onLoadMineFileContent = (filePath, sha256, sizeBytes) => readMineFilePreview(filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.peerNodeInfo === 'function') {
+        mountOptions.onLoadPeerNodeInfo = (peerId, force) => readPeerNodeInfo(peerId, force);
+      }
+      if (typeof rpc.revealDiscovery === 'function') {
+        mountOptions.onRevealDiscovery = (id) => revealDiscovery(id);
+      }
+      if (typeof rpc.revealFile === 'function') {
+        mountOptions.onRevealFile = (subject, peerId, filePath, sha256, sizeBytes) => revealFile(subject, peerId, filePath, sha256, sizeBytes);
+      }
+      if (typeof rpc.bootstrap === 'function') {
+        mountOptions.onLoadBootstrap = () => readBootstrap();
+      }
+      if (typeof rpc.addBootstrap === 'function') {
+        mountOptions.onAddBootstrap = (multiaddr) => addBootstrap(multiaddr);
+      }
+      if (typeof rpc.removeBootstrap === 'function') {
+        mountOptions.onRemoveBootstrap = (peerId) => removeBootstrap(peerId);
+      }
       if (typeof rpc.journey === 'function') {
         mountOptions.onLoadJourney = (force) => readJourney(force);
+      }
+      if (typeof rpc.journeyReport === 'function') {
+        mountOptions.onLoadJourneyReport = async (journeyId) => {
+          if (disposed) throw new Error('Raminga panel is closed');
+          return remoteValue(await rpc.journeyReport(sessionId, journeyId));
+        };
+      }
+      if (typeof rpc.activity === 'function') {
+        // Capability flag for the shared UI; polling is owned by this runtime.
+        mountOptions.onLoadActivity = () => loadActivity(true);
+      }
+      if (typeof rpc.activityDetail === 'function') {
+        mountOptions.onLoadActivityDetail = (operationId) => readActivityDetail(operationId);
+      }
+      if (typeof rpc.savePrivateAgent === 'function') {
+        mountOptions.onSavePrivateAgent = (field, content, expectedSha256) => savePrivateAgent(field, content, expectedSha256);
+      }      if (typeof rpc.publicDraft === 'function') {
+        mountOptions.onLoadPublicDraft = (draftId) => readPublicDraft(draftId);
+      }
+      if (typeof rpc.publicDrafts === 'function') {
+        mountOptions.onLoadPublicDrafts = (kind) => readPublicDrafts(kind);
+      }
+      if (typeof rpc.savePublicDraft === 'function') {
+        mountOptions.onSavePublicDraft = (input) => savePublicDraft(input);
+      }
+      if (typeof rpc.putPublicDraftImage === 'function') {
+        mountOptions.onPutPublicDraftImage = (draftId, role, filename, dataBase64) => putPublicDraftImage(draftId, role, filename, dataBase64);
+      }
+      if (typeof rpc.publicDraftAsset === 'function') {
+        mountOptions.onLoadPublicDraftAsset = (draftId, assetId) => readPublicDraftAsset(draftId, assetId);
+      }
+      if (typeof rpc.importPublicPost === 'function') {
+        mountOptions.onImportPublicPost = (filePath) => importPublicPost(filePath);
+      }
+      if (typeof rpc.deletePublicDraft === 'function') {
+        mountOptions.onDeletePublicDraft = (draftId, expectedRevision) => deletePublicDraft(draftId, expectedRevision);
+      }
+      if (typeof rpc.publishPublicDraft === 'function') {
+        mountOptions.onPublishPublicDraft = (draftId, expectedRevision, expectedPublishedSha256) => publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256);
       }
       if (typeof rpc.locateMessage === 'function') {
         mountOptions.onLocateMessage = (peerId, messageId) => readLocatedMessage(peerId, messageId);
@@ -604,6 +917,10 @@ export function createPanelRuntime({
 
   function dispose() {
     if (disposed) return;
+    // Start a pending draft flush while the host RPC callbacks are still
+    // usable. The UI debounces edits; a panel close inside that window must
+    // still attempt the private save rather than silently dropping it.
+    try { app?.flushDrafts?.(); } catch { /* the panel is being torn down */ }
     disposed = true;
     if (pollTimer !== null) {
       timers.clearInterval(pollTimer);
@@ -629,6 +946,12 @@ export function createPanelRuntime({
       timers.clearTimeout(eventRefreshTimer);
       eventRefreshTimer = null;
     }
+    if (activityTimer !== null) {
+      timers.clearInterval(activityTimer);
+      activityTimer = null;
+    }
+    activityGeneration += 1;
+    activityInFlight = false;
     // A disposed panel must settle queued older promises. The UI ignores them
     // after destroy, but returning a forever-pending request would leave its
     // busy state behind in any host that outlives this runtime.
@@ -657,11 +980,11 @@ export function createPanelRuntime({
     /** Diagnostics for focused tests; not used by the renderer. */
     get timers() {
       return {
-        pollTimer, retryTimer, contactsTimer, conversationsTimer, messagesTimer, eventRefreshTimer,
+        pollTimer, retryTimer, contactsTimer, conversationsTimer, messagesTimer, eventRefreshTimer, activityTimer,
         inFlight, contactsInFlight, conversationsInFlight,
         messagesInFlight: [...latestMessageReads.values()].some((state) => state.running !== null)
           || [...olderMessageReads.values()].some((state) => state.running),
-        openAttempted, closeRequested, leaseOpen, leaseClosed,
+        openAttempted, closeRequested, leaseOpen, leaseClosed, activityInFlight, activityGeneration,
       };
     },
   };

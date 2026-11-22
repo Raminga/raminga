@@ -14,6 +14,7 @@ import type {
 import type { RamingaApi } from './client.js';
 import { EXPECTED_API_VERSION } from './config.js';
 import { initAgentData } from './agent-init.js';
+import { AgentActivityStore, runWithActivity } from './activity.js';
 import { AGENT_ONBOARDING_FILES, GENERATED_TOOLS } from './tools.generated.js';
 import { wrapUntrusted } from './untrusted.generated.js';
 import {
@@ -206,7 +207,14 @@ const HANDLERS: Record<string, Handler> = {
   raminga_agent_init: async (api) => initAgentData(api.config.dataDir, AGENT_ONBOARDING_FILES),
 };
 
-export function defineRamingaTools(api: RamingaApi): ToolDefinition[] {
+export interface DefineRamingaToolsOptions {
+  /** Only the real DSH tool execute wrapper writes activity; reads/polls never do. */
+  activity?: AgentActivityStore | null;
+  /** Test seam for the wrapper timeout; production always uses 120s. */
+  activityTimeoutMs?: number;
+}
+
+export function defineRamingaTools(api: RamingaApi, options: DefineRamingaToolsOptions = {}): ToolDefinition[] {
   return GENERATED_TOOLS.map((tool) => {
     const handler = HANDLERS[tool.name];
     if (!handler) {
@@ -217,7 +225,18 @@ export function defineRamingaTools(api: RamingaApi): ToolDefinition[] {
       description: tool.description,
       parameters: tool.parameters,
       output: { schema: { type: 'json' }, render: jsonRender(tool.resultUntrusted) },
-      execute: async (args) => handler(api, (args ?? {}) as Args),
+      execute: async (args) => {
+        const callArgs = (args ?? {}) as Args;
+        // The wrapper records one independent operation per real Agent call.
+        // It never records manual UI actions, polling or host events, and it
+        // never copies chat/profile body text into the private log.
+        return runWithActivity(
+          options.activity,
+          { tool: tool.name, args: callArgs },
+          () => handler(api, callArgs),
+          options.activityTimeoutMs === undefined ? {} : { timeoutMs: options.activityTimeoutMs },
+        );
+      },
     });
   });
 }

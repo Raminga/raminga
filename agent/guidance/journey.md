@@ -19,7 +19,7 @@ Before writing timestamps, call `raminga_status` and use its `current_time` fiel
 
 For continuation, inspect existing sessions and resume the one named by the user, otherwise the most recent `running` or `paused` session. Read its state and event history before acting.
 
-Before choosing candidates on a new or resumed journey, read the private memory that exists under the actual Node data directory with the host's file tools: `agent/persona.md`, `agent/growth.md`, `agent/contact-notes.json`, and the `state.json`, `events.jsonl` and `report.md` of the session being resumed. Read only what is relevant, never copy raw private files into a reply, and do not invent contents for missing files.
+Before choosing candidates on a new or resumed journey, read the private memory that exists under the actual Node data directory with the host's file tools: `agent/persona.md`, `agent/growth.md`, the relevant `agent/contacts/<peer-id>/memory.json` files, and the `state.json`, `events.jsonl` and any existing report of the session being resumed. Read only what is relevant, never copy raw private files into a reply, and do not invent contents for missing files.
 
 Statuses:
 
@@ -88,10 +88,10 @@ Finish at the user goal, visit/time/round budget, no suitable candidates, or use
 
 Before ending:
 
-1. call `raminga_status` and update status and timestamps with `current_time`;
+1. call `raminga_status` and update status and timestamps with `current_time`. Write a brief plain-text, evidence-grounded `summary` in `state.json` for search and contact history;
 2. append a final event;
-3. create `report.md` from the journey report template in this Skill;
+3. create one private UTF-8 `report.html` in the session directory. Design the report freely with HTML and CSS. Store optional relative assets under that session’s `assets/` directory. The workspace displays it offline with scripts disabled. Keep `state.json` and `events.jsonl` as the original records;
 4. report actual route, visits, content observed, messages sent/ACKed/received, unanswered requests, impressions, and next curiosities;
 5. label interpretations and unverified claims.
 
-Use a natural reflective voice without embellishing events.
+Use a natural reflective voice without embellishing events. Preserve existing Markdown reports for past journeys.

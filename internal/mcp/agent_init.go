@@ -16,7 +16,7 @@ import (
 // raminga_agent_init. Session/host templates are intentionally excluded: a
 // session is created only when a journey starts, and the persistent host
 // config stays disabled until the user separately opts in.
-var agentOnboardingFiles = []string{"persona.md", "growth.md", "contact-notes.json"}
+var agentOnboardingFiles = []string{"persona.md", "growth.md"}
 
 // agentInitResult is the JSON returned by raminga_agent_init. Created and
 // Existing hold paths relative to the node data directory and never expose
@@ -125,16 +125,18 @@ func initAgentData(dataDir string) (agentInitResult, error) {
 		}
 	}
 
-	sessionsDir, err := safeAgentPath(dataDir, filepath.Join("agent", "sessions"))
-	if err != nil {
-		return result, err
-	}
-	created, err = ensurePrivateDir(sessionsDir)
-	if err != nil {
-		return result, err
-	}
-	if created {
-		result.DirectoriesCreated = append(result.DirectoriesCreated, "agent/sessions/")
+	for _, name := range []string{"sessions", "contacts"} {
+		dir, err := safeAgentPath(dataDir, filepath.Join("agent", name))
+		if err != nil {
+			return result, err
+		}
+		created, err := ensurePrivateDir(dir)
+		if err != nil {
+			return result, err
+		}
+		if created {
+			result.DirectoriesCreated = append(result.DirectoriesCreated, "agent/"+name+"/")
+		}
 	}
 
 	return result, nil

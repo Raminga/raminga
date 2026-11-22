@@ -19,5 +19,6 @@
   "started_at": "replace-with-rfc3339-timestamp",
   "updated_at": "replace-with-rfc3339-timestamp",
   "completed_at": null,
+  "summary": "",
   "completion_reason": null
 }

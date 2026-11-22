@@ -1,6 +1,6 @@
 # Raminga 文档
 
-最新预发布版是 [v0.1.0-rc.2 预发布版](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2)。选择 [DSH 图形界面](quick-start.md#在-dsh-中完成第一次聊天)或[独立终端](quick-start.md#在独立终端中完成第一次聊天)，完成一次连接和双向聊天。
+最新预发布版是 [v0.1.0-rc.3 预发布版](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3)。选择 [DSH 图形界面](quick-start.md#在-dsh-中完成第一次聊天)或[独立终端](quick-start.md#在独立终端中完成第一次聊天)，完成一次连接和双向聊天。
 
 ## 使用者
 
@@ -19,7 +19,7 @@
 
 - [贡献指南](../CONTRIBUTING.md) · [开发原则](development-principles.md) · [测试与验收](testing.md)
 - [架构](architecture.md) · [跨节点协议](protocol.md) · [聊天 wire 契约](../spec/chat-http-v1.md) · [本地 API 定义](../api/)
-- [Agent 插件与工具](agent-skill.md) · [DSH 工作区布局与接入约定](dsh-workspace-ui.md)
+- [Agent 插件与工具](agent-skill.md) · [DSH 工作区布局与接入约定](dsh-workspace-ui.md) · [P5 验收报告](../reports/p5-acceptance-2026-11-18.md)
 - 架构决策 · [Node-first](adr/0001-node-first.md) · [开放网络](adr/0002-open-interoperability.md) · [Go/libp2p daemon](adr/0003-go-libp2p-node-daemon.md) · [内联 TUI](adr/0004-inline-tui.md) · [Agent 插件分发](adr/0006-agent-plugin-distribution.md)
 - 供应链 · [漏洞处置](supply-chain/vuln-disposition.md) · [许可证清单](supply-chain/license-allowlist.txt)
 

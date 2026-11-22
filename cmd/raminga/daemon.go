@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -56,9 +57,57 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 		}
 	}()
 
-	cfg, err := config.Load(id.DataDir())
+	// A missing database is a genuine first initialization: resolve and
+	// validate config.toml (including the selected release preset) before
+	// SQLite creates an empty file. Otherwise a failed preset resolution would
+	// leave an initialized database that looks like recovery on the next
+	// invocation and could ignore a corrected preset.
+	dbPath := filepath.Join(id.DataDir(), storage.FileName)
+	_, statErr := os.Stat(dbPath)
+	existingDatabase := statErr == nil
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("inspect node database %q: %w", dbPath, statErr)
+	}
+	var (
+		store *storage.Store
+		cfg   config.Config
+	)
+	if existingDatabase {
+		// Read the one-time bootstrap import marker before a missing
+		// config.toml can resolve the official preset. A pre-existing database
+		// is recovery, even if it predates the marker: recovery must not absorb
+		// a new official seed into existing node state.
+		store, err = storage.Open(ctx, id.DataDir())
+		if err != nil {
+			return err
+		}
+		imported, markerErr := store.BootstrapImported(ctx)
+		if markerErr != nil {
+			_ = store.Close()
+			return fmt.Errorf("read bootstrap import marker: %w", markerErr)
+		}
+		cfg, err = config.LoadWithOptions(id.DataDir(), config.LoadOptions{
+			BootstrapImported: imported,
+			ExistingDatabase:  true,
+		})
+	} else {
+		// No import marker can exist without a database. Strictly load the
+		// initial config before storage.Open so an invalid selected preset
+		// cannot create the SQLite file that would make the next attempt look
+		// like existing-database recovery.
+		cfg, err = config.LoadWithOptions(id.DataDir(), config.LoadOptions{})
+	}
 	if err != nil {
+		if store != nil {
+			_ = store.Close()
+		}
 		return err
+	}
+	if store == nil {
+		store, err = storage.Open(ctx, id.DataDir())
+		if err != nil {
+			return err
+		}
 	}
 	levelName := cfg.Log.Level
 	if logLevel != "" {
@@ -66,6 +115,7 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 	}
 	level, err := parseLevel(levelName)
 	if err != nil {
+		_ = store.Close()
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
@@ -76,13 +126,29 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 		"node_id", id.NodeID(),
 		"data_dir", id.DataDir())
 
-	store, err := storage.Open(ctx, id.DataDir())
-	if err != nil {
-		return err
-	}
 	pausedIDs, err := store.ListPausedPeers(ctx)
 	if err != nil {
 		logger.Warn("load paused peers failed", "error", err)
+	}
+	// config.toml's [dht].bootstrap_peers (and the release preset applied by
+	// init) is a first-initialization input only. The one-time import writes
+	// the bootstrap role into the ordinary peer records; every later config
+	// edit or restart reads the database instead, so an explicit clear stays
+	// cleared and the TOML is never rewritten.
+	if _, imported, importErr := store.ImportBootstrapPeersOnce(ctx, cfg.DHT.BootstrapPeers); importErr != nil {
+		_ = store.Close()
+		return fmt.Errorf("import bootstrap peer preset: %w", importErr)
+	} else if imported {
+		logger.Info("imported legacy bootstrap peer preset", "count", len(cfg.DHT.BootstrapPeers))
+	}
+	bootstrapRows, err := store.ListBootstrapPeers(ctx)
+	if err != nil {
+		_ = store.Close()
+		return fmt.Errorf("load bootstrap peers: %w", err)
+	}
+	bootstrapAddrs := make([]string, 0)
+	for _, peer := range bootstrapRows {
+		bootstrapAddrs = append(bootstrapAddrs, peer.Addrs...)
 	}
 	netw, err := network.New(network.Config{
 		PrivateKey:      id.PrivateKey(),
@@ -122,7 +188,7 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 			Enabled:         cfg.DHT.Enabled,
 			Mode:            cfg.DHT.Mode,
 			ProtocolPrefix:  cfg.DHT.ProtocolPrefix,
-			BootstrapPeers:  cfg.DHT.BootstrapPeers,
+			BootstrapPeers:  bootstrapAddrs,
 			RefreshInterval: cfg.DHTRefreshInterval(),
 			QueryTimeout:    cfg.DHTQueryTimeout(),
 		},
@@ -140,11 +206,6 @@ func runDaemon(ctx context.Context, dataDir string, enableTestAPI bool, logLevel
 	if err != nil {
 		_ = store.Close()
 		return err
-	}
-	for _, raw := range cfg.DHT.BootstrapPeers {
-		if err := netw.SeedPeer(raw, "bootstrap"); err != nil {
-			logger.Warn("seed DHT bootstrap peer failed", "addr", raw, "error", err)
-		}
 	}
 	for _, raw := range cfg.Relay.KnownRelays {
 		if err := netw.SeedPeer(raw, "pinned"); err != nil {

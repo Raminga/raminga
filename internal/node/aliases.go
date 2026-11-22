@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	libp2pnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/Raminga/raminga/internal/p2phttp"
 	"github.com/Raminga/raminga/internal/storage"
+	"github.com/Raminga/raminga/pkg/bootstrapaddr"
 )
 
 // Friend sentinel errors are stable API-facing aliases for the storage errors.
@@ -32,13 +34,14 @@ type Friend struct {
 	Paused            bool
 	FirstSeen         time.Time
 	LastInteraction   time.Time
+	UnreadCount       int
 }
 
 func friendFromStorage(f storage.Friend) Friend {
 	out := Friend{
 		PeerID: f.PeerID, Name: f.Name, Addrs: f.Addrs, Description: f.Description,
 		ManuallyConnected: f.ManuallyConnected, RelayCapable: f.RelayCapable,
-		DHTCapable: f.DHTCapable, Paused: f.Paused,
+		DHTCapable: f.DHTCapable, Paused: f.Paused, UnreadCount: f.UnreadCount,
 	}
 	if f.FirstSeenMS > 0 {
 		out.FirstSeen = time.UnixMilli(f.FirstSeenMS)
@@ -249,5 +252,90 @@ func (n *Node) recoverFriends(ctx context.Context) {
 		}
 		n.recordFriendCapabilities(ctx, pid)
 		n.net.MaybeAddConnectRelay(ctx, pid)
+	}
+}
+
+// BootstrapPeers returns saved bootstrap roles with separate live online and
+// persistent paused flags. It never dials or treats cache presence as online.
+func (n *Node) BootstrapPeers(ctx context.Context) ([]BootstrapPeer, error) {
+	n.bootstrapMu.Lock()
+	defer n.bootstrapMu.Unlock()
+	rows, err := n.store.ListBootstrapPeers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]BootstrapPeer, 0, len(rows))
+	for _, row := range rows {
+		online := false
+		if pid, decodeErr := peer.Decode(row.PeerID); decodeErr == nil {
+			online = n.net.Host().Network().Connectedness(pid) == libp2pnet.Connected
+		}
+		out = append(out, BootstrapPeer{
+			PeerID:  row.PeerID,
+			Addrs:   append([]string(nil), row.Addrs...),
+			Online:  online,
+			Paused:  row.Paused,
+			SavedAt: time.UnixMilli(row.SavedAtMS),
+		})
+	}
+	return out, nil
+}
+
+// AddBootstrapPeer persists one validated bootstrap role and applies it to the
+// live DHT. Persistence is the save receipt; the bootstrap dial continues in
+// the background and never turns into a false "online" result.
+func (n *Node) AddBootstrapPeer(ctx context.Context, multiaddr string) (BootstrapPeer, bool, error) {
+	address, err := bootstrapaddr.Parse(multiaddr)
+	if err != nil {
+		return BootstrapPeer{}, false, err
+	}
+	if address.PeerID == n.identity.PeerID().String() {
+		return BootstrapPeer{}, false, errors.New("不能把本机节点设为引导节点")
+	}
+	n.bootstrapMu.Lock()
+	defer n.bootstrapMu.Unlock()
+	row, added, err := n.store.AddBootstrapPeer(ctx, address.Multiaddr)
+	if err != nil {
+		return BootstrapPeer{}, false, err
+	}
+	// AddBootstrapPeer updates the live map and starts any bootstrap dial in
+	// the background; this lock never waits on that dial.
+	if _, err := n.net.AddBootstrapPeer(ctx, address.Multiaddr); err != nil {
+		return BootstrapPeer{}, added, fmt.Errorf("引导节点已保存，但运行时候选更新失败：%w", err)
+	}
+	return n.bootstrapPeerSnapshot(ctx, row), added, nil
+}
+
+// RemoveBootstrapPeer removes only the role; history, addresses, contacts,
+// other roles and the pause record are untouched. A missing role is an
+// idempotent no-op.
+func (n *Node) RemoveBootstrapPeer(ctx context.Context, peerID string) (bool, error) {
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return false, fmt.Errorf("无效 Peer ID %q: %w", peerID, err)
+	}
+	n.bootstrapMu.Lock()
+	defer n.bootstrapMu.Unlock()
+	removed, err := n.store.RemoveBootstrapPeer(ctx, pid.String())
+	if err != nil {
+		return false, err
+	}
+	// The live map update is synchronous and removes only the role; the DHT
+	// refresh runs in the background so no dial happens under bootstrapMu.
+	n.net.RemoveBootstrapPeer(pid)
+	return removed, nil
+}
+
+func (n *Node) bootstrapPeerSnapshot(ctx context.Context, row storage.BootstrapPeer) BootstrapPeer {
+	online := false
+	if pid, err := peer.Decode(row.PeerID); err == nil {
+		online = n.net.Host().Network().Connectedness(pid) == libp2pnet.Connected
+	}
+	return BootstrapPeer{
+		PeerID:  row.PeerID,
+		Addrs:   append([]string(nil), row.Addrs...),
+		Online:  online,
+		Paused:  row.Paused,
+		SavedAt: time.UnixMilli(row.SavedAtMS),
 	}
 }

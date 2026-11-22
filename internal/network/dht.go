@@ -24,13 +24,17 @@ import (
 
 // DHTConfig configures the independent Raminga Kademlia DHT.
 type DHTConfig struct {
-	Enabled         bool
-	Mode            string
-	ProtocolPrefix  string
-	BootstrapPeers  []string
-	RefreshInterval time.Duration
-	QueryTimeout    time.Duration
-	MaxRecords      int
+	Enabled        bool
+	Mode           string
+	ProtocolPrefix string
+	BootstrapPeers []string
+	// BootstrapPeersFunc, when set, is the live operator-managed bootstrap
+	// role list. It lets add/remove take effect without rebuilding the DHT.
+	// The function returns complete multiaddrs including /p2p/<peer-id>.
+	BootstrapPeersFunc func() []string
+	RefreshInterval    time.Duration
+	QueryTimeout       time.Duration
+	MaxRecords         int
 	// Paused reports a persistent local pause; paused bootstrap peers are not
 	// seeded or dialled by this package.
 	Paused func(peer.ID) bool
@@ -73,11 +77,12 @@ type DHTStatus struct {
 // DHT wraps go-libp2p-kad-dht with a fixed Raminga prefix and no public
 // bootstrap defaults.
 type DHT struct {
-	h      host.Host
-	cfg    DHTConfig
-	logger *slog.Logger
-	d      *dht.IpfsDHT
-	relay  func(peer.AddrInfo) bool
+	h         host.Host
+	cfg       DHTConfig
+	logger    *slog.Logger
+	d         *dht.IpfsDHT
+	relay     func(peer.AddrInfo) bool
+	bootstrap func() []string
 
 	mu          sync.Mutex
 	lastBoot    time.Time
@@ -121,7 +126,15 @@ func NewDHT(h host.Host, cfg DHTConfig, relay func(peer.AddrInfo) bool, logger *
 		return nil, fmt.Errorf("dht: unknown mode %q", cfg.Mode)
 	}
 
-	boot, err := parseAddrInfos(cfg.BootstrapPeers)
+	// Keep the DHT's own bootstrap option live too: routing-table restore and
+	// refresh consult this function instead of a construction-time snapshot.
+	bootstrap := func() []string {
+		if cfg.BootstrapPeersFunc != nil {
+			return cfg.BootstrapPeersFunc()
+		}
+		return cfg.BootstrapPeers
+	}
+	boot, err := parseAddrInfos(bootstrap())
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +156,27 @@ func NewDHT(h host.Host, cfg DHTConfig, relay func(peer.AddrInfo) bool, logger *
 		dht.Datastore(newBoundedDatastore(dssync.MutexWrap(datastore.NewMapDatastore()), cfg.MaxRecords)),
 		dht.BootstrapOrder(dht.BootstrapFirst),
 	}
-	if len(boot) > 0 {
+	if cfg.BootstrapPeersFunc != nil {
+		opts = append(opts, dht.BootstrapPeersFunc(func() []peer.AddrInfo {
+			infos, parseErr := parseAddrInfos(cfg.BootstrapPeersFunc())
+			if parseErr != nil {
+				if logger != nil {
+					logger.Warn("ignore invalid live bootstrap peer", "error", parseErr)
+				}
+				return nil
+			}
+			if cfg.Paused == nil {
+				return infos
+			}
+			filtered := infos[:0]
+			for _, info := range infos {
+				if !cfg.Paused(info.ID) {
+					filtered = append(filtered, info)
+				}
+			}
+			return filtered
+		}))
+	} else if len(boot) > 0 {
 		opts = append(opts, dht.BootstrapPeers(boot...))
 	}
 	if cfg.RefreshInterval > 0 {
@@ -156,7 +189,7 @@ func NewDHT(h host.Host, cfg DHTConfig, relay func(peer.AddrInfo) bool, logger *
 	if err != nil {
 		return nil, fmt.Errorf("dht: create Raminga DHT: %w", err)
 	}
-	return &DHT{h: h, cfg: cfg, logger: logger, d: impl, relay: relay}, nil
+	return &DHT{h: h, cfg: cfg, logger: logger, d: impl, relay: relay, bootstrap: bootstrap}, nil
 }
 
 func (d *DHT) Start(ctx context.Context) error {
@@ -165,7 +198,7 @@ func (d *DHT) Start(ctx context.Context) error {
 	}
 	d.ctx, d.cancel = context.WithCancel(ctx)
 	d.started = time.Now()
-	boot, _ := parseAddrInfos(d.cfg.BootstrapPeers)
+	boot := d.bootstrapAddrInfos()
 	attempted := false
 	for _, info := range boot {
 		if d.cfg.Paused != nil && d.cfg.Paused(info.ID) {
@@ -247,7 +280,7 @@ func (d *DHT) refresh() {
 	// each time. Log it once at INFO and keep LastError for real failures.
 	var infoMsg string
 	var warnErr error
-	hasBootstrap := len(d.cfg.BootstrapPeers) > 0
+	hasBootstrap := len(d.bootstrapAddrInfos()) > 0
 	d.mu.Lock()
 	d.lastRefr = time.Now().UTC()
 	switch {
@@ -287,7 +320,7 @@ func (d *DHT) refresh() {
 	}
 	d.mu.Unlock()
 	if infoMsg != "" {
-		d.logger.Info(infoMsg, "peers", live, "bootstrap_peers", len(d.cfg.BootstrapPeers))
+		d.logger.Info(infoMsg, "peers", live, "bootstrap_peers", len(d.bootstrapAddrInfos()))
 	}
 	if warnErr != nil {
 		d.logger.Warn("DHT error", "error", warnErr)
@@ -385,6 +418,90 @@ func (d *DHT) AddPeer(_ context.Context, raw string) (DHTPeer, error) {
 	}, nil
 }
 
+// configuredBootstrap returns the current operator-managed list. Read-only
+// callers use it for diagnostics; DHT dialing always goes through
+// bootstrapAddrInfos so the persistent pause state is applied.
+func (d *DHT) configuredBootstrap() []string {
+	if d == nil {
+		return nil
+	}
+	if d.bootstrap != nil {
+		return append([]string(nil), d.bootstrap()...)
+	}
+	return append([]string(nil), d.cfg.BootstrapPeers...)
+}
+
+// bootstrapAddrInfos parses the live list and removes peers paused by an
+// explicit local disconnect. Invalid live entries are skipped with a warning;
+// the write path validates before storing, so this only protects diagnostics.
+func (d *DHT) bootstrapAddrInfos() []peer.AddrInfo {
+	if d == nil {
+		return nil
+	}
+	infos, err := parseAddrInfos(d.configuredBootstrap())
+	if err != nil {
+		if d.logger != nil {
+			d.logger.Warn("ignore invalid bootstrap peer", "error", err)
+		}
+		return nil
+	}
+	if d.cfg.Paused == nil {
+		return infos
+	}
+	filtered := infos[:0]
+	for _, info := range infos {
+		if !d.cfg.Paused(info.ID) {
+			filtered = append(filtered, info)
+		}
+	}
+	return filtered
+}
+
+// AddBootstrapPeer applies a newly saved role to the live DHT. It adds the
+// address to the PeerStore and makes one real bootstrap dial in the background;
+// callers return after persistence and never treat dial success as save
+// success. Paused peers are not dialed.
+func (d *DHT) AddBootstrapPeer(ctx context.Context, info peer.AddrInfo) {
+	if d == nil || d.d == nil || info.ID == "" || len(info.Addrs) == 0 {
+		return
+	}
+	if d.cfg.Paused != nil && d.cfg.Paused(info.ID) {
+		return
+	}
+	d.h.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
+	d.mu.Lock()
+	d.lastBoot = time.Now().UTC()
+	d.mu.Unlock()
+	go func() {
+		base := d.ctx
+		if base == nil {
+			base = context.Background()
+		}
+		dialCtx, cancel := context.WithTimeout(base, 10*time.Second)
+		defer cancel()
+		if err := d.h.Connect(dialCtx, info); err != nil {
+			d.setError(fmt.Errorf("bootstrap %s: %w", info.ID, err))
+			d.logger.Warn("DHT bootstrap connect failed", "peer_id", info.ID.String(), "error", err)
+			return
+		}
+		if d.d != nil {
+			_ = d.d.Bootstrap(dialCtx)
+		}
+	}()
+}
+
+// RefreshBootstrap asks the DHT to refresh from the current live list (used
+// after removing a role). It never dials a removed peer.
+func (d *DHT) RefreshBootstrap(ctx context.Context) {
+	if d == nil || d.d == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_ = d.d.Bootstrap(ctx)
+}
+
 // Status returns DHT diagnostics, including discovery failures.
 func (d *DHT) Status() DHTStatus {
 	if d == nil {
@@ -398,12 +515,14 @@ func (d *DHT) Status() DHTStatus {
 	if configured == "" {
 		configured = "auto"
 	}
+	bootstrapPeers := append([]string(nil), d.configuredBootstrap()...)
+	sort.Strings(bootstrapPeers)
 	status := DHTStatus{
 		Enabled:                   d.cfg.Enabled,
 		Mode:                      configured,
 		ActiveMode:                d.activeMode(),
 		Protocol:                  "/raminga/kad/1.0.0",
-		BootstrapPeers:            append([]string(nil), d.cfg.BootstrapPeers...),
+		BootstrapPeers:            bootstrapPeers,
 		PublicBootstrapConfigured: false,
 		LastBootstrapAt:           lastBoot,
 		LastRefreshAt:             lastRefr,
@@ -421,8 +540,7 @@ func (d *DHT) Status() DHTStatus {
 	sort.Strings(status.RoutingTablePeers)
 	if d.h != nil {
 		status.ConnectedPeers = len(d.h.Network().Peers())
-		boot, _ := parseAddrInfos(d.cfg.BootstrapPeers)
-		for _, info := range boot {
+		for _, info := range d.bootstrapAddrInfos() {
 			if d.h.Network().Connectedness(info.ID) == corenet.Connected {
 				status.BootstrapConnected++
 			}
@@ -516,6 +634,7 @@ func (d *DHT) Close() error {
 
 func parseAddrInfos(raw []string) ([]peer.AddrInfo, error) {
 	out := make([]peer.AddrInfo, 0, len(raw))
+	index := make(map[peer.ID]int, len(raw))
 	for _, address := range raw {
 		m, err := ma.NewMultiaddr(address)
 		if err != nil {
@@ -525,6 +644,13 @@ func parseAddrInfos(raw []string) ([]peer.AddrInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("multiaddr %q must include /p2p/<peer-id>: %w", address, err)
 		}
+		// One Peer can have several addresses. Bootstrap connectivity and
+		// `bootstrap_connected` count peers, not addresses.
+		if at, ok := index[info.ID]; ok {
+			out[at].Addrs = dedupeMultiaddrs(append(out[at].Addrs, info.Addrs...))
+			continue
+		}
+		index[info.ID] = len(out)
 		out = append(out, *info)
 	}
 	return out, nil

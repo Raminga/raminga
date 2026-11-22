@@ -116,6 +116,16 @@ else
 	die "找不到 raminga 二进制；请在归档解压目录或仓库根目录运行"
 fi
 
+# The release preset sidecar is installed next to the executable. Bare builds
+# and binary-only marketplace packages may omit it and use the embedded copy.
+PRESET_SRC=
+for candidate in "$(dirname -- "$SRC")/bootstrap-preset.toml" "$SCRIPT_DIR/bootstrap-preset.toml" "$SCRIPT_DIR/../internal/config/bootstrap-preset.toml"; do
+	if [ -f "$candidate" ]; then
+		PRESET_SRC=$candidate
+		break
+	fi
+done
+
 if [ -n "${HOME:-}" ]; then
 	DEFAULT_PREFIX=$HOME/.local/bin
 else
@@ -741,11 +751,41 @@ same_file() {
 	[ "$(ls -Lid -- "$1" 2>/dev/null | awk '{print $1}')" = "$(ls -Lid -- "$2" 2>/dev/null | awk '{print $1}')" ]
 }
 
+# install_preset_sidecar never overwrites an existing file: an operator may
+# have edited it, and upgrades must preserve that edit. A fresh install links a
+# fully written temporary file into place so a reader sees either no sidecar or
+# a complete one.
+install_preset_sidecar() {
+	[ -n "$PRESET_SRC" ] || return 0
+	PRESET_DEST=$DEST_DIR/bootstrap-preset.toml
+	if [ -e "$PRESET_DEST" ]; then
+		printf '保留已有 %s（未覆盖）\n' "$PRESET_DEST"
+		return 0
+	fi
+	PRESET_TMP=$(mktemp "$DEST_DIR/.raminga-preset.XXXXXX") || die "无法在 $DEST_DIR 创建 bootstrap 预置临时文件"
+	cp "$PRESET_SRC" "$PRESET_TMP" || die "复制 bootstrap 预置到 $PRESET_TMP 失败"
+	chmod 0644 "$PRESET_TMP" || die "设置 $PRESET_TMP 权限失败"
+	if ! ln "$PRESET_TMP" "$PRESET_DEST" 2>/dev/null; then
+		rm -f "$PRESET_TMP"
+		PRESET_TMP=
+		if [ -e "$PRESET_DEST" ]; then
+			printf '保留已有 %s（未覆盖）\n' "$PRESET_DEST"
+			return 0
+		fi
+		die "安装 bootstrap 预置到 $PRESET_DEST 失败"
+	fi
+	rm -f "$PRESET_TMP"
+	PRESET_TMP=
+	printf '已安装 bootstrap 预置到 %s\n' "$PRESET_DEST"
+}
+
 TMP=$(mktemp "$DEST_DIR/.raminga-install.XXXXXX") || die "无法在 $DEST_DIR 创建临时文件"
-trap 'rm -f "$TMP"; cleanup_cli_stage' EXIT HUP INT TERM
+PRESET_TMP=
+trap 'rm -f "$TMP"; if [ -n "${PRESET_TMP:-}" ]; then rm -f "$PRESET_TMP"; fi; cleanup_cli_stage' EXIT HUP INT TERM
 cp "$SRC" "$TMP" || die "复制二进制到 $TMP 失败"
 chmod 0755 "$TMP" || die "设置 $TMP 可执行权限失败"
 mv -f "$TMP" "$DEST" || die "替换 $DEST 失败"
+install_preset_sidecar
 trap - EXIT HUP INT TERM
 cleanup_cli_stage
 

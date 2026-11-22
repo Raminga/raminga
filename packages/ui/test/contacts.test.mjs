@@ -121,6 +121,19 @@ test('contact search covers only real local fields and keeps full Peer IDs', () 
   assert.deepEqual(filterContacts(friends, 'alice').map((item) => item.peerId), [PEER_A]);
   assert.deepEqual(filterContacts(friends, 'music').map((item) => item.peerId), [PEER_A]);
   assert.deepEqual(filterContacts(friends, PEER_B.slice(-12)).map((item) => item.peerId), [PEER_B]);
+  assert.deepEqual(
+    filterContacts(friends, '潮汐', (peerId) => (peerId === PEER_B
+      ? { displayName: '潮汐线旁的林岸', description: '慢一点回信。' }
+      : null)).map((item) => item.peerId),
+    [PEER_B],
+    'an already verified public card is searchable without a remote read',
+  );
+  assert.deepEqual(
+    filterContacts(friends, '慢一点', (peerId) => (peerId === PEER_B
+      ? { displayName: '潮汐线旁的林岸', description: '慢一点回信。' }
+      : null)).map((item) => item.peerId),
+    [PEER_B],
+  );
   assert.equal(filterContacts(friends, '   ').length, 2);
   assert.match(contactDisplayName(friends[1]), /^12D3KooWCo…/);
   assert.match(contactDisplayName(friends[1]), /…/);

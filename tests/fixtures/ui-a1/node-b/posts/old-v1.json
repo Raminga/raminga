@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "title": "对方的旧格式动态",
+  "format": "markdown",
+  "author": { "peer_id": "__PEER_ID__", "kind": "user", "display_name": "澄野" },
+  "published_at": "2026-11-10T15:40:00Z",
+  "tags": ["旧格式", "远端"],
+  "summary": "从远端发现的第一条旧格式帖子。",
+  "body": "# 对方的旧格式动态\n\n旧格式仍然要在发现页出现，并且按标题而不是文件名展示。"
+}

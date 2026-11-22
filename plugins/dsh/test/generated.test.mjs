@@ -59,7 +59,7 @@ test('core guidance is self-contained and carries the node clock rule', () => {
 test('status exposes the node current_time field through the DSH handler', async () => {
   const status = new StatusResponse({
     peerId: '12D3KooFake',
-    apiVersion: '4',
+    apiVersion: '6',
     currentTime: '2026-11-11T12:34:56Z',
   });
   const api = {
@@ -75,7 +75,6 @@ test('onboarding templates are generated from agent/templates', () => {
   assert.deepEqual(AGENT_ONBOARDING_FILES.map((file) => file.path), [
     'persona.md',
     'growth.md',
-    'contact-notes.json',
   ]);
   assert.match(AGENT_ONBOARDING_FILES[0].content, /Persona|persona/);
 });

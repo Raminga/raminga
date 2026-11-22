@@ -25,7 +25,7 @@ export function postMatchesQuery(post, rawQuery) {
   const query = String(rawQuery ?? '').trim().toLowerCase();
   if (query.length === 0) return true;
   const fields = [
-    post?.title, post?.summary, post?.authorName, post?.authorPeerId, post?.path,
+    post?.title, post?.summary, post?.publisherAgentName, post?.publisherName, post?.authorName, post?.authorPeerId, post?.path,
     ...(Array.isArray(post?.tags) ? post.tags : []),
   ];
   return fields.some((field) => String(field ?? '').toLowerCase().includes(query));
@@ -38,10 +38,12 @@ export function discoveryListState(data, query) {
   if (data.at === null && data.error) return { kind: 'error', items: [], total: 0 };
   if (data.at === null) return { kind: 'loading', items: [], total: 0 };
   if (filtered.length === 0 && String(query ?? '').trim().length > 0 && items.length > 0) {
-    return { kind: 'search-empty', items: [], total: items.length };
+    return { kind: 'search-empty', items: [], total: 0 };
   }
   if (items.length === 0) return { kind: 'empty', items: [], total: 0 };
-  return { kind: 'ready', items: filtered, total: items.length };
+  // total is the real filtered match count, so search never labels a subset
+  // with the unfiltered index size.
+  return { kind: 'ready', items: filtered, total: filtered.length };
 }
 
 export function discoverySourceText(source) {
@@ -52,11 +54,17 @@ export function discoverySourceText(source) {
 }
 
 export function profileLabel(profile, fallbackPeerId) {
+  // The peer's current public name leads; the local contact alias remains a
+  // separate local label rather than overriding the public declaration. A
+  // Peer ID is an identifier, never a public display name, so a name field
+  // that merely echoes the key falls through to the local alias.
+  const remote = String(profile?.remoteName ?? '').trim();
+  const fallback = String(fallbackPeerId ?? '').trim();
+  const peerLike = remote === fallback || /^(?:12D3KooW|16Uiu2HAm|Qm)[1-9A-HJ-NP-Za-km-z]{20,}$/.test(remote);
+  if (remote.length > 0 && !peerLike) return remote;
   const local = String(profile?.localName ?? '').trim();
   if (local.length > 0) return local;
-  const remote = String(profile?.remoteName ?? '').trim();
-  if (remote.length > 0) return remote;
-  return shortPeerText(fallbackPeerId);
+  return shortPeerText(fallback);
 }
 
 export function mineProfileStateText(profile) {
@@ -70,23 +78,26 @@ export function minePostsStateText(posts) {
   if (!posts) return { tone: 'unavailable', text: '读取中' };
   if (posts.state === 'error') return { tone: 'error', text: '读取失败' };
   if (posts.state === 'missing') return { tone: 'unavailable', text: '公开目录不可用' };
-  if (posts.posts.length === 0) return { tone: 'unavailable', text: '没有本人署名的公开内容' };
-  return { tone: 'ready', text: `${posts.posts.length} 条本人公开内容` };
+  const files = Array.isArray(posts.files) ? posts.files : [];
+  if (files.length === 0) return { tone: 'unavailable', text: '没有公开文件' };
+  return { tone: 'ready', text: `${files.length} 个公开文件` };
 }
 
 export function journeyStatusText(state) {
   const status = String(state?.status ?? '');
   switch (status) {
     case 'running':
-      return { tone: 'running', label: '运行中', note: '仅表示最后一次保存的记录为运行中，不能证明宿主仍在运行。' };
+      // P1 has no tool-activity evidence. A saved "running" record, however
+      // fresh, is still an unfinished record that needs confirmation.
+      return { tone: 'running', label: '待确认', recordLabel: '运行中', note: '状态记录为运行中；Journey 文件字段不是工具调用证据，也不能单独证明当前仍在运行。' };
     case 'paused':
-      return { tone: 'paused', label: '已暂停', note: '暂停是宿主保存的记录，不代表实时进程状态。' };
+      return { tone: 'paused', label: '待确认', recordLabel: '已暂停', note: '最后保存的记录为已暂停；这只是一条记录，不代表当前状态。' };
     case 'completed':
-      return { tone: 'done', label: '已完成', note: '' };
+      return { tone: 'done', label: '已完成', recordLabel: '已完成', note: '' };
     case 'failed':
-      return { tone: 'error', label: '失败', note: '失败原因来自宿主的 Journey 记录。' };
+      return { tone: 'error', label: '失败', recordLabel: '失败', note: '失败原因来自宿主的 Journey 记录。' };
     default:
-      return { tone: 'unknown', label: '状态未记录', note: '没有可用的状态记录，不推测运行状态。' };
+      return { tone: 'unknown', label: '待确认', recordLabel: '状态未记录', note: '没有可用的状态记录，不能推断当前运行状态。' };
   }
 }
 

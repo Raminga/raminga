@@ -85,6 +85,10 @@ type Store struct {
 	peerID    string
 	limits    Limits
 
+	// publishMu serializes manifest scans and public-file writes with the
+	// publication coordinator. Locked methods assume the caller holds it.
+	publishMu sync.Mutex
+
 	mu        sync.Mutex
 	cache     *Snapshot
 	cacheAt   time.Time
@@ -126,16 +130,38 @@ func (s *Store) Close() error {
 
 func (s *Store) Invalidate() {
 	s.mu.Lock()
+	s.invalidateLocked()
+	s.mu.Unlock()
+}
+
+func (s *Store) invalidateLocked() {
 	s.gen++
 	s.cache = nil
 	s.cacheAt = time.Time{}
-	s.mu.Unlock()
 }
+
+// LockPublish acquires the single public-write/scan lock. The publication
+// coordinator holds it for the entire version-check/write/scan/record
+// critical section. Callers must use the *Locked methods while holding it.
+func (s *Store) LockPublish() { s.publishMu.Lock() }
+
+// UnlockPublish releases the public-write/scan lock.
+func (s *Store) UnlockPublish() { s.publishMu.Unlock() }
+
+// InvalidateLocked is Invalidate for a caller already holding LockPublish.
+func (s *Store) InvalidateLocked() { s.Invalidate() }
 
 // Snapshot returns the cached manifest inside the TTL. After the TTL it waits
 // for one singleflight scan, bounded by FirstScanWait and ctx. If the bound is
 // reached it serves the previous snapshot rather than an arbitrarily old one.
 func (s *Store) Snapshot(ctx context.Context) (*Snapshot, error) {
+	s.publishMu.Lock()
+	defer s.publishMu.Unlock()
+	return s.SnapshotLocked(ctx)
+}
+
+// SnapshotLocked is Snapshot for a caller already holding LockPublish.
+func (s *Store) SnapshotLocked(ctx context.Context) (*Snapshot, error) {
 	s.mu.Lock()
 	if s.cache != nil && time.Since(s.cacheAt) < CacheTTL {
 		snap := s.cache
@@ -181,6 +207,13 @@ func (s *Store) Snapshot(ctx context.Context) (*Snapshot, error) {
 // Refresh forces a new scan and waits for it. /published uses this so a user
 // never sees a cached list after adding a file.
 func (s *Store) Refresh(ctx context.Context) (*Snapshot, error) {
+	s.publishMu.Lock()
+	defer s.publishMu.Unlock()
+	return s.RefreshLocked(ctx)
+}
+
+// RefreshLocked is Refresh for a caller already holding LockPublish.
+func (s *Store) RefreshLocked(ctx context.Context) (*Snapshot, error) {
 	s.mu.Lock()
 	s.gen++
 	gen := s.gen
@@ -229,36 +262,19 @@ func (s *Store) Warnings() []string {
 	return append([]string(nil), s.lastWarn...)
 }
 
+// scanAll walks the whole public directory. Files placed directly in public/
+// are published without a metadata file or a user-maintained index; the
+// existing per-file and per-area byte limits still bound what a scan exposes.
 func (s *Store) scanAll() (*Snapshot, error) {
 	if s.scanDelay > 0 {
 		time.Sleep(s.scanDelay)
 	}
 	snap := &Snapshot{PeerID: s.peerID, GeneratedAt: time.Now().UTC()}
-	var profileTotal, postsTotal int64
-	for _, dir := range []string{"posts", "profile"} {
-		info, lerr := s.root.Lstat(dir)
-		if lerr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		var total *int64
-		var limit int64
-		switch dir {
-		case "posts":
-			total, limit = &postsTotal, s.limits.MaxPostsBytes
-		case "profile":
-			total, limit = &profileTotal, s.limits.MaxProfileBytes
-		}
-		if err := s.walk(dir, dir, total, limit, &snap.Entries, &snap.Warnings, &snap.Skipped); err != nil {
-			return nil, err
-		}
+	var profileTotal, publicTotal int64
+	if err := s.walk("", "", ".", &profileTotal, &publicTotal, &snap.Entries, &snap.Warnings, &snap.Skipped); err != nil {
+		return nil, err
 	}
 	if fi, err := s.root.Lstat("friends.json"); err == nil && fi.Mode().IsRegular() {
-		entry, err := s.entry("friends.json", fi)
-		if err == nil {
-			snap.Entries = append(snap.Entries, entry)
-		} else {
-			snap.Skipped = append(snap.Skipped, Skip{Path: "friends.json", Reason: err.Error()})
-		}
 		snap.FriendsSyncedAt = fi.ModTime().UTC()
 	}
 	sort.Slice(snap.Entries, func(i, j int) bool { return snap.Entries[i].Path < snap.Entries[j].Path })
@@ -267,7 +283,10 @@ func (s *Store) scanAll() (*Snapshot, error) {
 	return snap, nil
 }
 
-func (s *Store) walk(rel, dir string, total *int64, limit int64, entries *[]Entry, warnings *[]string, skipped *[]Skip) error {
+// walk recursively enumerates one public-directory level. profile/ keeps its
+// own total so a large public file cannot evict the user's profile; every
+// other public path shares MaxPostsBytes as the aggregate public-content cap.
+func (s *Store) walk(rel, top, dir string, profileTotal, publicTotal *int64, entries *[]Entry, warnings *[]string, skipped *[]Skip) error {
 	f, err := s.root.Open(dir)
 	if err != nil {
 		return nil
@@ -280,7 +299,14 @@ func (s *Store) walk(rel, dir string, total *int64, limit int64, entries *[]Entr
 	sort.Slice(items, func(i, j int) bool { return items[i].Name() < items[j].Name() })
 	for _, item := range items {
 		name := item.Name()
-		child := path.Join(rel, name)
+		child := name
+		if rel != "" {
+			child = path.Join(rel, name)
+		}
+		childTop := top
+		if childTop == "" {
+			childTop = name
+		}
 		if reason, skip := skipReason(name); skip {
 			*skipped = append(*skipped, Skip{Path: child, Reason: reason})
 			continue
@@ -300,7 +326,7 @@ func (s *Store) walk(rel, dir string, total *int64, limit int64, entries *[]Entr
 			continue
 		}
 		if info.IsDir() {
-			if err := s.walk(child, child, total, limit, entries, warnings, skipped); err != nil {
+			if err := s.walk(child, childTop, child, profileTotal, publicTotal, entries, warnings, skipped); err != nil {
 				return err
 			}
 			continue
@@ -315,11 +341,15 @@ func (s *Store) walk(rel, dir string, total *int64, limit int64, entries *[]Entr
 			*warnings = append(*warnings, "skip "+child+": "+reason)
 			continue
 		}
+		total, limit, label := publicTotal, s.limits.MaxPostsBytes, "public"
+		if childTop == "profile" {
+			total, limit, label = profileTotal, s.limits.MaxProfileBytes, "profile"
+		}
 		if limit > 0 && *total+info.Size() > limit {
-			reason := fmt.Sprintf("directory total exceeds %d-byte limit", limit)
+			reason := fmt.Sprintf("%s total exceeds %d-byte limit", label, limit)
 			*skipped = append(*skipped, Skip{Path: child, Reason: reason})
-			*warnings = append(*warnings, "stop "+dir+": "+reason)
-			return nil
+			*warnings = append(*warnings, "stop "+label+": "+reason)
+			continue
 		}
 		entry, err := s.entry(child, info)
 		if err != nil {
@@ -427,6 +457,8 @@ func (s *Store) File(rel string) (*os.File, fs.FileInfo, error) {
 // WriteFriends atomically replaces friends.json only when bytes differ. It is
 // the only writer for the generated file.
 func (s *Store) WriteFriends(data []byte) (bool, error) {
+	s.publishMu.Lock()
+	defer s.publishMu.Unlock()
 	current, err := os.ReadFile(filepath.Join(s.publicDir, "friends.json"))
 	if err == nil && bytes.Equal(current, data) {
 		return false, nil
@@ -457,6 +489,8 @@ func (s *Store) WriteFriends(data []byte) (bool, error) {
 	if err := os.Rename(tmpName, filepath.Join(s.publicDir, "friends.json")); err != nil {
 		return false, err
 	}
-	s.Invalidate()
+	s.mu.Lock()
+	s.invalidateLocked()
+	s.mu.Unlock()
 	return true, nil
 }

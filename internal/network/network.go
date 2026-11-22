@@ -33,6 +33,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	circuitv2proto "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/proto"
 	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
@@ -89,6 +90,9 @@ type Config struct {
 	PeerCache       PeerCache
 	PeerCacheTTL    time.Duration
 	PeerCacheMax    int
+	// HTTPRateLimitNow overrides the clock used by the per-peer HTTP token
+	// buckets. Nil keeps time.Now; tests inject a deterministic clock.
+	HTTPRateLimitNow func() time.Time
 	// PausedPeers seeds the in-memory pause set from persisted paused_peers.
 	PausedPeers []string
 	// Paused is the in-memory predicate; New replaces it with its own set.
@@ -107,6 +111,12 @@ type ConnInfo struct {
 	Direct      bool
 	Limited     bool
 	OpenedAt    time.Time
+}
+
+// BootstrapAddr is one live bootstrap role with its stored addresses.
+type BootstrapAddr struct {
+	PeerID string
+	Addrs  []string
 }
 
 // PeerEntry merges current connections and restart hints. Online is true only
@@ -309,6 +319,9 @@ type Network struct {
 	httpServer *p2phttp.Server
 	httpClient *p2phttp.Client
 
+	bootstrapMu sync.Mutex
+	bootstrap   map[peer.ID][]ma.Multiaddr
+
 	mu               sync.Mutex
 	dialMu           sync.Mutex
 	reachability     network.Reachability
@@ -319,8 +332,6 @@ type Network struct {
 	started          bool
 	totalDialTimeout time.Duration
 	knownDialBudget  time.Duration
-	candidateTimeout time.Duration
-	testDial         func(context.Context, peer.ID, ma.Multiaddr) error
 
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -392,6 +403,7 @@ func New(cfg Config) (*Network, error) {
 		libp2p.ResourceManager(rm),
 		libp2p.ConnectionGater(&pauseGater{paused: paused}),
 		libp2p.DisableMetrics(),
+		libp2p.SwarmOpts(swarm.WithDialRanker(rankDialAddresses)),
 	}
 	if len(cfg.ListenAddrs) == 0 {
 		opts = append(opts, libp2p.NoListenAddrs)
@@ -447,6 +459,11 @@ func New(cfg Config) (*Network, error) {
 		_ = h.Close()
 		return nil, err
 	}
+	bootstrap, err := parseBootstrapRoles(cfg.DHT.BootstrapPeers)
+	if err != nil {
+		_ = h.Close()
+		return nil, err
+	}
 	n := &Network{
 		host:             h,
 		cfg:              cfg,
@@ -456,12 +473,13 @@ func New(cfg Config) (*Network, error) {
 		paused:           paused,
 		tracer:           tracer,
 		resLimits:        limits,
+		bootstrap:        bootstrap,
 		totalDialTimeout: 30 * time.Second,
 		knownDialBudget:  15 * time.Second,
-		candidateTimeout: candidateDialTimeout,
 		httpMux:          httpMux,
 		httpClient:       httpClient,
 	}
+	n.cfg.DHT.BootstrapPeersFunc = n.bootstrapAddrs
 	n.httpClient = httpClient
 	httpClient.SetDial(func(ctx context.Context, pid peer.ID) error {
 		_, err := n.DialPeerByID(ctx, pid)
@@ -525,6 +543,7 @@ func (n *Network) Start(ctx context.Context) error {
 	if err := relay.Start(ctx); err != nil {
 		return err
 	}
+	n.cfg.DHT.BootstrapPeersFunc = n.bootstrapAddrs
 	d, err := NewDHT(n.host, n.cfg.DHT, func(info peer.AddrInfo) bool {
 		added := n.relay.AddDiscoveredRelay(info)
 		if added {
@@ -546,6 +565,7 @@ func (n *Network) Start(ctx context.Context) error {
 	// Chat owns its dedupe-before-rate budget; other future routes can opt in
 	// to the generic limiter explicitly.
 	httpOpts.DisableRateLimit = true
+	httpOpts.RateLimitNow = n.cfg.HTTPRateLimitNow
 	httpServer, err := p2phttp.NewServer(n.host, n.httpMux, httpOpts)
 	if err != nil {
 		_ = d.Close()
@@ -924,6 +944,78 @@ func (n *Network) NewStream(ctx context.Context, pid peer.ID, pidProto protocol.
 // connection. It is used only for the application protocol, never for control.
 func (n *Network) OpenChatStream(ctx context.Context, pid peer.ID, pidProto protocol.ID) (network.Stream, error) {
 	return n.host.NewStream(network.WithAllowLimitedConn(ctx, "chat"), pid, pidProto)
+}
+
+// bootstrapAddrs returns the live bootstrap role list as complete
+// multiaddrs. It is the single runtime source for DHT bootstrap dialing and
+// diagnostics; the operator list itself is persisted by storage.
+func (n *Network) bootstrapAddrs() []string {
+	n.bootstrapMu.Lock()
+	defer n.bootstrapMu.Unlock()
+	out := make([]string, 0, len(n.bootstrap))
+	for pid, addrs := range n.bootstrap {
+		for _, addr := range addrs {
+			out = append(out, addr.Encapsulate(ma.StringCast("/p2p/"+pid.String())).String())
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// AddBootstrapPeer applies one saved bootstrap role to the running network.
+// Persistence happens before this call; a dial is a background bootstrap
+// attempt, never a save receipt. Paused peers stay paused.
+func (n *Network) AddBootstrapPeer(ctx context.Context, raw string) (BootstrapAddr, error) {
+	m, err := ma.NewMultiaddr(raw)
+	if err != nil {
+		return BootstrapAddr{}, fmt.Errorf("invalid bootstrap multiaddr: %w", err)
+	}
+	info, err := peer.AddrInfoFromP2pAddr(m)
+	if err != nil {
+		return BootstrapAddr{}, fmt.Errorf("bootstrap multiaddr must include /p2p/<peer-id>: %w", err)
+	}
+	if info.ID == n.host.ID() {
+		return BootstrapAddr{}, errors.New("refusing to use the local node as its own bootstrap peer")
+	}
+	n.bootstrapMu.Lock()
+	merged := dedupeMultiaddrs(append(append([]ma.Multiaddr(nil), n.bootstrap[info.ID]...), info.Addrs...))
+	n.bootstrap[info.ID] = merged
+	n.bootstrapMu.Unlock()
+	n.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
+	if n.dht != nil {
+		n.dht.AddBootstrapPeer(ctx, *info)
+	}
+	return BootstrapAddr{PeerID: info.ID.String(), Addrs: addrsToStrings(info.Addrs)}, nil
+}
+
+// RemoveBootstrapPeer removes only the live bootstrap role. It does not drop
+// the peer's addresses, connection, contact record or explicit pause; a later
+// DHT refresh uses the updated source.
+func (n *Network) RemoveBootstrapPeer(pid peer.ID) {
+	n.bootstrapMu.Lock()
+	delete(n.bootstrap, pid)
+	n.bootstrapMu.Unlock()
+	if n.dht != nil {
+		// Refresh consults the live list and may perform DHT work, so never
+		// block the caller (or Node.bootstrapMu) on it.
+		go n.dht.RefreshBootstrap(context.Background())
+	}
+}
+
+func parseBootstrapRoles(raw []string) (map[peer.ID][]ma.Multiaddr, error) {
+	out := make(map[peer.ID][]ma.Multiaddr, len(raw))
+	for _, value := range raw {
+		m, err := ma.NewMultiaddr(value)
+		if err != nil {
+			return nil, fmt.Errorf("network: invalid bootstrap peer %q: %w", value, err)
+		}
+		info, err := peer.AddrInfoFromP2pAddr(m)
+		if err != nil {
+			return nil, fmt.Errorf("network: bootstrap peer %q must include /p2p/<peer-id>: %w", value, err)
+		}
+		out[info.ID] = dedupeMultiaddrs(append(out[info.ID], info.Addrs...))
+	}
+	return out, nil
 }
 
 // AddPeer adds a peer multiaddr to the in-memory PeerStore and SQLite hint

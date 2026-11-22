@@ -235,7 +235,7 @@ func freePort(t *testing.T) int {
 
 func runInit(t *testing.T, bin, dir string, port int, announce string) {
 	t.Helper()
-	args := []string{"init", "--data-dir", dir,
+	args := []string{"init", "--no-bootstrap-preset", "--data-dir", dir,
 		"--listen", fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port),
 		"--listen", fmt.Sprintf("/ip4/127.0.0.1/udp/%d/quic-v1", port)}
 	if announce != "" {

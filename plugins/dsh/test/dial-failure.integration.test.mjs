@@ -25,7 +25,7 @@ test('a real remote dial failure keeps the dial error and local Status health', 
   timeout: 30000,
 }, async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-dial-failure-'));
-  const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+  const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
   assert.equal(init.status, 0, init.stderr || init.stdout);
   const bridge = new RamingaUiBridge(
     new RamingaApi(resolveConfig({ dataDir: dir, ramingaBin: binary })),

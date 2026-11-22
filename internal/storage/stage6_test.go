@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -25,14 +26,18 @@ func TestStage6DiscoveryIndexPersistsEvidenceAndFamiliarFilter(t *testing.T) {
 	if _, err := s.RecordPublicDiscovery(ctx, "peer-b", "posts/b.json", "ccdd", 20, now+1, "raminga_content_get"); err != nil {
 		t.Fatal(err)
 	}
-	// The same version re-fetched updates observation time/source without
-	// creating a duplicate row.
-	again, err := s.RecordPublicDiscovery(ctx, "peer-a", "posts/a.json", "aabb", 10, now+2, "raminga_content_get")
+	// The same version re-fetched updates observation time and latest source
+	// without creating a duplicate row. The acquisition history keeps both the
+	// Agent and manual paths.
+	again, err := s.RecordPublicDiscovery(ctx, "peer-a", "posts/a.json", "aabb", 10, now+2, "raminga_ui_manual")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.ID != first.ID || again.FetchedAtMS != now+2 {
+	if again.ID != first.ID || again.FetchedAtMS != now+2 || again.Source != "raminga_ui_manual" {
 		t.Fatalf("re-fetch row = %+v, first = %+v", again, first)
+	}
+	if len(again.Sources) != 2 || again.Sources[0] != "raminga_content_get" || again.Sources[1] != "raminga_ui_manual" {
+		t.Fatalf("acquisition sources = %v", again.Sources)
 	}
 	// A changed hash is a new content version.
 	changed, err := s.RecordPublicDiscovery(ctx, "peer-a", "posts/a.json", "eeee", 12, now+3, "raminga_content_get")
@@ -49,14 +54,14 @@ func TestStage6DiscoveryIndexPersistsEvidenceAndFamiliarFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	page, err := s.ListPublicDiscoveries(ctx, "", 2, false)
+	page, err := s.ListPublicDiscoveries(ctx, "", 2, false, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(page.Items) != 2 || !page.HasMore || page.NextBefore == "" {
 		t.Fatalf("page = %+v", page)
 	}
-	next, err := s.ListPublicDiscoveries(ctx, page.NextBefore, 2, false)
+	next, err := s.ListPublicDiscoveries(ctx, page.NextBefore, 2, false, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +81,7 @@ func TestStage6DiscoveryIndexPersistsEvidenceAndFamiliarFilter(t *testing.T) {
 		"peer-b", now, now); err != nil {
 		t.Fatal(err)
 	}
-	familiar, err := s.ListPublicDiscoveries(ctx, "", 10, true)
+	familiar, err := s.ListPublicDiscoveries(ctx, "", 10, true, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +93,7 @@ func TestStage6DiscoveryIndexPersistsEvidenceAndFamiliarFilter(t *testing.T) {
 	if len(familiar.Items) != 1 {
 		t.Fatalf("familiar rows = %+v", familiar.Items)
 	}
-	if _, err := s.ListPublicDiscoveries(ctx, "not-a-cursor", 10, false); err == nil {
+	if _, err := s.ListPublicDiscoveries(ctx, "not-a-cursor", 10, false, "", false); err == nil {
 		t.Fatal("malformed cursor must fail")
 	}
 }
@@ -186,8 +191,8 @@ func TestStage6DiscoveryTableIsInVersionedMigration(t *testing.T) {
 	if err := s.DB().QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 8 {
-		t.Fatalf("schema version = %d, want 8", version)
+	if version != schemaVersion {
+		t.Fatalf("schema version = %d, want %d", version, schemaVersion)
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
@@ -202,5 +207,45 @@ func TestStage6DiscoveryTableIsInVersionedMigration(t *testing.T) {
 	}
 	if _, err := filepath.Abs(dataDir); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDiscoverySourcesMigrateFromOlderVersion(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, FileName)
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stmts := []string{
+		`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at_ms INTEGER NOT NULL)`,
+		`INSERT INTO schema_migrations (version, applied_at_ms) VALUES (8, 1)`,
+		`CREATE TABLE public_discoveries (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, peer_id TEXT NOT NULL, path TEXT NOT NULL,
+			sha256 TEXT NOT NULL, size_bytes INTEGER NOT NULL, fetched_at_ms INTEGER NOT NULL,
+			source TEXT NOT NULL, UNIQUE(peer_id, path, sha256))`,
+		`INSERT INTO public_discoveries (peer_id, path, sha256, size_bytes, fetched_at_ms, source)
+		 VALUES ('peer-a', 'posts/a.json', 'aa', 1, 10, 'raminga_content_get')`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	page, err := store.ListPublicDiscoveries(ctx, "", 10, false, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || len(page.Items[0].Sources) != 1 || page.Items[0].Sources[0] != "raminga_content_get" {
+		t.Fatalf("migrated sources = %+v", page.Items)
 	}
 }

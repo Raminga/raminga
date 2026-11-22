@@ -97,7 +97,13 @@ test('one form edits and independently clears name and description from contacts
   try {
     ui.app.setContacts(contacts([friend()]));
     const row = ui.list.querySelector('[data-contact-row]');
-    assert.equal(row.querySelectorAll('button').length, 3, 'avatar, entry and quick-menu trigger stay separate');
+    assert.equal(row.querySelectorAll('button').length, 7, 'avatar, entry, connect, chat, quick menu, Peer ID toggle and copy stay separate');
+    assert.ok(row.querySelector('button[data-profile-peer]'));
+    assert.ok(row.querySelector('button[data-contact-peer]'));
+    assert.ok(row.querySelector('button[data-chat-peer]'));
+    assert.ok(row.querySelector('button[data-quick-peer]'));
+    assert.ok(row.querySelector('button[data-toggle-peer]'));
+    assert.ok(row.querySelector('button[data-copy-peer]'));
 
     row.querySelector('[data-quick-peer]').click();
     assert.equal(ui.menu.hidden, false);
@@ -116,7 +122,7 @@ test('one form edits and independently clears name and description from contacts
     assert.deepEqual(calls, [['name', PEER_A, '']]);
     assert.equal(ui.dialog.open, false, 'a complete save closes the form');
     assert.equal(ui.list.querySelector('[data-contact-row] .rm-contact-name b').textContent, PEER_A.slice(0, 10) + '…' + PEER_A.slice(-8));
-    assert.match(ui.list.querySelector('.rm-contact-note').textContent, /music and tea/);
+    assert.match(ui.list.querySelector('.rm-contact-local-note').textContent, /music and tea/);
 
     // Reopen and clear only the description; the name remains blank (a valid
     // explicit state), and only the description RPC is issued.
@@ -127,7 +133,7 @@ test('one form edits and independently clears name and description from contacts
     await settle();
     assert.deepEqual(calls, [['name', PEER_A, ''], ['description', PEER_A, '']]);
     assert.equal(ui.dialog.open, false);
-    assert.equal(ui.list.querySelector('.rm-contact-note'), null, 'an explicitly blank note has no reserved row');
+    assert.equal(ui.list.querySelector('.rm-contact-local-note'), null, 'an explicitly blank note has no reserved row');
     assert.equal(ui.list.querySelector('[data-contact-row] .rm-contact-name b').textContent.includes('…'), true);
   } finally {
     ui.close();
@@ -149,6 +155,19 @@ test('the same form opens from the chat quick menu and the profile main action',
     ui.app.setContacts(contacts([friend()]));
     ui.list.querySelector('[data-contact-peer]').click();
     await settle();
+    assert.equal(ui.shadow.querySelector('#profileView').hidden, false, 'contact body opens the peer homepage');
+    assert.equal(profileReads, 1);
+    const profileEdit = ui.shadow.querySelector('#profileEditContact');
+    assert.equal(profileEdit.hidden, false, 'the contact profile main action edits the local label only');
+    profileEdit.click();
+    assert.equal(ui.dialog.open, true);
+    assert.equal(ui.save.textContent, '保存');
+    ui.shadow.querySelector('#editContactDialog [data-close-dialog]').click();
+    assert.equal(ui.dialog.open, false);
+
+    ui.shadow.querySelector('#profileMessage').click();
+    await settle();
+    assert.equal(ui.shadow.querySelector('#conversationView').hidden, false);
     const menu = ui.shadow.querySelector('#conversationMenu');
     assert.equal(menu.hidden, false);
     menu.click();
@@ -159,12 +178,8 @@ test('the same form opens from the chat quick menu and the profile main action',
 
     ui.shadow.querySelector('#conversationAvatar').click();
     await settle();
-    assert.equal(profileReads, 1);
-    const profileEdit = ui.shadow.querySelector('#profileEditContact');
-    assert.equal(profileEdit.hidden, false, 'the contact profile main action edits the local label only');
-    profileEdit.click();
-    assert.equal(ui.dialog.open, true);
-    assert.equal(ui.save.textContent, '保存');
+    assert.equal(ui.shadow.querySelector('#profileView').hidden, false);
+    assert.equal(profileReads >= 2, true);
   } finally {
     ui.close();
   }

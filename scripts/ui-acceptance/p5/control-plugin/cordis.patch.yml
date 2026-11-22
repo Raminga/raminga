@@ -1,0 +1,4 @@
+- insert:
+    - id: p5-acceptance-control
+      name: 'p5-acceptance-control'
+      inject: ['tools']

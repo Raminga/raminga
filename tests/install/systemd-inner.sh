@@ -171,7 +171,7 @@ new_node() {
 	_dir=$DATA_ROOT/$1
 	_port=$2
 	rm -rf "$_dir"
-	if ! "$BIN" init --data-dir "$_dir" \
+	if ! "$BIN" init --no-bootstrap-preset --data-dir "$_dir" \
 		--listen "/ip4/127.0.0.1/tcp/$_port" \
 		--listen "/ip4/127.0.0.1/udp/$_port/quic-v1" >"$TESTROOT/init.log" 2>&1; then
 		cat "$TESTROOT/init.log" >&2 || true
@@ -186,7 +186,7 @@ new_node_user() {
 	rm -rf "$_dir"
 	mkdir -p "$_dir"
 	chown "$TEST_UID:$TEST_GID" "$_dir"
-	if ! run_user "$TESTBIN" init --data-dir "$_dir" \
+	if ! run_user "$TESTBIN" init --no-bootstrap-preset --data-dir "$_dir" \
 		--listen "/ip4/127.0.0.1/tcp/$_port" \
 		--listen "/ip4/127.0.0.1/udp/$_port/quic-v1" >"$TESTROOT/init-user.log" 2>&1; then
 		cat "$TESTROOT/init-user.log" >&2 || true

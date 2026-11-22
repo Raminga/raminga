@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -43,19 +46,17 @@ type dialCandidate struct {
 }
 
 const (
-	candidateDialTimeout = 5 * time.Second
-	dhtRecordTimeout     = 8 * time.Second
-	dhtFindTimeout       = 10 * time.Second
-	sourceExplicit       = "explicit"
-	sourcePeerStore      = "peerstore"
-	sourceCache          = "cache"
-	sourceDHT            = "dht"
+	dhtRecordTimeout = 8 * time.Second
+	dhtFindTimeout   = 10 * time.Second
+	sourceExplicit   = "explicit"
+	sourcePeerStore  = "peerstore"
+	sourceCache      = "cache"
+	sourceDHT        = "dht"
 )
 
 // DialPeerByID dials a peer using addresses from the in-memory PeerStore, the
-// SQLite hint cache and, when no address is known, the Raminga DHT. Candidates
-// are ordered IPv6-first and each one is dialed separately so failures are
-// reported with the address family that failed.
+// SQLite hint cache and the Raminga DHT. The swarm staggers direct and relay
+// dials and returns the first connection that succeeds.
 func (n *Network) DialPeerByID(ctx context.Context, pid peer.ID) (DialOutcome, error) {
 	return n.dialPeer(ctx, pid, nil)
 }
@@ -102,140 +103,235 @@ func (n *Network) dialPeer(ctx context.Context, pid peer.ID, explicit []ma.Multi
 		return out, nil
 	}
 
-	candidates, err := n.resolveCandidates(ctx, pid, explicit)
-	if err != nil {
-		return DialOutcome{}, err
+	// An explicit dial temporarily isolates one address in the shared peerstore.
+	// Keep user dials serialized around that operation.
+	n.dialMu.Lock()
+	defer n.dialMu.Unlock()
+
+	if info, err := n.connectionInfo(pid); err == nil {
+		out := DialOutcome{ConnInfo: info, Reused: true, RequestedTransport: requested, Source: "existing"}
+		if requested != "" && info.Transport != requested {
+			out.TransportChanged = true
+			out.Note = fmt.Sprintf("reused an existing %s connection instead of dialing the requested %s path", info.Transport, requested)
+		}
+		return out, nil
 	}
 
 	totalTimeout := n.totalDialTimeout
 	if totalTimeout <= 0 {
-		totalTimeout = 30 * time.Second
+		totalTimeout = DefaultDialTimeout
 	}
-	totalCtx, totalCancel := withDefaultTimeout(ctx, totalTimeout)
-	defer totalCancel()
-	knownBudget := totalTimeout
-	if n.cfg.DHT.Enabled && n.dht != nil && !n.IsPaused(pid) && n.knownDialBudget > 0 {
-		knownBudget = n.knownDialBudget
+	dialCtx, cancel := withDefaultTimeout(ctx, totalTimeout)
+	defer cancel()
+	if len(explicit) > 0 {
+		return n.dialExplicit(dialCtx, pid, explicit[0])
 	}
-	if knownBudget > totalTimeout {
-		knownBudget = totalTimeout
-	}
-	knownCtx, knownCancel := context.WithTimeout(totalCtx, knownBudget)
-	defer knownCancel()
-
-	// host.Connect absorbs AddrInfo into the shared PeerStore and then dials
-	// every PeerStore address, so a single-address AddrInfo does not restrict
-	// the attempt. Serialize explicit candidate dials and temporarily set only
-	// the candidate address, restoring the real PeerStore entries afterwards.
-	// This keeps the in-memory PeerStore as the single address source while
-	// still reporting each candidate's real outcome.
-	n.dialMu.Lock()
-	defer n.dialMu.Unlock()
-
-	out := DialOutcome{RequestedTransport: requested}
-	var notes []string
-	dhtTried := false
-	attempted := make(map[string]struct{}, len(candidates))
-	for {
-		for _, candidate := range candidates {
-			attempted[candidate.addr.String()] = struct{}{}
-			attempt := DialAttempt{
-				Multiaddr: candidate.addr.String(),
-				Source:    candidate.source,
-				Family:    candidateFamily(candidate.addr),
-			}
-			remaining := time.Until(deadlineOf(knownCtx))
-			if remaining <= 0 {
-				attempt.Error = "overall dial deadline exceeded before this candidate"
-				out.Attempts = append(out.Attempts, attempt)
-				break
-			}
-			perCandidate := n.candidateTimeout
-			if perCandidate <= 0 {
-				perCandidate = candidateDialTimeout
-			}
-			if len(explicit) > 0 {
-				perCandidate = DefaultDialTimeout
-			}
-			if perCandidate > remaining {
-				perCandidate = remaining
-			}
-			original := n.host.Peerstore().Addrs(pid)
-			// SetAddrs does not remove addresses that are absent from the slice;
-			// clear first so host.Connect only sees this candidate.
-			n.host.Peerstore().ClearAddrs(pid)
-			n.host.Peerstore().SetAddrs(pid, []ma.Multiaddr{candidate.addr}, peerstore.TempAddrTTL)
-			attemptCtx, attemptCancel := context.WithTimeout(knownCtx, perCandidate)
-			var err error
-			if n.testDial != nil {
-				err = n.testDial(attemptCtx, pid, candidate.addr)
-			} else {
-				err = n.host.Connect(attemptCtx, peer.AddrInfo{ID: pid})
-			}
-			attemptCancel()
-			restore := append([]ma.Multiaddr(nil), original...)
-			if err == nil {
-				restore = append(restore, candidate.addr)
-			}
-			n.host.Peerstore().SetAddrs(pid, dedupeMultiaddrs(restore), peerstore.PermanentAddrTTL)
-			if err != nil {
-				attempt.Error = err.Error()
-				if isDialBackoff(err) {
-					attempt.Backoff = true
-					attempt.Note = dialBackoffNote()
-					notes = append(notes, attempt.Note)
-				}
-				out.Attempts = append(out.Attempts, attempt)
-				continue
-			}
-			info, infoErr := n.connectionInfo(pid)
-			if infoErr != nil {
-				return out, infoErr
-			}
-			if actual := candidateFamilyOfString(info.RemoteAddr); actual != attempt.Family && attempt.Family != "relay" {
-				attempt.Error = fmt.Sprintf("swarm reused an existing %s connection at %s instead of dialing this candidate", actual, info.RemoteAddr)
-				out.Attempts = append(out.Attempts, attempt)
-				out.ConnInfo = info
-				out.Reused = true
-				out.Source = "existing"
-				out.Note = attempt.Error
-				return out, nil
-			}
-			attempt.OK = true
-			out.Attempts = append(out.Attempts, attempt)
-			out.ConnInfo = info
-			out.Source = candidate.source
-			if requested != "" && info.Transport != requested {
-				out.TransportChanged = true
-				out.Note = fmt.Sprintf("requested %s but the established connection uses %s", requested, info.Transport)
-			}
-			return out, nil
-		}
-		if dhtTried {
-			break
-		}
-		dhtTried = true
-		fallback := n.resolveDHTCandidates(totalCtx, pid, attempted)
-		if len(fallback) == 0 {
-			break
-		}
-		candidates = fallback
-	}
-
-	out.Note = strings.Join(dedupeStrings(notes), " ")
-	return out, fmt.Errorf("dial peer %s failed after %d candidate(s): %s; peer may be offline or its address is stale", pid, len(out.Attempts), formatAttempts(out.Attempts))
+	known := n.resolveCandidates(dialCtx, pid)
+	return n.dialPeerID(dialCtx, pid, known)
 }
 
-func (n *Network) resolveCandidates(ctx context.Context, pid peer.ID, explicit []ma.Multiaddr) ([]dialCandidate, error) {
-	if len(explicit) > 0 {
-		out := make([]dialCandidate, 0, len(explicit))
-		for _, addr := range explicit {
-			out = append(out, dialCandidate{addr: addr, source: sourceExplicit})
-		}
-		sortCandidates(out)
-		return out, nil
+func (n *Network) dialExplicit(ctx context.Context, pid peer.ID, addr ma.Multiaddr) (DialOutcome, error) {
+	out := DialOutcome{RequestedTransport: transportOf(addr)}
+	candidate := dialCandidate{addr: addr, source: sourceExplicit}
+	original := n.host.Peerstore().Addrs(pid)
+	n.host.Peerstore().ClearAddrs(pid)
+	n.host.Peerstore().AddAddr(pid, addr, peerstore.TempAddrTTL)
+	err := n.host.Connect(ctx, peer.AddrInfo{ID: pid})
+	if err == nil {
+		original = append(original, addr)
+	}
+	n.host.Peerstore().AddAddrs(pid, original, peerstore.PermanentAddrTTL)
+	if err != nil {
+		out.Attempts = []DialAttempt{failedDialAttempt(candidate, err)}
+		out.Note = out.Attempts[0].Note
+		return out, fmt.Errorf("dial peer %s failed: %s", pid, formatAttempts(out.Attempts))
+	}
+	info, err := n.connectionInfo(pid)
+	if err != nil {
+		return out, err
+	}
+	out.ConnInfo = info
+	out.Source = sourceExplicit
+	family := candidateFamily(addr)
+	if family != "relay" && family != candidateFamilyOfString(info.RemoteAddr) {
+		out.Reused = true
+		out.Source = "existing"
+		out.Note = fmt.Sprintf("swarm used an existing %s connection at %s", candidateFamilyOfString(info.RemoteAddr), info.RemoteAddr)
+	} else {
+		out.Attempts = []DialAttempt{{Multiaddr: addr.String(), Source: sourceExplicit, Family: family, OK: true}}
+	}
+	out.TransportChanged = out.RequestedTransport != "" && info.Transport != out.RequestedTransport
+	if out.TransportChanged && out.Note == "" {
+		out.Note = fmt.Sprintf("requested %s but the established connection uses %s", out.RequestedTransport, info.Transport)
+	}
+	return out, nil
+}
+
+type dialBatchResult struct {
+	out DialOutcome
+	err error
+}
+
+func (n *Network) dialPeerID(ctx context.Context, pid peer.ID, known []dialCandidate) (DialOutcome, error) {
+	canLookup := n.cfg.DHT.Enabled && n.dht != nil && !n.IsPaused(pid)
+	if !canLookup {
+		return n.dialBatch(ctx, pid, known)
+	}
+	seen := make(map[string]struct{}, len(known))
+	for _, candidate := range known {
+		seen[candidate.addr.String()] = struct{}{}
+	}
+	if len(known) == 0 {
+		return n.dialBatch(ctx, pid, n.resolveDHTCandidates(ctx, pid, seen))
 	}
 
+	// Known addresses get a head start. DHT lookup can then add candidates to
+	// the same swarm dial without interrupting pending known-address attempts.
+	ctx, cancel := context.WithCancel(ctx)
+	var workers sync.WaitGroup
+	defer func() {
+		cancel()
+		workers.Wait()
+	}()
+	results := make(chan dialBatchResult, 2)
+	workers.Go(func() {
+		knownCtx := ctx
+		if n.knownDialBudget > 0 {
+			var stop context.CancelFunc
+			knownCtx, stop = context.WithTimeout(ctx, n.knownDialBudget)
+			defer stop()
+		}
+		out, err := n.dialBatch(knownCtx, pid, known)
+		results <- dialBatchResult{out, err}
+	})
+
+	timer := time.NewTimer(swarm.RelayDelay)
+	defer timer.Stop()
+	lookup := timer.C
+	startLookup := func() {
+		lookup = nil
+		workers.Go(func() {
+			fallback := n.resolveDHTCandidates(ctx, pid, seen)
+			if len(fallback) == 0 {
+				results <- dialBatchResult{err: errors.New("DHT returned no new dial addresses")}
+				return
+			}
+			out, err := n.dialBatch(ctx, pid, append(append([]dialCandidate(nil), known...), fallback...))
+			results <- dialBatchResult{out, err}
+		})
+	}
+
+	var out DialOutcome
+	var failures error
+	for received := 0; received < 2; {
+		select {
+		case <-lookup:
+			startLookup()
+		case result := <-results:
+			received++
+			if result.err == nil {
+				result.out.Attempts = append(out.Attempts, result.out.Attempts...)
+				return result.out, nil
+			}
+			out.Attempts = append(out.Attempts, result.out.Attempts...)
+			failures = errors.Join(failures, result.err)
+			if lookup != nil {
+				startLookup()
+			}
+		case <-ctx.Done():
+			return out, errors.Join(failures, ctx.Err())
+		}
+	}
+	return out, failures
+}
+
+func (n *Network) dialBatch(ctx context.Context, pid peer.ID, candidates []dialCandidate) (DialOutcome, error) {
+	if len(candidates) == 0 {
+		return DialOutcome{}, fmt.Errorf("no dial addresses for peer %s", pid)
+	}
+	byAddr := make(map[string]dialCandidate, len(candidates))
+	addrs := make([]ma.Multiaddr, 0, len(candidates))
+	for _, candidate := range candidates {
+		addrs = append(addrs, candidate.addr)
+		byAddr[candidate.addr.String()] = candidate
+	}
+	// Let the swarm schedule candidates together. Short-lived hints leave
+	// existing peerstore addresses alone, including those learned by Identify.
+	n.host.Peerstore().AddAddrs(pid, addrs, peerstore.TempAddrTTL)
+	conn, err := n.host.Network().DialPeer(network.WithAllowLimitedConn(ctx, "Raminga peer dial"), pid)
+	if err != nil {
+		var out DialOutcome
+		var dialErr *swarm.DialError
+		if errors.As(err, &dialErr) {
+			for _, failure := range dialErr.DialErrors {
+				candidate := byAddr[failure.Address.String()]
+				if candidate.addr == nil {
+					candidate = dialCandidate{addr: failure.Address, source: sourcePeerStore}
+				}
+				attempt := failedDialAttempt(candidate, failure.Cause)
+				out.Attempts = append(out.Attempts, attempt)
+				if attempt.Backoff {
+					out.Note = attempt.Note
+				}
+			}
+		}
+		return out, fmt.Errorf("dial peer %s: %w", pid, err)
+	}
+
+	info := connInfo(conn)
+	candidate, found := byAddr[info.RemoteAddr]
+	if !found && info.Route == "relay" {
+		// The swarm may reuse an existing connection to the relay itself.
+		// Its remote address can then differ from the published circuit address.
+		for _, entry := range candidates {
+			if route, relayID := routeOfConn(entry.addr); route == "relay" && relayID != "" && relayID == info.RelayPeerID {
+				candidate, found = entry, true
+				break
+			}
+		}
+	}
+	if !found {
+		candidate.source = sourcePeerStore
+	}
+	attempt := DialAttempt{
+		Multiaddr: info.RemoteAddr, Source: candidate.source,
+		Family: candidateFamilyOfString(info.RemoteAddr), OK: true,
+	}
+	return DialOutcome{ConnInfo: info, Source: candidate.source, Attempts: []DialAttempt{attempt}}, nil
+}
+
+func failedDialAttempt(candidate dialCandidate, err error) DialAttempt {
+	attempt := DialAttempt{
+		Multiaddr: candidate.addr.String(), Source: candidate.source,
+		Family: candidateFamily(candidate.addr), Error: err.Error(), Backoff: isDialBackoff(err),
+	}
+	if attempt.Backoff {
+		attempt.Note = dialBackoffNote()
+	}
+	return attempt
+}
+
+// Keep libp2p's address ordering and Happy Eyeballs timings. Apply its relay
+// delay to mixed private/direct batches too, which the default ranker exempts.
+func rankDialAddresses(addrs []ma.Multiaddr) []network.AddrDelay {
+	ranked := swarm.DefaultDialRanker(addrs)
+	firstDirect := time.Duration(-1)
+	for _, addr := range ranked {
+		if candidateFamily(addr.Addr) != "relay" && (firstDirect < 0 || addr.Delay < firstDirect) {
+			firstDirect = addr.Delay
+		}
+	}
+	if firstDirect >= 0 {
+		for i := range ranked {
+			if candidateFamily(ranked[i].Addr) == "relay" {
+				ranked[i].Delay = max(ranked[i].Delay, firstDirect+swarm.RelayDelay)
+			}
+		}
+	}
+	return ranked
+}
+
+func (n *Network) resolveCandidates(ctx context.Context, pid peer.ID) []dialCandidate {
 	out := make([]dialCandidate, 0, 8)
 	seen := make(map[string]struct{})
 
@@ -282,11 +378,10 @@ func (n *Network) resolveCandidates(ctx context.Context, pid peer.ID, explicit [
 	}
 
 	sortCandidates(out)
-	return out, nil
+	return out
 }
 
-// resolveDHTCandidates is the fallback after every known candidate failed.
-// It reads the signed record first, then uses the existing FindPeer path.
+// resolveDHTCandidates reads the signed record first, then uses FindPeer.
 func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen map[string]struct{}) []dialCandidate {
 	if !n.cfg.DHT.Enabled || n.dht == nil || n.IsPaused(pid) {
 		return nil
@@ -316,7 +411,9 @@ func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen ma
 		}
 	}
 	if len(out) == 0 {
-		if found := n.dht.FindPeer(ctx, pid); found.Found {
+		findCtx, cancel := context.WithTimeout(ctx, dhtFindTimeout)
+		defer cancel()
+		if found := n.dht.FindPeer(findCtx, pid); found.Found {
 			for _, raw := range found.Addrs {
 				appendRaw(raw)
 				if len(out) == 16 {
@@ -437,12 +534,4 @@ func formatAttempts(attempts []DialAttempt) string {
 		parts = append(parts, fmt.Sprintf("%s source=%s family=%s: %s", attempt.Multiaddr, attempt.Source, attempt.Family, reason))
 	}
 	return strings.Join(parts, "; ")
-}
-
-func deadlineOf(ctx context.Context) time.Time {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return time.Now().Add(DefaultDialTimeout)
-	}
-	return deadline
 }

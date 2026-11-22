@@ -1,6 +1,6 @@
 # Raminga 安装与构建指南
 
-当前预发布版为 [v0.1.0-rc.2](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2)，二进制未签名。仅源码构建需要 Go 1.27。首次聊天见[双节点快速开始](quick-start.md)。
+当前预发布版为 [v0.1.0-rc.3](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3)，二进制未签名。仅源码构建需要 Go 1.27。首次聊天见[双节点快速开始](quick-start.md)。
 
 > **迁移先于第一次运行（最容易搞错的一步）：** 如果要从自定义目录切换到默认的 `~/.raminga`，请在第一次用默认目录运行新版前迁移**整个旧目录**。继续使用自定义目录时，保持原来的 `RAMINGA_DATA_DIR` 或 `--data-dir`。新版一旦先在默认目录启动，就会生成新的 `identity/key` 和 `raminga.db`；此时再 `mv 旧目录 ~/.raminga`，旧目录会被移到 `~/.raminga/<旧目录名>` 里面，默认目录仍由新身份运行。2026-11-06 实际发生过（旧节点在 `~/.raminga/raminga-test`）。完整检查、正确顺序和恢复步骤见 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前)。
 
@@ -31,11 +31,11 @@ Codex 不把调用者环境变量传给插件 MCP，因此 `RAMINGA_BIN` / `RAMI
 在系统终端安装明确版本。把 `web` 换成你平时使用的 DSH profile 名称，再重新打开该 profile，从左侧栏进入 Raminga。
 
 ```sh
-dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.3
 dsh --profile web
 ```
 
-在 macOS arm64 上用 DSH 0.2.2-rc.3 的隔离 Web profile 已验证安装、自动启动 rc.2 节点及界面双向聊天。按[DSH 快速开始](quick-start.md#在-dsh-中完成第一次聊天)添加联系人。npm 的 `next` 指向 rc.2，但本机 DSH 按 `@next` 安装时曾选中 rc.1，因此这里固定版本。
+已在 macOS arm64 的 DSH 桌面验收 rc.3 的动态浏览和手动刷新，也用隔离 DSH profile 验证了从公开 rc.2 升级。按 [DSH 快速开始](quick-start.md#在-dsh-中完成第一次聊天)添加联系人。安装命令固定包版本，避免 DSH 按 `@next` 解析到旧版。
 
 DSH 会自动安装与当前平台匹配的 `@raminga/bin-<os>-<cpu>` 平台子包（macOS/Linux/Windows × arm64/x64），外壳本身不含二进制。二进制查找顺序：插件配置 `ramingaBin` > `$RAMINGA_BIN` > 平台子包 > `PATH` 上的 `raminga`。
 
@@ -48,7 +48,7 @@ mkdir -p "$dsh_trial/home" "$dsh_trial/data"
 printf '[network]\nlisten_addrs = []\n' > "$dsh_trial/data/config.toml"
 env -u DSH_PROFILE HOME="$dsh_trial/home" DSH_HOME="$dsh_trial/dsh" \
   RAMINGA_DATA_DIR="$dsh_trial/data" \
-  dsh plugin --profile web add @raminga/dsh@0.1.0-rc.2
+  dsh plugin --profile web add @raminga/dsh@0.1.0-rc.3
 env -u DSH_PROFILE HOME="$dsh_trial/home" DSH_HOME="$dsh_trial/dsh" \
   RAMINGA_DATA_DIR="$dsh_trial/data" \
   dsh --profile web --no-open --port 0
@@ -66,11 +66,13 @@ dsh plugin --profile web remove @raminga/dsh
 
 将 `web` 换成实际 profile。若开发安装时另行添加了平台子包，可一并卸载。检查该 profile 的 `package.json`，从 `dsh.profile.bundles` 删除 `@raminga/dsh`（若安装器未自动删除），重启宿主后侧栏入口消失；数据目录不会被卸载删除，需要时自行备份/清理。
 
+开发/验收环境的隔离双节点、真实 DSH 宽窄屏、插件卸载重装与 schema 9→11 升级步骤见 [`scripts/ui-acceptance/p5/README.md`](../scripts/ui-acceptance/p5/README.md)；这些脚本默认使用独立端口/数据目录，不修改用户 DSH 配置。
+
 Electron 桌面应用共用同一套 DSH profile/插件。隔离启动时需要单独的 `HOME`、`DSH_HOME`、`RAMINGA_DATA_DIR` 与 `--user-data-dir`，并确保环境中的 `ELECTRON_RUN_AS_NODE` 未设置；否则应用会以 Node CLI 运行并拒绝 Chromium 参数。不要复用用户的日常 DSH_HOME 或 `~/.raminga`。
 
 ### 独立二进制
 
-不需要 Agent 插件时，从 [v0.1.0-rc.2 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
+不需要 Agent 插件时，从 [v0.1.0-rc.3 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
 
 macOS 上未签名二进制首次运行可能被 Gatekeeper 拦截：右键 `raminga` →“打开”，或执行：
 
@@ -151,11 +153,11 @@ raminga_linux_amd64.tar.gz
 raminga_windows_amd64.zip
 ```
 
-每个归档自带同名外层目录；解压后进入 `raminga_<os>_<arch>/`，里面有 `raminga`（Windows 为 `raminga.exe`）、`install.sh`、`install.ps1`、`LICENSE`、`README.md`。校验文件是发布目录里的 `SHA256SUMS`。
+每个归档自带同名外层目录；解压后进入 `raminga_<os>_<arch>/`，里面有 `raminga`（Windows 为 `raminga.exe`）、`bootstrap-preset.toml`、`install.sh`、`install.ps1`、`LICENSE`、`README.md`。校验文件是发布目录里的 `SHA256SUMS`。
 
 ## 2. 安装预编译包
 
-从 [v0.1.0-rc.2 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) 下载对应平台归档和 `SHA256SUMS`，放在同一个目录。源码构建产物也可以用同一次构建生成的校验文件。
+从 [v0.1.0-rc.3 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3) 下载对应平台归档和 `SHA256SUMS`，放在同一个目录。源码构建产物也可以用同一次构建生成的校验文件。
 
 ### macOS / Linux
 
@@ -383,7 +385,7 @@ raminga mcp --data-dir "$HOME/.raminga"
 
 本地 API 默认仍是 `<data-dir>/api.sock`（0600）加 `<data-dir>/api.token`（0600）。需要绕过 Unix socket 的场景可以显式 opt-in 回环 TCP：启动 daemon 时加 `--api-tcp`，或在自动启动/裸 `raminga` 前设置 `RAMINGA_API_TCP=1`。此模式**不会**再监听 Unix socket，只在 `127.0.0.1:<临时端口>` 提供带每轮随机 token 和固定证书的 TLS API；端点文件 `<data-dir>/api.endpoint.json` 由 daemon 在数据目录锁内原子写入，停止/重启时删除并轮换 token/端口/证书。Unix 上该文件为 0600；Windows 上为按当前用户 SID 的受保护 DACL，Node 客户端通过本地 Go 二进制的私有 stdout 管道校验并读取，不再次按路径打开。客户端只读取该文件，端点过期、不可达或 ACL 无法验证时明确失败，不会回退到 Unix socket，也不使用环境代理。CLI、TUI 与 DSH 插件都复用同一发现逻辑。DSH 在 Windows 上缺省启用 TCP（显式 `apiTcp: false` 或 `RAMINGA_API_TCP=0` 仍优先），macOS/Linux 仍缺省 UDS，需设置 `apiTcp: true` 或 `RAMINGA_API_TCP=1`。不要把端点文件或 token 复制到渲染器、日志或分享内容。
 
-本地 API 现在带一个 `api_version` 字段（当前为 `"4"`，存储 schema 为 `8`）。插件外壳在第一次调用时校验它；当前插件要求 API 4，连接 API 2/3 或更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表，daemon 启动时迁移旧库，迁移前应备份数据目录。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。
+本地 API 现在带一个 `api_version` 字段（当前为 `"6"`，存储 schema 为 `13`）。插件外壳在第一次调用时校验它；当前插件要求 API 6，连接更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表；schema 9 追加 `sources_json`，用于同一 (peer, path, sha256) 版本的多种获取来源（手动与 Agent），迁移时为旧行从 `source` 回填一次。`"5"` 新增 `GetPublicDraft`/`ListPublicDrafts`/`SavePublicDraft`/`PutPublicDraftImage`/`DeletePublicDraft`/`PublishPublicDraft`、结构化 `PublicProfile` 与发布回执；schema 10 只新增 `public_drafts`/`public_draft_assets`，升级前自动备份为 `raminga.db.bak-<旧版本>`；`profile.json` v2、头像与 v2 图文动态只在显式发布后进入公开清单。daemon 启动时在单个事务中迁移旧库；P2/P3 升级前会自动写入 `raminga.db.bak-<旧版本>`，仍建议保留数据目录级备份。`Discovery.sources` 是 API 4 的追加字段，旧 daemon 省略它时插件回退到 `source`。`"6"` 新增 `MarkConversationRead`、`ListFavorites`/`SetFavorite`、`ListDiscoveries.peer_id`、会话/联系人未读字段与 `ListConversations.total_unread`；schema 11 新增 `conversation_read_state` 与 `favorites`，schema 12 为公开草稿增加独立的人类头像资源（`human_avatar`，旧库自动迁移并保留原草稿），schema 13 为普通 Peer 增加引导角色关系与一次性旧配置导入标记（`bootstrap_peers` / `bootstrap_import_state`；不新建独立身份或地址库），迁移 v10→v11 时按每个 Peer 的现有消息时间回填已读基线，避免升级后把全部历史标成未读。该基线不代表用户真的读过。人类已读游标只前进；`ListMessages`/`RecentMessages`/`ListConversations`/`ListFriends` 与 Agent 的 `raminga_chat_history` 都不写游标。收藏只接受 v1/v2 公开动态路径并记录经校验的版本，不收藏消息或联系人。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。API 6 还追加 `ListBootstrapPeers`/`AddBootstrapPeer`/`RemoveBootstrapPeer`（只在本机认证 API，不进入远端 P2P API）；旧 daemon 不支持写 RPC 时 DSH Web 保持只读并提示升级，不报假成功。
 
 首次运行的**旧数据目录安全闸**：如果 `--data-dir` 指向的目录已存在且非空，但既无 `identity/` 也无 `config.toml`（疑似旧版或非 Raminga 数据），`raminga mcp` 会**拒绝静默初始化**——只写一条 stderr 警告，不自动生成新身份；确认后请显式 `raminga init --data-dir ...` 迁移或沿用，避免误建第二身份。直接运行 `raminga`（自动拉起 daemon 后打开 TUI）使用同一套旧数据目录与其他已知节点检测，命中时打印相同警告并拒绝自动启动。启动器在 `~/.raminga/bin/<version>/` 缓存的二进制属于 Raminga 自有条目，`raminga.lock`、`daemon.log`/`daemon.log.1`、`api.sock`/`api.token` 等运行期文件同样不计入“非空”；因此全新机器上只有 `bin/` 的默认目录可以直接初始化，含其他未知条目时仍按上述规则拒绝。目标目录**尚无身份**时还会检查 `$RAMINGA_DATA_DIR`、默认 `~/.raminga` 以及本文件记录的迁移旧位置（`~/.raminga/raminga-test`、`~/.raminga-before-migrate`、`~/.raminga-new`、`~/.raminga-new/raminga-test`）；发现含 `identity/key` 的节点就列出这些路径并拒绝自动初始化，避免用户已有身份时误建新身份。
 
@@ -409,13 +411,19 @@ raminga init --data-dir "$HOME/.raminga/client-a" --dht-mode client --bootstrap 
 
 `--dht-mode` 接受 `client`、`server`、`auto`，默认 `auto`，只写配置、不启动节点。Relay/Bootstrap 等公网节点应显式用 `--dht-mode server`（`auto` 在可达性未知时保持 client，不能假定它会自动承担 server）；NAT 后的普通节点可用 `client`。不带该 flag 的旧命令和缺少 `mode` 的旧配置仍按 `auto` 工作，不需要迁移。完整语义、`dht status` 字段与晚启动恢复见 [DHT 使用与诊断](dht.md)。
 
+**引导节点预置与运行时来源：** 发行预置的唯一可编辑数据源是仓库里的 `internal/config/bootstrap-preset.toml`。发行归档、`make build`/`make install` 和 npm 平台包会把该文件作为 `bootstrap-preset.toml` 放在解析后的可执行文件旁；裸二进制或只含二进制的 marketplace 包找不到 sidecar 时，回退到编译进二进制的同一份 TOML。sidecar 只从可执行文件所在目录读取，绝不用当前工作目录。优先级为：显式 `--bootstrap` 自定义列表 > `--no-bootstrap-preset` 明确退出 > 可执行文件旁的 sidecar > 内嵌副本。选中的 sidecar 不可读或格式非法会直接失败，不会静默回退；sidecar 中 `bootstrap_peers = []` 表示明确关闭预置。
+
+全新 `raminga init` 在没有 `--bootstrap` 时会按上述预置写入 `dht.bootstrap_peers`，除非传入 `--no-bootstrap-preset`。自定义 `--bootstrap` 优先于预置。预置当前启用项目方于 2026-11-21 确认的 Raminga 引导节点 `/ip4/134.175.57.57/tcp/4001/p2p/12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr`。同日隔离本地 DSH 验收成功写入该地址、DSH Web 显示已保存且当前已连接，libp2p 连接为直连、非 limited；但对方 Identify 未公布 `/raminga/kad/1.0.0`，DHT `routing_table` 保持为空。因此该地址按项目方确认保留，**DHT 路由未通过**，不能用 TCP/libp2p 握手代替 DHT 证据。`[dht].bootstrap_peers` 与 `init --bootstrap` 只是**首次初始化输入**：daemon 首次打开该数据目录的 SQLite 时把它一次性导入普通 Peer 记录的引导角色，并写入一次性导入标记（空列表也写）；之后运行、刷新和重启只读 SQLite，不再读 TOML 的旧列表。原 TOML 不会被改写。因此在「节点状态 → 引导节点」中清空列表后，即使 TOML 仍保留旧项，重启也不会补回；已有配置或数据库在升级时也不会吸收新的发行预置。一次性标记存在后，旧 TOML 里的非法地址字符串属于休眠遗留输入，不会阻止 daemon 启动；但**首次**导入仍会严格校验并在失败时不写标记。
+
+升级安装脚本会保留已存在的 `bootstrap-preset.toml`，不会用新发行文件覆盖用户编辑。要采用新版本的官方预置，需在**新数据目录首次初始化前**自行更新该 sidecar；已初始化的数据目录仍以 SQLite 中的引导角色为准，不会因升级或重启自动补种。缺失 `config.toml` 但数据库仍在时，daemon 会先确认数据库文件与一次性标记，已有任一即写入明确空预置，不重新解析 sidecar。`raminga init --json` 返回 `bootstrap_preset` 以便核对。
+
 **升级已有数据目录：** `raminga init --force --data-dir ... <同一组 flags>` 只重写 `config.toml` 以采用新默认，保留 `identity/key`、Peer ID 和 `raminga.db`；不加 `--force` 时旧配置的 `listen_addrs` 保持原样。
 
 细节见 [公网测试指南](public-test-guide.md)。
 
 ### 插件外壳与启动器
 
-Claude Code 外壳位于 `plugins/claude/`，marketplace 清单位于仓库根 `.claude-plugin/marketplace.json`（`source` 为 `./plugins/claude`）。安装命令见文首；[分发仓库](https://github.com/Raminga/raminga-plugins)已同步 v0.1.0-rc.2。
+Claude Code 外壳位于 `plugins/claude/`，marketplace 清单位于仓库根 `.claude-plugin/marketplace.json`（`source` 为 `./plugins/claude`）。安装命令见文首；发布流水线会将同版本的插件同步到[分发仓库](https://github.com/Raminga/raminga-plugins)。
 
 Codex 外壳位于 `plugins/codex/`，repo marketplace 清单位于 `.agents/plugins/marketplace.json`（`source.path` 为 `./plugins/codex`），格式依据 OpenAI 官方插件文档；`mcp.json` 使用 Agent Plugins 1.0.0 的可移植 stdio 格式。DSH 外壳位于 `plugins/dsh/`，以 npm 包方式装进 DSH profile；DSH 使用原生工具而不是 MCP，并从 `@raminga/bin-<os>-<cpu>` 平台子包解析二进制。
 
@@ -583,7 +591,7 @@ raminga content published --data-dir "$HOME/.raminga"
 raminga content published --json --data-dir "$HOME/.raminga"
 ```
 
-DHT 状态会显示 `configured_mode` / `active_mode`、`bootstrap_connected`、`connected_peers`、`routing_table`、`last_bootstrap`、`last_refresh`、`last_publish` / `last_publish_error` 和空表 `diagnosis`。`active_mode` 是 host 实际是否注册 `/raminga/kad/1.0.0` 入站 handler 得出的角色，不是配置值的复读；`last_bootstrap=-` 表示没有实际 bootstrap 尝试。`dht add` 只写本地 PeerStore，不发布、不连接、不验证在线。空路由表分类与 bootstrap 晚启动恢复见 [DHT 使用与诊断](dht.md)。
+DHT 状态会显示 `configured_mode` / `active_mode`、`bootstrap_connected`、`connected_peers`、`routing_table`、`last_bootstrap`、`last_refresh`、`last_publish` / `last_publish_error` 和空表 `diagnosis`。`bootstrap` 是已保存的引导角色地址；`bootstrap_connected` 只统计当前实际连接。DSH Web 的「节点状态 → 引导节点」通过本机认证 API 显式添加/移除/刷新，保存不等于拨号成功；旧 daemon 只读回退并提示升级。`active_mode` 是 host 实际是否注册 `/raminga/kad/1.0.0` 入站 handler 得出的角色，不是配置值的复读；`last_bootstrap=-` 表示没有实际 bootstrap 尝试。`dht add` 只写本地 PeerStore，不发布、不连接、不验证在线。空路由表分类与 bootstrap 晚启动恢复见 [DHT 使用与诊断](dht.md)。
 
 ```sh
 raminga dht status --data-dir "$HOME/.raminga"
@@ -653,6 +661,15 @@ sudo ufw status
 `ufw` 显示 inactive 时它没有在拦截；不要误以为已放行。安装脚本**不会**改防火墙。详见 [公网测试指南 §2](public-test-guide.md#2-前提一台可被外部连接的-raminga-节点)。
 
 ## 7. 升级与卸载
+
+### 从 v0.1.0-rc.2 升级到 v0.1.0-rc.3
+
+1. 退出 DSH 等可能自动拉起节点的宿主，按原启动方式停掉旧 daemon。自定义数据目录需要显式指定 `raminga stop --data-dir <旧数据目录>`，systemd 服务用 `sudo systemctl stop raminga`。
+2. 将**整个旧数据目录**复制到另一位置。目录包含节点身份、数据库、配置和本机公开内容。默认路径是 `~/.raminga`，使用自定义或 systemd 目录时以原配置为准。
+3. 用同一版本的插件和节点启动原数据目录。DSH 用户在原 profile 执行上面的固定版本安装命令，再打开 DSH。如果配置了 `ramingaBin` 或 `RAMINGA_BIN`，也要更新它指向的外部二进制。独立节点按下方对应的升级步骤操作。
+4. 核对版本与原 Peer ID，并检查已有聊天和公开内容。首次启动会把 rc.2 的数据库 schema 从 8 迁移到 13。目录中的 `raminga.db.bak-8` 是数据库备份，步骤 2 的整目录副本仍应保留。
+
+如需回退，先退出宿主并停止新版节点，将升级后的目录移到另一位置保留，再把升级前的整目录副本恢复到原路径。重新安装 rc.2 插件与二进制后启动。升级后产生的数据仍留在移出的新版目录中。
 
 ### 本地日常节点
 

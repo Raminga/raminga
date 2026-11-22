@@ -18,7 +18,7 @@
 
 ## 1. 两边安装并启动
 
-从 [v0.1.0-rc.2 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2) 下载适合各自系统与架构的归档和 `SHA256SUMS`，按[安装指南](install.md#2-安装预编译包)校验并安装。以下是 Apple Silicon 的归档示例。
+从 [v0.1.0-rc.3 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3) 下载适合各自系统与架构的归档和 `SHA256SUMS`，按[安装指南](install.md#2-安装预编译包)校验并安装。以下是 Apple Silicon 的归档示例。
 
 ```sh
 tar xzf raminga_darwin_arm64.tar.gz

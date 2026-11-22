@@ -11,6 +11,7 @@ import { RamingaApi } from './client.js';
 import { defineRamingaTools } from './tools.js';
 import { subscribeEvents } from './events.js';
 import { RamingaUiBridge } from './ui-bridge.js';
+import { AgentActivityStore } from './activity.js';
 import { CONFIRM_TOOLS, CORE_GUIDANCE } from './tools.generated.js';
 
 export const name = 'raminga';
@@ -48,6 +49,10 @@ export const Config = Schema.object({
 export function apply(ctx: Context, config: PluginConfig): () => void {
   const resolved = resolveConfig(config);
   const api = new RamingaApi(resolved);
+  // One private activity store per plugin apply. A new apply gets a fresh
+  // instance id; old running entries are made terminal on first read/begin.
+  const activity = new AgentActivityStore({ dataDir: resolved.dataDir });
+  void activity.initialize();
 
   const disposers: Array<() => void> = [];
 
@@ -62,7 +67,7 @@ export function apply(ctx: Context, config: PluginConfig): () => void {
     }),
   );
 
-  for (const tool of defineRamingaTools(api)) {
+  for (const tool of defineRamingaTools(api, { activity })) {
     disposers.push(ctx.tools.register(tool));
   }
 
@@ -70,9 +75,35 @@ export function apply(ctx: Context, config: PluginConfig): () => void {
   // tool-event subscription above stays owned by the plugin lifecycle; closing
   // the UI panel stops only this lease's stream. No token or socket path ever
   // crosses to the browser: the client calls the typed ramingaUi Remote.
-  const uiBridge = new RamingaUiBridge(api);
+  //
+  // "Show in folder" uses the DSH desktop Host capability that the installed
+  // 0.2.2 host exposes on its session controller. The bridge resolves the
+  // discovery id to a verified path under downloads/<peer>/ and passes only
+  // that absolute path to the Host; it never opens, copies or exports the file
+  // and never exposes path selection to the browser.
+  const revealPath = async (absolutePath: string): Promise<void> => {
+    const sessionController = ctx.get('sessionController') as
+      | { openWorkspacePath?: (request: { path: string; action: 'reveal' }, signal: AbortSignal) => Promise<unknown> }
+      | undefined;
+    if (typeof sessionController?.openWorkspacePath !== 'function') {
+      throw new Error('当前 DSH 宿主没有提供在文件夹中显示的能力');
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      await sessionController.openWorkspacePath({ path: absolutePath, action: 'reveal' }, controller.signal);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const uiBridge = new RamingaUiBridge(api, { revealPath, dataDir: resolved.dataDir, activity });
   ctx.provide('ramingaUi', uiBridge.service);
   disposers.push(() => uiBridge.dispose());
+  // Plugin dispose stops new operations, flushes the queue, waits briefly for
+  // explicit completions, then records remaining operations as interrupted.
+  // A later real finish still wins as the last terminal event. Panel close
+  // alone never calls this path.
+  disposers.push(() => { void activity.dispose(); });
 
   disposers.push(
     ctx.on('tools/pre-execute', (exec: ToolExecution, next: () => Promise<PreToolDecision>) => {

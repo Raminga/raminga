@@ -27,16 +27,61 @@ import (
 )
 
 type fakeBackend struct {
-	chatCh         chan node.Event
-	lastOrigin     string
-	lastRequestID  string
-	disconnected   []string
-	paused         []string
-	friends        []node.Friend
-	removePending  int
-	sendCalls      int
-	discoveryPage  node.PublicDiscoveryPage
-	downloadOption node.DownloadOptions
+	chatCh                      chan node.Event
+	lastOrigin                  string
+	lastRequestID               string
+	disconnected                []string
+	paused                      []string
+	friends                     []node.Friend
+	removePending               int
+	sendCalls                   int
+	discoveryPage               node.PublicDiscoveryPage
+	discoveryRefreshPage        node.DiscoveryRefreshPeerPage
+	lastRefreshFamiliar         bool
+	lastRefreshLimit            int
+	lastRefreshAfter            string
+	downloadOption              node.DownloadOptions
+	draftAsset                  node.PublicDraftAsset
+	draftAssetFound             bool
+	importDraft                 node.PublicDraft
+	importErr                   error
+	lastImportPath              string
+	discoveryPeerID             string
+	discoveryPostCandidatesOnly bool
+	bootstrapPeers              []node.BootstrapPeer
+	lastBootstrapAdd            string
+	removedBootstrap            []string
+}
+
+func (f *fakeBackend) ListDiscoveryRefreshPeers(_ context.Context, familiarOnly bool, limit int, after string) (node.DiscoveryRefreshPeerPage, error) {
+	f.lastRefreshFamiliar = familiarOnly
+	f.lastRefreshLimit = limit
+	f.lastRefreshAfter = after
+	return f.discoveryRefreshPage, nil
+}
+
+func (f *fakeBackend) MarkConversationRead(_ context.Context, peerID, messageID string) (node.MarkReadResult, error) {
+	if messageID == "missing" {
+		return node.MarkReadResult{}, node.ErrMessageNotFound
+	}
+	return node.MarkReadResult{PeerID: peerID, LastReadMessageID: messageID, LastReadAt: time.UnixMilli(1234), UnreadCount: 2}, nil
+}
+
+func (f *fakeBackend) ListFavorites(context.Context, string, int) (node.FavoritePage, error) {
+	return node.FavoritePage{
+		Favorites: []node.Favorite{{ID: "fav_1", PeerID: "peer-b", Path: "posts/a.json", SHA256: strings.Repeat("a", 64), Title: "A", CreatedAt: time.UnixMilli(1000), Available: true}},
+		HasMore:   true, NextBefore: "fav-next",
+	}, nil
+}
+
+func (f *fakeBackend) SetFavorite(_ context.Context, peerID, publicPath, sha256, title string, favorite bool) (node.Favorite, bool, error) {
+	if publicPath != "posts/a.json" || len(sha256) != 64 {
+		return node.Favorite{}, false, node.ErrFavoriteTarget
+	}
+	if !favorite {
+		return node.Favorite{}, false, nil
+	}
+	return node.Favorite{ID: "fav_1", PeerID: peerID, Path: publicPath, SHA256: sha256, Title: title, CreatedAt: time.UnixMilli(1000), Available: true}, true, nil
 }
 
 func (f *fakeBackend) Status(context.Context) (node.Status, error) {
@@ -84,6 +129,7 @@ func (f *fakeBackend) ListConversations(context.Context, string, int) (node.Conv
 	return node.ConversationPage{
 		Conversations: []node.Conversation{{PeerID: "peer-b", LastMessageID: "m1", Direction: "out", Preview: "hi", DeliveryStatus: node.DeliveryAcked, MessageCount: 1}},
 		Retention:     node.MessageRetention{RetainedMessages: 1, MaxMessages: 10},
+		TotalUnread:   3,
 	}, nil
 }
 
@@ -185,6 +231,51 @@ func TestDHTStatusReportsConfiguredAndActiveMode(t *testing.T) {
 	}
 	if d.GetConnectedPeers() != 2 || d.GetBootstrapConnected() != 1 {
 		t.Fatalf("connected=%d bootstrap_connected=%d, want 2/1", d.GetConnectedPeers(), d.GetBootstrapConnected())
+	}
+}
+
+func TestBootstrapPeerRPCsAreExplicitLocalSetting(t *testing.T) {
+	ts := startServer(t, false)
+	ts.backend.bootstrapPeers = []node.BootstrapPeer{{
+		PeerID:  "peer-b",
+		Addrs:   []string{"/ip4/127.0.0.1/tcp/4001/p2p/peer-b"},
+		Online:  true,
+		Paused:  true,
+		SavedAt: time.UnixMilli(1234),
+	}}
+	c, err := client.New(ts.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx := context.Background()
+	list, err := c.ListBootstrapPeers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.GetPeers()) != 1 {
+		t.Fatalf("list = %+v", list)
+	}
+	peer := list.GetPeers()[0]
+	if peer.GetPeerId() != "peer-b" || !peer.GetOnline() || !peer.GetPaused() || peer.GetSavedAtUnixMs() != 1234 {
+		t.Fatalf("peer = %+v", peer)
+	}
+	added, err := c.AddBootstrapPeer(ctx, "/ip4/127.0.0.1/tcp/4001/p2p/peer-b")
+	if err != nil || !added.GetAdded() || added.GetPeer().GetPeerId() != "peer-b" {
+		t.Fatalf("add = %+v err=%v", added, err)
+	}
+	if ts.backend.lastBootstrapAdd != "/ip4/127.0.0.1/tcp/4001/p2p/peer-b" {
+		t.Fatalf("backend did not receive the exact address: %q", ts.backend.lastBootstrapAdd)
+	}
+	if _, err := c.AddBootstrapPeer(ctx, "/ip4/127.0.0.1/tcp/4001"); err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("invalid add code=%v err=%v", connect.CodeOf(err), err)
+	}
+	removed, err := c.RemoveBootstrapPeer(ctx, "peer-b")
+	if err != nil || !removed.GetRemoved() {
+		t.Fatalf("remove = %+v err=%v", removed, err)
+	}
+	if len(ts.backend.removedBootstrap) != 1 || ts.backend.removedBootstrap[0] != "peer-b" {
+		t.Fatalf("backend removals = %v", ts.backend.removedBootstrap)
 	}
 }
 
@@ -558,6 +649,24 @@ func (f *fakeBackend) DHTStatus() node.DHTStatus {
 	}
 }
 
+func (f *fakeBackend) BootstrapPeers(context.Context) ([]node.BootstrapPeer, error) {
+	return f.bootstrapPeers, nil
+}
+
+func (f *fakeBackend) AddBootstrapPeer(_ context.Context, multiaddr string) (node.BootstrapPeer, bool, error) {
+	if strings.TrimSpace(multiaddr) == "" || !strings.Contains(multiaddr, "/p2p/") {
+		return node.BootstrapPeer{}, false, errors.New("invalid bootstrap multiaddr")
+	}
+	f.lastBootstrapAdd = multiaddr
+	value := node.BootstrapPeer{PeerID: "peer-b", Addrs: []string{multiaddr}, SavedAt: time.UnixMilli(1000)}
+	return value, true, nil
+}
+
+func (f *fakeBackend) RemoveBootstrapPeer(_ context.Context, peerID string) (bool, error) {
+	f.removedBootstrap = append(f.removedBootstrap, peerID)
+	return true, nil
+}
+
 func (f *fakeBackend) DHTFindPeer(context.Context, string) (node.DHTPeer, error) {
 	return node.DHTPeer{PeerID: "peer-b", Found: true, Source: "dht"}, nil
 }
@@ -678,6 +787,42 @@ func (f *fakeBackend) Published(context.Context) (node.Published, error) {
 	}, nil
 }
 
+func (f *fakeBackend) GetPublicDraft(context.Context, string) (node.PublicDraft, bool, error) {
+	return node.PublicDraft{}, false, nil
+}
+
+func (f *fakeBackend) ListPublicDrafts(context.Context, string, string, int) ([]node.PublicDraft, bool, string, error) {
+	return nil, false, "", nil
+}
+
+func (f *fakeBackend) SavePublicDraft(_ context.Context, in node.DraftUpdate) (node.PublicDraft, error) {
+	return node.PublicDraft{DraftID: in.DraftID, Kind: in.Kind, Revision: 0}, nil
+}
+
+func (f *fakeBackend) GetPublicDraftAsset(context.Context, string, string) (node.PublicDraftAsset, bool, error) {
+	return f.draftAsset, f.draftAssetFound, nil
+}
+
+func (f *fakeBackend) PutPublicDraftImage(context.Context, string, string, string, []byte) (node.PublicDraftAsset, error) {
+	return node.PublicDraftAsset{}, nil
+}
+
+func (f *fakeBackend) ImportPublicPost(_ context.Context, rel string) (node.PublicDraft, error) {
+	f.lastImportPath = rel
+	if f.importErr != nil {
+		return node.PublicDraft{}, f.importErr
+	}
+	return f.importDraft, nil
+}
+
+func (f *fakeBackend) DeletePublicDraft(context.Context, string, int64) (bool, error) {
+	return true, nil
+}
+
+func (f *fakeBackend) PublishPublicDraft(context.Context, string, int64, string) (node.PublishResult, error) {
+	return node.PublishResult{Status: node.PublishStatusPublished, ManifestVersion: 1}, nil
+}
+
 func (f *fakeBackend) GetPeerManifest(context.Context, string, int, int) (node.PeerManifest, error) {
 	return node.PeerManifest{PeerID: "peer-b", Version: 1, Total: 0, Entries: nil}, nil
 }
@@ -687,7 +832,9 @@ func (f *fakeBackend) GetPeerProfile(context.Context, string) (node.PeerProfile,
 func (f *fakeBackend) GetPeerFriends(context.Context, string) (node.PeerFriends, error) {
 	return node.PeerFriends{PeerID: "peer-b"}, nil
 }
-func (f *fakeBackend) ListDiscoveries(context.Context, string, int, bool) (node.PublicDiscoveryPage, error) {
+func (f *fakeBackend) ListDiscoveries(_ context.Context, _ string, _ int, _ bool, peerID string, postCandidatesOnly bool) (node.PublicDiscoveryPage, error) {
+	f.discoveryPeerID = peerID
+	f.discoveryPostCandidatesOnly = postCandidatesOnly
 	return f.discoveryPage, nil
 }
 
@@ -830,5 +977,61 @@ func TestAgentOriginSendGuardRateLimitOverRPC(t *testing.T) {
 	// Human sends are not counted against the agent budget.
 	if _, err := c.SendChat(ctx, "peer-b", "", "hello"); err != nil {
 		t.Fatalf("human send was blocked: %v", err)
+	}
+}
+
+type bearerTransport struct {
+	base  http.RoundTripper
+	token string
+}
+
+func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	clone.Header.Set("Authorization", "Bearer "+t.token)
+	return t.base.RoundTrip(clone)
+}
+
+func TestDraftAssetAndImportRPCsStayLocalAndScoped(t *testing.T) {
+	ts := startServer(t, false)
+	token, err := os.ReadFile(api.TokenPath(ts.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sock := api.SocketPath(ts.dir)
+	hc := &http.Client{Transport: bearerTransport{
+		token: strings.TrimSpace(string(token)),
+		base: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", sock)
+		}},
+	}}
+	client := apiv1connect.NewRamingaServiceClient(hc, "http://unix")
+	ts.backend.draftAsset = node.PublicDraftAsset{
+		AssetID: "asset-1", DraftID: "draft-a-abcdef123456", Role: "image",
+		SHA256: strings.Repeat("a", 64), Mime: "image/png", Width: 1, Height: 1,
+		SizeBytes: 3, Bytes: []byte{1, 2, 3},
+	}
+	ts.backend.draftAssetFound = true
+	resp, err := client.GetPublicDraftAsset(context.Background(), connect.NewRequest(&apiv1.GetPublicDraftAssetRequest{
+		DraftId: "draft-a-abcdef123456", AssetId: "asset-1",
+	}))
+	if err != nil || resp.Msg.GetImage().GetAssetId() != "asset-1" || string(resp.Msg.GetData()) != string([]byte{1, 2, 3}) {
+		t.Fatalf("draft asset = %+v, %v", resp, err)
+	}
+	ts.backend.draftAssetFound = false
+	if _, err := client.GetPublicDraftAsset(context.Background(), connect.NewRequest(&apiv1.GetPublicDraftAssetRequest{
+		DraftId: "draft-b-abcdef123456", AssetId: "asset-1",
+	})); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("cross-draft asset code = %v", connect.CodeOf(err))
+	}
+
+	ts.backend.importDraft = node.PublicDraft{DraftID: "draft-import-abcdef", Kind: "post", Title: "t", BodyMarkdown: "b", AuthorKind: "agent"}
+	imported, err := client.ImportPublicPost(context.Background(), connect.NewRequest(&apiv1.ImportPublicPostRequest{Path: "posts/post-a/post.json"}))
+	if err != nil || imported.Msg.GetDraft().GetDraftId() != "draft-import-abcdef" || ts.backend.lastImportPath != "posts/post-a/post.json" {
+		t.Fatalf("import = %+v, %v path=%q", imported, err, ts.backend.lastImportPath)
+	}
+	ts.backend.importErr = node.ErrDraftInvalid
+	if _, err := client.ImportPublicPost(context.Background(), connect.NewRequest(&apiv1.ImportPublicPostRequest{Path: "posts/remote.json"})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("unowned import code = %v", connect.CodeOf(err))
 	}
 }

@@ -29,6 +29,9 @@ type Friend struct {
 	Paused            bool
 	FirstSeenMS       int64
 	LastInteractionMS int64
+	// UnreadCount is a read-only view derived from the shared message cursor.
+	// It is never stored on the friends row.
+	UnreadCount int
 }
 
 // FriendNamePattern is the existing local-name rule.
@@ -204,17 +207,36 @@ func (s *Store) pruneFriendsTx(ctx context.Context, tx *sql.Tx) error {
 
 // ListFriends returns all rows, named peers first and then by Peer ID.
 func (s *Store) ListFriends(ctx context.Context) ([]Friend, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT f.peer_id,f.name,f.addrs_json,f.description,f.manually_connected,f.first_seen_ms,f.last_interaction_ms,f.relay_capable,f.dht_capable,(p.peer_id IS NOT NULL) AS paused FROM friends f LEFT JOIN paused_peers p ON p.peer_id=f.peer_id ORDER BY CASE WHEN f.name='' THEN 1 ELSE 0 END, f.name, f.peer_id`)
+	rows, err := s.db.QueryContext(ctx, `WITH `+unreadCountsCTE+`
+		SELECT f.peer_id,f.name,f.addrs_json,f.description,f.manually_connected,f.first_seen_ms,
+		       f.last_interaction_ms,f.relay_capable,f.dht_capable,(p.peer_id IS NOT NULL) AS paused,
+		       COALESCE(u.unread_count,0) AS unread_count
+		FROM friends f
+		LEFT JOIN paused_peers p ON p.peer_id=f.peer_id
+		LEFT JOIN unread_counts u ON u.peer_id=f.peer_id
+		ORDER BY CASE WHEN f.name='' THEN 1 ELSE 0 END, f.name, f.peer_id`)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 	out := make([]Friend, 0)
 	for rows.Next() {
-		f, err := s.scanFriend(rows)
-		if err != nil {
+		var (
+			f                                Friend
+			addrsRaw                         string
+			manual, relayCap, dhtCap, paused int
+		)
+		if err := rows.Scan(&f.PeerID, &f.Name, &addrsRaw, &f.Description, &manual,
+			&f.FirstSeenMS, &f.LastInteractionMS, &relayCap, &dhtCap, &paused, &f.UnreadCount); err != nil {
 			return nil, err
 		}
+		if err := jsonUnmarshal(addrsRaw, &f.Addrs); err != nil {
+			return nil, fmt.Errorf("decode friend addrs: %w", err)
+		}
+		f.ManuallyConnected = manual != 0
+		f.RelayCapable = relayCap != 0
+		f.DHTCapable = dhtCap != 0
+		f.Paused = paused != 0
 		out = append(out, f)
 	}
 	return out, rows.Err()
@@ -397,10 +419,22 @@ func (s *Store) FriendsForRestart(ctx context.Context, limit int) ([]Friend, err
 	defer func() { _ = rows.Close() }()
 	var out []Friend
 	for rows.Next() {
-		f, err := s.scanFriend(rows)
-		if err != nil {
+		var (
+			f                                Friend
+			addrsRaw                         string
+			manual, relayCap, dhtCap, paused int
+		)
+		if err := rows.Scan(&f.PeerID, &f.Name, &addrsRaw, &f.Description, &manual,
+			&f.FirstSeenMS, &f.LastInteractionMS, &relayCap, &dhtCap, &paused); err != nil {
 			return nil, err
 		}
+		if err := jsonUnmarshal(addrsRaw, &f.Addrs); err != nil {
+			return nil, fmt.Errorf("decode friend addrs: %w", err)
+		}
+		f.ManuallyConnected = manual != 0
+		f.RelayCapable = relayCap != 0
+		f.DHTCapable = dhtCap != 0
+		f.Paused = paused != 0
 		out = append(out, f)
 	}
 	return out, rows.Err()

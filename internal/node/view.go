@@ -52,6 +52,8 @@ type PeerProfile struct {
 	Text   string
 	Files  []string
 	Found  bool
+	// Profile is the structured v2 public profile (or legacy fallback fields).
+	Profile PublicProfile
 }
 
 type PeerFriend struct {
@@ -422,36 +424,7 @@ func (n *Node) ViewProfile(ctx context.Context, peerID string) (PeerProfile, err
 	if err != nil {
 		return PeerProfile{}, fmt.Errorf("invalid peer ID: %w；%s", err, peerarg.WrappedHint)
 	}
-	manifest, err := n.FetchManifest(ctx, pid.String(), 0, content.MaxManifestLimit)
-	if err != nil {
-		return PeerProfile{}, err
-	}
-	profile := PeerProfile{PeerID: pid.String()}
-	for _, e := range manifest.Entries {
-		profile.Files = append(profile.Files, e.Path)
-	}
-	entry, _, err := n.findEntry(ctx, pid, "profile/index.md")
-	if err != nil {
-		return PeerProfile{}, err
-	}
-	if entry.Path == "" {
-		return profile, nil
-	}
-	res, err := n.Download(ctx, pid.String(), entry.Path, nil)
-	if err != nil {
-		return PeerProfile{}, err
-	}
-	data, err := os.ReadFile(res.LocalPath)
-	if err != nil {
-		return PeerProfile{}, err
-	}
-	profile.Found = true
-	profile.Text = string(data)
-	profile.Name = firstHeading(profile.Text)
-	if profile.Name == "" {
-		profile.Name = pid.String()
-	}
-	return profile, nil
+	return n.loadPeerProfile(ctx, pid)
 }
 
 func firstHeading(text string) string {
@@ -611,13 +584,33 @@ func (n *Node) DownloadPeerFile(ctx context.Context, peerID, path string, progre
 	return n.DownloadWithOptions(ctx, peerID, path, progress, options)
 }
 
+// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+// explicit Feed refresh. It reads only local SQLite facts and performs no
+// network request.
+func (n *Node) ListDiscoveryRefreshPeers(ctx context.Context, familiarOnly bool, limit int, after string) (DiscoveryRefreshPeerPage, error) {
+	if n.store == nil {
+		return DiscoveryRefreshPeerPage{}, errors.New("discovery index is unavailable")
+	}
+	page, err := n.store.ListDiscoveryRefreshPeers(ctx, familiarOnly, limit, after)
+	if err != nil {
+		return DiscoveryRefreshPeerPage{}, err
+	}
+	out := DiscoveryRefreshPeerPage{Total: page.Total, Truncated: page.Truncated, HasMore: page.HasMore, NextAfter: page.NextAfter}
+	for _, peer := range page.Peers {
+		out.Peers = append(out.Peers, DiscoveryRefreshPeer{
+			PeerID: peer.PeerID, FromDiscovery: peer.FromDiscovery, FromOutbound: peer.FromOutbound,
+		})
+	}
+	return out, nil
+}
+
 // ListDiscoveries returns the private discovery index page. It is served
 // only on the local API; the remote content protocol does not expose it.
-func (n *Node) ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool) (PublicDiscoveryPage, error) {
+func (n *Node) ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool, peerID string, postCandidatesOnly bool) (PublicDiscoveryPage, error) {
 	if n.store == nil {
 		return PublicDiscoveryPage{}, errors.New("discovery index is unavailable")
 	}
-	rows, err := n.store.ListPublicDiscoveries(ctx, before, limit, familiarOnly)
+	rows, err := n.store.ListPublicDiscoveries(ctx, before, limit, familiarOnly, peerID, postCandidatesOnly)
 	if err != nil {
 		return PublicDiscoveryPage{}, err
 	}
@@ -626,6 +619,7 @@ func (n *Node) ListDiscoveries(ctx context.Context, before string, limit int, fa
 		page.Discoveries = append(page.Discoveries, PublicDiscovery{
 			ID: row.ID, PeerID: row.PeerID, Path: row.Path, SHA256: row.SHA256,
 			SizeBytes: row.SizeBytes, FetchedAt: time.UnixMilli(row.FetchedAtMS), Source: row.Source,
+			Sources: append([]string(nil), row.Sources...),
 		})
 	}
 	return page, nil

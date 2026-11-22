@@ -36,6 +36,15 @@ export function deliveryStatusShort(status) {
   return DELIVERY_SHORT[String(status ?? 'unknown')] ?? DELIVERY_SHORT.unknown;
 }
 
+/** Human-readable source of one persisted message row. */
+export function messageSourceLabel(message) {
+  if (message?.direction === 'in') return '对方';
+  const origin = String(message?.origin ?? '').trim();
+  if (origin === 'human') return '本人';
+  if (origin === 'agent') return 'Agent';
+  return '来源未知';
+}
+
 export function deliveryStatusTone(status) {
   switch (String(status ?? 'unknown')) {
     case 'acked':

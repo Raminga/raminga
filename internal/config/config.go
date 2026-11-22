@@ -142,9 +142,15 @@ type DHT struct {
 	Mode string `toml:"mode"`
 	// ProtocolPrefix is fixed to /raminga (never /ipfs).
 	ProtocolPrefix string `toml:"protocol_prefix"`
-	// BootstrapPeers are explicit Raminga bootstrap multiaddrs. Empty means no
-	// bootstrap peers; the libp2p public IPFS defaults are never used.
+	// BootstrapPeers is the first-initialization Raminga bootstrap input. Empty
+	// means no preset peers; the libp2p public IPFS defaults are never used.
+	// After the daemon's one-time import, the SQLite bootstrap role is the only
+	// runtime source and this field is not re-read or rewritten on restart.
 	BootstrapPeers []string `toml:"bootstrap_peers"`
+	// BootstrapPreset records whether the built-in official preset was enabled
+	// when this config was created. nil means the config predates presets;
+	// loading it never adds peers. Existing files are never rewritten on load.
+	BootstrapPreset *bool `toml:"bootstrap_preset,omitempty"`
 	// RefreshInterval controls routing-table refresh and relay discovery.
 	RefreshInterval string `toml:"refresh_interval"`
 	// QueryTimeout bounds one FindPeer call.
@@ -264,16 +270,59 @@ func Path(dataDir string) string {
 	return filepath.Join(dataDir, FileName)
 }
 
+// LoadOptions controls config loading for a data directory.
+type LoadOptions struct {
+	// BootstrapImported means the SQLite one-time bootstrap import marker
+	// already exists. Load must then ignore dormant legacy bootstrap address
+	// syntax and must not resolve a new official preset while recovering a
+	// missing config.toml. Every other field remains strictly validated.
+	BootstrapImported bool
+
+	// ExistingDatabase reports that <dataDir>/raminga.db existed before this
+	// load. Missing-config recovery with an existing database must not resolve
+	// a new official preset even when the older database predates the import
+	// marker. Dormant bootstrap address validation still requires the marker.
+	ExistingDatabase bool
+
+	// executable is test-only injection for the release sidecar lookup. Empty
+	// means the running executable.
+	executable string
+}
+
 // Load reads config.toml. If it does not exist, Default is written first. The
 // decoder rejects unknown keys; dangerous G1 keys get a dedicated error.
 func Load(dataDir string) (Config, error) {
+	return LoadWithOptions(dataDir, LoadOptions{})
+}
+
+// LoadWithOptions is Load with daemon lifecycle state supplied by the caller.
+// An existing config is never rewritten and never absorbs a new official seed.
+func LoadWithOptions(dataDir string, opts LoadOptions) (Config, error) {
 	path := Path(dataDir)
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(dataDir, 0o700); err != nil {
 			return Config{}, fmt.Errorf("create data directory: %w", err)
 		}
-		raw = []byte(DefaultTOML)
+		initial := Default()
+		presetEnabled := false
+		// The import marker is the durable first-initialization boundary. When
+		// it already exists, a missing config is recovery, not first run: write
+		// an explicit empty preset and let the SQLite bootstrap roles remain the
+		// only runtime source. Never resolve the sidecar in this path.
+		if !opts.BootstrapImported && !opts.ExistingDatabase {
+			peers, enabled, _, resolveErr := resolveBootstrapPeers(nil, false, opts.executable)
+			if resolveErr != nil {
+				return Config{}, fmt.Errorf("resolve official bootstrap preset: %w", resolveErr)
+			}
+			initial.DHT.BootstrapPeers = peers
+			presetEnabled = enabled
+		}
+		initial.DHT.BootstrapPreset = &presetEnabled
+		raw, err = RenderTOML(initial)
+		if err != nil {
+			return Config{}, fmt.Errorf("render default config: %w", err)
+		}
 		if err := os.WriteFile(path, raw, 0o600); err != nil {
 			return Config{}, fmt.Errorf("write default config %q: %w", path, err)
 		}
@@ -281,15 +330,31 @@ func Load(dataDir string) (Config, error) {
 		return Config{}, fmt.Errorf("read config %q: %w", path, err)
 	}
 
-	cfg, err := Parse(raw)
+	cfg, err := ParseWithOptions(raw, ParseOptions{AllowDormantBootstrap: opts.BootstrapImported})
 	if err != nil {
 		return Config{}, fmt.Errorf("config %q: %w", path, err)
 	}
 	return cfg, nil
 }
 
+// ParseOptions controls strictness for fields that are dormant after the
+// one-time bootstrap import. TOML types, unknown keys, and every non-bootstrap
+// field are always validated.
+type ParseOptions struct {
+	// AllowDormantBootstrap skips only the syntax validation of
+	// dht.bootstrap_peers. It is used for an existing config whose SQLite
+	// import marker proves the old list was already consumed. Explicit Init
+	// and ordinary Parse/Validate remain strict.
+	AllowDormantBootstrap bool
+}
+
 // Parse validates TOML bytes with defaults applied.
 func Parse(raw []byte) (Config, error) {
+	return ParseWithOptions(raw, ParseOptions{})
+}
+
+// ParseWithOptions is Parse with the legacy-bootstrap dormant mode.
+func ParseWithOptions(raw []byte, opts ParseOptions) (Config, error) {
 	if err := rejectDangerousKeys(raw); err != nil {
 		return Config{}, err
 	}
@@ -300,7 +365,7 @@ func Parse(raw []byte) (Config, error) {
 	if err := dec.Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("invalid TOML: %w", err)
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(opts.AllowDormantBootstrap); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
@@ -308,6 +373,10 @@ func Parse(raw []byte) (Config, error) {
 
 // Validate checks every field independently of TOML decoding.
 func (c Config) Validate() error {
+	return c.validate(false)
+}
+
+func (c Config) validate(allowDormantBootstrap bool) error {
 	if c.Limits.MaxMessageBytes < MinMaxMessageBytes || c.Limits.MaxMessageBytes > MaxMaxMessageBytes {
 		return fmt.Errorf("limits.max_message_bytes must be between %d and %d, got %d",
 			MinMaxMessageBytes, MaxMaxMessageBytes, c.Limits.MaxMessageBytes)
@@ -374,9 +443,11 @@ func (c Config) Validate() error {
 	if c.DHT.ProtocolPrefix != DHTProtocolPrefix {
 		return fmt.Errorf("dht.protocol_prefix must be %q (public IPFS DHT is never used), got %q", DHTProtocolPrefix, c.DHT.ProtocolPrefix)
 	}
-	for _, addr := range c.DHT.BootstrapPeers {
-		if err := validateBootstrapAddr(addr); err != nil {
-			return err
+	if !allowDormantBootstrap {
+		for _, addr := range c.DHT.BootstrapPeers {
+			if err := validateBootstrapAddr(addr); err != nil {
+				return err
+			}
 		}
 	}
 	if _, err := time.ParseDuration(c.DHT.RefreshInterval); err != nil {
@@ -623,7 +694,7 @@ func walkKeys(prefix string, m map[string]any) error {
 			}
 		case "dht":
 			switch key {
-			case "enabled", "mode", "protocol_prefix", "bootstrap_peers", "refresh_interval", "query_timeout":
+			case "enabled", "mode", "protocol_prefix", "bootstrap_peers", "bootstrap_preset", "refresh_interval", "query_timeout":
 				allowed = true
 			}
 		case "autonat":
@@ -714,8 +785,14 @@ reservation_duration_limit = "2m"
 enabled = true
 mode = "auto"
 protocol_prefix = "/raminga"
-# Explicit Raminga bootstrap peers only. Empty = no bootstrap.
+# First-initialization Raminga bootstrap input only. Empty = no preset. A
+# custom list wins over the built-in official preset. The daemon imports it
+# once into the ordinary peer records and never rewrites this file; manage the
+# running list from DSH Web > Node status > Bootstrap peers.
 bootstrap_peers = []
+# Seed the built-in official preset on first initialization when no custom list
+# is supplied. Set false before init to opt out.
+bootstrap_preset = true
 refresh_interval = "30s"
 query_timeout = "20s"
 
@@ -777,8 +854,14 @@ type InitOptions struct {
 	AnnounceAddrs  []string
 	KnownRelays    []string
 	BootstrapPeers []string
+	// DisableBootstrapPreset records an explicit opt-out from the release
+	// preset on this new config. It is ignored when BootstrapPeers is set.
+	DisableBootstrapPreset bool
 	// DHTMode is client, server or auto. Empty preserves the default auto.
 	DHTMode string
+
+	// presetExecutable is test-only injection for the release sidecar lookup.
+	presetExecutable string
 }
 
 // Init creates dataDir and writes a validated default config without starting
@@ -811,7 +894,12 @@ func Init(dataDir string, opts InitOptions) (Config, error) {
 	cfg.Network.AnnounceAddrs = append([]string(nil), opts.AnnounceAddrs...)
 	cfg.Relay.Provider = opts.RelayProvider
 	cfg.Relay.KnownRelays = append([]string(nil), opts.KnownRelays...)
-	cfg.DHT.BootstrapPeers = append([]string(nil), opts.BootstrapPeers...)
+	peers, presetEnabled, _, err := resolveBootstrapPeers(opts.BootstrapPeers, opts.DisableBootstrapPreset, opts.presetExecutable)
+	if err != nil {
+		return Config{}, fmt.Errorf("resolve official bootstrap preset: %w", err)
+	}
+	cfg.DHT.BootstrapPreset = &presetEnabled
+	cfg.DHT.BootstrapPeers = peers
 	if opts.DHTMode != "" {
 		cfg.DHT.Mode = opts.DHTMode
 	}

@@ -65,7 +65,7 @@ test('two real daemons: human send, reply, queue, cancel, restart and replay', {
   const mainDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-msg-main-'));
   const peerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raminga-ui-msg-peer-'));
   for (const dir of [mainDir, peerDir]) {
-    const init = spawnSync(binary, ['init', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
+    const init = spawnSync(binary, ['init', '--no-bootstrap-preset', '--data-dir', dir, '--listen', '/ip4/127.0.0.1/tcp/0', '--json'], { encoding: 'utf8' });
     assert.equal(init.status, 0, init.stderr || init.stdout);
   }
   let mainDaemon = startDaemon(mainDir);
@@ -87,7 +87,7 @@ test('two real daemons: human send, reply, queue, cancel, restart and replay', {
   await waitUntil(() => peerApi.probeStatus(), 'peer daemon start');
   const peer = await peerTCPAddr(peerApi);
   const mainStatus = await mainApi.call((client) => client.status(new StatusRequest(), { timeoutMs: 3000 }));
-  assert.equal(mainStatus.apiVersion, '4');
+  assert.equal(mainStatus.apiVersion, '6');
   assert.equal(mainStatus.maxChatTextBytes > 0, true);
 
   const connect = await mainApi.call((client) => client.connect({ peerId: peer.peerId, multiaddr: peer.multiaddr }, { timeoutMs: 10000 }));
@@ -96,7 +96,7 @@ test('two real daemons: human send, reply, queue, cancel, restart and replay', {
   const bridge = new RamingaUiBridge(mainApi);
   t.after(() => bridge.dispose());
   const opened = await bridge.open('ui-msg-integration-0001');
-  assert.equal(opened.status.apiVersion, '4');
+  assert.equal(opened.status.apiVersion, '6');
 
   const first = await bridge.send('ui-msg-integration-0001', peer.peerId, '你好，来自人工界面', 'ui-int-request-1');
   assert.equal(first.ok, true);

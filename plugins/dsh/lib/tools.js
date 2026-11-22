@@ -1,5 +1,6 @@
 import { EXPECTED_API_VERSION } from './config.js';
 import { initAgentData } from './agent-init.js';
+import { runWithActivity } from './activity.js';
 import { AGENT_ONBOARDING_FILES, GENERATED_TOOLS } from './tools.generated.js';
 import { wrapUntrusted } from './untrusted.generated.js';
 import { ConnectListedPeerRequest, ConnectRequest, DownloadPeerFileRequest, GetPeerFriendsRequest, GetPeerManifestRequest, GetPeerProfileRequest, RecentMessagesRequest, SendChatRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
@@ -142,7 +143,7 @@ const HANDLERS = {
     // Local file I/O, like the MCP tool: no daemon call and no public/ writes.
     raminga_agent_init: async (api) => initAgentData(api.config.dataDir, AGENT_ONBOARDING_FILES),
 };
-export function defineRamingaTools(api) {
+export function defineRamingaTools(api, options = {}) {
     return GENERATED_TOOLS.map((tool) => {
         const handler = HANDLERS[tool.name];
         if (!handler) {
@@ -153,7 +154,13 @@ export function defineRamingaTools(api) {
             description: tool.description,
             parameters: tool.parameters,
             output: { schema: { type: 'json' }, render: jsonRender(tool.resultUntrusted) },
-            execute: async (args) => handler(api, (args ?? {})),
+            execute: async (args) => {
+                const callArgs = (args ?? {});
+                // The wrapper records one independent operation per real Agent call.
+                // It never records manual UI actions, polling or host events, and it
+                // never copies chat/profile body text into the private log.
+                return runWithActivity(options.activity, { tool: tool.name, args: callArgs }, () => handler(api, callArgs), options.activityTimeoutMs === undefined ? {} : { timeoutMs: options.activityTimeoutMs });
+            },
         });
     });
 }

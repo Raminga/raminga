@@ -30,8 +30,12 @@ export function contactInitial(friend) {
   return first ? first.toUpperCase() : '?';
 }
 
-/** Search only fields that actually exist locally: name, note and Peer ID. */
-export function filterContacts(friends, query) {
+/**
+ * Search only fields the list can actually show: local name/note, Peer ID and
+ * an already verified public Agent card. `profileFor` must be a synchronous
+ * lookup over cached cards; this helper never starts a remote read or a dial.
+ */
+export function filterContacts(friends, query, profileFor = null) {
   const list = Array.isArray(friends) ? friends : [];
   const needle = String(query ?? '').trim().toLowerCase();
   if (needle.length === 0) return list;
@@ -39,7 +43,14 @@ export function filterContacts(friends, query) {
     const peerId = String(friend?.peerId ?? '').toLowerCase();
     const name = String(friend?.name ?? '').toLowerCase();
     const description = String(friend?.description ?? '').toLowerCase();
-    return peerId.includes(needle) || name.includes(needle) || description.includes(needle);
+    const profile = typeof profileFor === 'function' ? profileFor(friend?.peerId) : null;
+    const publicName = String(profile?.displayName ?? '').toLowerCase();
+    const publicDescription = String(profile?.description ?? '').toLowerCase();
+    return peerId.includes(needle)
+      || name.includes(needle)
+      || description.includes(needle)
+      || publicName.includes(needle)
+      || publicDescription.includes(needle);
   });
 }
 
@@ -48,7 +59,7 @@ export function filterContacts(friends, query) {
  * as stale data plus a retry, not as an empty list; an empty array is only
  * "empty" after a successful read.
  */
-export function contactListState(contacts, query, transportError = null) {
+export function contactListState(contacts, query, transportError = null, filter = 'all', profileFor = null) {
   const source = contacts && typeof contacts === 'object' ? contacts : {};
   const friends = Array.isArray(source.friends) ? source.friends : [];
   const error = typeof transportError === 'string' && transportError.length > 0
@@ -74,7 +85,20 @@ export function contactListState(contacts, query, transportError = null) {
       at: Number(source.at) > 0 ? Number(source.at) : 0,
     };
   }
-  const matches = filterContacts(friends, query);
+  const eligible = filter === 'unread'
+    ? friends.filter((friend) => Number(friend?.unreadCount) > 0)
+    : friends;
+  const matches = filterContacts(eligible, query, profileFor);
+  if (filter === 'unread' && matches.length === 0) {
+    return {
+      kind: 'unread-empty',
+      friends: [],
+      all: friends,
+      stale: source.freshness !== 'live',
+      error,
+      at: Number(source.at) > 0 ? Number(source.at) : 0,
+    };
+  }
   return {
     kind: matches.length === 0 && clearing ? 'search-empty' : 'ready',
     friends: matches,

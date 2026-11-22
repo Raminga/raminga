@@ -30,6 +30,7 @@ import (
 	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/api/paths"
 	"github.com/Raminga/raminga/internal/node"
+	"github.com/Raminga/raminga/internal/publication"
 )
 
 const (
@@ -40,7 +41,7 @@ const (
 	// APIVersion is the local API contract version reported by Status. Plugin
 	// shells compare it against their expected version and ask for a restart
 	// or upgrade on mismatch instead of failing individual RPCs.
-	APIVersion = "4"
+	APIVersion = "6"
 	// tokenBytes is the entropy of the bearer token.
 	tokenBytes = 32
 )
@@ -53,6 +54,7 @@ type Backend interface {
 	RecentMessages(ctx context.Context, limit int) ([]node.StoredMessage, error)
 	ListMessages(ctx context.Context, peerID, before string, limit int) (node.MessagePage, error)
 	ListConversations(ctx context.Context, before string, limit int) (node.ConversationPage, error)
+	MarkConversationRead(ctx context.Context, peerID, throughMessageID string) (node.MarkReadResult, error)
 	ListHumanOutboundPeers(ctx context.Context, before string, limit int) (node.HumanOutboundPage, error)
 	Outbox(ctx context.Context, limit int) ([]node.OutboxEntry, node.OutboxStats, error)
 	CancelOutbox(ctx context.Context, messageID string) error
@@ -63,6 +65,9 @@ type Backend interface {
 	RelayProvider() node.RelayProviderStatus
 	AddPeer(ctx context.Context, multiaddr string) (node.PeerEntry, error)
 	DHTStatus() node.DHTStatus
+	BootstrapPeers(ctx context.Context) ([]node.BootstrapPeer, error)
+	AddBootstrapPeer(ctx context.Context, multiaddr string) (node.BootstrapPeer, bool, error)
+	RemoveBootstrapPeer(ctx context.Context, peerID string) (bool, error)
 	DHTFindPeer(ctx context.Context, peerID string) (node.DHTPeer, error)
 	ListFriends(ctx context.Context) ([]node.Friend, error)
 	SetFriendName(ctx context.Context, peerID, name string) (node.Friend, error)
@@ -70,7 +75,17 @@ type Backend interface {
 	RemoveFriend(ctx context.Context, peerID string, cancelPending bool) (bool, int, error)
 	SyncFriends(ctx context.Context) (bool, error)
 	Published(ctx context.Context) (node.Published, error)
-	ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool) (node.PublicDiscoveryPage, error)
+	GetPublicDraft(ctx context.Context, id string) (node.PublicDraft, bool, error)
+	ListPublicDrafts(ctx context.Context, kind, before string, limit int) ([]node.PublicDraft, bool, string, error)
+	SavePublicDraft(ctx context.Context, in node.DraftUpdate) (node.PublicDraft, error)
+	GetPublicDraftAsset(ctx context.Context, draftID, assetID string) (node.PublicDraftAsset, bool, error)
+	PutPublicDraftImage(ctx context.Context, draftID, role, filename string, data []byte) (node.PublicDraftAsset, error)
+	ImportPublicPost(ctx context.Context, path string) (node.PublicDraft, error)
+	DeletePublicDraft(ctx context.Context, id string, expectedRevision int64) (bool, error)
+	PublishPublicDraft(ctx context.Context, id string, expectedRevision int64, expectedPublishedSHA string) (node.PublishResult, error)
+	ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool, peerID string, postCandidatesOnly bool) (node.PublicDiscoveryPage, error)
+	ListFavorites(ctx context.Context, before string, limit int) (node.FavoritePage, error)
+	SetFavorite(ctx context.Context, peerID, publicPath, sha256, title string, favorite bool) (node.Favorite, bool, error)
 	GetPeerManifest(ctx context.Context, peerID string, offset, limit int) (node.PeerManifest, error)
 	GetPeerProfile(ctx context.Context, peerID string) (node.PeerProfile, error)
 	GetPeerFriends(ctx context.Context, peerID string) (node.PeerFriends, error)
@@ -222,7 +237,7 @@ func (s *Server) startUnix() error {
 
 func (s *Server) newMux() *http.ServeMux {
 	mux := http.NewServeMux()
-	path, handler := apiv1connect.NewRamingaServiceHandler(s)
+	path, handler := apiv1connect.NewRamingaServiceHandler(s, connect.WithReadMaxBytes(12<<20))
 	mux.Handle(path, handler)
 	return mux
 }
@@ -563,20 +578,83 @@ func (s *Server) ListConversations(ctx context.Context, req *connect.Request[api
 		NextBefore:    page.NextBefore,
 		HasMore:       page.HasMore,
 		Retention:     retentionToProto(page.Retention),
+		TotalUnread:   uint32(page.TotalUnread),
 	}
 	for _, c := range page.Conversations {
 		resp.Conversations = append(resp.Conversations, &apiv1.ConversationSummary{
-			PeerId:         c.PeerID,
-			LastMessageId:  c.LastMessageID,
-			Direction:      c.Direction,
-			Preview:        c.Preview,
-			LastAtUnixMs:   c.LastAt.UnixMilli(),
-			DeliveryStatus: c.DeliveryStatus,
-			Origin:         c.Origin,
-			MessageCount:   uint32(c.MessageCount),
+			PeerId:            c.PeerID,
+			LastMessageId:     c.LastMessageID,
+			Direction:         c.Direction,
+			Preview:           c.Preview,
+			LastAtUnixMs:      c.LastAt.UnixMilli(),
+			DeliveryStatus:    c.DeliveryStatus,
+			Origin:            c.Origin,
+			MessageCount:      uint32(c.MessageCount),
+			UnreadCount:       uint32(c.UnreadCount),
+			LastReadMessageId: c.LastReadMessageID,
+			LastReadAtUnixMs:  zeroMS(c.LastReadAt),
 		})
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// MarkConversationRead writes the monotonic human read cursor.
+func (s *Server) MarkConversationRead(ctx context.Context, req *connect.Request[apiv1.MarkConversationReadRequest]) (*connect.Response[apiv1.MarkConversationReadResponse], error) {
+	peerID := strings.TrimSpace(req.Msg.GetPeerId())
+	messageID := strings.TrimSpace(req.Msg.GetThroughMessageId())
+	if peerID == "" || messageID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("peer_id and through_message_id are required"))
+	}
+	result, err := s.backend.MarkConversationRead(ctx, peerID, messageID)
+	if err != nil {
+		if errors.Is(err, node.ErrMessageNotFound) {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&apiv1.MarkConversationReadResponse{
+		PeerId:            result.PeerID,
+		LastReadMessageId: result.LastReadMessageID,
+		LastReadAtUnixMs:  zeroMS(result.LastReadAt),
+		UnreadCount:       uint32(result.UnreadCount),
+	}), nil
+}
+
+// ListFavorites returns only private public-post bookmarks.
+func (s *Server) ListFavorites(ctx context.Context, req *connect.Request[apiv1.ListFavoritesRequest]) (*connect.Response[apiv1.ListFavoritesResponse], error) {
+	page, err := s.backend.ListFavorites(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListFavoritesResponse{
+		Favorites:  make([]*apiv1.Favorite, 0, len(page.Favorites)),
+		NextBefore: page.NextBefore,
+		HasMore:    page.HasMore,
+	}
+	for _, item := range page.Favorites {
+		resp.Favorites = append(resp.Favorites, favoriteToProto(item))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// SetFavorite validates and idempotently stores or clears one post bookmark.
+func (s *Server) SetFavorite(ctx context.Context, req *connect.Request[apiv1.SetFavoriteRequest]) (*connect.Response[apiv1.SetFavoriteResponse], error) {
+	item, saved, err := s.backend.SetFavorite(ctx, req.Msg.GetPeerId(), req.Msg.GetPath(), req.Msg.GetSha256(), req.Msg.GetTitle(), req.Msg.GetFavorite())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	resp := &apiv1.SetFavoriteResponse{Favorite: saved}
+	if saved {
+		resp.Item = favoriteToProto(item)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func favoriteToProto(item node.Favorite) *apiv1.Favorite {
+	return &apiv1.Favorite{
+		Id: item.ID, PeerId: item.PeerID, Path: item.Path, Sha256: item.SHA256,
+		Title: item.Title, CreatedAtUnixMs: zeroMS(item.CreatedAt), Available: item.Available,
+	}
 }
 
 // ListHumanOutboundPeers exposes the durable stage-6 relation.
@@ -811,7 +889,7 @@ func (s *Server) Published(ctx context.Context, _ *connect.Request[apiv1.Publish
 // only after an Agent tool successfully fetched a manifest file with evidence
 // recording requested.
 func (s *Server) ListDiscoveries(ctx context.Context, req *connect.Request[apiv1.ListDiscoveriesRequest]) (*connect.Response[apiv1.ListDiscoveriesResponse], error) {
-	page, err := s.backend.ListDiscoveries(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()), req.Msg.GetFamiliarOnly())
+	page, err := s.backend.ListDiscoveries(ctx, req.Msg.GetBefore(), int(req.Msg.GetLimit()), req.Msg.GetFamiliarOnly(), strings.TrimSpace(req.Msg.GetPeerId()), req.Msg.GetPostCandidatesOnly())
 	if err != nil {
 		return nil, connect.NewError(pageErrorCode(err), err)
 	}
@@ -829,6 +907,40 @@ func (s *Server) ListDiscoveries(ctx context.Context, req *connect.Request[apiv1
 			SizeBytes:       d.SizeBytes,
 			FetchedAtUnixMs: d.FetchedAt.UnixMilli(),
 			Source:          d.Source,
+			Sources:         append([]string(nil), d.Sources...),
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// discoveryRefreshPeersBackend is optional so older test backends keep
+// compiling; a daemon without it returns Unimplemented and the UI degrades to
+// a local-only re-read without hiding existing content.
+type discoveryRefreshPeersBackend interface {
+	ListDiscoveryRefreshPeers(ctx context.Context, familiarOnly bool, limit int, after string) (node.DiscoveryRefreshPeerPage, error)
+}
+
+// ListDiscoveryRefreshPeers returns only local relation/index facts for an
+// explicit Feed refresh. It never dials a peer and never records a discovery.
+func (s *Server) ListDiscoveryRefreshPeers(ctx context.Context, req *connect.Request[apiv1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[apiv1.ListDiscoveryRefreshPeersResponse], error) {
+	backend, ok := s.backend.(discoveryRefreshPeersBackend)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("discovery refresh peers are unavailable"))
+	}
+	page, err := backend.ListDiscoveryRefreshPeers(ctx, req.Msg.GetFamiliarOnly(), int(req.Msg.GetLimit()), req.Msg.GetAfter())
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListDiscoveryRefreshPeersResponse{
+		Peers:     make([]*apiv1.DiscoveryRefreshPeer, 0, len(page.Peers)),
+		Total:     int32(page.Total),
+		Truncated: page.Truncated,
+		HasMore:   page.HasMore,
+		NextAfter: page.NextAfter,
+	}
+	for _, peer := range page.Peers {
+		resp.Peers = append(resp.Peers, &apiv1.DiscoveryRefreshPeer{
+			PeerId: peer.PeerID, FromDiscovery: peer.FromDiscovery, FromOutbound: peer.FromOutbound,
 		})
 	}
 	return connect.NewResponse(resp), nil
@@ -852,7 +964,20 @@ func (s *Server) GetPeerProfile(ctx context.Context, req *connect.Request[apiv1.
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
-	return connect.NewResponse(&apiv1.GetPeerProfileResponse{PeerId: p.PeerID, Name: p.Name, Text: p.Text, Files: p.Files, Found: p.Found}), nil
+	return connect.NewResponse(&apiv1.GetPeerProfileResponse{
+		PeerId: p.PeerID, Name: p.Name, Text: p.Text, Files: p.Files, Found: p.Found,
+		Profile: &apiv1.PublicProfile{
+			AgentName: p.Profile.AgentName, AgentDescription: p.Profile.AgentDescription,
+			AgentInterests:         append([]string{}, p.Profile.AgentInterests...),
+			AgentConversationStyle: p.Profile.AgentConversationStyle,
+			HumanName:              p.Profile.HumanName, HumanBioMarkdown: p.Profile.HumanBioMarkdown,
+			AvatarPath: p.Profile.AvatarPath, AvatarSha256: p.Profile.AvatarSHA256,
+			AvatarMime: p.Profile.AvatarMime, SourcePath: p.Profile.SourcePath,
+			HumanAvatarPath: p.Profile.HumanAvatarPath, HumanAvatarSha256: p.Profile.HumanAvatarSHA256,
+			HumanAvatarMime: p.Profile.HumanAvatarMime,
+			LegacyFallback:  p.Profile.LegacyFallback, Warning: p.Profile.Warning,
+		},
+	}), nil
 }
 
 // GetPeerFriends implements the GetPeerFriends RPC.
@@ -904,6 +1029,227 @@ func (s *Server) ConnectListedPeer(ctx context.Context, req *connect.Request[api
 	return connect.NewResponse(resp), nil
 }
 
+// GetPublicDraft implements the private draft read.
+func (s *Server) GetPublicDraft(ctx context.Context, req *connect.Request[apiv1.GetPublicDraftRequest]) (*connect.Response[apiv1.GetPublicDraftResponse], error) {
+	d, found, err := s.backend.GetPublicDraft(ctx, req.Msg.GetDraftId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	resp := &apiv1.GetPublicDraftResponse{Found: found}
+	if found {
+		pb, err := s.publicDraftToProto(ctx, d)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		resp.Draft = pb
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListPublicDrafts implements the private draft list.
+func (s *Server) ListPublicDrafts(ctx context.Context, req *connect.Request[apiv1.ListPublicDraftsRequest]) (*connect.Response[apiv1.ListPublicDraftsResponse], error) {
+	rows, hasMore, next, err := s.backend.ListPublicDrafts(ctx, req.Msg.GetKind(), req.Msg.GetBefore(), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(pageErrorCode(err), err)
+	}
+	resp := &apiv1.ListPublicDraftsResponse{HasMore: hasMore, NextBefore: next}
+	for _, d := range rows {
+		pb, err := s.publicDraftToProto(ctx, d)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		resp.Drafts = append(resp.Drafts, pb)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// SavePublicDraft persists only the private SQLite draft.
+func (s *Server) SavePublicDraft(ctx context.Context, req *connect.Request[apiv1.SavePublicDraftRequest]) (*connect.Response[apiv1.SavePublicDraftResponse], error) {
+	in := node.DraftUpdate{
+		DraftID: req.Msg.GetDraftId(), Kind: req.Msg.GetKind(),
+		ExpectedRevision: int64(req.Msg.GetExpectedRevision()),
+		AgentName:        req.Msg.AgentName, AgentDescription: req.Msg.AgentDescription,
+		AgentInterests: req.Msg.GetAgentInterests(), AgentStyle: req.Msg.AgentConversationStyle,
+		HumanName: req.Msg.HumanName, HumanBio: req.Msg.HumanBioMarkdown,
+		Title: req.Msg.Title, BodyMarkdown: req.Msg.BodyMarkdown,
+		Tags: req.Msg.GetTags(), ImageAssetIDs: req.Msg.GetImageAssetIds(),
+		AvatarAssetID: req.Msg.GetAvatarAssetId(), ClearAvatar: req.Msg.GetClearAvatar(),
+		HumanAvatarAssetID: req.Msg.GetHumanAvatarAssetId(), ClearHumanAvatar: req.Msg.GetClearHumanAvatar(),
+	}
+	if req.Msg.AuthorKind != nil {
+		in.AuthorKind = *req.Msg.AuthorKind
+	}
+	d, err := s.backend.SavePublicDraft(ctx, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, node.ErrDraftConflict), errors.Is(err, node.ErrDraftNotFound):
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		default:
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
+	pb, err := s.publicDraftToProto(ctx, d)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&apiv1.SavePublicDraftResponse{Draft: pb}), nil
+}
+
+// PutPublicDraftImage stores a validated image privately.
+func (s *Server) PutPublicDraftImage(ctx context.Context, req *connect.Request[apiv1.PutPublicDraftImageRequest]) (*connect.Response[apiv1.PutPublicDraftImageResponse], error) {
+	asset, err := s.backend.PutPublicDraftImage(ctx, req.Msg.GetDraftId(), req.Msg.GetRole(), req.Msg.GetFilename(), req.Msg.GetData())
+	if err != nil {
+		var imageErr *publication.ImageError
+		if errors.As(err, &imageErr) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("%s: %s", imageErr.Code, imageErr.Reason))
+		}
+		if errors.Is(err, node.ErrDraftNotFound) || errors.Is(err, node.ErrDraftConflict) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		}
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&apiv1.PutPublicDraftImageResponse{Image: draftAssetToProto(asset)}), nil
+}
+
+// GetPublicDraftAsset returns one private draft image by draft+asset id. It is
+// deliberately separate from public file download: asset bytes never leave
+// this local UDS unless the matching draft owns the asset.
+func (s *Server) GetPublicDraftAsset(ctx context.Context, req *connect.Request[apiv1.GetPublicDraftAssetRequest]) (*connect.Response[apiv1.GetPublicDraftAssetResponse], error) {
+	asset, found, err := s.backend.GetPublicDraftAsset(ctx, req.Msg.GetDraftId(), req.Msg.GetAssetId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if !found {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("草稿资源不存在或不属于该草稿"))
+	}
+	return connect.NewResponse(&apiv1.GetPublicDraftAssetResponse{
+		Image: draftAssetToProto(asset),
+		Data:  append([]byte(nil), asset.Bytes...),
+	}), nil
+}
+
+// ImportPublicPost copies one owned local public post into a private draft.
+func (s *Server) ImportPublicPost(ctx context.Context, req *connect.Request[apiv1.ImportPublicPostRequest]) (*connect.Response[apiv1.ImportPublicPostResponse], error) {
+	d, err := s.backend.ImportPublicPost(ctx, req.Msg.GetPath())
+	if err != nil {
+		switch {
+		case errors.Is(err, node.ErrDraftConflict), errors.Is(err, node.ErrDraftNotFound):
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		default:
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
+	pb, err := s.publicDraftToProto(ctx, d)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&apiv1.ImportPublicPostResponse{Draft: pb}), nil
+}
+
+// DeletePublicDraft deletes only the private draft.
+func (s *Server) DeletePublicDraft(ctx context.Context, req *connect.Request[apiv1.DeletePublicDraftRequest]) (*connect.Response[apiv1.DeletePublicDraftResponse], error) {
+	deleted, err := s.backend.DeletePublicDraft(ctx, req.Msg.GetDraftId(), int64(req.Msg.GetExpectedRevision()))
+	if err != nil {
+		if errors.Is(err, node.ErrDraftConflict) || errors.Is(err, node.ErrDraftNotFound) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		}
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&apiv1.DeletePublicDraftResponse{Deleted: deleted}), nil
+}
+
+// PublishPublicDraft runs the atomic publication critical section.
+func (s *Server) PublishPublicDraft(ctx context.Context, req *connect.Request[apiv1.PublishPublicDraftRequest]) (*connect.Response[apiv1.PublishPublicDraftResponse], error) {
+	res, err := s.backend.PublishPublicDraft(ctx, req.Msg.GetDraftId(), int64(req.Msg.GetExpectedRevision()), req.Msg.GetExpectedPublishedSha256())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	resp := &apiv1.PublishPublicDraftResponse{
+		Status:                    publishStatusToProto(res.Status),
+		Error:                     res.Error,
+		CurrentRevision:           uint64(res.CurrentRevision),
+		CurrentPublishedSha256:    res.CurrentPublishedSHA256,
+		ManifestVersion:           int32(res.ManifestVersion),
+		ManifestGeneratedAtUnixMs: zeroMS(res.ManifestGeneratedAt),
+		PostPath:                  res.PostPath,
+		ProfilePath:               res.ProfilePath,
+		Warnings:                  append([]string{}, res.Warnings...),
+		ManifestSha256:            res.ManifestSHA256,
+	}
+	for _, f := range res.Files {
+		resp.Files = append(resp.Files, &apiv1.PublishFile{Path: f.Path, SizeBytes: f.SizeBytes, Sha256: f.SHA256})
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func publishStatusToProto(status string) apiv1.PublicPublishStatus {
+	switch status {
+	case node.PublishStatusPublished:
+		return apiv1.PublicPublishStatus_PUBLIC_PUBLISH_STATUS_PUBLISHED
+	case node.PublishStatusAlreadyPublished:
+		return apiv1.PublicPublishStatus_PUBLIC_PUBLISH_STATUS_ALREADY_PUBLISHED
+	case node.PublishStatusConflict:
+		return apiv1.PublicPublishStatus_PUBLIC_PUBLISH_STATUS_CONFLICT
+	case node.PublishStatusInvalid:
+		return apiv1.PublicPublishStatus_PUBLIC_PUBLISH_STATUS_INVALID
+	case node.PublishStatusPartial:
+		return apiv1.PublicPublishStatus_PUBLIC_PUBLISH_STATUS_PARTIAL
+	default:
+		return apiv1.PublicPublishStatus_PUBLIC_PUBLISH_STATUS_UNSPECIFIED
+	}
+}
+
+func draftAssetToProto(a node.PublicDraftAsset) *apiv1.PublicDraftImage {
+	return &apiv1.PublicDraftImage{
+		AssetId: a.AssetID, Sha256: a.SHA256, Mime: a.Mime,
+		Width: uint32(a.Width), Height: uint32(a.Height), SizeBytes: a.SizeBytes,
+	}
+}
+
+func (s *Server) publicDraftToProto(ctx context.Context, d node.PublicDraft) (*apiv1.PublicDraft, error) {
+	out := &apiv1.PublicDraft{
+		DraftId: d.DraftID, Kind: d.Kind, Revision: uint64(d.Revision),
+		AgentName: d.AgentName, AgentDescription: d.AgentDescription,
+		AgentInterests:         append([]string{}, d.AgentInterests...),
+		AgentConversationStyle: d.AgentConversationStyle,
+		HumanName:              d.HumanName, HumanBioMarkdown: d.HumanBioMarkdown,
+		Title: d.Title, BodyMarkdown: d.BodyMarkdown,
+		Tags:          append([]string{}, d.Tags...),
+		PublishedPath: d.PublishedPath, PublishedSha256: d.PublishedSHA256,
+		PublishedRevision: uint64(d.PublishedRevision),
+		CreatedAtUnixMs:   d.CreatedAt.UnixMilli(), UpdatedAtUnixMs: d.UpdatedAt.UnixMilli(),
+		AuthorKind: d.AuthorKind,
+	}
+	if d.AvatarAssetID != "" {
+		asset, found, err := s.backend.GetPublicDraftAsset(ctx, d.DraftID, d.AvatarAssetID)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			out.Avatar = draftAssetToProto(asset)
+		}
+	}
+	if d.HumanAvatarAssetID != "" {
+		asset, found, err := s.backend.GetPublicDraftAsset(ctx, d.DraftID, d.HumanAvatarAssetID)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			out.HumanAvatar = draftAssetToProto(asset)
+		}
+	}
+	for _, id := range d.ImageAssetIDs {
+		asset, found, err := s.backend.GetPublicDraftAsset(ctx, d.DraftID, id)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			out.Images = append(out.Images, draftAssetToProto(asset))
+		}
+	}
+	return out, nil
+}
+
 func friendConnectError(err error) error {
 	switch {
 	case errors.Is(err, node.ErrFriendNotFound):
@@ -916,7 +1262,7 @@ func friendConnectError(err error) error {
 }
 
 func friendToProto(f node.Friend) *apiv1.Friend {
-	out := &apiv1.Friend{PeerId: f.PeerID, Name: f.Name, Addrs: f.Addrs, Description: f.Description, ManuallyConnected: f.ManuallyConnected, Paused: f.Paused, RelayCapable: f.RelayCapable, DhtCapable: f.DHTCapable}
+	out := &apiv1.Friend{PeerId: f.PeerID, Name: f.Name, Addrs: f.Addrs, Description: f.Description, ManuallyConnected: f.ManuallyConnected, Paused: f.Paused, RelayCapable: f.RelayCapable, DhtCapable: f.DHTCapable, UnreadCount: uint32(f.UnreadCount)}
 	if !f.FirstSeen.IsZero() {
 		out.FirstSeenUnixMs = f.FirstSeen.UnixMilli()
 	}

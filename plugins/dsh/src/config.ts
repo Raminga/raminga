@@ -9,7 +9,7 @@ import path from 'node:path';
 export const SOCKET_FILE = 'api.sock';
 export const TOKEN_FILE = 'api.token';
 export const ENDPOINT_FILE = 'api.endpoint.json';
-export const EXPECTED_API_VERSION = '4';
+export const EXPECTED_API_VERSION = '6';
 
 export interface PluginConfig {
   dataDir?: string;

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "page": "mine",
+  "pages": {
+    "mine": { "scroll": 640 },
+    "raminga": { "scroll": 120, "expandedSessions": { "session-old-1": true } },
+    "explore": { "filter": "familiar", "query": "潮汐", "searchOpen": true, "scroll": 88 },
+    "contacts": { "filter": "unread", "query": "旧", "scroll": 44 },
+    "messages": {
+      "peerId": "__PEER_ID__",
+      "scroll": 320,
+      "query": "旧消息",
+      "returnPage": "raminga",
+      "returnPeer": "__PEER_ID__",
+      "chatScrolls": { "__PEER_ID__": 256 }
+    }
+  },
+  "profile": {
+    "peerId": "__PEER_ID__",
+    "tab": "posts",
+    "returnPage": "contacts",
+    "triggerId": "legacy-profile"
+  },
+  "settings": { "tab": "memory", "index": false, "scroll": 36, "returnPage": "contacts" },
+  "drafts": { "chat:__PEER_ID__": "旧版草稿不能丢" }
+}

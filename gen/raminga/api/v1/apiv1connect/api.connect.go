@@ -51,6 +51,15 @@ const (
 	// RamingaServiceListMessagesProcedure is the fully-qualified name of the RamingaService's
 	// ListMessages RPC.
 	RamingaServiceListMessagesProcedure = "/raminga.api.v1.RamingaService/ListMessages"
+	// RamingaServiceMarkConversationReadProcedure is the fully-qualified name of the RamingaService's
+	// MarkConversationRead RPC.
+	RamingaServiceMarkConversationReadProcedure = "/raminga.api.v1.RamingaService/MarkConversationRead"
+	// RamingaServiceListFavoritesProcedure is the fully-qualified name of the RamingaService's
+	// ListFavorites RPC.
+	RamingaServiceListFavoritesProcedure = "/raminga.api.v1.RamingaService/ListFavorites"
+	// RamingaServiceSetFavoriteProcedure is the fully-qualified name of the RamingaService's
+	// SetFavorite RPC.
+	RamingaServiceSetFavoriteProcedure = "/raminga.api.v1.RamingaService/SetFavorite"
 	// RamingaServiceListHumanOutboundPeersProcedure is the fully-qualified name of the RamingaService's
 	// ListHumanOutboundPeers RPC.
 	RamingaServiceListHumanOutboundPeersProcedure = "/raminga.api.v1.RamingaService/ListHumanOutboundPeers"
@@ -73,6 +82,15 @@ const (
 	// RamingaServiceDhtAddPeerProcedure is the fully-qualified name of the RamingaService's DhtAddPeer
 	// RPC.
 	RamingaServiceDhtAddPeerProcedure = "/raminga.api.v1.RamingaService/DhtAddPeer"
+	// RamingaServiceListBootstrapPeersProcedure is the fully-qualified name of the RamingaService's
+	// ListBootstrapPeers RPC.
+	RamingaServiceListBootstrapPeersProcedure = "/raminga.api.v1.RamingaService/ListBootstrapPeers"
+	// RamingaServiceAddBootstrapPeerProcedure is the fully-qualified name of the RamingaService's
+	// AddBootstrapPeer RPC.
+	RamingaServiceAddBootstrapPeerProcedure = "/raminga.api.v1.RamingaService/AddBootstrapPeer"
+	// RamingaServiceRemoveBootstrapPeerProcedure is the fully-qualified name of the RamingaService's
+	// RemoveBootstrapPeer RPC.
+	RamingaServiceRemoveBootstrapPeerProcedure = "/raminga.api.v1.RamingaService/RemoveBootstrapPeer"
 	// RamingaServiceDhtFindPeerProcedure is the fully-qualified name of the RamingaService's
 	// DhtFindPeer RPC.
 	RamingaServiceDhtFindPeerProcedure = "/raminga.api.v1.RamingaService/DhtFindPeer"
@@ -97,6 +115,33 @@ const (
 	// RamingaServiceListDiscoveriesProcedure is the fully-qualified name of the RamingaService's
 	// ListDiscoveries RPC.
 	RamingaServiceListDiscoveriesProcedure = "/raminga.api.v1.RamingaService/ListDiscoveries"
+	// RamingaServiceListDiscoveryRefreshPeersProcedure is the fully-qualified name of the
+	// RamingaService's ListDiscoveryRefreshPeers RPC.
+	RamingaServiceListDiscoveryRefreshPeersProcedure = "/raminga.api.v1.RamingaService/ListDiscoveryRefreshPeers"
+	// RamingaServiceGetPublicDraftProcedure is the fully-qualified name of the RamingaService's
+	// GetPublicDraft RPC.
+	RamingaServiceGetPublicDraftProcedure = "/raminga.api.v1.RamingaService/GetPublicDraft"
+	// RamingaServiceListPublicDraftsProcedure is the fully-qualified name of the RamingaService's
+	// ListPublicDrafts RPC.
+	RamingaServiceListPublicDraftsProcedure = "/raminga.api.v1.RamingaService/ListPublicDrafts"
+	// RamingaServiceSavePublicDraftProcedure is the fully-qualified name of the RamingaService's
+	// SavePublicDraft RPC.
+	RamingaServiceSavePublicDraftProcedure = "/raminga.api.v1.RamingaService/SavePublicDraft"
+	// RamingaServicePutPublicDraftImageProcedure is the fully-qualified name of the RamingaService's
+	// PutPublicDraftImage RPC.
+	RamingaServicePutPublicDraftImageProcedure = "/raminga.api.v1.RamingaService/PutPublicDraftImage"
+	// RamingaServiceGetPublicDraftAssetProcedure is the fully-qualified name of the RamingaService's
+	// GetPublicDraftAsset RPC.
+	RamingaServiceGetPublicDraftAssetProcedure = "/raminga.api.v1.RamingaService/GetPublicDraftAsset"
+	// RamingaServiceImportPublicPostProcedure is the fully-qualified name of the RamingaService's
+	// ImportPublicPost RPC.
+	RamingaServiceImportPublicPostProcedure = "/raminga.api.v1.RamingaService/ImportPublicPost"
+	// RamingaServiceDeletePublicDraftProcedure is the fully-qualified name of the RamingaService's
+	// DeletePublicDraft RPC.
+	RamingaServiceDeletePublicDraftProcedure = "/raminga.api.v1.RamingaService/DeletePublicDraft"
+	// RamingaServicePublishPublicDraftProcedure is the fully-qualified name of the RamingaService's
+	// PublishPublicDraft RPC.
+	RamingaServicePublishPublicDraftProcedure = "/raminga.api.v1.RamingaService/PublishPublicDraft"
 	// RamingaServiceGetPeerManifestProcedure is the fully-qualified name of the RamingaService's
 	// GetPeerManifest RPC.
 	RamingaServiceGetPeerManifestProcedure = "/raminga.api.v1.RamingaService/GetPeerManifest"
@@ -146,6 +191,14 @@ type RamingaServiceClient interface {
 	// ListMessages returns one Peer's currently retained messages, newest first,
 	// with a stable keyset cursor. Pruned rows are not promised.
 	ListMessages(context.Context, *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error)
+	// MarkConversationRead advances the human read cursor through one retained
+	// message. Reads never write this cursor; only this RPC does.
+	MarkConversationRead(context.Context, *connect.Request[v1.MarkConversationReadRequest]) (*connect.Response[v1.MarkConversationReadResponse], error)
+	// ListFavorites returns only privately bookmarked public posts. Messages and
+	// contacts are not representable as favorites.
+	ListFavorites(context.Context, *connect.Request[v1.ListFavoritesRequest]) (*connect.Response[v1.ListFavoritesResponse], error)
+	// SetFavorite idempotently saves or clears one public-post bookmark.
+	SetFavorite(context.Context, *connect.Request[v1.SetFavoriteRequest]) (*connect.Response[v1.SetFavoriteResponse], error)
 	// ListHumanOutboundPeers returns the Peers for which this Operator has
 	// accepted and persisted a human-origin outbound message. The relation is
 	// stored independently of the bounded message history.
@@ -165,6 +218,15 @@ type RamingaServiceClient interface {
 	DhtStatus(context.Context, *connect.Request[v1.DhtStatusRequest]) (*connect.Response[v1.DhtStatusResponse], error)
 	// DhtAddPeer manually adds one Raminga peer multiaddr to the PeerStore/cache.
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
+	// ListBootstrapPeers returns the saved DHT bootstrap roles. Adding or
+	// removing one is a local node setting, not a contact or chat action.
+	ListBootstrapPeers(context.Context, *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error)
+	// AddBootstrapPeer saves one explicit Raminga bootstrap address and applies
+	// it to the live DHT. Persistence is the receipt; connectivity is separate.
+	AddBootstrapPeer(context.Context, *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error)
+	// RemoveBootstrapPeer removes only the bootstrap role. Peer addresses,
+	// contact history, other roles and the explicit disconnect pause remain.
+	RemoveBootstrapPeer(context.Context, *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
 	// ListFriends lists local friend records. Names and descriptions are local
@@ -189,6 +251,25 @@ type RamingaServiceClient interface {
 	// Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
 	// It is not a directory listing, manifest scan or network-wide recommendation.
 	ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error)
+	// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+	// explicit Feed refresh: authors with a recorded versioned-post acquisition
+	// plus peers with a durable human outbound or retained real Agent outbound
+	// message. It performs no network request and is not a recommendation.
+	ListDiscoveryRefreshPeers(context.Context, *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error)
+	// Public drafts are private SQLite rows; they are never published until an
+	// explicit PublishPublicDraft call.
+	GetPublicDraft(context.Context, *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error)
+	ListPublicDrafts(context.Context, *connect.Request[v1.ListPublicDraftsRequest]) (*connect.Response[v1.ListPublicDraftsResponse], error)
+	SavePublicDraft(context.Context, *connect.Request[v1.SavePublicDraftRequest]) (*connect.Response[v1.SavePublicDraftResponse], error)
+	PutPublicDraftImage(context.Context, *connect.Request[v1.PutPublicDraftImageRequest]) (*connect.Response[v1.PutPublicDraftImageResponse], error)
+	// GetPublicDraftAsset returns one private draft image/avatar by draft+asset
+	// id. It is local-only, never serves a public URL, and enforces draft scoping.
+	GetPublicDraftAsset(context.Context, *connect.Request[v1.GetPublicDraftAssetRequest]) (*connect.Response[v1.GetPublicDraftAssetResponse], error)
+	// ImportPublicPost copies one already-published local post into a private
+	// draft that updates the original path instead of publishing a second copy.
+	ImportPublicPost(context.Context, *connect.Request[v1.ImportPublicPostRequest]) (*connect.Response[v1.ImportPublicPostResponse], error)
+	DeletePublicDraft(context.Context, *connect.Request[v1.DeletePublicDraftRequest]) (*connect.Response[v1.DeletePublicDraftResponse], error)
+	PublishPublicDraft(context.Context, *connect.Request[v1.PublishPublicDraftRequest]) (*connect.Response[v1.PublishPublicDraftResponse], error)
 	// GetPeerManifest fetches one page of a remote peer's public manifest.
 	GetPeerManifest(context.Context, *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error)
 	// GetPeerProfile fetches and returns a remote profile/index.md.
@@ -262,6 +343,24 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(ramingaServiceMethods.ByName("ListMessages")),
 			connect.WithClientOptions(opts...),
 		),
+		markConversationRead: connect.NewClient[v1.MarkConversationReadRequest, v1.MarkConversationReadResponse](
+			httpClient,
+			baseURL+RamingaServiceMarkConversationReadProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("MarkConversationRead")),
+			connect.WithClientOptions(opts...),
+		),
+		listFavorites: connect.NewClient[v1.ListFavoritesRequest, v1.ListFavoritesResponse](
+			httpClient,
+			baseURL+RamingaServiceListFavoritesProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListFavorites")),
+			connect.WithClientOptions(opts...),
+		),
+		setFavorite: connect.NewClient[v1.SetFavoriteRequest, v1.SetFavoriteResponse](
+			httpClient,
+			baseURL+RamingaServiceSetFavoriteProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("SetFavorite")),
+			connect.WithClientOptions(opts...),
+		),
 		listHumanOutboundPeers: connect.NewClient[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse](
 			httpClient,
 			baseURL+RamingaServiceListHumanOutboundPeersProcedure,
@@ -310,6 +409,24 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(ramingaServiceMethods.ByName("DhtAddPeer")),
 			connect.WithClientOptions(opts...),
 		),
+		listBootstrapPeers: connect.NewClient[v1.ListBootstrapPeersRequest, v1.ListBootstrapPeersResponse](
+			httpClient,
+			baseURL+RamingaServiceListBootstrapPeersProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListBootstrapPeers")),
+			connect.WithClientOptions(opts...),
+		),
+		addBootstrapPeer: connect.NewClient[v1.AddBootstrapPeerRequest, v1.AddBootstrapPeerResponse](
+			httpClient,
+			baseURL+RamingaServiceAddBootstrapPeerProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("AddBootstrapPeer")),
+			connect.WithClientOptions(opts...),
+		),
+		removeBootstrapPeer: connect.NewClient[v1.RemoveBootstrapPeerRequest, v1.RemoveBootstrapPeerResponse](
+			httpClient,
+			baseURL+RamingaServiceRemoveBootstrapPeerProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("RemoveBootstrapPeer")),
+			connect.WithClientOptions(opts...),
+		),
 		dhtFindPeer: connect.NewClient[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse](
 			httpClient,
 			baseURL+RamingaServiceDhtFindPeerProcedure,
@@ -356,6 +473,60 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+RamingaServiceListDiscoveriesProcedure,
 			connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveries")),
+			connect.WithClientOptions(opts...),
+		),
+		listDiscoveryRefreshPeers: connect.NewClient[v1.ListDiscoveryRefreshPeersRequest, v1.ListDiscoveryRefreshPeersResponse](
+			httpClient,
+			baseURL+RamingaServiceListDiscoveryRefreshPeersProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveryRefreshPeers")),
+			connect.WithClientOptions(opts...),
+		),
+		getPublicDraft: connect.NewClient[v1.GetPublicDraftRequest, v1.GetPublicDraftResponse](
+			httpClient,
+			baseURL+RamingaServiceGetPublicDraftProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("GetPublicDraft")),
+			connect.WithClientOptions(opts...),
+		),
+		listPublicDrafts: connect.NewClient[v1.ListPublicDraftsRequest, v1.ListPublicDraftsResponse](
+			httpClient,
+			baseURL+RamingaServiceListPublicDraftsProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ListPublicDrafts")),
+			connect.WithClientOptions(opts...),
+		),
+		savePublicDraft: connect.NewClient[v1.SavePublicDraftRequest, v1.SavePublicDraftResponse](
+			httpClient,
+			baseURL+RamingaServiceSavePublicDraftProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("SavePublicDraft")),
+			connect.WithClientOptions(opts...),
+		),
+		putPublicDraftImage: connect.NewClient[v1.PutPublicDraftImageRequest, v1.PutPublicDraftImageResponse](
+			httpClient,
+			baseURL+RamingaServicePutPublicDraftImageProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("PutPublicDraftImage")),
+			connect.WithClientOptions(opts...),
+		),
+		getPublicDraftAsset: connect.NewClient[v1.GetPublicDraftAssetRequest, v1.GetPublicDraftAssetResponse](
+			httpClient,
+			baseURL+RamingaServiceGetPublicDraftAssetProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("GetPublicDraftAsset")),
+			connect.WithClientOptions(opts...),
+		),
+		importPublicPost: connect.NewClient[v1.ImportPublicPostRequest, v1.ImportPublicPostResponse](
+			httpClient,
+			baseURL+RamingaServiceImportPublicPostProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("ImportPublicPost")),
+			connect.WithClientOptions(opts...),
+		),
+		deletePublicDraft: connect.NewClient[v1.DeletePublicDraftRequest, v1.DeletePublicDraftResponse](
+			httpClient,
+			baseURL+RamingaServiceDeletePublicDraftProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("DeletePublicDraft")),
+			connect.WithClientOptions(opts...),
+		),
+		publishPublicDraft: connect.NewClient[v1.PublishPublicDraftRequest, v1.PublishPublicDraftResponse](
+			httpClient,
+			baseURL+RamingaServicePublishPublicDraftProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("PublishPublicDraft")),
 			connect.WithClientOptions(opts...),
 		),
 		getPeerManifest: connect.NewClient[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse](
@@ -417,37 +588,52 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // ramingaServiceClient implements RamingaServiceClient.
 type ramingaServiceClient struct {
-	status                 *connect.Client[v1.StatusRequest, v1.StatusResponse]
-	connect                *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
-	sendChat               *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
-	recentMessages         *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
-	listConversations      *connect.Client[v1.ListConversationsRequest, v1.ListConversationsResponse]
-	listMessages           *connect.Client[v1.ListMessagesRequest, v1.ListMessagesResponse]
-	listHumanOutboundPeers *connect.Client[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse]
-	outboxList             *connect.Client[v1.OutboxListRequest, v1.OutboxListResponse]
-	outboxCancel           *connect.Client[v1.OutboxCancelRequest, v1.OutboxCancelResponse]
-	events                 *connect.Client[v1.EventsRequest, v1.EventsResponse]
-	peers                  *connect.Client[v1.PeersRequest, v1.PeersResponse]
-	relayStatus            *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
-	dhtStatus              *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
-	dhtAddPeer             *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
-	dhtFindPeer            *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
-	listFriends            *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
-	setFriendName          *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
-	setFriendDescription   *connect.Client[v1.SetFriendDescriptionRequest, v1.SetFriendDescriptionResponse]
-	removeFriend           *connect.Client[v1.RemoveFriendRequest, v1.RemoveFriendResponse]
-	syncFriends            *connect.Client[v1.SyncFriendsRequest, v1.SyncFriendsResponse]
-	published              *connect.Client[v1.PublishedRequest, v1.PublishedResponse]
-	listDiscoveries        *connect.Client[v1.ListDiscoveriesRequest, v1.ListDiscoveriesResponse]
-	getPeerManifest        *connect.Client[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse]
-	getPeerProfile         *connect.Client[v1.GetPeerProfileRequest, v1.GetPeerProfileResponse]
-	getPeerFriends         *connect.Client[v1.GetPeerFriendsRequest, v1.GetPeerFriendsResponse]
-	downloadPeerFile       *connect.Client[v1.DownloadPeerFileRequest, v1.DownloadPeerFileResponse]
-	connectListedPeer      *connect.Client[v1.ConnectListedPeerRequest, v1.ConnectListedPeerResponse]
-	disconnectPeer         *connect.Client[v1.DisconnectPeerRequest, v1.DisconnectPeerResponse]
-	shutdown               *connect.Client[v1.ShutdownRequest, v1.ShutdownResponse]
-	testDisconnectPeer     *connect.Client[v1.TestDisconnectPeerRequest, v1.TestDisconnectPeerResponse]
-	testPing               *connect.Client[v1.TestPingRequest, v1.TestPingResponse]
+	status                    *connect.Client[v1.StatusRequest, v1.StatusResponse]
+	connect                   *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	sendChat                  *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
+	recentMessages            *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
+	listConversations         *connect.Client[v1.ListConversationsRequest, v1.ListConversationsResponse]
+	listMessages              *connect.Client[v1.ListMessagesRequest, v1.ListMessagesResponse]
+	markConversationRead      *connect.Client[v1.MarkConversationReadRequest, v1.MarkConversationReadResponse]
+	listFavorites             *connect.Client[v1.ListFavoritesRequest, v1.ListFavoritesResponse]
+	setFavorite               *connect.Client[v1.SetFavoriteRequest, v1.SetFavoriteResponse]
+	listHumanOutboundPeers    *connect.Client[v1.ListHumanOutboundPeersRequest, v1.ListHumanOutboundPeersResponse]
+	outboxList                *connect.Client[v1.OutboxListRequest, v1.OutboxListResponse]
+	outboxCancel              *connect.Client[v1.OutboxCancelRequest, v1.OutboxCancelResponse]
+	events                    *connect.Client[v1.EventsRequest, v1.EventsResponse]
+	peers                     *connect.Client[v1.PeersRequest, v1.PeersResponse]
+	relayStatus               *connect.Client[v1.RelayStatusRequest, v1.RelayStatusResponse]
+	dhtStatus                 *connect.Client[v1.DhtStatusRequest, v1.DhtStatusResponse]
+	dhtAddPeer                *connect.Client[v1.DhtAddPeerRequest, v1.DhtAddPeerResponse]
+	listBootstrapPeers        *connect.Client[v1.ListBootstrapPeersRequest, v1.ListBootstrapPeersResponse]
+	addBootstrapPeer          *connect.Client[v1.AddBootstrapPeerRequest, v1.AddBootstrapPeerResponse]
+	removeBootstrapPeer       *connect.Client[v1.RemoveBootstrapPeerRequest, v1.RemoveBootstrapPeerResponse]
+	dhtFindPeer               *connect.Client[v1.DhtFindPeerRequest, v1.DhtFindPeerResponse]
+	listFriends               *connect.Client[v1.ListFriendsRequest, v1.ListFriendsResponse]
+	setFriendName             *connect.Client[v1.SetFriendNameRequest, v1.SetFriendNameResponse]
+	setFriendDescription      *connect.Client[v1.SetFriendDescriptionRequest, v1.SetFriendDescriptionResponse]
+	removeFriend              *connect.Client[v1.RemoveFriendRequest, v1.RemoveFriendResponse]
+	syncFriends               *connect.Client[v1.SyncFriendsRequest, v1.SyncFriendsResponse]
+	published                 *connect.Client[v1.PublishedRequest, v1.PublishedResponse]
+	listDiscoveries           *connect.Client[v1.ListDiscoveriesRequest, v1.ListDiscoveriesResponse]
+	listDiscoveryRefreshPeers *connect.Client[v1.ListDiscoveryRefreshPeersRequest, v1.ListDiscoveryRefreshPeersResponse]
+	getPublicDraft            *connect.Client[v1.GetPublicDraftRequest, v1.GetPublicDraftResponse]
+	listPublicDrafts          *connect.Client[v1.ListPublicDraftsRequest, v1.ListPublicDraftsResponse]
+	savePublicDraft           *connect.Client[v1.SavePublicDraftRequest, v1.SavePublicDraftResponse]
+	putPublicDraftImage       *connect.Client[v1.PutPublicDraftImageRequest, v1.PutPublicDraftImageResponse]
+	getPublicDraftAsset       *connect.Client[v1.GetPublicDraftAssetRequest, v1.GetPublicDraftAssetResponse]
+	importPublicPost          *connect.Client[v1.ImportPublicPostRequest, v1.ImportPublicPostResponse]
+	deletePublicDraft         *connect.Client[v1.DeletePublicDraftRequest, v1.DeletePublicDraftResponse]
+	publishPublicDraft        *connect.Client[v1.PublishPublicDraftRequest, v1.PublishPublicDraftResponse]
+	getPeerManifest           *connect.Client[v1.GetPeerManifestRequest, v1.GetPeerManifestResponse]
+	getPeerProfile            *connect.Client[v1.GetPeerProfileRequest, v1.GetPeerProfileResponse]
+	getPeerFriends            *connect.Client[v1.GetPeerFriendsRequest, v1.GetPeerFriendsResponse]
+	downloadPeerFile          *connect.Client[v1.DownloadPeerFileRequest, v1.DownloadPeerFileResponse]
+	connectListedPeer         *connect.Client[v1.ConnectListedPeerRequest, v1.ConnectListedPeerResponse]
+	disconnectPeer            *connect.Client[v1.DisconnectPeerRequest, v1.DisconnectPeerResponse]
+	shutdown                  *connect.Client[v1.ShutdownRequest, v1.ShutdownResponse]
+	testDisconnectPeer        *connect.Client[v1.TestDisconnectPeerRequest, v1.TestDisconnectPeerResponse]
+	testPing                  *connect.Client[v1.TestPingRequest, v1.TestPingResponse]
 }
 
 // Status calls raminga.api.v1.RamingaService.Status.
@@ -478,6 +664,21 @@ func (c *ramingaServiceClient) ListConversations(ctx context.Context, req *conne
 // ListMessages calls raminga.api.v1.RamingaService.ListMessages.
 func (c *ramingaServiceClient) ListMessages(ctx context.Context, req *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error) {
 	return c.listMessages.CallUnary(ctx, req)
+}
+
+// MarkConversationRead calls raminga.api.v1.RamingaService.MarkConversationRead.
+func (c *ramingaServiceClient) MarkConversationRead(ctx context.Context, req *connect.Request[v1.MarkConversationReadRequest]) (*connect.Response[v1.MarkConversationReadResponse], error) {
+	return c.markConversationRead.CallUnary(ctx, req)
+}
+
+// ListFavorites calls raminga.api.v1.RamingaService.ListFavorites.
+func (c *ramingaServiceClient) ListFavorites(ctx context.Context, req *connect.Request[v1.ListFavoritesRequest]) (*connect.Response[v1.ListFavoritesResponse], error) {
+	return c.listFavorites.CallUnary(ctx, req)
+}
+
+// SetFavorite calls raminga.api.v1.RamingaService.SetFavorite.
+func (c *ramingaServiceClient) SetFavorite(ctx context.Context, req *connect.Request[v1.SetFavoriteRequest]) (*connect.Response[v1.SetFavoriteResponse], error) {
+	return c.setFavorite.CallUnary(ctx, req)
 }
 
 // ListHumanOutboundPeers calls raminga.api.v1.RamingaService.ListHumanOutboundPeers.
@@ -520,6 +721,21 @@ func (c *ramingaServiceClient) DhtAddPeer(ctx context.Context, req *connect.Requ
 	return c.dhtAddPeer.CallUnary(ctx, req)
 }
 
+// ListBootstrapPeers calls raminga.api.v1.RamingaService.ListBootstrapPeers.
+func (c *ramingaServiceClient) ListBootstrapPeers(ctx context.Context, req *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error) {
+	return c.listBootstrapPeers.CallUnary(ctx, req)
+}
+
+// AddBootstrapPeer calls raminga.api.v1.RamingaService.AddBootstrapPeer.
+func (c *ramingaServiceClient) AddBootstrapPeer(ctx context.Context, req *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error) {
+	return c.addBootstrapPeer.CallUnary(ctx, req)
+}
+
+// RemoveBootstrapPeer calls raminga.api.v1.RamingaService.RemoveBootstrapPeer.
+func (c *ramingaServiceClient) RemoveBootstrapPeer(ctx context.Context, req *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error) {
+	return c.removeBootstrapPeer.CallUnary(ctx, req)
+}
+
 // DhtFindPeer calls raminga.api.v1.RamingaService.DhtFindPeer.
 func (c *ramingaServiceClient) DhtFindPeer(ctx context.Context, req *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error) {
 	return c.dhtFindPeer.CallUnary(ctx, req)
@@ -558,6 +774,51 @@ func (c *ramingaServiceClient) Published(ctx context.Context, req *connect.Reque
 // ListDiscoveries calls raminga.api.v1.RamingaService.ListDiscoveries.
 func (c *ramingaServiceClient) ListDiscoveries(ctx context.Context, req *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error) {
 	return c.listDiscoveries.CallUnary(ctx, req)
+}
+
+// ListDiscoveryRefreshPeers calls raminga.api.v1.RamingaService.ListDiscoveryRefreshPeers.
+func (c *ramingaServiceClient) ListDiscoveryRefreshPeers(ctx context.Context, req *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error) {
+	return c.listDiscoveryRefreshPeers.CallUnary(ctx, req)
+}
+
+// GetPublicDraft calls raminga.api.v1.RamingaService.GetPublicDraft.
+func (c *ramingaServiceClient) GetPublicDraft(ctx context.Context, req *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error) {
+	return c.getPublicDraft.CallUnary(ctx, req)
+}
+
+// ListPublicDrafts calls raminga.api.v1.RamingaService.ListPublicDrafts.
+func (c *ramingaServiceClient) ListPublicDrafts(ctx context.Context, req *connect.Request[v1.ListPublicDraftsRequest]) (*connect.Response[v1.ListPublicDraftsResponse], error) {
+	return c.listPublicDrafts.CallUnary(ctx, req)
+}
+
+// SavePublicDraft calls raminga.api.v1.RamingaService.SavePublicDraft.
+func (c *ramingaServiceClient) SavePublicDraft(ctx context.Context, req *connect.Request[v1.SavePublicDraftRequest]) (*connect.Response[v1.SavePublicDraftResponse], error) {
+	return c.savePublicDraft.CallUnary(ctx, req)
+}
+
+// PutPublicDraftImage calls raminga.api.v1.RamingaService.PutPublicDraftImage.
+func (c *ramingaServiceClient) PutPublicDraftImage(ctx context.Context, req *connect.Request[v1.PutPublicDraftImageRequest]) (*connect.Response[v1.PutPublicDraftImageResponse], error) {
+	return c.putPublicDraftImage.CallUnary(ctx, req)
+}
+
+// GetPublicDraftAsset calls raminga.api.v1.RamingaService.GetPublicDraftAsset.
+func (c *ramingaServiceClient) GetPublicDraftAsset(ctx context.Context, req *connect.Request[v1.GetPublicDraftAssetRequest]) (*connect.Response[v1.GetPublicDraftAssetResponse], error) {
+	return c.getPublicDraftAsset.CallUnary(ctx, req)
+}
+
+// ImportPublicPost calls raminga.api.v1.RamingaService.ImportPublicPost.
+func (c *ramingaServiceClient) ImportPublicPost(ctx context.Context, req *connect.Request[v1.ImportPublicPostRequest]) (*connect.Response[v1.ImportPublicPostResponse], error) {
+	return c.importPublicPost.CallUnary(ctx, req)
+}
+
+// DeletePublicDraft calls raminga.api.v1.RamingaService.DeletePublicDraft.
+func (c *ramingaServiceClient) DeletePublicDraft(ctx context.Context, req *connect.Request[v1.DeletePublicDraftRequest]) (*connect.Response[v1.DeletePublicDraftResponse], error) {
+	return c.deletePublicDraft.CallUnary(ctx, req)
+}
+
+// PublishPublicDraft calls raminga.api.v1.RamingaService.PublishPublicDraft.
+func (c *ramingaServiceClient) PublishPublicDraft(ctx context.Context, req *connect.Request[v1.PublishPublicDraftRequest]) (*connect.Response[v1.PublishPublicDraftResponse], error) {
+	return c.publishPublicDraft.CallUnary(ctx, req)
 }
 
 // GetPeerManifest calls raminga.api.v1.RamingaService.GetPeerManifest.
@@ -627,6 +888,14 @@ type RamingaServiceHandler interface {
 	// ListMessages returns one Peer's currently retained messages, newest first,
 	// with a stable keyset cursor. Pruned rows are not promised.
 	ListMessages(context.Context, *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error)
+	// MarkConversationRead advances the human read cursor through one retained
+	// message. Reads never write this cursor; only this RPC does.
+	MarkConversationRead(context.Context, *connect.Request[v1.MarkConversationReadRequest]) (*connect.Response[v1.MarkConversationReadResponse], error)
+	// ListFavorites returns only privately bookmarked public posts. Messages and
+	// contacts are not representable as favorites.
+	ListFavorites(context.Context, *connect.Request[v1.ListFavoritesRequest]) (*connect.Response[v1.ListFavoritesResponse], error)
+	// SetFavorite idempotently saves or clears one public-post bookmark.
+	SetFavorite(context.Context, *connect.Request[v1.SetFavoriteRequest]) (*connect.Response[v1.SetFavoriteResponse], error)
 	// ListHumanOutboundPeers returns the Peers for which this Operator has
 	// accepted and persisted a human-origin outbound message. The relation is
 	// stored independently of the bounded message history.
@@ -646,6 +915,15 @@ type RamingaServiceHandler interface {
 	DhtStatus(context.Context, *connect.Request[v1.DhtStatusRequest]) (*connect.Response[v1.DhtStatusResponse], error)
 	// DhtAddPeer manually adds one Raminga peer multiaddr to the PeerStore/cache.
 	DhtAddPeer(context.Context, *connect.Request[v1.DhtAddPeerRequest]) (*connect.Response[v1.DhtAddPeerResponse], error)
+	// ListBootstrapPeers returns the saved DHT bootstrap roles. Adding or
+	// removing one is a local node setting, not a contact or chat action.
+	ListBootstrapPeers(context.Context, *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error)
+	// AddBootstrapPeer saves one explicit Raminga bootstrap address and applies
+	// it to the live DHT. Persistence is the receipt; connectivity is separate.
+	AddBootstrapPeer(context.Context, *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error)
+	// RemoveBootstrapPeer removes only the bootstrap role. Peer addresses,
+	// contact history, other roles and the explicit disconnect pause remain.
+	RemoveBootstrapPeer(context.Context, *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error)
 	// DhtFindPeer performs a real Raminga DHT lookup.
 	DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error)
 	// ListFriends lists local friend records. Names and descriptions are local
@@ -670,6 +948,25 @@ type RamingaServiceHandler interface {
 	// Agent tool actually fetched, with exact peer/path/hash/time/source evidence.
 	// It is not a directory listing, manifest scan or network-wide recommendation.
 	ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error)
+	// ListDiscoveryRefreshPeers returns the bounded local candidate set for an
+	// explicit Feed refresh: authors with a recorded versioned-post acquisition
+	// plus peers with a durable human outbound or retained real Agent outbound
+	// message. It performs no network request and is not a recommendation.
+	ListDiscoveryRefreshPeers(context.Context, *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error)
+	// Public drafts are private SQLite rows; they are never published until an
+	// explicit PublishPublicDraft call.
+	GetPublicDraft(context.Context, *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error)
+	ListPublicDrafts(context.Context, *connect.Request[v1.ListPublicDraftsRequest]) (*connect.Response[v1.ListPublicDraftsResponse], error)
+	SavePublicDraft(context.Context, *connect.Request[v1.SavePublicDraftRequest]) (*connect.Response[v1.SavePublicDraftResponse], error)
+	PutPublicDraftImage(context.Context, *connect.Request[v1.PutPublicDraftImageRequest]) (*connect.Response[v1.PutPublicDraftImageResponse], error)
+	// GetPublicDraftAsset returns one private draft image/avatar by draft+asset
+	// id. It is local-only, never serves a public URL, and enforces draft scoping.
+	GetPublicDraftAsset(context.Context, *connect.Request[v1.GetPublicDraftAssetRequest]) (*connect.Response[v1.GetPublicDraftAssetResponse], error)
+	// ImportPublicPost copies one already-published local post into a private
+	// draft that updates the original path instead of publishing a second copy.
+	ImportPublicPost(context.Context, *connect.Request[v1.ImportPublicPostRequest]) (*connect.Response[v1.ImportPublicPostResponse], error)
+	DeletePublicDraft(context.Context, *connect.Request[v1.DeletePublicDraftRequest]) (*connect.Response[v1.DeletePublicDraftResponse], error)
+	PublishPublicDraft(context.Context, *connect.Request[v1.PublishPublicDraftRequest]) (*connect.Response[v1.PublishPublicDraftResponse], error)
 	// GetPeerManifest fetches one page of a remote peer's public manifest.
 	GetPeerManifest(context.Context, *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error)
 	// GetPeerProfile fetches and returns a remote profile/index.md.
@@ -739,6 +1036,24 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		connect.WithSchema(ramingaServiceMethods.ByName("ListMessages")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ramingaServiceMarkConversationReadHandler := connect.NewUnaryHandler(
+		RamingaServiceMarkConversationReadProcedure,
+		svc.MarkConversationRead,
+		connect.WithSchema(ramingaServiceMethods.ByName("MarkConversationRead")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListFavoritesHandler := connect.NewUnaryHandler(
+		RamingaServiceListFavoritesProcedure,
+		svc.ListFavorites,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListFavorites")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceSetFavoriteHandler := connect.NewUnaryHandler(
+		RamingaServiceSetFavoriteProcedure,
+		svc.SetFavorite,
+		connect.WithSchema(ramingaServiceMethods.ByName("SetFavorite")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ramingaServiceListHumanOutboundPeersHandler := connect.NewUnaryHandler(
 		RamingaServiceListHumanOutboundPeersProcedure,
 		svc.ListHumanOutboundPeers,
@@ -787,6 +1102,24 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		connect.WithSchema(ramingaServiceMethods.ByName("DhtAddPeer")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ramingaServiceListBootstrapPeersHandler := connect.NewUnaryHandler(
+		RamingaServiceListBootstrapPeersProcedure,
+		svc.ListBootstrapPeers,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListBootstrapPeers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceAddBootstrapPeerHandler := connect.NewUnaryHandler(
+		RamingaServiceAddBootstrapPeerProcedure,
+		svc.AddBootstrapPeer,
+		connect.WithSchema(ramingaServiceMethods.ByName("AddBootstrapPeer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceRemoveBootstrapPeerHandler := connect.NewUnaryHandler(
+		RamingaServiceRemoveBootstrapPeerProcedure,
+		svc.RemoveBootstrapPeer,
+		connect.WithSchema(ramingaServiceMethods.ByName("RemoveBootstrapPeer")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ramingaServiceDhtFindPeerHandler := connect.NewUnaryHandler(
 		RamingaServiceDhtFindPeerProcedure,
 		svc.DhtFindPeer,
@@ -833,6 +1166,60 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		RamingaServiceListDiscoveriesProcedure,
 		svc.ListDiscoveries,
 		connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListDiscoveryRefreshPeersHandler := connect.NewUnaryHandler(
+		RamingaServiceListDiscoveryRefreshPeersProcedure,
+		svc.ListDiscoveryRefreshPeers,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListDiscoveryRefreshPeers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceGetPublicDraftHandler := connect.NewUnaryHandler(
+		RamingaServiceGetPublicDraftProcedure,
+		svc.GetPublicDraft,
+		connect.WithSchema(ramingaServiceMethods.ByName("GetPublicDraft")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceListPublicDraftsHandler := connect.NewUnaryHandler(
+		RamingaServiceListPublicDraftsProcedure,
+		svc.ListPublicDrafts,
+		connect.WithSchema(ramingaServiceMethods.ByName("ListPublicDrafts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceSavePublicDraftHandler := connect.NewUnaryHandler(
+		RamingaServiceSavePublicDraftProcedure,
+		svc.SavePublicDraft,
+		connect.WithSchema(ramingaServiceMethods.ByName("SavePublicDraft")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServicePutPublicDraftImageHandler := connect.NewUnaryHandler(
+		RamingaServicePutPublicDraftImageProcedure,
+		svc.PutPublicDraftImage,
+		connect.WithSchema(ramingaServiceMethods.ByName("PutPublicDraftImage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceGetPublicDraftAssetHandler := connect.NewUnaryHandler(
+		RamingaServiceGetPublicDraftAssetProcedure,
+		svc.GetPublicDraftAsset,
+		connect.WithSchema(ramingaServiceMethods.ByName("GetPublicDraftAsset")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceImportPublicPostHandler := connect.NewUnaryHandler(
+		RamingaServiceImportPublicPostProcedure,
+		svc.ImportPublicPost,
+		connect.WithSchema(ramingaServiceMethods.ByName("ImportPublicPost")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceDeletePublicDraftHandler := connect.NewUnaryHandler(
+		RamingaServiceDeletePublicDraftProcedure,
+		svc.DeletePublicDraft,
+		connect.WithSchema(ramingaServiceMethods.ByName("DeletePublicDraft")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServicePublishPublicDraftHandler := connect.NewUnaryHandler(
+		RamingaServicePublishPublicDraftProcedure,
+		svc.PublishPublicDraft,
+		connect.WithSchema(ramingaServiceMethods.ByName("PublishPublicDraft")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ramingaServiceGetPeerManifestHandler := connect.NewUnaryHandler(
@@ -903,6 +1290,12 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServiceListConversationsHandler.ServeHTTP(w, r)
 		case RamingaServiceListMessagesProcedure:
 			ramingaServiceListMessagesHandler.ServeHTTP(w, r)
+		case RamingaServiceMarkConversationReadProcedure:
+			ramingaServiceMarkConversationReadHandler.ServeHTTP(w, r)
+		case RamingaServiceListFavoritesProcedure:
+			ramingaServiceListFavoritesHandler.ServeHTTP(w, r)
+		case RamingaServiceSetFavoriteProcedure:
+			ramingaServiceSetFavoriteHandler.ServeHTTP(w, r)
 		case RamingaServiceListHumanOutboundPeersProcedure:
 			ramingaServiceListHumanOutboundPeersHandler.ServeHTTP(w, r)
 		case RamingaServiceOutboxListProcedure:
@@ -919,6 +1312,12 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServiceDhtStatusHandler.ServeHTTP(w, r)
 		case RamingaServiceDhtAddPeerProcedure:
 			ramingaServiceDhtAddPeerHandler.ServeHTTP(w, r)
+		case RamingaServiceListBootstrapPeersProcedure:
+			ramingaServiceListBootstrapPeersHandler.ServeHTTP(w, r)
+		case RamingaServiceAddBootstrapPeerProcedure:
+			ramingaServiceAddBootstrapPeerHandler.ServeHTTP(w, r)
+		case RamingaServiceRemoveBootstrapPeerProcedure:
+			ramingaServiceRemoveBootstrapPeerHandler.ServeHTTP(w, r)
 		case RamingaServiceDhtFindPeerProcedure:
 			ramingaServiceDhtFindPeerHandler.ServeHTTP(w, r)
 		case RamingaServiceListFriendsProcedure:
@@ -935,6 +1334,24 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServicePublishedHandler.ServeHTTP(w, r)
 		case RamingaServiceListDiscoveriesProcedure:
 			ramingaServiceListDiscoveriesHandler.ServeHTTP(w, r)
+		case RamingaServiceListDiscoveryRefreshPeersProcedure:
+			ramingaServiceListDiscoveryRefreshPeersHandler.ServeHTTP(w, r)
+		case RamingaServiceGetPublicDraftProcedure:
+			ramingaServiceGetPublicDraftHandler.ServeHTTP(w, r)
+		case RamingaServiceListPublicDraftsProcedure:
+			ramingaServiceListPublicDraftsHandler.ServeHTTP(w, r)
+		case RamingaServiceSavePublicDraftProcedure:
+			ramingaServiceSavePublicDraftHandler.ServeHTTP(w, r)
+		case RamingaServicePutPublicDraftImageProcedure:
+			ramingaServicePutPublicDraftImageHandler.ServeHTTP(w, r)
+		case RamingaServiceGetPublicDraftAssetProcedure:
+			ramingaServiceGetPublicDraftAssetHandler.ServeHTTP(w, r)
+		case RamingaServiceImportPublicPostProcedure:
+			ramingaServiceImportPublicPostHandler.ServeHTTP(w, r)
+		case RamingaServiceDeletePublicDraftProcedure:
+			ramingaServiceDeletePublicDraftHandler.ServeHTTP(w, r)
+		case RamingaServicePublishPublicDraftProcedure:
+			ramingaServicePublishPublicDraftHandler.ServeHTTP(w, r)
 		case RamingaServiceGetPeerManifestProcedure:
 			ramingaServiceGetPeerManifestHandler.ServeHTTP(w, r)
 		case RamingaServiceGetPeerProfileProcedure:
@@ -986,6 +1403,18 @@ func (UnimplementedRamingaServiceHandler) ListMessages(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListMessages is not implemented"))
 }
 
+func (UnimplementedRamingaServiceHandler) MarkConversationRead(context.Context, *connect.Request[v1.MarkConversationReadRequest]) (*connect.Response[v1.MarkConversationReadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.MarkConversationRead is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListFavorites(context.Context, *connect.Request[v1.ListFavoritesRequest]) (*connect.Response[v1.ListFavoritesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListFavorites is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) SetFavorite(context.Context, *connect.Request[v1.SetFavoriteRequest]) (*connect.Response[v1.SetFavoriteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.SetFavorite is not implemented"))
+}
+
 func (UnimplementedRamingaServiceHandler) ListHumanOutboundPeers(context.Context, *connect.Request[v1.ListHumanOutboundPeersRequest]) (*connect.Response[v1.ListHumanOutboundPeersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListHumanOutboundPeers is not implemented"))
 }
@@ -1018,6 +1447,18 @@ func (UnimplementedRamingaServiceHandler) DhtAddPeer(context.Context, *connect.R
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.DhtAddPeer is not implemented"))
 }
 
+func (UnimplementedRamingaServiceHandler) ListBootstrapPeers(context.Context, *connect.Request[v1.ListBootstrapPeersRequest]) (*connect.Response[v1.ListBootstrapPeersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListBootstrapPeers is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) AddBootstrapPeer(context.Context, *connect.Request[v1.AddBootstrapPeerRequest]) (*connect.Response[v1.AddBootstrapPeerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.AddBootstrapPeer is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) RemoveBootstrapPeer(context.Context, *connect.Request[v1.RemoveBootstrapPeerRequest]) (*connect.Response[v1.RemoveBootstrapPeerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.RemoveBootstrapPeer is not implemented"))
+}
+
 func (UnimplementedRamingaServiceHandler) DhtFindPeer(context.Context, *connect.Request[v1.DhtFindPeerRequest]) (*connect.Response[v1.DhtFindPeerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.DhtFindPeer is not implemented"))
 }
@@ -1048,6 +1489,42 @@ func (UnimplementedRamingaServiceHandler) Published(context.Context, *connect.Re
 
 func (UnimplementedRamingaServiceHandler) ListDiscoveries(context.Context, *connect.Request[v1.ListDiscoveriesRequest]) (*connect.Response[v1.ListDiscoveriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListDiscoveries is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListDiscoveryRefreshPeers(context.Context, *connect.Request[v1.ListDiscoveryRefreshPeersRequest]) (*connect.Response[v1.ListDiscoveryRefreshPeersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListDiscoveryRefreshPeers is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) GetPublicDraft(context.Context, *connect.Request[v1.GetPublicDraftRequest]) (*connect.Response[v1.GetPublicDraftResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.GetPublicDraft is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ListPublicDrafts(context.Context, *connect.Request[v1.ListPublicDraftsRequest]) (*connect.Response[v1.ListPublicDraftsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ListPublicDrafts is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) SavePublicDraft(context.Context, *connect.Request[v1.SavePublicDraftRequest]) (*connect.Response[v1.SavePublicDraftResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.SavePublicDraft is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) PutPublicDraftImage(context.Context, *connect.Request[v1.PutPublicDraftImageRequest]) (*connect.Response[v1.PutPublicDraftImageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.PutPublicDraftImage is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) GetPublicDraftAsset(context.Context, *connect.Request[v1.GetPublicDraftAssetRequest]) (*connect.Response[v1.GetPublicDraftAssetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.GetPublicDraftAsset is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) ImportPublicPost(context.Context, *connect.Request[v1.ImportPublicPostRequest]) (*connect.Response[v1.ImportPublicPostResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.ImportPublicPost is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) DeletePublicDraft(context.Context, *connect.Request[v1.DeletePublicDraftRequest]) (*connect.Response[v1.DeletePublicDraftResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.DeletePublicDraft is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) PublishPublicDraft(context.Context, *connect.Request[v1.PublishPublicDraftRequest]) (*connect.Response[v1.PublishPublicDraftResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.PublishPublicDraft is not implemented"))
 }
 
 func (UnimplementedRamingaServiceHandler) GetPeerManifest(context.Context, *connect.Request[v1.GetPeerManifestRequest]) (*connect.Response[v1.GetPeerManifestResponse], error) {

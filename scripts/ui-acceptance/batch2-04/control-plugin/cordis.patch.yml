@@ -1,0 +1,4 @@
+- insert:
+    - id: b2-04-interactions-control
+      name: 'b2-04-interactions-control'
+      inject: ['tools']

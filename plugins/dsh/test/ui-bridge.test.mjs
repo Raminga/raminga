@@ -123,7 +123,7 @@ function statusResponse({ connections = [], startedAtUnixMs = 1000 } = {}) {
     nodeId: 'node-a',
     version: 'test',
     protocolVersion: '1',
-    apiVersion: '4',
+    apiVersion: '6',
     startedAtUnixMs,
     currentTime: 'now',
     listenAddrs: [],

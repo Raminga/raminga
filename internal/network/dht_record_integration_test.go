@@ -3,14 +3,13 @@ package network
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -123,35 +122,47 @@ func TestDHTRecordPublishReadAndDialFallback(t *testing.T) {
 	if !foundCircuit {
 		t.Fatalf("record addresses lack circuit: %v", addrs)
 	}
-	// Give B eight stale stored addresses. The injectable short timeouts force
-	// the known phase to consume its reserved budget before DHT fallback.
-	B.totalDialTimeout = 20 * time.Second
-	B.knownDialBudget = time.Second
-	B.candidateTimeout = 100 * time.Millisecond
-	B.testDial = func(dctx context.Context, _ peer.ID, addr ma.Multiaddr) error {
-		if strings.HasPrefix(addr.String(), "/ip4/192.0.2.") {
-			<-dctx.Done()
-			return dctx.Err()
+	// A real TCP listener that never answers the security handshake keeps
+	// the known direct dial pending while the DHT contributes a relay.
+	stalled, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stalled.Close() }()
+	accepted := make(chan struct{})
+	go func() {
+		conn, err := stalled.Accept()
+		if err == nil {
+			defer func() { _ = conn.Close() }()
+			close(accepted)
+			var buf [1]byte
+			for {
+				if _, err := conn.Read(buf[:]); err != nil {
+					return
+				}
+			}
 		}
-		// candidateTimeout exists to expire the stale addresses above. A real
-		// relayed handshake can take longer than that on a busy CI runner.
-		realCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		return B.Host().Connect(realCtx, peer.AddrInfo{ID: C.Host().ID()})
-	}
-	for i := 0; i < 8; i++ {
-		B.Host().Peerstore().AddAddrs(C.Host().ID(), []ma.Multiaddr{mustMA(t, "/ip4/192.0.2."+strconv.Itoa(i+1)+"/tcp/1")}, peerstore.PermanentAddrTTL)
-	}
+	}()
+
+	B.totalDialTimeout = 8 * time.Second
+	B.knownDialBudget = 4 * time.Second
+	addr := mustMA(t, fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", stalled.Addr().(*net.TCPAddr).Port))
+	B.Host().Peerstore().AddAddr(C.Host().ID(), addr, peerstore.PermanentAddrTTL)
 	startDial := time.Now()
 	out, err := B.DialPeerByID(ctx, C.Host().ID())
 	if err != nil {
 		t.Fatalf("DHT fallback dial: %v", err)
 	}
-	if out.Source != sourceDHT {
-		t.Fatalf("dial source = %q, want dht (attempts=%+v)", out.Source, out.Attempts)
+	if out.Source != sourceDHT || out.Route != "relay" || !out.Limited || out.Reused {
+		t.Fatalf("expected a new DHT relay connection, got %+v", out)
 	}
-	if time.Since(startDial) < 800*time.Millisecond {
-		t.Fatalf("known phase did not consume budget (elapsed=%s)", time.Since(startDial))
+	select {
+	case <-accepted:
+	default:
+		t.Fatal("the direct address never received an initial attempt")
+	}
+	if elapsed := time.Since(startDial); elapsed >= B.knownDialBudget {
+		t.Fatalf("relay waited for the slow direct dial: %s", elapsed)
 	}
 	if len(B.Host().Network().ConnsToPeer(C.Host().ID())) == 0 {
 		t.Fatal("no connection after DHT fallback")

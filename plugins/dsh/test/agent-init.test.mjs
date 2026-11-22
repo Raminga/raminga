@@ -11,7 +11,6 @@ import { initAgentData, safeAgentPath } from '../lib/agent-init.js';
 const templates = [
   { path: 'persona.md', content: 'persona template\n' },
   { path: 'growth.md', content: 'growth template\n' },
-  { path: 'contact-notes.json', content: '{"schema_version":1}\n' },
 ];
 
 function tempDir(t) {
@@ -32,16 +31,15 @@ test('creates the missing private layout and sessions directory', (t) => {
   assert.deepEqual(result.created, [
     'agent/persona.md',
     'agent/growth.md',
-    'agent/contact-notes.json',
   ]);
   assert.deepEqual(result.existing, []);
-  assert.deepEqual(result.directories_created, ['agent/', 'agent/sessions/']);
+  assert.deepEqual(result.directories_created, ['agent/', 'agent/sessions/', 'agent/contacts/']);
   assert.equal(fs.readFileSync(path.join(dataDir, 'agent/persona.md'), 'utf8'), 'persona template\n');
   assert.ok(fs.statSync(path.join(dataDir, 'agent/sessions')).isDirectory());
   if (process.platform !== 'win32') {
     assert.equal(fs.statSync(path.join(dataDir, 'agent')).mode & 0o777, 0o700);
     assert.equal(fs.statSync(path.join(dataDir, 'agent/sessions')).mode & 0o777, 0o700);
-    for (const name of ['persona.md', 'growth.md', 'contact-notes.json']) {
+    for (const name of ['persona.md', 'growth.md']) {
       assert.equal(fs.statSync(path.join(dataDir, 'agent', name)).mode & 0o777, 0o600, name);
     }
   }
@@ -55,7 +53,7 @@ test('is idempotent and never overwrites an existing file', (t) => {
 
   const first = initAgentData(dataDir, templates);
   assert.deepEqual(first.existing, ['agent/persona.md']);
-  assert.equal(first.created.length, 2);
+  assert.equal(first.created.length, 1);
   assert.equal(fs.readFileSync(path.join(dataDir, 'agent/persona.md'), 'utf8'), 'keep me\n');
 
   const second = initAgentData(dataDir, templates);
@@ -63,7 +61,6 @@ test('is idempotent and never overwrites an existing file', (t) => {
   assert.deepEqual(second.existing, [
     'agent/persona.md',
     'agent/growth.md',
-    'agent/contact-notes.json',
   ]);
   assert.equal(fs.readFileSync(path.join(dataDir, 'agent/persona.md'), 'utf8'), 'keep me\n');
 });

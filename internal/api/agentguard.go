@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Raminga/raminga/agent"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Agent-origin send guard thresholds. They are deliberately loose: the goal is
@@ -110,6 +112,10 @@ func privateDataLeakReason(dataDir, text string) string {
 		}
 	}
 
+	if reason := contactMemoryLeakReason(dataDir, normalizedMessage); reason != "" {
+		return reason
+	}
+
 	for _, pattern := range agentSecretPatterns {
 		if pattern.re.MatchString(text) {
 			return "疑似" + pattern.label
@@ -121,6 +127,72 @@ func privateDataLeakReason(dataDir, text string) string {
 	cleanDataDir := filepath.Clean(dataDir)
 	if cleanDataDir != "" && cleanDataDir != "." && strings.Contains(text, cleanDataDir) {
 		return "本机数据目录路径"
+	}
+	return ""
+}
+
+// contactMemoryLeakReason protects all private contact notes, including notes
+// about a peer other than the message's recipient.
+func contactMemoryLeakReason(dataDir, message string) string {
+	if len([]rune(message)) < agentLeakMinRunes {
+		return ""
+	}
+	const limit = 1 << 20
+	const unreadable = "无法读取联系人私有记忆，按失败关闭处理"
+	root, err := os.OpenRoot(dataDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ""
+		}
+		return unreadable
+	}
+	defer func() { _ = root.Close() }()
+	for _, dir := range []string{"agent", "agent/contacts"} {
+		info, err := root.Lstat(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			return ""
+		}
+		if err != nil || !info.IsDir() {
+			return unreadable
+		}
+	}
+	dir, err := root.Open("agent/contacts")
+	if err != nil {
+		return unreadable
+	}
+	children, readErr := dir.ReadDir(-1)
+	closeErr := dir.Close()
+	if readErr != nil || closeErr != nil {
+		return unreadable
+	}
+	for _, child := range children {
+		id, err := peer.Decode(child.Name())
+		if err != nil || id.String() != child.Name() {
+			continue
+		}
+		if !child.IsDir() {
+			return unreadable
+		}
+		path := filepath.Join("agent", "contacts", child.Name(), "memory.json")
+		info, err := root.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil || !info.Mode().IsRegular() || info.Size() > limit {
+			return unreadable
+		}
+		file, err := root.Open(path)
+		if err != nil {
+			return unreadable
+		}
+		raw, readErr := io.ReadAll(io.LimitReader(file, limit+1))
+		closeErr := file.Close()
+		if readErr != nil || closeErr != nil || len(raw) > limit {
+			return unreadable
+		}
+		if containsLongNormalizedSubstring(message, normalizeWhitespace(privateLeakText("memory.json", raw, nil)), agentLeakMinRunes) {
+			return "消息包含联系人私有记忆 memory.json 的连续原文"
+		}
 	}
 	return ""
 }

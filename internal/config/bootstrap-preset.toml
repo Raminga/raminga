@@ -1,0 +1,16 @@
+# Release-owned Raminga DHT bootstrap preset.
+#
+# This is the single editable source for the official first-initialization
+# bootstrap list. Keep one complete multiaddr per entry, including the final
+# /p2p/<peer-id>. An empty array explicitly disables the preset.
+#
+# The operator confirmed 12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr
+# as the official Raminga bootstrap node on 2026-11-21. The isolated local DSH
+# acceptance on the same day reached that exact Peer ID over a direct,
+# non-limited TCP connection, but Identify did not advertise
+# /raminga/kad/1.0.0 and the DHT routing table stayed empty. The
+# operator-confirmed address remains enabled, but DHT routing is not verified:
+# never report a TCP/libp2p handshake as a DHT pass.
+bootstrap_peers = [
+  "/ip4/134.175.57.57/tcp/4001/p2p/12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr",
+]

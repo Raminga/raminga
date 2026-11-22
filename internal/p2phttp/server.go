@@ -54,6 +54,11 @@ type Options struct {
 	// DisableRateLimit lets a route (e.g. chat with dedupe-before-rate) own
 	// its per-peer budget instead of applying the generic HTTP limiter.
 	DisableRateLimit bool
+	// RateLimitNow supplies the clock for per-peer token-bucket decisions.
+	// Nil uses time.Now. Tests set it to a frozen or manually advanced clock
+	// so the production rate and burst stay covered without depending on how
+	// long a request takes on a loaded machine.
+	RateLimitNow func() time.Time
 }
 
 func DefaultOptions() Options {
@@ -271,6 +276,9 @@ func (s *Server) allow(pid peer.ID) bool {
 		s.limits.Add(pid, lim)
 	}
 	s.limMu.Unlock()
+	if s.opts.RateLimitNow != nil {
+		return lim.AllowN(s.opts.RateLimitNow(), 1)
+	}
 	return lim.Allow()
 }
 

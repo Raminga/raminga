@@ -69,9 +69,14 @@ func cleanEnv(extra ...string) []string {
 
 func runCLI(t *testing.T, env []string, args ...string) (string, string, error) {
 	t.Helper()
+	return runCLIAt(t, testCLIBin, env, args...)
+}
+
+func runCLIAt(t *testing.T, bin string, env []string, args ...string) (string, string, error) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, testCLIBin, args...)
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Env = cleanEnv(env...)
 	cmd.Stdin = strings.NewReader("")
 	var stdout, stderr bytes.Buffer
@@ -118,7 +123,7 @@ func initNodeDir(t *testing.T, bin string) string {
 	t.Helper()
 	dir := shortTempDir(t)
 	tcp, udp := freePort(t, "tcp"), freePort(t, "udp")
-	stdout, stderr, err := runCLI(t, nil, "init", "--data-dir", dir, "--tcp-port", tcp, "--quic-port", udp)
+	stdout, stderr, err := runCLI(t, nil, "init", "--no-bootstrap-preset", "--data-dir", dir, "--tcp-port", tcp, "--quic-port", udp)
 	if err != nil {
 		t.Fatalf("init: %v\nstdout=%s\nstderr=%s", err, stdout, stderr)
 	}

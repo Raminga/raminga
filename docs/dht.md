@@ -57,11 +57,26 @@ mode = "auto"                  # client | server | auto
 protocol_prefix = "/raminga"   # 固定值
 # 只填 Raminga 节点的显式地址；空数组表示没有 bootstrap。
 bootstrap_peers = []
+# 仅首次初始化时使用发行内置官方列表；不写字段的旧配置不会自动补回。
+bootstrap_preset = false
 refresh_interval = "30s"
 query_timeout = "20s"
 ```
 
 `bootstrap_peers` 的每一项都必须包含 `/p2p/<peer-id>`，不能是 `/p2p-circuit` 地址，也不能是公共 IPFS/libp2p bootstrap；这些会在配置校验时被拒绝。可以重复写多个 Raminga 节点。
+
+### 2.1 首次预置与运行时引导角色
+
+- 发行预置数据的唯一可编辑来源是 `internal/config/bootstrap-preset.toml`，不是 Go 代码常量。发行包会把该文件放在解析后的可执行文件旁（`bootstrap-preset.toml`）；裸二进制或只含二进制的 marketplace 包找不到 sidecar 时，才回退到编译进二进制的同一份 TOML。sidecar 只按**可执行文件所在目录**查找，绝不从当前工作目录读取。
+- 优先级：显式 `--bootstrap` 自定义列表 > `--no-bootstrap-preset` 明确退出 > 可执行文件旁的 sidecar > 内嵌副本。选中的 sidecar 存在但不可读或格式非法时会直接失败，不会静默回退；sidecar 内 `bootstrap_peers = []` 表示明确关闭预置。
+- `make build` 会把预置复制到 `bin/bootstrap-preset.toml`；Unix/Windows 安装脚本会把它装到二进制旁，且**永不覆盖**已存在的 sidecar（用户可能已编辑）。npm 平台包也包含 `bin/bootstrap-preset.toml`。
+- 用户显式 `bootstrap_peers` 优先；一旦有自定义列表，就不会再注入发行预置。`--no-bootstrap-preset` 明确禁用。
+- 发行预置当前启用项目方于 2026-11-21 确认的 Raminga 引导节点：`/ip4/134.175.57.57/tcp/4001/p2p/12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr`。同日的隔离本地 DSH 验收成功写入该预置，DSH Web 显示「已保存」且当前已连接，libp2p 连接为直连、非 limited；但该节点的 Identify 未公布 `/raminga/kad/1.0.0`，DHT `routing_table` 保持为空，`last_publish_error` 也明确为空路由表。因此地址按项目方确认保留，但 DHT 路由**未通过**，不能用 TCP/libp2p 握手代替 DHT 证据，也不能把该节点描述成已核验的 DHT server。不会填入示例、文档 IP 或测试 Peer ID。
+- `config.toml` 的 `bootstrap_peers` 与 `init --bootstrap` 只是**首次初始化输入**。daemon 读取 SQLite 一次性导入标记后，第一次打开数据目录时把列表导入普通 Peer 记录的引导角色并写标记（空列表也写）；之后 TOML 不重写、也不再作为运行时来源。已有 `config.toml` 和已有数据库在升级或重启时都不会吸收新的发行预置；显式清空后也不会补回。标记已存在时，即使旧 TOML 里的地址字符串已经非法，也只作为休眠遗留字段忽略，不阻止 daemon 启动。
+- 配置文件完全丢失但数据库仍在时属于**恢复**而不是首次初始化：daemon 先确认已有数据库和导入标记，再决定是否解析预置；已有数据库或标记时写入明确的空预置，不重新吸收 sidecar。
+- 运行时列表由本机认证 API 管理；DSH Web「节点状态 → 引导节点」可以添加、移除和刷新。保存后立即更新 DHT 引导候选；新增地址会尝试实际引导拨号，但保存成功不代表在线。旧 daemon 只读回退并提示升级。
+- 移除只删除引导角色，不删除 Peer 地址、联系人历史、其他角色或主动断开记录。显式断开持久暂停；DHT 刷新和 daemon 重启都不会偷偷回拨，只有再次显式连接/聊天才恢复。
+- `bootstrap_preset` 是首次初始化/显式 `init` 的记录，不是运行时的第二地址来源；`raminga dht status` 的 `bootstrap` 来自当前已保存角色。
 
 `enabled = false` 会关闭 DHT：不启动路由表、不发布地址记录、`dht find` 明确返回 disabled。已连接的普通 libp2p 连接、Relay 和显式 multiaddr 连接不受影响。
 
@@ -81,11 +96,11 @@ raminga network status --data-dir "$HOME/.raminga"
 | `configured_mode` | 同 `mode`，也是 `config.toml` 里的值：client/server/auto |
 | `active_mode` | 现在实际承担的角色：client/server/unknown/disabled |
 | `protocol` | 固定 `/raminga/kad/1.0.0` |
-| `bootstrap` | 配置的显式 bootstrap multiaddr |
+| `bootstrap` | 当前已保存的引导角色 multiaddr（来自 SQLite，不是 TOML 的旧值） |
 | `bootstrap_connected` | 其中有活动连接的数量 |
 | `connected_peers` | 当前连接的所有 libp2p Peer 数（可能包含 Relay/普通连接） |
 | `routing_table` | 真正进入 DHT 路由表的 Peer ID |
-| `last_bootstrap` | 最后一次**实际尝试** bootstrap dial 的时间；没有配置或全部暂停时为 `-` |
+| `last_bootstrap` | 最后一次**实际尝试** bootstrap dial 的时间；没有保存角色或全部暂停时为 `-` |
 | `last_refresh` | 最后一次路由表刷新时间 |
 | `last_error` | 最近的 DHT 发现/刷新错误 |
 | `last_publish` / `last_publish_error` | 本机地址记录的发布结果 |
@@ -105,7 +120,7 @@ raminga network status --data-dir "$HOME/.raminga"
 | `bootstrap_connected > 0`，路由表为空 | 已连上 bootstrap，但对方没有作为 DHT server 进入路由表。检查对方是否 `active_mode=server`、是否刚启动尚未 identify/刷新；client 不会进入路由表 |
 | `connected_peers > 0`，路由表为空 | 有 libp2p 连接，但都不是可用的 DHT server（可能是 client、Relay 或普通应用连接）；不是“没有网络” |
 | 无连接，`bootstrap` 非空 | 未连接。检查地址、端口、防火墙、对端进程和 `last_error` |
-| 无连接，`bootstrap` 为空 | 没有配置引导节点；配置 `dht.bootstrap_peers` 或手工加 PeerStore 提示 |
+| 无连接，`bootstrap` 为空 | 没有保存引导角色；在 DSH Web「节点状态 → 引导节点」添加，或首次初始化时配置 `dht.bootstrap_peers` |
 
 `last_bootstrap` 只在真正尝试 dial bootstrap 时写入。`bootstrap_peers=[]`（或所有 bootstrap 都被暂停）时保持 `-`，不会把进程启动时间伪装成引导时间。
 

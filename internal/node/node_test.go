@@ -8,7 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,7 +38,66 @@ func newTestNode(t *testing.T, dir string) *testNode {
 	return newTestNodeWithConfig(t, dir, nil)
 }
 
-func newTestNodeWithConfig(t *testing.T, dir string, mutate func(*config.Config)) *testNode {
+func newTestNodeWithConfig(t *testing.T, dir string, mutate func(*config.Config), netOpts ...func(*network.Config)) *testNode {
+	t.Helper()
+	ctx := context.Background()
+	id, err := identity.Open(dir)
+	if err != nil {
+		t.Fatalf("identity.Open: %v", err)
+	}
+	cfg := config.Default()
+	if mutate != nil {
+		mutate(&cfg)
+	}
+	cfg.Network.ListenAddrs = []string{
+		"/ip4/127.0.0.1/tcp/0",
+		"/ip4/127.0.0.1/udp/0/quic-v1",
+	}
+	cfg.Log.Level = "error"
+	store, err := storage.Open(ctx, dir)
+	if err != nil {
+		t.Fatalf("storage.Open: %v", err)
+	}
+	netCfg := network.Config{
+		PrivateKey:  id.PrivateKey(),
+		ListenAddrs: cfg.Network.ListenAddrs,
+		Logger:      slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+	}
+	for _, opt := range netOpts {
+		if opt != nil {
+			opt(&netCfg)
+		}
+	}
+	netw, err := network.New(netCfg)
+	if err != nil {
+		t.Fatalf("network.New: %v", err)
+	}
+	n, err := node.New(node.Options{
+		DataDir:  dir,
+		Version:  "test",
+		Config:   cfg,
+		Identity: id,
+		Store:    store,
+		Network:  netw,
+		Logger:   slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+	})
+	if err != nil {
+		t.Fatalf("node.New: %v", err)
+	}
+	if err := n.Start(ctx); err != nil {
+		t.Fatalf("node.Start: %v", err)
+	}
+	tn := &testNode{node: n, id: id, dir: dir}
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = n.Stop(shutdownCtx)
+		_ = id.Close()
+	})
+	return tn
+}
+
+func newTestNodeWithDHT(t *testing.T, dir string, mutate func(*config.Config)) *testNode {
 	t.Helper()
 	ctx := context.Background()
 	id, err := identity.Open(dir)
@@ -60,6 +121,14 @@ func newTestNodeWithConfig(t *testing.T, dir string, mutate func(*config.Config)
 		PrivateKey:  id.PrivateKey(),
 		ListenAddrs: cfg.Network.ListenAddrs,
 		Logger:      slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		DHT: network.DHTConfig{
+			Enabled:         cfg.DHT.Enabled,
+			Mode:            cfg.DHT.Mode,
+			ProtocolPrefix:  cfg.DHT.ProtocolPrefix,
+			BootstrapPeers:  cfg.DHT.BootstrapPeers,
+			RefreshInterval: cfg.DHTRefreshInterval(),
+			QueryTimeout:    cfg.DHTQueryTimeout(),
+		},
 	})
 	if err != nil {
 		t.Fatalf("network.New: %v", err)
@@ -685,7 +754,16 @@ func TestForgetThenChatReads(t *testing.T) {
 func TestHelloRouteRateLimited(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	b := newTestNode(t, t.TempDir())
+	// Freeze the token-bucket clock: on a loaded CI host the request time
+	// budget must not refill the bucket between the burst and the 11th call.
+	// The route still uses the production 5/s rate and burst of 10, and the
+	// refill assertions below advance the clock explicitly.
+	base := time.Unix(1, 0)
+	var clock atomic.Int64
+	clock.Store(base.UnixNano())
+	b := newTestNodeWithConfig(t, t.TempDir(), nil, func(nc *network.Config) {
+		nc.HTTPRateLimitNow = func() time.Time { return time.Unix(0, clock.Load()) }
+	})
 	key, _, _ := crypto.GenerateEd25519Key(rand.Reader)
 	h, err := libp2p.New(libp2p.Identity(key), libp2p.NoListenAddrs)
 	if err != nil {
@@ -710,18 +788,32 @@ func TestHelloRouteRateLimited(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cl.Close()
-	statuses := make(map[int]int)
-	for i := 0; i < 11; i++ {
+	hello := func() int {
+		t.Helper()
 		req, _ := http.NewRequest(http.MethodPost, "http://"+b.status(t).PeerID+"/hello", nil)
 		res, err := cl.Do(ctx, bpid, req, 1024)
 		if err != nil {
 			t.Fatal(err)
 		}
-		statuses[res.Response.StatusCode]++
-		_ = res.Response.Body.Close()
+		defer func() { _ = res.Response.Body.Close() }()
+		return res.Response.StatusCode
+	}
+	statuses := make(map[int]int)
+	for i := 0; i < 11; i++ {
+		statuses[hello()]++
 	}
 	if statuses[http.StatusOK] != 10 || statuses[http.StatusTooManyRequests] != 1 {
 		t.Fatalf("hello statuses=%v", statuses)
+	}
+	// At the production 5/s refill rate one token needs 200ms. Just before
+	// that the bucket is still empty; after it the next request succeeds.
+	clock.Store(base.Add(100 * time.Millisecond).UnixNano())
+	if status := hello(); status != http.StatusTooManyRequests {
+		t.Fatalf("hello status after 100ms refill=%d, want 429", status)
+	}
+	clock.Store(base.Add(250 * time.Millisecond).UnixNano())
+	if status := hello(); status != http.StatusOK {
+		t.Fatalf("hello status after 250ms refill=%d, want 200", status)
 	}
 }
 
@@ -762,4 +854,109 @@ func TestProtocolMismatchMessagesForChatAndContent(t *testing.T) {
 			t.Fatalf("content error %q missing %q", err, want)
 		}
 	}
+}
+
+func TestOrdinaryConnectDoesNotCreateBootstrapRoleOrRewriteConfig(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	dirA := t.TempDir()
+	cfg := config.Default()
+	cfg.Network.ListenAddrs = []string{"/ip4/127.0.0.1/tcp/0", "/ip4/127.0.0.1/udp/0/quic-v1"}
+	raw, err := config.RenderTOML(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dirA, config.FileName)
+	if err := os.WriteFile(configPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := newTestNode(t, dirA)
+	b := newTestNode(t, t.TempDir())
+	if _, err := a.node.Connect(ctx, "", tcpMultiaddr(t, b.status(t))); err != nil {
+		t.Fatal(err)
+	}
+	if peers, err := a.node.BootstrapPeers(ctx); err != nil || len(peers) != 0 {
+		t.Fatalf("ordinary connect created bootstrap roles: %+v err=%v", peers, err)
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(raw) {
+		t.Fatal("ordinary connect rewrote config.toml")
+	}
+}
+
+func TestBootstrapPeerUsesRealDHTDialPausesAndRemovalKeepsPause(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	dirA := t.TempDir()
+	a := newTestNodeWithDHT(t, dirA, func(cfg *config.Config) {
+		cfg.DHT.Mode = "client"
+		cfg.DHT.RefreshInterval = "1s"
+		cfg.DHT.QueryTimeout = "2s"
+	})
+	b := newTestNodeWithDHT(t, t.TempDir(), func(cfg *config.Config) {
+		cfg.Network.ListenAddrs = []string{"/ip4/127.0.0.1/tcp/0"}
+		cfg.DHT.Mode = "server"
+		cfg.DHT.RefreshInterval = "1s"
+		cfg.DHT.QueryTimeout = "2s"
+	})
+	addrB := tcpMultiaddr(t, b.status(t))
+	peer, added, err := a.node.AddBootstrapPeer(ctx, addrB)
+	if err != nil || !added || peer.PeerID != b.status(t).PeerID {
+		t.Fatalf("AddBootstrapPeer = %+v added=%t err=%v", peer, added, err)
+	}
+	waitUntilTest(t, 20*time.Second, "bootstrap peer to connect", func() bool {
+		peers, err := a.node.BootstrapPeers(ctx)
+		return err == nil && len(peers) == 1 && peers[0].Online
+	})
+	if st := a.node.DHTStatus(); len(st.BootstrapPeers) != 1 || st.BootstrapConnected != 1 {
+		t.Fatalf("DHT status = %+v, want saved+connected bootstrap", st)
+	}
+	if err := a.node.PausePeer(ctx, b.status(t).PeerID); err != nil {
+		t.Fatal(err)
+	}
+	waitUntilTest(t, 10*time.Second, "explicit pause to close the bootstrap connection", func() bool {
+		peers, err := a.node.BootstrapPeers(ctx)
+		return err == nil && len(peers) == 1 && peers[0].Paused && !peers[0].Online
+	})
+	// More than one refresh interval must not silently redial the paused peer.
+	time.Sleep(3500 * time.Millisecond)
+	peers, err := a.node.BootstrapPeers(ctx)
+	if err != nil || len(peers) != 1 || peers[0].Online || !peers[0].Paused {
+		t.Fatalf("paused bootstrap peer was redialled: %+v err=%v", peers, err)
+	}
+	if st := a.node.DHTStatus(); st.BootstrapConnected != 0 {
+		t.Fatalf("paused peer counted as bootstrap-connected: %+v", st)
+	}
+	if removed, err := a.node.RemoveBootstrapPeer(ctx, b.status(t).PeerID); err != nil || !removed {
+		t.Fatalf("RemoveBootstrapPeer = %t, %v", removed, err)
+	}
+	if peers, err := a.node.BootstrapPeers(ctx); err != nil || len(peers) != 0 {
+		t.Fatalf("list after remove = %+v err=%v", peers, err)
+	}
+	// An explicit user connect is the documented way to resume the pause.
+	if _, err := a.node.Connect(ctx, "", addrB); err != nil {
+		t.Fatalf("explicit reconnect after pause/remove: %v", err)
+	}
+	friends, err := a.node.Friends(ctx)
+	if err != nil || len(friends) != 1 || friends[0].Paused {
+		t.Fatalf("explicit connect did not resume the pause: %+v err=%v", friends, err)
+	}
+	if peers, err := a.node.BootstrapPeers(ctx); err != nil || len(peers) != 0 {
+		t.Fatalf("explicit connect re-added a bootstrap role: %+v err=%v", peers, err)
+	}
+}
+
+func waitUntilTest(t *testing.T, timeout time.Duration, label string, fn func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", label)
 }

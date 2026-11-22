@@ -416,7 +416,6 @@ func renderAgentGuide(catalog agent.Catalog, guidance map[string][]byte) ([]byte
 	}{
 		{"state.json", "private/session-state.json", "json"},
 		{"events.jsonl (one compact JSON object per line)", "private/journey-event.json", "json"},
-		{"report.md", "private/journey-report.md", "markdown"},
 	} {
 		content, err := fs.ReadFile(templates, example.path)
 		if err != nil {
@@ -557,7 +556,7 @@ func renderDSHTools(catalog agent.Catalog, guide []byte) []byte {
 		Content string
 	}
 	var onboarding []templateFile
-	for _, name := range []string{"persona.md", "growth.md", "contact-notes.json"} {
+	for _, name := range []string{"persona.md", "growth.md"} {
 		b, err := fs.ReadFile(templates, "private/"+name)
 		if err != nil {
 			panic(fmt.Sprintf("genplugins: read template private/%s: %v", name, err))

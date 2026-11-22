@@ -2,9 +2,10 @@
 // directory and the repository-root VERSION file.
 //
 // It produces six platform packages (@raminga/bin-<os>-<cpu>) and the DSH
-// shell package (@raminga/dsh). Platform packages contain exactly one binary
-// plus LICENSE and README; the shell contains no binary and locks the exact
-// version of every platform package through optionalDependencies.
+// shell package (@raminga/dsh). Platform packages contain exactly one binary,
+// the editable bootstrap-preset.toml sidecar, LICENSE and README; the shell
+// contains no binary and locks the exact version of every platform package
+// through optionalDependencies.
 package main
 
 import (
@@ -206,6 +207,16 @@ func stagePlatform(root, out, version string, p platform, binary string) error {
 	if err := copyFile(binary, target, 0o755); err != nil {
 		return fmt.Errorf("%s: copy binary: %w", name, err)
 	}
+	// The sidecar is read next to the resolved executable. Binary-only
+	// marketplace installs still have the embedded copy, but npm platform
+	// packages should ship the editable release file for operators.
+	presetSource := filepath.Join(root, "internal", "config", "bootstrap-preset.toml")
+	if !isFile(presetSource) {
+		return fmt.Errorf("%s: internal/config/bootstrap-preset.toml is missing", name)
+	}
+	if err := copyFile(presetSource, filepath.Join(dir, "bin", "bootstrap-preset.toml"), 0o644); err != nil {
+		return fmt.Errorf("%s: copy bootstrap preset: %w", name, err)
+	}
 	if err := copyFile(filepath.Join(root, "LICENSE"), filepath.Join(dir, "LICENSE"), 0o644); err != nil {
 		return fmt.Errorf("%s: copy LICENSE: %w", name, err)
 	}
@@ -225,7 +236,7 @@ func stagePlatform(root, out, version string, p platform, binary string) error {
 		},
 		OS:              []string{p.npmOS},
 		CPU:             []string{p.npmCPU},
-		Files:           []string{"bin/" + p.exe, "LICENSE", "README.md"},
+		Files:           []string{"bin/" + p.exe, "bin/bootstrap-preset.toml", "LICENSE", "README.md"},
 		PreferUnplugged: true,
 		PublishConfig:   publishConfig{Access: "public"},
 	}

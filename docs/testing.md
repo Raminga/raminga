@@ -30,6 +30,37 @@ make install-test
 
 **范围限制：** 这是隔离模拟，不是真实 systemd。它不能证明 systemd 的 unit 解析、`Restart=on-failure` 节流、enable 符号链接、journal 或真实 PID 语义；也不覆盖 launchd。真实 systemd 的 Linux CI/VM 验收步骤见 [`tests/install/README.md`](../tests/install/README.md)。Ubuntu 24.04.5 / systemd 255 的真实托管验收已通过，覆盖旧 daemon 迁移、身份保留和启动失败清理。
 
+## P5 双节点、真实 DSH 与升级验收
+
+P5 使用独立端口和数据目录，不触碰 4321 宿主、`.local/ui-implementation`、4332/4333 P4 宿主或用户 DSH 配置。固定 fixture 在 `tests/fixtures/ui-refresh/`，脚本与准备数据在 `scripts/ui-acceptance/p5/`，证据在 `.local/ui-refresh-20261117/p5/evidence/`（Git 忽略）。
+
+```sh
+# 构建
+GOCACHE=/tmp/raminga-gocache GOMODCACHE=$PWD/.local/go-mod make build
+(cd packages/ui && npm test && npm run build)
+(cd plugins/dsh && npm test && npm run test:integration && npm run build)
+
+# 双节点 + schema 9 基线 + 隔离 DSH profile
+node scripts/ui-acceptance/p5/prepare.mjs
+
+# 真实 DSH Web 4344（前台；控制插件 4346）
+sh scripts/ui-acceptance/p5/start-host.sh
+
+# T1–T13；T14；T15
+python3 scripts/ui-acceptance/p5/acceptance.py
+python3 scripts/ui-acceptance/p5/t14.py
+node scripts/ui-acceptance/p5/upgrade-check.mjs
+python3 scripts/ui-acceptance/p5/t15_ui.py
+
+# 390×844 真实变更与焦点/安全区补充
+python3 scripts/ui-acceptance/p5/narrow_extra.py
+python3 scripts/ui-acceptance/p5/focus_audit.py
+```
+
+升级 fixture 包含 schema 9 数据库、旧 `profile/index.md`/`agent-card.json`、v1 帖子、消息/联系人/发现、v1 contact-notes 与旧 viewState。`upgrade-live/` 由 `upgrade-check.mjs` 用真实 daemon 从 `upgrade-v9/` 重建；`upgrade-v9/` 只读保留。2026-11-18 结果：schema 9→11、`raminga.db.bak-9`、messages/friends/discoveries/known_peers/outbox/paused_peers 数量一致，除程序生成的 `friends.json` 外公开文件 hash 一致，已读基线 0 unread，旧 contact-notes/旧帖子/旧资料可读。详细矩阵与证据见 [`reports/p5-acceptance-2026-11-18.md`](../reports/p5-acceptance-2026-11-18.md)。
+
+P5 门禁结果（2026-11-18）：`make check` PASS（含 `go test -race ./...`）；`make install-test` PASS（Linux 容器、205/0、fake systemd；真实 systemd NOT_TESTED）；`make e2e-plugins` PASS（scenario 2 因本机 4001 占用 SKIP）；`packages/ui npm test` 147 PASS；`plugins/dsh npm test` 186 PASS、`test:integration` 13 PASS。Windows API/DSH、真实公网/NAT/跨机器、真实 systemd 与真实 IME 不在本机能力内，按 NOT_TESTED 记录。
+
 ## G3 测试设施（Go e2e，2026-10-30 实际结果）
 
 G3 统一使用 `tests/e2e/` Go runner；旧 TS/Node 测试设施已随 G6 删除。G3 覆盖 IPv6 ULA + ip6tables 状态防火墙、单侧可达、UDP/TCP 单向封锁、`tc netem`、对称 NAT（`MASQUERADE --random-fully`）与双 NAT QUIC 复验；每个设施先自检再跑业务场景，NAT01–NAT13 全部以 Go daemon 重测（不继承任何旧 TS 结论）。G3.1 新增 `ipv6fw` 双侧状态防火墙（无 4001 白名单/DNAT）打洞、仅凭 Peer ID 的 IPv6-first 选址与地址族回退、复用/backoff 提示、对称 NAT DCUtR 终态失败（原因），以及第五个手动 lab。

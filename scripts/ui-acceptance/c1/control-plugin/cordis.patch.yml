@@ -1,0 +1,4 @@
+- insert:
+    - id: c1-return-control
+      name: 'c1-return-control'
+      inject: ['tools']

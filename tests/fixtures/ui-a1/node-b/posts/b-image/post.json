@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "id": "post-a1-b-image",
+  "title": "雨停之后的城市植物",
+  "format": "markdown",
+  "author": { "peer_id": "__PEER_ID__", "kind": "user", "display_name": "澄野" },
+  "published_at": "2026-11-15T08:20:00Z",
+  "updated_at": "2026-11-15T08:20:00Z",
+  "tags": ["雨", "植物", "远端"],
+  "summary": "雨停后沿街记录三种植物，带一张公开图片。",
+  "body": "# 雨停之后的城市植物\n\n雨停之后，墙缝里的苔藓比昨天更绿。",
+  "images": [
+    {
+      "path": "images/__IMAGE_NAME__",
+      "sha256": "__IMAGE_SHA__",
+      "mime": "image/png",
+      "width": 960,
+      "height": 600,
+      "size_bytes": __IMAGE_SIZE__
+    }
+  ],
+  "revision": 1
+}

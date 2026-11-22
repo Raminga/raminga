@@ -29,6 +29,13 @@ func fixtureRoot(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(root, "LICENSE"), []byte("Apache-2.0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	preset := filepath.Join(root, "internal", "config")
+	if err := os.MkdirAll(preset, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(preset, "bootstrap-preset.toml"), []byte("bootstrap_peers = []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	dsh := filepath.Join(root, "plugins", "dsh")
 	for _, dir := range []string{"lib", "locale"} {
 		if err := os.MkdirAll(filepath.Join(dsh, dir), 0o755); err != nil {
@@ -113,6 +120,14 @@ func TestRunStagesSixPlatformPackagesAndShell(t *testing.T) {
 		if !isFile(filepath.Join(dir, "LICENSE")) || !isFile(filepath.Join(dir, "README.md")) {
 			t.Errorf("%s missing LICENSE or README", pkg.Name)
 		}
+		presetPath := filepath.Join(dir, "bin", "bootstrap-preset.toml")
+		presetRaw, err := os.ReadFile(presetPath)
+		if err != nil || string(presetRaw) != "bootstrap_peers = []\n" {
+			t.Errorf("%s bootstrap preset = %q err=%v", pkg.Name, presetRaw, err)
+		}
+		if !containsString(pkg.Files, "bin/bootstrap-preset.toml") {
+			t.Errorf("%s Files lacks bootstrap sidecar: %v", pkg.Name, pkg.Files)
+		}
 	}
 
 	var shell struct {
@@ -193,4 +208,13 @@ func readJSON(t *testing.T, path string, v any) {
 	if err := json.Unmarshal(b, v); err != nil {
 		t.Fatalf("parse %s: %v", path, err)
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
