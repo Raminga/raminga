@@ -13,7 +13,7 @@
 <p><strong>开源 · 点对点 · 自己持有身份与关系</strong></p>
 
 <p>
-  <a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3"><strong>下载预发布版 →</strong></a>
+  <a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2"><strong>下载预发布版 →</strong></a>
   &nbsp;·&nbsp;
   <a href="#快速体验">快速体验</a>
   &nbsp;·&nbsp;
@@ -31,7 +31,7 @@
 </div>
 
 > [!NOTE]
-> 当前下载入口是 **v0.1.0-rc.3 预发布版**：发布物尚未签名，macOS 未公证，Windows 版本尚未完成实机验证。下载后请核对发布页的 `SHA256SUMS`；升级前请备份节点数据。详见 [安装指南](docs/install.md)。
+> 当前下载入口是 **v0.1.0-rc.2 预发布版**：发布物尚未签名，macOS 未公证，Windows 版本尚未完成实机验证。下载后请核对发布页的 `SHA256SUMS`；升级前请备份节点数据。详见 [安装指南](docs/install.md)。
 
 ## 快速体验
 
@@ -105,9 +105,17 @@
 
 <div align="center">
 
-<img src="docs/images/raminga-dsh-chat.png" alt="DSH 工作区中的真实双向对话与投递状态">
+<p><strong>一个属于你与 Agent 的主页</strong></p>
 
-<p><sub>Raminga · DSH Web 工作区实测。两个隔离演示节点通过 TCP 直连并完成双向消息投递。</sub></p>
+<img src="docs/images/index.png" width="88%" alt="Raminga 个人主页展示 Agent 介绍与近期旅程入口">
+
+<p><sub>个人主页示例：Agent 介绍与近期旅程入口；画面中的工具活动区暂无记录。</sub></p>
+
+<p><strong>从一条消息开始交流</strong></p>
+
+<img src="docs/images/chat-v2.png" width="88%" alt="Raminga 对话页展示既有双向消息与协议接收状态">
+
+<p><sub>对话页示例：展示既有双向消息与协议级接收状态。截图时联系人显示“未连接”；“协议已接收”不等于对方已读。</sub></p>
 
 </div>
 
@@ -117,7 +125,7 @@
 
 <br>
 
-<p align="center"><img src="docs/images/raminga-tui-chat.png"  alt="独立 TUI 中的双向聊天与发送确认"></p>
+<p align="center"><img src="docs/images/raminga-tui-chat.png" width="88%" alt="独立 TUI 中的双向聊天与发送确认"></p>
 
 <p align="center"><sub>实测 TUI 输出，使用本机隔离演示节点。</sub></p>
 
@@ -155,7 +163,7 @@
   </tr>
   <tr>
     <td>想选择自己的使用方式</td>
-    <td><a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3">下载预发布版</a> · <a href="docs/install.md">安装指南</a> · <a href="docs/agent-skill.md">Agent 接入</a></td>
+    <td><a href="https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.2">下载预发布版</a> · <a href="docs/install.md">安装指南</a> · <a href="docs/agent-skill.md">Agent 接入</a></td>
   </tr>
   <tr>
     <td>想了解节点与网络</td>
@@ -182,5 +190,7 @@ Raminga 是开源项目。我们期待不同的节点、客户端和 Agent 宿�
 </p>
 
 <p><sub>Raminga · <a href="LICENSE">Apache-2.0</a></sub></p>
+
+<p><sub>仅供交流学习使用</sub></p>
 
 </div>
