@@ -8,10 +8,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	ma "github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 
 	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
+	"github.com/Raminga/raminga/internal/contactcard"
 	"github.com/Raminga/raminga/internal/report"
 	"github.com/Raminga/raminga/internal/textsafe"
 )
@@ -38,10 +37,10 @@ type commandDef struct {
 var helpGroups = []string{"连接", "聊天", "内容", "诊断", "其他"}
 
 var commands = []commandDef{
-	{"/connect", "连接节点（名字 / Peer ID / multiaddr）", "连接", true, []argKind{argPeer}},
+	{"/connect", "连接节点（名字 / Raminga ID / 分享码 / multiaddr）", "连接", true, []argKind{argPeer}},
 	{"/disconnect", "断开连接（可能自动重连）", "连接", true, []argKind{argPeer}},
 	{"/status", "本机与连接概况", "连接", false, nil},
-	{"/peers", "已知节点；/peers <节点> 看地址", "连接", false, []argKind{argPeer}},
+	{"/peers", "已知节点；/peers <节点> 看连接方式", "连接", false, []argKind{argPeer}},
 	{"/chat", "选择聊天对象", "聊天", true, []argKind{argPeer}},
 	{"/name", "给节点起名", "聊天", true, []argKind{argPeer, argText}},
 	{"/describe", "设置节点描述", "聊天", true, []argKind{argPeer, argText}},
@@ -57,10 +56,11 @@ var commands = []commandDef{
 	{"/cancel", "取消一条待发消息", "诊断", true, []argKind{argOutbox}},
 	{"/mark", "记录测试节点", "诊断", true, []argKind{argText}},
 	{"/report", "导出诊断报告", "诊断", false, nil},
-	{"/copy", "复制地址或对方 Peer ID", "其他", false, []argKind{argPeer}},
+	{"/copy", "复制本机或对方 Raminga ID", "其他", false, []argKind{argPeer}},
 	{"/clear", "清空当前屏幕", "其他", false, nil},
 	{"/help", "显示全部指令", "其他", false, nil},
 	{"/quit", "退出 TUI", "其他", false, nil},
+	{"/share", "分享自己或联系人；--include-addresses 附带已知连接地址", "连接", true, []argKind{argPeer}},
 }
 
 func resolveCommand(token string) (commandDef, bool, error) {
@@ -99,7 +99,7 @@ func (m *Model) execCommand(line string) (tea.Cmd, bool) {
 	}
 	cmd, ok, err := resolveCommand(fields[0])
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return nil, false
 	}
 	if !ok {
@@ -199,6 +199,8 @@ func (m *Model) execCommand(line string) (tea.Cmd, bool) {
 			}
 		}
 		return m.cmdConnect(strings.Join(args, " ")), false
+	case "/share":
+		return m.cmdShare(args), false
 	case "/disconnect":
 		if len(args) == 0 {
 			m.appendLog("! 用法：/disconnect <节点>")
@@ -266,101 +268,8 @@ func (m *Model) cmdStatus() tea.Cmd {
 	} else {
 		m.appendLog("聊天对象：未选择（/chat <名字>）")
 	}
-	chosen, _ := m.pickShareableAddr()
-	for _, choice := range m.addressChoices() {
-		label := "公告地址：" + choice.label
-		if choice.raw == chosen {
-			label += "（/copy 默认）"
-		}
-		m.appendLog("%s", label)
-		m.appendLog("%s", choice.value)
-	}
+	m.appendLog("可用连接方式：%s", addressModes(m.status.GetAdvertisedAddrs()))
 	return nil
-}
-
-func (m *Model) publicReachability() bool {
-	n := m.status.GetNetwork()
-	return n != nil && strings.EqualFold(n.GetReachability(), "public")
-}
-
-// classifyAddr labels an advertised address and returns its /copy priority.
-// Loopback, link-local and unspecified addresses get an unusable priority.
-func classifyAddr(raw string, publicReachability bool) (string, int) {
-	m, err := ma.NewMultiaddr(raw)
-	if err != nil {
-		return "其他", 100
-	}
-	relay := strings.Contains(raw, "/p2p-circuit")
-	switch {
-	case manet.IsIPLoopback(m), manet.IsIP6LinkLocal(m), manet.IsIPUnspecified(m):
-		if manet.IsIPLoopback(m) {
-			return "本机回环", 100
-		}
-		return "链路本地/未指定", 100
-	case relay:
-		if publicReachability {
-			return "中继", 1
-		}
-		return "中继", 0
-	case manet.IsPublicAddr(m):
-		if publicReachability {
-			return "公网", 0
-		}
-		return "公网", 1
-	case manet.IsPrivateAddr(m):
-		return "局域网", 2
-	default:
-		return "其他", 3
-	}
-}
-
-type addressChoice struct {
-	raw    string
-	value  string
-	label  string
-	rank   int
-	usable bool
-}
-
-// addressChoices returns the advertised addresses in the same priority order
-// used by /copy. Loopback, link-local and unspecified addresses are only
-// returned when nothing better exists.
-func (m *Model) addressChoices() []addressChoice {
-	if m.status == nil {
-		return nil
-	}
-	pid := m.status.GetPeerId()
-	var usable, fallback []addressChoice
-	for _, raw := range m.status.GetAdvertisedAddrs() {
-		label, rank := classifyAddr(raw, m.publicReachability())
-		choice := addressChoice{raw: raw, value: shareableAddr(raw, pid), label: label, rank: rank}
-		if rank >= 100 {
-			fallback = append(fallback, choice)
-			continue
-		}
-		if !strings.Contains(raw, "/ip4/") {
-			choice.rank = rank*2 + 1
-		} else {
-			choice.rank = rank * 2
-		}
-		choice.usable = true
-		usable = append(usable, choice)
-	}
-	choices := usable
-	if len(choices) == 0 {
-		choices = fallback
-	}
-	sort.SliceStable(choices, func(i, j int) bool { return choices[i].rank < choices[j].rank })
-	return choices
-}
-
-func (m *Model) pickShareableAddr() (raw, value string) {
-	for _, choice := range m.addressChoices() {
-		if choice.usable {
-			return choice.raw, choice.value
-		}
-	}
-	return "", ""
 }
 
 func displayMyName(st *apiv1.StatusResponse, names []*apiv1.Friend) string {
@@ -484,7 +393,6 @@ func (row peerRow) addrs() []string {
 	var out []string
 	for _, list := range lists {
 		for _, addr := range list {
-			addr = shareableAddr(addr, row.PeerID)
 			if !seen[addr] {
 				seen[addr] = true
 				out = append(out, addr)
@@ -494,12 +402,11 @@ func (row peerRow) addrs() []string {
 	return out
 }
 
-// cmdPeerDetail shows one node. Addresses are complete enough to paste into
-// /connect, and the live connections are listed apart from remembered addresses.
+// cmdPeerDetail lists live connection types apart from remembered connection hints.
 func (m *Model) cmdPeerDetail(arg string) {
 	_, pid, _, err := m.resolve(arg)
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return
 	}
 	var found *peerRow
@@ -534,7 +441,7 @@ func (m *Model) cmdPeerDetail(arg string) {
 			if label == "" {
 				label = "连接"
 			}
-			conns = append(conns, "  "+label+"  "+c.GetRemoteMultiaddr())
+			conns = append(conns, "  "+label)
 		}
 		if len(conns) > 0 {
 			m.appendLog("当前连接（%d 条）：", len(conns))
@@ -543,15 +450,7 @@ func (m *Model) cmdPeerDetail(arg string) {
 			}
 		}
 	}
-	addrs := found.addrs()
-	if len(addrs) == 0 {
-		m.appendLog("已知地址：（没有）")
-		return
-	}
-	m.appendLog("已知地址（%d 条，可能已过期）：", len(addrs))
-	for _, line := range labelledAddrLines(addrs) {
-		m.appendLog("%s", line)
-	}
+	m.appendLog("已知连接方式（可能已过期）：%s", addressModes(found.addrs()))
 }
 
 func (m *Model) peerDetails(row peerRow) string {
@@ -648,7 +547,7 @@ func (m *Model) cmdDiag() {
 	n := m.status.GetNetwork()
 	m.appendLog("AutoNAT：enabled=%t state=%s 探测节点=%d", n.GetAutonat().GetEnabled(), n.GetAutonat().GetState(), len(n.GetAutonat().GetProbePeers()))
 	m.appendLog("打洞 DCUtR：尝试 %d · 成功 %d · 失败 %d", n.GetDcutr().GetAttempts(), n.GetDcutr().GetSuccesses(), n.GetDcutr().GetFailures())
-	m.appendLog("DHT：enabled=%t configured=%s active=%s 连接节点=%d 路由节点=%d 错误=%s", n.GetDht().GetEnabled(), n.GetDht().GetMode(), n.GetDht().GetActiveMode(), n.GetDht().GetConnectedPeers(), len(n.GetDht().GetRoutingTablePeers()), textsafe.Sanitize(n.GetDht().GetLastError()))
+	m.appendLog("DHT：enabled=%t configured=%s active=%s 连接节点=%d 路由节点=%d 错误=%s", n.GetDht().GetEnabled(), n.GetDht().GetMode(), n.GetDht().GetActiveMode(), n.GetDht().GetConnectedPeers(), len(n.GetDht().GetRoutingTablePeers()), redactNetworkAddresses(n.GetDht().GetLastError()))
 	for _, warning := range m.status.GetContentWarnings() {
 		m.appendLog("内容扫描警告：%s", textsafe.Sanitize(warning))
 	}
@@ -656,11 +555,11 @@ func (m *Model) cmdDiag() {
 		m.appendLog("DHT 地址发布：%s", time.UnixMilli(n.GetDht().GetLastPublishUnixMs()).UTC().Format(time.RFC3339))
 	}
 	if n.GetDht().GetLastPublishError() != "" {
-		m.appendLog("DHT 地址发布错误：%s", textsafe.Sanitize(n.GetDht().GetLastPublishError()))
+		m.appendLog("DHT 地址发布错误：%s", redactNetworkAddresses(n.GetDht().GetLastPublishError()))
 	}
 	m.appendLog("资源：连接 %d/%d · 流 %d/%d · goroutines=%d", n.GetResources().GetOpenConnections(), n.GetResources().GetMaxConnections(), n.GetResources().GetOpenStreams(), n.GetResources().GetMaxStreams(), n.GetResources().GetGoroutines())
 	for _, r := range n.GetRelays() {
-		m.appendLog("中继 %s：%s / 预约 %s / 错误=%s", displayName(r.GetRelayPeerId(), m.friends), r.GetStatus(), r.GetReservationStatus(), textsafe.Sanitize(r.GetLastError()))
+		m.appendLog("中继 %s：%s / 预约 %s / 错误=%s", displayName(r.GetRelayPeerId(), m.friends), r.GetStatus(), r.GetReservationStatus(), redactNetworkAddresses(r.GetLastError()))
 	}
 	for _, line := range explainZH(n, m.peers) {
 		m.appendLog("  · %s", line)
@@ -693,7 +592,7 @@ func (m *Model) cmdOutbox() {
 	for _, e := range m.outbox.GetEntries() {
 		line := fmt.Sprintf("消息 %s 发给 %s：%s，尝试 %d 次", e.GetMessageId(), displayName(e.GetPeerId(), m.friends), outboxStatus(e.GetStatus()), e.GetAttempts())
 		if e.GetLastError() != "" {
-			line += "，错误：" + e.GetLastError()
+			line += "，错误：" + redactNetworkAddresses(e.GetLastError())
 		}
 		m.appendLog("%s", line)
 	}
@@ -727,9 +626,6 @@ func (m *Model) cmdCopy() tea.Cmd {
 		return nil
 	}
 	value := m.status.GetPeerId()
-	if _, picked := m.pickShareableAddr(); picked != "" {
-		value = picked
-	}
 	m.appendLog("已发送到剪贴板（终端需支持 OSC52）：%s", value)
 	return clipboardCmd(value, m.opts.Clipboard)
 }
@@ -737,27 +633,17 @@ func (m *Model) cmdCopy() tea.Cmd {
 func (m *Model) cmdCopyPeer(arg string) tea.Cmd {
 	_, pid, _, err := m.resolve(arg)
 	if err != nil {
-		m.appendLog("! %s", textsafe.Sanitize(err.Error()))
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	m.appendLog("已发送到剪贴板（终端需支持 OSC52）：%s", pid)
 	return clipboardCmd(pid, m.opts.Clipboard)
 }
 
-// shareableAddr appends the peer ID to a listen/advertised address so it can be
-// dialed with /connect. Relay circuit addresses already contain the relay's
-// /p2p component, so only an existing trailing /p2p/<peerID> counts as complete.
-func shareableAddr(addr, peerID string) string {
-	if strings.HasSuffix(addr, "/p2p/"+peerID) {
-		return addr
-	}
-	return strings.TrimRight(addr, "/") + "/p2p/" + peerID
-}
-
 func (m *Model) cmdDisconnect(arg string) tea.Cmd {
 	name, pid, _, err := m.resolve(arg)
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	if name == "" {
@@ -808,7 +694,7 @@ func (m *Model) disconnectNotices(peerID string) []string {
 func (m *Model) cmdChat(arg string) {
 	name, pid, _, err := m.resolve(arg)
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return
 	}
 	if name == "" {
@@ -836,7 +722,7 @@ func (m *Model) exitChat() {
 func (m *Model) cmdName(target, name string) tea.Cmd {
 	_, pid, _, err := m.resolve(target)
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	client := m.client
@@ -852,7 +738,7 @@ func (m *Model) cmdName(target, name string) tea.Cmd {
 func (m *Model) cmdDescribe(target, description string) tea.Cmd {
 	_, pid, _, err := m.resolve(target)
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	client := m.client
@@ -877,7 +763,7 @@ func (m *Model) cmdForget(args []string) tea.Cmd {
 	}
 	_, pid, _, err := m.resolve(args[0])
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	client := m.client
@@ -895,9 +781,12 @@ func (m *Model) cmdConnect(arg string) tea.Cmd {
 		m.appendLog("… 上一个操作尚未结束，内容已保留")
 		return nil
 	}
+	if contactcard.IsInput(arg) {
+		return m.cmdConnectCard(arg)
+	}
 	name, pid, addrs, err := m.resolve(arg)
 	if err != nil {
-		m.appendLog("! %s", err.Error())
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	if name == "" {
@@ -926,6 +815,67 @@ func (m *Model) cmdConnect(arg string) tea.Cmd {
 		return connectResultMsg{res: res, name: name, peerID: pid, err: err, elapsed: time.Since(start)}
 	}
 	return tea.Batch(spinCmd, work)
+}
+
+func (m *Model) cmdConnectCard(code string) tea.Cmd {
+	client, ok := m.client.(interface {
+		ConnectContactCard(context.Context, string, bool) (*apiv1.ConnectResponse, error)
+	})
+	if !ok {
+		m.appendLog("! 当前终端不支持分享码")
+		return nil
+	}
+	m.busy = true
+	spin := m.startActivity("正在通过名片连接…")
+	return tea.Batch(spin, func() tea.Msg {
+		start := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), 65*time.Second)
+		defer cancel()
+		res, err := client.ConnectContactCard(ctx, code, true)
+		return connectResultMsg{res: res, name: "名片联系人", peerID: res.GetPeerId(), err: err, elapsed: time.Since(start)}
+	})
+}
+
+func (m *Model) cmdShare(args []string) tea.Cmd {
+	if m.busy {
+		m.appendLog("… 上一个操作尚未结束")
+		return nil
+	}
+	client, ok := m.client.(interface {
+		ContactCardForScopes(context.Context, string, uint32) (*apiv1.GetContactCardResponse, error)
+	})
+	if !ok {
+		m.appendLog("! 当前终端不支持名片")
+		return nil
+	}
+	var pid string
+	include := len(args) > 0 && args[len(args)-1] == "--include-addresses"
+	if include {
+		args = args[:len(args)-1]
+	}
+	if len(args) > 1 {
+		m.appendLog("! 用法：/share [联系人] [--include-addresses]")
+		return nil
+	}
+	if len(args) == 1 {
+		var err error
+		_, pid, _, err = m.resolve(args[0])
+		if err != nil {
+			m.appendLog("! %s", errText(err))
+			return nil
+		}
+	}
+	m.busy = true
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var scopes contactcard.AddressScopes
+		if include {
+			scopes = contactcard.AllScopes
+		}
+		card, err := client.ContactCardForScopes(ctx, pid, uint32(scopes))
+		return shareCardMsg{card: card, err: err}
+	}
 }
 
 func (m *Model) sendPlain(text string) tea.Cmd {
@@ -1019,7 +969,7 @@ func explainZH(n *apiv1.NetworkStatus, peers []*apiv1.PeerEntry) []string {
 		out = append(out, "双 NAT 下 TCP 直连 BLOCKED；当前经中继回退，不能写成 direct。")
 	}
 	if n.GetDht().GetEnabled() && n.GetDht().GetLastError() != "" {
-		out = append(out, "DHT："+textsafe.Sanitize(n.GetDht().GetLastError()))
+		out = append(out, "DHT："+redactNetworkAddresses(n.GetDht().GetLastError()))
 	}
 	if n.GetDht().GetEnabled() && len(n.GetDht().GetRoutingTablePeers()) == 0 {
 		out = append(out, "DHT 路由表为空；bootstrap/发现可能尚未完成。")

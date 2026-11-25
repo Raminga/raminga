@@ -78,6 +78,14 @@ func (a *APIClient) Connect(ctx context.Context, peerID, multiaddr string) (*api
 	return a.c.Connect(ctx, peerID, multiaddr)
 }
 
+func (a *APIClient) ConnectContactCard(ctx context.Context, code string, summaryOnly bool) (*apiv1.ConnectResponse, error) {
+	return a.c.ConnectContactCard(ctx, code, summaryOnly)
+}
+
+func (a *APIClient) ContactCardForScopes(ctx context.Context, peerID string, addressScopes uint32) (*apiv1.GetContactCardResponse, error) {
+	return a.c.ContactCardForScopes(ctx, peerID, addressScopes)
+}
+
 func (a *APIClient) DisconnectPeer(ctx context.Context, peerID string) (*apiv1.DisconnectPeerResponse, error) {
 	return a.c.DisconnectPeer(ctx, peerID)
 }

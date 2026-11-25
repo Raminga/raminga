@@ -74,7 +74,7 @@ query_timeout = "20s"
 - 发行预置当前启用项目方于 2026-11-21 确认的 Raminga 引导节点：`/ip4/134.175.57.57/tcp/4001/p2p/12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr`。同日的隔离本地 DSH 验收成功写入该预置，DSH Web 显示「已保存」且当前已连接，libp2p 连接为直连、非 limited；但该节点的 Identify 未公布 `/raminga/kad/1.0.0`，DHT `routing_table` 保持为空，`last_publish_error` 也明确为空路由表。因此地址按项目方确认保留，但 DHT 路由**未通过**，不能用 TCP/libp2p 握手代替 DHT 证据，也不能把该节点描述成已核验的 DHT server。不会填入示例、文档 IP 或测试 Peer ID。
 - `config.toml` 的 `bootstrap_peers` 与 `init --bootstrap` 只是**首次初始化输入**。daemon 读取 SQLite 一次性导入标记后，第一次打开数据目录时把列表导入普通 Peer 记录的引导角色并写标记（空列表也写）；之后 TOML 不重写、也不再作为运行时来源。已有 `config.toml` 和已有数据库在升级或重启时都不会吸收新的发行预置；显式清空后也不会补回。标记已存在时，即使旧 TOML 里的地址字符串已经非法，也只作为休眠遗留字段忽略，不阻止 daemon 启动。
 - 配置文件完全丢失但数据库仍在时属于**恢复**而不是首次初始化：daemon 先确认已有数据库和导入标记，再决定是否解析预置；已有数据库或标记时写入明确的空预置，不重新吸收 sidecar。
-- 运行时列表由本机认证 API 管理；DSH Web「节点状态 → 引导节点」可以添加、移除和刷新。保存后立即更新 DHT 引导候选；新增地址会尝试实际引导拨号，但保存成功不代表在线。旧 daemon 只读回退并提示升级。
+- 运行时列表由本机认证 API 管理。DSH「节点状态 → 引导节点」显示 Raminga ID 和连接状态，支持粘贴含连接地址的名片短码。每行的「⋯」提供分享和移除。分享时打开「附带连接地址」，对方即可用短码添加该引导节点。保存会更新 DHT 引导候选，并在后台尝试拨号。旧 daemon 提示升级。CLI 的 `raminga dht status` 保留地址诊断。
 - 移除只删除引导角色，不删除 Peer 地址、联系人历史、其他角色或主动断开记录。显式断开持久暂停；DHT 刷新和 daemon 重启都不会偷偷回拨，只有再次显式连接/聊天才恢复。
 - `bootstrap_preset` 是首次初始化/显式 `init` 的记录，不是运行时的第二地址来源；`raminga dht status` 的 `bootstrap` 来自当前已保存角色。
 

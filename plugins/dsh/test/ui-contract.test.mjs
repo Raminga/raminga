@@ -64,7 +64,7 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.equal(TYPERT.package, '@raminga/dsh');
   assert.equal(TYPERT.face, 'host');
   assert.deepEqual(UI_INVOCATIONS.map((entry) => entry.method), [
-    'open', 'poll', 'refresh', 'close', 'contacts', 'setFriendName', 'setFriendDescription', 'connect', 'checkContact', 'share',
+    'open', 'poll', 'refresh', 'close', 'contacts', 'setFriendName', 'setFriendDescription', 'connect', 'checkContact', 'share', 'contactCard', 'previewContactCard',
     'conversations', 'messages', 'markRead', 'favorites', 'setFavorite', 'peerDiscoveries', 'contactMemory', 'saveContactImpression',
     'send', 'cancelOutbox', 'discoveries', 'refreshDiscoveries', 'discoveryContent',
     'humanOutbound', 'mine', 'mineFilePreview', 'peerProfile', 'peerFriends', 'contactProjection', 'peerManifest', 'peerFilePreview', 'peerPostMeta', 'peerNodeInfo',
@@ -86,6 +86,8 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.deepEqual(byMethod.connect.parameters.map((item) => item.name), ['sessionId', 'input']);
   assert.deepEqual(byMethod.checkContact.parameters.map((item) => item.name), ['sessionId', 'peerId']);
   assert.equal(byMethod.share.parameters.length, 1);
+  assert.deepEqual(byMethod.contactCard.parameters.map((item) => item.name), ['sessionId', 'peerId', 'includeAddresses']);
+  assert.deepEqual(byMethod.previewContactCard.parameters.map((item) => item.name), ['sessionId', 'input']);
   assert.deepEqual(byMethod.conversations.parameters.map((item) => item.name), ['sessionId', 'force']);
   assert.deepEqual(byMethod.messages.parameters.map((item) => item.name), ['sessionId', 'peerId', 'before', 'force']);
   assert.deepEqual(byMethod.send.parameters.map((item) => item.name), ['sessionId', 'peerId', 'text', 'requestId']);
@@ -106,7 +108,7 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.deepEqual(byMethod.revealDiscovery.parameters.map((item) => item.name), ['sessionId', 'id']);
   assert.deepEqual(byMethod.revealFile.parameters.map((item) => item.name), ['sessionId', 'subject', 'peerId', 'path', 'sha256', 'size']);
   assert.deepEqual(byMethod.bootstrap.parameters.map((item) => item.name), ['sessionId']);
-  assert.deepEqual(byMethod.addBootstrap.parameters.map((item) => item.name), ['sessionId', 'multiaddr']);
+  assert.deepEqual(byMethod.addBootstrap.parameters.map((item) => item.name), ['sessionId', 'shareCode']);
   assert.deepEqual(byMethod.removeBootstrap.parameters.map((item) => item.name), ['sessionId', 'peerId']);
   assert.deepEqual(byMethod.journey.parameters.map((item) => item.name), ['sessionId', 'force']);
   assert.deepEqual(byMethod.activity.parameters.map((item) => item.name), ['sessionId', 'limit']);

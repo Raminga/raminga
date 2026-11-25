@@ -34,6 +34,7 @@ function codec(typeSymbol: string): PassthroughCodec {
 
 const sessionIdCodec = codec('@raminga/dsh#SessionId');
 const booleanCodec = codec('@raminga/dsh#UiBoolean');
+const addressSelectionCodec = codec('@raminga/dsh#UiAddressSelection');
 const connectInputCodec = codec('@raminga/dsh#UiConnectInput');
 const peerIdCodec = codec('@raminga/dsh#PeerId');
 const beforeCodec = codec('@raminga/dsh#UiBeforeCursor');
@@ -59,7 +60,7 @@ const filenameCodec = codec('@raminga/dsh#UiFileName');
 const imageDataCodec = codec('@raminga/dsh#UiImageBase64');
 const revisionCodec = codec('@raminga/dsh#UiDraftRevision');
 const publishedShaCodec = codec('@raminga/dsh#UiPublishedSha256');
-const bootstrapMultiaddrCodec = codec('@raminga/dsh#UiBootstrapMultiaddr');
+const bootstrapShareCodeCodec = codec('@raminga/dsh#UiBootstrapShareCode');
 const titleCodec = codec('@raminga/dsh#UiFavoriteTitle');
 const contactInputCodec = codec('@raminga/dsh#UiContactImpressionSave');
 const journeyIdCodec = codec('@raminga/dsh#UiJourneyId');
@@ -77,13 +78,14 @@ export interface UiInvocationDescriptor {
   result: PassthroughCodec;
 }
 
-type ParamKind = 'session' | 'boolean' | 'familiar' | 'bootstrapMultiaddr' | 'connectInput' | 'peerId' | 'before' | 'text' | 'friendName' | 'friendDescription' | 'requestId' | 'messageId' | 'contentId' | 'subject' | 'filePath' | 'sha256' | 'size' | 'privateField' | 'privateContent' | 'expectedSha' | 'draftId' | 'draftKind' | 'draftInput' | 'draftRole' | 'filename' | 'imageData' | 'assetId' | 'revision' | 'publishedSha' | 'title' | 'favorite' | 'contactInput' | 'journeyId' | 'operationId' | 'limit';
+type ParamKind = 'session' | 'boolean' | 'includeAddresses' | 'familiar' | 'bootstrapShareCode' | 'connectInput' | 'peerId' | 'before' | 'text' | 'friendName' | 'friendDescription' | 'requestId' | 'messageId' | 'contentId' | 'subject' | 'filePath' | 'sha256' | 'size' | 'privateField' | 'privateContent' | 'expectedSha' | 'draftId' | 'draftKind' | 'draftInput' | 'draftRole' | 'filename' | 'imageData' | 'assetId' | 'revision' | 'publishedSha' | 'title' | 'favorite' | 'contactInput' | 'journeyId' | 'operationId' | 'limit';
 
 const PARAMS: Record<ParamKind, { name: string; wire: string; codec: PassthroughCodec }> = {
   session: { name: 'sessionId', wire: 'sessionId', codec: sessionIdCodec },
   boolean: { name: 'force', wire: 'force', codec: booleanCodec },
+  includeAddresses: { name: 'includeAddresses', wire: 'includeAddresses', codec: addressSelectionCodec },
   familiar: { name: 'familiar', wire: 'familiar', codec: booleanCodec },
-  bootstrapMultiaddr: { name: 'multiaddr', wire: 'multiaddr', codec: bootstrapMultiaddrCodec },
+  bootstrapShareCode: { name: 'shareCode', wire: 'shareCode', codec: bootstrapShareCodeCodec },
   connectInput: { name: 'input', wire: 'input', codec: connectInputCodec },
   peerId: { name: 'peerId', wire: 'peerId', codec: peerIdCodec },
   before: { name: 'before', wire: 'before', codec: beforeCodec },
@@ -140,6 +142,8 @@ export const UI_INVOCATIONS: UiInvocationDescriptor[] = [
   invocation('connect', ['session', 'connectInput'], 'UiConnectResult'),
   invocation('checkContact', ['session', 'peerId'], 'UiContactCheck'),
   invocation('share', ['session'], 'UiShareInfo'),
+  invocation('contactCard', ['session', 'peerId', 'includeAddresses'], 'UiContactCard'),
+  invocation('previewContactCard', ['session', 'connectInput'], 'UiContactCardPreview'),
   invocation('conversations', ['session', 'boolean'], 'UiConversations'),
   invocation('messages', ['session', 'peerId', 'before', 'boolean'], 'UiMessagePage'),
   invocation('markRead', ['session', 'peerId', 'messageId'], 'UiMarkRead'),
@@ -166,7 +170,7 @@ export const UI_INVOCATIONS: UiInvocationDescriptor[] = [
   invocation('revealDiscovery', ['session', 'contentId'], 'UiRevealResult'),
   invocation('revealFile', ['session', 'subject', 'peerId', 'filePath', 'sha256', 'size'], 'UiRevealResult'),
   invocation('bootstrap', ['session'], 'UiBootstrapInfo'),
-  invocation('addBootstrap', ['session', 'bootstrapMultiaddr'], 'UiBootstrapEdit'),
+  invocation('addBootstrap', ['session', 'bootstrapShareCode'], 'UiBootstrapEdit'),
   invocation('removeBootstrap', ['session', 'peerId'], 'UiBootstrapEdit'),
   invocation('journey', ['session', 'boolean'], 'UiJourney'),
   invocation('journeyReport', ['session', 'journeyId'], 'UiJourneyReport'),
@@ -208,6 +212,8 @@ export const TYPERT = {
           { kind: 'method', name: 'connect', signature: 'connect(sessionId: string, input: string): Promise<UiConnectResult>', summary: 'Validate and dial one Peer ID or full multiaddr, then verify contacts and Status separately.' },
           { kind: 'method', name: 'checkContact', signature: 'checkContact(sessionId: string, peerId: string): Promise<UiContactCheck>', summary: 'Re-read ListFriends/Status without dialing again.' },
           { kind: 'method', name: 'share', signature: 'share(sessionId: string): Promise<UiShareInfo>', summary: 'Return the full local Peer ID and shareable advertised/relay addresses.' },
+          { kind: 'method', name: 'contactCard', signature: 'contactCard(sessionId: string, peerId: string, addressSelection: number | boolean): Promise<UiContactCard>', summary: 'Generate a local contact card.' },
+          { kind: 'method', name: 'previewContactCard', signature: 'previewContactCard(sessionId: string, input: string): Promise<UiContactCardPreview>', summary: 'Verify and preview an identity without dialing.' },
           { kind: 'method', name: 'conversations', signature: 'conversations(sessionId: string, force?: boolean): Promise<UiConversations>', summary: 'Read Peer-grouped conversation summaries from retained message rows.' },
           { kind: 'method', name: 'messages', signature: 'messages(sessionId: string, peerId: string, before?: string, force?: boolean): Promise<UiMessagePage>', summary: 'Read one Peer retained message page with a stable older cursor.' },
           { kind: 'method', name: 'markRead', signature: 'markRead(sessionId: string, peerId: string, throughMessageId: string): Promise<UiMarkRead>', summary: 'Advance the human read cursor through one retained message; reads never write it.' },

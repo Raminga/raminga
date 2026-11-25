@@ -302,11 +302,17 @@ func (s *Server) ListBootstrapPeers(ctx context.Context, _ *connect.Request[apiv
 // AddBootstrapPeer implements the local authenticated setting write. A saved
 // role is not a contact, does not publish, and does not imply connectivity.
 func (s *Server) AddBootstrapPeer(ctx context.Context, req *connect.Request[apiv1.AddBootstrapPeerRequest]) (*connect.Response[apiv1.AddBootstrapPeerResponse], error) {
-	raw := req.Msg.GetMultiaddr()
+	raw, save := req.Msg.GetMultiaddr(), s.backend.AddBootstrapPeer
+	if code := strings.TrimSpace(req.Msg.GetShareCode()); code != "" {
+		if strings.TrimSpace(raw) != "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("share_code is exclusive with multiaddr"))
+		}
+		raw, save = code, s.backend.AddBootstrapCard
+	}
 	if strings.TrimSpace(raw) == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("multiaddr is required"))
 	}
-	peer, added, err := s.backend.AddBootstrapPeer(ctx, raw)
+	peer, added, err := save(ctx, raw)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}

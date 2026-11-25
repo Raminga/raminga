@@ -327,6 +327,8 @@ export function createRamingaApp(root, options = {}) {
     const friendNameEditCapable = typeof options.onSetFriendName === "function";
     const friendDescriptionEditCapable = typeof options.onSetFriendDescription === "function";
     const friendEditCapable = friendNameEditCapable || friendDescriptionEditCapable;
+    const contactCardCapable = typeof options.onContactCard === "function";
+    const contactPreviewCapable = typeof options.onPreviewContactCard === "function";
     const connectCapable = typeof options.onConnect === "function";
     const contactConnectState = /* @__PURE__ */ new Map();
     const emptyDiscoveries = (familiar = false) => ({
@@ -609,12 +611,15 @@ export function createRamingaApp(root, options = {}) {
     let composerNotice = null;
     let composerDetailText = "";
     let addAttempt = 0;
+    let addPreviewInput = "";
     let checkAttempt = 0;
     let addContactPeerId = "";
     let addContactPending = false;
     let checkPending = false;
     let shareAttempt = 0;
     let currentShare = null;
+    let sharePeer = "";
+    let shareBootstrap = false;
     let editAttempt = 0;
     let editTargetPeerId = "";
     let editOriginal = { name: "", description: "" };
@@ -710,6 +715,9 @@ export function createRamingaApp(root, options = {}) {
     const sendRestore = $("#sendRestore");
     const addContactForm = $("#addContactForm");
     const addContactInput = $("#addContactInput");
+    const addContactEntry = $("#addContactEntry");
+    const addContactPreview = $("#addContactPreview");
+    const addContactEditInput = $("#addContactEditInput");
     const addContactSubmit = $("#addContactSubmit");
     const addContactView = $("#addContactView");
     const addContactCheck = $("#addContactCheck");
@@ -723,6 +731,12 @@ export function createRamingaApp(root, options = {}) {
     const shareLoading = $("#shareLoading");
     const shareContent = $("#shareContent");
     const sharePeerId = $("#sharePeerId");
+    const shareSubject = $("#shareSubject");
+    const shareAddressChoice = $("#shareAddressChoice");
+    const shareAddressOptions = Array.from(shareAddressChoice.querySelectorAll("input"));
+    const shareAddressHelp = $("#shareAddressHelp");
+    const shareAddressHelpCard = $("#shareAddressHelpCard");
+    const shareAddressSummary = $("#shareAddressSummary");
     const shareAddresses = $("#shareAddresses");
     const shareAddressNote = $("#shareAddressNote");
     const shareStaleNote = $("#shareStaleNote");
@@ -1007,6 +1021,7 @@ export function createRamingaApp(root, options = {}) {
     const editContactFeedbackBody = $("#editContactFeedbackBody");
     const editContactSave = $("#editContactSave");
     const profileEditContact = $("#profileEditContact");
+    const profileShareContact = $("#profileShareContact");
     const profileAddContact = $("#profileAddContact");
     const agentCardSource = $("#agentCardSource");
     const agentCardBody = $("#agentCardBody");
@@ -1019,7 +1034,6 @@ export function createRamingaApp(root, options = {}) {
     const statusBootstrapFeedback = $("#statusBootstrapFeedback");
     const statusBootstrapUpgrade = $("#statusBootstrapUpgrade");
     const statusBootstrapUnavailable = $("#statusBootstrapUnavailable");
-    const statusBootstrapCopy = $("#statusBootstrapCopy");
     const statusBootstrapRefresh = $("#statusBootstrapRefresh");
     const statusShareNode = $("#statusShareNode");
     const statusTech = $("#statusTech");
@@ -2769,6 +2783,7 @@ export function createRamingaApp(root, options = {}) {
       profileMessage.hidden = true;
       profileAddContact.hidden = true;
       profileEditContact.hidden = true;
+      profileShareContact.hidden = true;
       saveNow();
     }
     function returnToFavoritesFromSource() {
@@ -3615,9 +3630,9 @@ export function createRamingaApp(root, options = {}) {
       menu.dataset.quickPeer = peerId2;
       menu.dataset.quickRef = `contacts-menu:${peerId2}`;
       menu.textContent = "⋯";
-      menu.hidden = !friendEditCapable;
+      menu.hidden = !friendEditCapable && !contactCardCapable;
       menu.setAttribute("aria-label", `更多操作：${displayName}`);
-      menu.setAttribute("aria-haspopup", friendEditCapable ? "menu" : "false");
+      menu.setAttribute("aria-haspopup", friendEditCapable || contactCardCapable ? "menu" : "false");
       menu.setAttribute("aria-controls", "contactQuickMenu");
       menu.setAttribute("aria-expanded", String(!contactQuickMenu.hidden && quickMenuPeerId === peerId2));
       const connect2 = actionRow.querySelector(":scope > button[data-connect-peer]") ?? element("button", "rm-contact-connect");
@@ -3927,7 +3942,7 @@ export function createRamingaApp(root, options = {}) {
       items[next].focus({ preventScroll: true });
     }
     function openContactQuickMenu(trigger, peerId2) {
-      if (!friendEditCapable || !trigger || !peerId2) return;
+      if ((!friendEditCapable && !contactCardCapable) || !trigger || !peerId2) return;
       if (!contactFor(peerId2)) return;
       if (!contactQuickMenu.hidden && quickMenuTrigger === trigger) {
         closeContactQuickMenu();
@@ -3949,7 +3964,15 @@ export function createRamingaApp(root, options = {}) {
       const note = element("p", "rm-quick-menu-note");
       note.setAttribute("role", "none");
       note.textContent = "只保存到本机并更新公开的 friends.json，不修改对方档案。";
-      contactQuickMenu.append(edit, note);
+      if (friendEditCapable) contactQuickMenu.append(edit, note);
+      if (contactCardCapable) {
+        const share = element("button");
+        share.type = "button";
+        share.setAttribute("role", "menuitem");
+        share.textContent = "分享此联系人";
+        share.onclick = () => openShareDialog(trigger, peerId2);
+        contactQuickMenu.append(share);
+      }
       contactQuickMenu.hidden = false;
       const rect = trigger.getBoundingClientRect();
       const origin = root.host?.getBoundingClientRect?.() ?? { left: 0, top: 0, width: 0, height: 0 };
@@ -3965,7 +3988,7 @@ export function createRamingaApp(root, options = {}) {
       if (top < 8) top = 8;
       contactQuickMenu.style.left = `${Math.round(left)}px`;
       contactQuickMenu.style.top = `${Math.round(top)}px`;
-      edit.focus({ preventScroll: true });
+      focusQuickMenuItem(0);
     }
     contactQuickMenu.addEventListener("keydown", (event) => {
       const items = quickMenuItems();
@@ -5981,6 +6004,7 @@ export function createRamingaApp(root, options = {}) {
       checkAttempt += 1;
       addContactPeerId = "";
       addContactPending = false;
+      addPreviewInput = "";
       checkPending = false;
       if (!keepInput) addContactInput.value = "";
       addContactInput.disabled = false;
@@ -5989,10 +6013,48 @@ export function createRamingaApp(root, options = {}) {
       addContactSubmit.disabled = false;
       addContactSubmit.removeAttribute("aria-disabled");
       addContactSubmit.textContent = "连接";
+      if (contactPreviewCapable) addContactSubmit.textContent = "预览联系人";
+      addContactEntry.hidden = false;
+      addContactPreview.hidden = true;
+      addContactEditInput.hidden = true;
       addContactCheck.disabled = false;
       addContactCheck.removeAttribute("aria-disabled");
       addContactView.hidden = true;
       hideAddFeedback();
+    }
+    async function previewAddedContact(value) {
+      const attempt = ++addAttempt;
+      setAddContactBusy(true);
+      addContactSubmit.textContent = "正在预览…";
+      hideAddFeedback();
+      let result;
+      try {
+        result = await options.onPreviewContactCard(value);
+      } catch {
+        result = { ok: false };
+      }
+      if (destroyed || attempt !== addAttempt || !addContactDialog.open) return;
+      setAddContactBusy(false);
+      if (!result?.ok || !result.peerId) {
+        addContactSubmit.textContent = "预览联系人";
+        showAddFeedback({ tone: "invalid", title: "无法预览联系人", body: result?.error || "请检查输入或稍后重试。" });
+        addContactInput.focus({ preventScroll: true });
+        return;
+      }
+      addPreviewInput = value;
+      const friend = contactFor(result.peerId);
+      $("#addContactPreviewName").textContent = friend ? contactRowName(friend) : result.name || "Raminga 联系人";
+      $("#addContactPreviewId").textContent = result.peerId;
+      addContactPreview.hidden = false;
+      addContactEntry.hidden = true;
+      addContactEditInput.hidden = false;
+      addContactSubmit.textContent = "连接";
+      showAddFeedback({
+        tone: "info",
+        title: result.hasAddresses ? "名片包含连接地址" : "身份预览",
+        body: "选择「连接」后，Raminga 会尝试联系对方并核对 ID。",
+      });
+      addContactSubmit.focus({ preventScroll: true });
     }
     function openAddDialog(trigger) {
       resetAddContact();
@@ -6006,8 +6068,8 @@ export function createRamingaApp(root, options = {}) {
       if (value.length === 0) {
         showAddFeedback({
           tone: "invalid",
-          title: "请输入 Peer ID 或完整节点地址",
-          body: "请先填写 Peer ID 或完整节点地址。"
+          title: contactPreviewCapable ? "请输入 Raminga ID 或分享码" : "请输入 Peer ID 或完整节点地址",
+          body: contactPreviewCapable ? "请把收到的名片信息粘贴到输入框。" : "请先填写 Peer ID 或完整节点地址。"
         });
         addContactInput.focus();
         return;
@@ -6020,6 +6082,11 @@ export function createRamingaApp(root, options = {}) {
         });
         return;
       }
+      const cardFlow = contactPreviewCapable && !value.startsWith("/");
+      if (cardFlow && addPreviewInput !== value) {
+        await previewAddedContact(value);
+        return;
+      }
       const attempt = ++addAttempt;
       addContactPeerId = "";
       setAddContactBusy(true);
@@ -6029,7 +6096,8 @@ export function createRamingaApp(root, options = {}) {
       addContactFeedback.hidden = false;
       addContactFeedback.dataset.tone = "info";
       addContactFeedbackTitle.textContent = "正在连接…";
-      addContactFeedbackBody.textContent = "正在等待节点返回结果。这可能需要一些时间。";
+      addContactFeedbackBody.textContent = cardFlow ? "正在尝试连接，必要时会通过 DHT 重新发现。" : "正在等待节点返回结果。这可能需要一些时间。";
+      addContactEditInput.hidden = true;
       addContactFeedbackContact.hidden = true;
       addContactFeedbackStatus.hidden = true;
       addContactFeedbackDetail.hidden = true;
@@ -6044,6 +6112,17 @@ export function createRamingaApp(root, options = {}) {
       // instead of relying on a later poll before "查看联系人" can find the row.
       if (result?.contacts) setContacts(result.contacts);
       const view2 = connectOutcome(result);
+      if (cardFlow) {
+        view2.detail = "";
+        if (result?.ok !== true) {
+          view2.title = "暂时无法连接此节点";
+          view2.body = "目前没有找到可达的连接。可以保留名片，稍后重试。";
+        } else if (result.source === "dht") {
+          view2.body = "已通过 DHT 发现可达地址，并使用同一 Raminga ID 建立连接。";
+        } else if (result.source === "share_code" && result.direct) {
+          view2.body = "已使用名片中的地址直连，并验证对方的 Raminga ID。";
+        }
+      }
       setAddContactBusy(false);
       if (result?.ok === true) {
         addContactPeerId = String(result.peerId ?? "");
@@ -6054,6 +6133,7 @@ export function createRamingaApp(root, options = {}) {
         addContactInput.disabled = false;
         addContactInput.readOnly = false;
         addContactSubmit.textContent = view2.showRetry ? "重试连接" : "连接";
+        addContactEditInput.hidden = !cardFlow;
       }
       showAddFeedback(view2);
       restoreAddContactFocus(view2);
@@ -6116,17 +6196,34 @@ export function createRamingaApp(root, options = {}) {
       shareCopyStatus.dataset.tone = "";
       shareCopy.disabled = true;
       shareRetry.hidden = true;
+      shareAddressHelp.setAttribute("aria-expanded", "false");
+      shareAddressHelpCard.hidden = true;
     }
-    function openShareDialog(trigger) {
+    function openShareDialog(trigger, peerId = "", { bootstrap = false } = {}) {
+      sharePeer = peerId;
+      shareBootstrap = bootstrap;
       resetShareDialog();
+      if (contactCardCapable) {
+        $("#shareHeading").textContent = bootstrap ? "分享此引导节点" : peerId ? "分享此联系人" : "分享我的名片";
+        $("#shareIdLabel").textContent = "Raminga ID";
+        $("#shareIdentity").classList.add("rm-card-identity");
+        shareAddresses.hidden = true;
+        shareSubject.hidden = false;
+        shareAddressChoice.hidden = true;
+        for (const input of shareAddressOptions) {
+          input.checked = true;
+          input.disabled = false;
+        }
+        shareCopy.textContent = "复制名片";
+      }
       openDialog(shareDialog, trigger);
       void loadShare();
     }
-    async function loadShare() {
+    async function loadShare(keepVisible = false) {
       const attempt = ++shareAttempt;
       currentShare = null;
-      shareLoading.hidden = false;
-      shareContent.hidden = true;
+      shareLoading.hidden = keepVisible;
+      if (!keepVisible) shareContent.hidden = true;
       shareFailure.hidden = true;
       shareFailureDetail.hidden = true;
       shareManual.hidden = true;
@@ -6136,7 +6233,9 @@ export function createRamingaApp(root, options = {}) {
       shareRetry.hidden = true;
       let result;
       try {
-        result = typeof options.onShare === "function" ? await options.onShare() : { ok: false, error: "分享信息暂时不可用。" };
+        const scopes = shareAddressOptions.reduce((value, input) => value | (input.checked ? Number(input.value) : 0), 0);
+        result = contactCardCapable ? await options.onContactCard(sharePeer, scopes) :
+          typeof options.onShare === "function" ? await options.onShare() : { ok: false, error: "分享信息暂时不可用。" };
       } catch (error) {
         result = { ok: false, error: errorText(error) };
       }
@@ -6146,9 +6245,9 @@ export function createRamingaApp(root, options = {}) {
         shareContent.hidden = true;
         shareFailure.hidden = false;
         shareFailure.dataset.tone = "error";
-        shareFailureBody.textContent = "这次没有读到本机节点信息，请稍后重试。";
+        shareFailureBody.textContent = contactCardCapable ? "这次没有生成名片，请稍后重试。" : "这次没有读到本机节点信息，请稍后重试。";
         shareFailureRaw.textContent = String(result?.error || "节点没有返回可读的错误。");
-        shareFailureDetail.hidden = false;
+        shareFailureDetail.hidden = contactCardCapable;
         shareRetry.hidden = false;
         shareCopy.disabled = true;
         return;
@@ -6158,6 +6257,21 @@ export function createRamingaApp(root, options = {}) {
       shareContent.hidden = false;
       sharePeerId.textContent = String(result.peerId || "");
       shareAddresses.replaceChildren();
+      if (contactCardCapable) {
+        const friend = contactFor(sharePeer);
+        shareSubject.textContent = friend ? contactRowName(friend) : shareBootstrap ? "引导节点" : sharePeer ? "联系人" : "我的节点";
+        shareAddressChoice.hidden = false;
+        for (const input of shareAddressOptions) {
+          const bit = Number(input.value);
+          input.disabled = (result.availableAddressScopes & bit) === 0;
+          input.checked = (result.includedAddressScopes & bit) !== 0;
+          input.parentElement.title = input.disabled ? "暂无该类地址" : "";
+        }
+        shareAddressSummary.textContent = result.hasAddresses ? "" : "仅分享 ID";
+        shareAddressNote.hidden = true;
+        shareCopy.disabled = !result.shareCode;
+        return;
+      }
       const addresses = Array.isArray(result.addresses) ? result.addresses : [];
       for (const address of addresses) {
         const item = element("div", "rm-share-address");
@@ -6192,17 +6306,20 @@ export function createRamingaApp(root, options = {}) {
       shareCopy.disabled = String(result.peerId || "").length === 0;
     }
     async function copyShareInfo() {
-      const text4 = buildShareText(currentShare);
+      const card = currentShare;
+      const text4 = contactCardCapable ? String(card?.shareCode || "") : buildShareText(card);
       if (text4.length === 0) return;
       shareCopy.disabled = true;
       try {
         if (typeof options.onCopyText !== "function") throw new Error("复制能力不可用");
         const copied = await options.onCopyText(text4);
         if (copied === false) throw new Error("复制能力不可用");
+        if (currentShare !== card || !shareDialog.open) return;
         shareCopyStatus.textContent = "已复制。粘贴给对方即可。";
         shareCopyStatus.dataset.tone = "";
         shareManual.hidden = true;
       } catch {
+        if (currentShare !== card || !shareDialog.open) return;
         shareCopyStatus.textContent = "复制失败，请手动选择下面的内容。";
         shareCopyStatus.dataset.tone = "error";
         shareManual.value = text4;
@@ -6210,7 +6327,9 @@ export function createRamingaApp(root, options = {}) {
         shareManual.focus({ preventScroll: true });
         shareManual.select();
       } finally {
-        shareCopy.disabled = !currentShare || String(currentShare.peerId || "").length === 0;
+        if (currentShare === card) {
+          shareCopy.disabled = !currentShare || String(currentShare.peerId || "").length === 0;
+        }
       }
     }
     function setContactFilter(filter) {
@@ -6357,12 +6476,10 @@ export function createRamingaApp(root, options = {}) {
     function bootstrapEntries() {
       const entries = Array.isArray(bootstrapState.data?.entries) ? bootstrapState.data.entries : [];
       if (entries.length > 0) return entries;
-      // Older hosts expose only flat DhtStatus strings. Keep that view
-      // readable without inventing saved/online state.
-      return (Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : []).map((value) => {
-        const match = /\/p2p\/([^/]+)$/.exec(String(value));
-        return { peerId: match ? match[1] : "", addrs: [String(value)], online: false, paused: false, savedAt: null };
-      });
+      // Older hosts return flat multiaddrs. Extract only the saved identities.
+      const peers = Array.isArray(bootstrapState.data?.peers) ? bootstrapState.data.peers : [];
+      const ids = new Set(peers.map((value) => /\/p2p\/([^/]+)$/.exec(String(value))?.[1]).filter(Boolean));
+      return [...ids].map((peerId) => ({ peerId, hasAddresses: true, online: false, paused: false }));
     }
     function bootstrapFeedback(text, tone = "") {
       bootstrapState.feedback = text;
@@ -6378,7 +6495,6 @@ export function createRamingaApp(root, options = {}) {
       statusBootstrapAdd.disabled = bootstrapState.busy;
       statusBootstrapInput.disabled = bootstrapState.busy;
       statusBootstrapRefresh.disabled = bootstrapState.busy;
-      statusBootstrapCopy.disabled = bootstrapState.busy || bootstrapEntries().every((entry) => entry.addrs.length === 0);
       statusBootstrap.dataset.busy = bootstrapState.busy ? "true" : "false";
       statusBootstrapUpgrade.hidden = data?.requiresUpgrade !== true;
       statusBootstrapUnavailable.hidden = bootstrapCapable;
@@ -6413,7 +6529,7 @@ export function createRamingaApp(root, options = {}) {
     function bootstrapPeerLabel(entry) {
       if (entry.online) return "已连接";
       if (entry.paused) return "已暂停（主动断开）";
-      if (entry.addrs.length === 0) return "已保存 · 暂缺地址";
+      if (!(entry.hasAddresses ?? (entry.addrs?.length > 0))) return "已保存 · 暂缺地址";
       return "已保存 · 暂未连通";
     }
     function renderBootstrap() {
@@ -6422,7 +6538,6 @@ export function createRamingaApp(root, options = {}) {
         statusBootstrapNote.dataset.tone = "unavailable";
         statusBootstrapList.replaceChildren();
         statusBootstrapFeedback.hidden = true;
-        statusBootstrapCopy.disabled = true;
         statusBootstrapRefresh.hidden = true;
         statusBootstrapRefresh.disabled = true;
         statusBootstrapEdit.hidden = true;
@@ -6437,30 +6552,38 @@ export function createRamingaApp(root, options = {}) {
         const item = element("li", "rm-address-item rm-bootstrap-item");
         item.dataset.bootstrapPeer = entry.peerId;
         const copy = element("div", "rm-bootstrap-copy");
-        if (entry.addrs.length === 0) {
-          const code = element("code");
-          code.textContent = entry.peerId || "（地址不可用）";
-          copy.append(code);
-        } else {
-          for (const addr of entry.addrs) {
-            const code = element("code");
-            code.textContent = addr;
-            copy.append(code);
-          }
-        }
+        const code = element("code");
+        code.textContent = entry.peerId;
+        copy.append(code);
         const meta = element("span", "rm-bootstrap-state");
         meta.dataset.state = entry.online ? "online" : entry.paused ? "paused" : "saved";
         meta.textContent = bootstrapPeerLabel(entry);
         copy.append(meta);
         item.append(copy);
-        if (bootstrapEditCapable && bootstrapState.data?.editable === true) {
-          const remove = element("button", "rm-quiet");
-          remove.type = "button";
-          remove.dataset.bootstrapRemove = entry.peerId;
-          remove.setAttribute("aria-label", `移除引导节点 ${entry.peerId}`);
-          remove.textContent = "移除";
-          remove.disabled = bootstrapState.busy;
-          item.append(remove);
+        if (bootstrapState.data?.editable === true && (contactCardCapable || bootstrapEditCapable)) {
+          const actions = element("details", "rm-bootstrap-actions");
+          const trigger = element("summary", "rm-quick-trigger");
+          trigger.setAttribute("aria-label", `引导节点操作 ${entry.peerId}`);
+          trigger.textContent = "⋯";
+          const menu = element("div", "rm-quick-menu");
+          if (contactCardCapable) {
+            const share = element("button");
+            share.type = "button";
+            share.dataset.bootstrapShare = entry.peerId;
+            share.textContent = "分享此引导节点";
+            menu.append(share);
+          }
+          if (bootstrapEditCapable) {
+            const remove = element("button");
+            remove.type = "button";
+            remove.dataset.bootstrapRemove = entry.peerId;
+            remove.setAttribute("aria-label", `移除引导节点 ${entry.peerId}`);
+            remove.textContent = "移除";
+            remove.disabled = bootstrapState.busy;
+            menu.append(remove);
+          }
+          actions.append(trigger, menu);
+          item.append(actions);
         }
         statusBootstrapList.append(item);
       }
@@ -6471,7 +6594,7 @@ export function createRamingaApp(root, options = {}) {
         statusBootstrapNote.textContent = "尚未读取。展开这项或点击刷新设置。";
         statusBootstrapNote.dataset.tone = "";
       } else if (entries.length === 0) {
-        statusBootstrapNote.textContent = "尚未配置引导节点。保存一个 Raminga 节点地址后，DHT 会把它作为引导候选；保存不等于在线。";
+        statusBootstrapNote.textContent = "尚未配置引导节点。";
         statusBootstrapNote.dataset.tone = "unavailable";
       } else {
         const at = bootstrapState.data.at ? ` · ${formatDateTime(bootstrapState.data.at)} 读取` : "";
@@ -6485,9 +6608,9 @@ export function createRamingaApp(root, options = {}) {
     }
     async function addBootstrapPeer() {
       if (!bootstrapEditCapable || bootstrapState.busy) return;
-      const value = statusBootstrapInput.value;
-      if (value.trim() === "") {
-        bootstrapFeedback("请填写包含 /p2p/<peer-id> 的节点地址。", "error");
+      const value = statusBootstrapInput.value.trim();
+      if (value === "") {
+        bootstrapFeedback("请粘贴含连接地址的名片短码。", "error");
         statusBootstrapInput.focus({ preventScroll: true });
         return;
       }
@@ -6500,7 +6623,7 @@ export function createRamingaApp(root, options = {}) {
         if (destroyed) return;
         statusBootstrapInput.value = "";
         bootstrapFeedback(result?.changed === false
-          ? "该地址已在引导节点列表中，未重复添加。"
+          ? "已保存过这份名片，未重复添加。"
           : "已保存引导节点；是否连通会在列表中单独更新。");
         await loadBootstrap(true);
       } catch (error) {
@@ -12110,6 +12233,8 @@ ${value}` : value);
         });
       };
       profileEditContact.hidden = !(friendEditCapable && localFriend);
+      profileShareContact.hidden = !(contactCardCapable && localFriend);
+      profileShareContact.onclick = contactCardCapable && localFriend ? () => openShareDialog(profileShareContact, peerId2) : null;
       profileEditContact.onclick = friendEditCapable && localFriend ? () => openEditContact(profileState.peerId, profileEditContact) : null;
       profileAddContact.hidden = !(peerProfileCapable && peerId2 && !isSelf && profileContactsKnown() && !localFriend);
       profileAddContact.onclick = peerProfileCapable && peerId2 && !isSelf && profileContactsKnown() && !localFriend ? () => {
@@ -13172,6 +13297,24 @@ ${value}` : value);
       scheduleMarkRead();
     }, { signal: controller.signal });
     addContactForm.addEventListener("submit", submitAddContact, { signal: controller.signal });
+    addContactEditInput.addEventListener("click", () => {
+      resetAddContact({ keepInput: true });
+      addContactInput.focus({ preventScroll: true });
+    }, { signal: controller.signal });
+    if (contactPreviewCapable) {
+      $("#addContactLabel").textContent = "Raminga ID 或分享码";
+      $("#addContactHint").textContent = "粘贴名片后可先核对身份。已有的完整节点地址也可使用。";
+      addContactInput.placeholder = "粘贴 Raminga ID 或名片短码";
+    }
+    if (contactCardCapable) {
+      const homeShare = $("#homeShareContact");
+      homeShare.hidden = false;
+      homeShare.addEventListener("click", (event) => openShareDialog(event.currentTarget), { signal: controller.signal });
+      contactsShare.textContent = "分享我的名片";
+      contactsShareAction.textContent = "分享我的名片";
+      settingsNodeShare.textContent = "分享我的名片";
+      statusShareNode.textContent = "分享我的名片";
+    }
     addContactCheck.addEventListener("click", () => {
       void checkContactAgain();
     }, { signal: controller.signal });
@@ -13190,6 +13333,28 @@ ${value}` : value);
     shareCopy.addEventListener("click", () => {
       void copyShareInfo();
     }, { signal: controller.signal });
+    shareAddressChoice.addEventListener("change", () => {
+      void loadShare(true);
+    }, { signal: controller.signal });
+    shareAddressHelp.addEventListener("click", () => {
+      shareAddressHelpCard.hidden = !shareAddressHelpCard.hidden;
+      shareAddressHelp.setAttribute("aria-expanded", String(!shareAddressHelpCard.hidden));
+    }, { signal: controller.signal });
+    shareDialog.addEventListener("click", (event) => {
+      if (!shareAddressHelpCard.hidden && !shareAddressHelp.contains(event.target) && !shareAddressHelpCard.contains(event.target)) {
+        shareAddressHelpCard.hidden = true;
+        shareAddressHelp.setAttribute("aria-expanded", "false");
+      }
+    }, { signal: controller.signal });
+    shareDialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !shareAddressHelpCard.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        shareAddressHelpCard.hidden = true;
+        shareAddressHelp.setAttribute("aria-expanded", "false");
+        shareAddressHelp.focus();
+      }
+    }, { signal: controller.signal });
     shareRetry.addEventListener("click", () => {
       void loadShare();
     }, { signal: controller.signal });
@@ -13207,14 +13372,28 @@ ${value}` : value);
       event.preventDefault();
       void addBootstrapPeer();
     }, { signal: controller.signal });
-    statusBootstrapList.addEventListener("click", (event) => {
-      const button = event.target.closest?.("[data-bootstrap-remove]");
+    statusDialog.addEventListener("click", (event) => {
+      const actions = event.target.closest?.(".rm-bootstrap-actions");
+      for (const menu of statusBootstrapList.querySelectorAll(".rm-bootstrap-actions[open]")) {
+        if (menu !== actions) menu.open = false;
+      }
+      const button = event.target.closest?.("[data-bootstrap-share], [data-bootstrap-remove]");
       if (!button) return;
-      void removeBootstrapPeer(button.dataset.bootstrapRemove ?? "");
+      actions.open = false;
+      const trigger = actions.querySelector("summary");
+      if (button.dataset.bootstrapShare) {
+        openShareDialog(trigger, button.dataset.bootstrapShare, { bootstrap: true });
+      } else {
+        statusBootstrapRefresh.focus({ preventScroll: true });
+        void removeBootstrapPeer(button.dataset.bootstrapRemove ?? "");
+      }
     }, { signal: controller.signal });
-    statusBootstrapCopy.addEventListener("click", () => {
-      const addresses = bootstrapEntries().flatMap((entry) => entry.addrs);
-      void copyTextWithNotice(addresses.join("\n"), statusBootstrapFeedback, "已复制全部引导节点地址。");
+    statusDialog.addEventListener("keydown", (event) => {
+      const actions = statusBootstrapList.querySelector(".rm-bootstrap-actions[open]");
+      if (event.key !== "Escape" || !actions) return;
+      event.preventDefault();
+      actions.open = false;
+      actions.querySelector("summary").focus({ preventScroll: true });
     }, { signal: controller.signal });
     profileCopyPeerInline.addEventListener("click", () => {
       void copyTextWithNotice(profileState.peerId, profileOriginNote, "完整 Peer ID 已复制。");

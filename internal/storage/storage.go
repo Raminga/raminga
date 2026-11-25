@@ -24,7 +24,7 @@ import (
 const (
 	// FileName is the SQLite database inside the data directory.
 	FileName            = "raminga.db"
-	schemaVersion       = 13
+	schemaVersion       = 14
 	defaultCacheEntries = 512
 	defaultMaxFriends   = 10000
 )
@@ -416,6 +416,15 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			dht_capable INTEGER NOT NULL DEFAULT 0
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS friends_name_unique ON friends(name) WHERE name <> ''`,
+		`CREATE TABLE IF NOT EXISTS contact_cards (
+			peer_id TEXT PRIMARY KEY REFERENCES friends(peer_id) ON DELETE CASCADE,
+			sequence BLOB NOT NULL CHECK (length(sequence) = 8),
+			envelope BLOB NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS contact_card_sequence (
+			peer_id TEXT PRIMARY KEY,
+			sequence INTEGER NOT NULL
+		)`,
 		`CREATE TABLE IF NOT EXISTS paused_peers (
 			peer_id TEXT PRIMARY KEY,
 			paused_at_ms INTEGER NOT NULL

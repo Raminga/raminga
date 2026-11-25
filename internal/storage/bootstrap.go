@@ -97,23 +97,34 @@ func (s *Store) ImportBootstrapPeersOnce(ctx context.Context, seed []string) (in
 	return added, true, nil
 }
 
-// AddBootstrapPeer validates one address, merges it into the ordinary peer
+// AddBootstrapPeer validates a peer's addresses, merges them into the ordinary peer
 // cache and adds the bootstrap role. Re-adding the same peer/address is
 // idempotent; the bool reports whether the persisted list changed. It never
 // dials, publishes, or changes contact/pause records.
-func (s *Store) AddBootstrapPeer(ctx context.Context, raw string) (BootstrapPeer, bool, error) {
-	address, err := bootstrapaddr.Parse(raw)
-	if err != nil {
-		return BootstrapPeer{}, false, err
+func (s *Store) AddBootstrapPeer(ctx context.Context, raw string, more ...string) (BootstrapPeer, bool, error) {
+	addresses := make([]bootstrapaddr.Address, 0, 1+len(more))
+	for _, candidate := range append([]string{raw}, more...) {
+		address, err := bootstrapaddr.Parse(candidate)
+		if err != nil {
+			return BootstrapPeer{}, false, err
+		}
+		if len(addresses) > 0 && address.PeerID != addresses[0].PeerID {
+			return BootstrapPeer{}, false, errors.New("引导节点地址必须属于同一 Raminga ID")
+		}
+		addresses = append(addresses, address)
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return BootstrapPeer{}, false, fmt.Errorf("begin bootstrap add: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	added, err := s.upsertBootstrapPeerTx(ctx, tx, address)
-	if err != nil {
-		return BootstrapPeer{}, false, err
+	var added bool
+	for _, address := range addresses {
+		changed, err := s.upsertBootstrapPeerTx(ctx, tx, address)
+		if err != nil {
+			return BootstrapPeer{}, false, err
+		}
+		added = added || changed
 	}
 	if err := prunePeerCacheTx(ctx, tx, s.now().UnixMilli(), defaultCacheEntries); err != nil {
 		return BootstrapPeer{}, false, err
@@ -122,7 +133,7 @@ func (s *Store) AddBootstrapPeer(ctx context.Context, raw string) (BootstrapPeer
 	// the caller applies the role to the live map without another
 	// request-context storage read that could fail and leave the two views
 	// disagreeing.
-	value, err := readBootstrapPeer(ctx, tx, address.PeerID)
+	value, err := readBootstrapPeer(ctx, tx, addresses[0].PeerID)
 	if err != nil {
 		return BootstrapPeer{}, false, err
 	}
@@ -206,6 +217,15 @@ func (s *Store) ListBootstrapPeers(ctx context.Context) ([]BootstrapPeer, error)
 
 type bootstrapPeerQuerier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// GetBootstrapPeer reads one saved bootstrap role and its cached addresses.
+func (s *Store) GetBootstrapPeer(ctx context.Context, peerID string) (BootstrapPeer, bool, error) {
+	value, err := readBootstrapPeer(ctx, s.db, peerID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return BootstrapPeer{}, false, nil
+	}
+	return value, err == nil, err
 }
 
 func readBootstrapPeer(ctx context.Context, queryer bootstrapPeerQuerier, peerID string) (BootstrapPeer, error) {

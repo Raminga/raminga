@@ -1042,6 +1042,20 @@
 .rm-dialog::backdrop { background: var(--rm-backdrop); }
 .rm-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .rm-dialog h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+.rm-card-identity { padding: 12px; border: 1px solid var(--rm-line); border-radius: 12px; background: var(--rm-soft); }
+.rm-card-address-choice { margin: 16px 0 4px; }
+.rm-card-address-heading { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+.rm-card-address-heading small { margin-inline-start: auto; color: var(--rm-muted); }
+.rm-card-address-help { flex: none; width: 22px; height: 22px; padding: 0; border: 1px solid var(--rm-line); border-radius: 50%; background: var(--rm-surface); color: var(--rm-action); font-weight: 700; cursor: pointer; }
+.rm-card-address-help:hover, .rm-card-address-help[aria-expanded="true"] { background: var(--rm-hover); }
+.rm-card-address-help-card { position: absolute; z-index: 2; inset-block-end: calc(100% + 6px); inset-inline-start: 0; width: max-content; max-width: 100%; padding: 10px 12px; border: 1px solid var(--rm-line); border-radius: 9px; color: var(--rm-body); background: var(--rm-surface); box-shadow: 0 8px 24px #1a142b26; font-size: 12px; }
+.rm-card-address-help-card p { margin: 0 0 5px; }
+.rm-card-address-help-card p:last-child { margin: 7px 0 0; color: var(--rm-muted); }
+.rm-card-address-options { display: flex; justify-content: space-between; gap: 4px 12px; }
+.rm-card-address-options label { display: inline-flex; align-items: center; gap: 3px 6px; white-space: nowrap; cursor: pointer; }
+.rm-card-address-options input { flex: none; margin: 0; accent-color: var(--rm-action); }
+.rm-card-address-options input:disabled + span { color: var(--rm-muted); }
+.rm-card-address-options label:has(input:disabled) { cursor: default; }
 .rm-dialog .rm-icon-button { border: 0; background: transparent; color: var(--rm-subtle); font-size: 23px; line-height: 1; }
 .rm-dialog .rm-icon-button:hover { background: var(--rm-hover); color: var(--rm-ink); }
 .rm-status-summary {
@@ -1972,12 +1986,12 @@
 .rm-bootstrap-state { color: var(--rm-muted, #66667a); font-size: 11px; }
 .rm-bootstrap-state[data-state='online'] { color: #1e7a58; }
 .rm-bootstrap-state[data-state='paused'] { color: #8a5a12; }
-.rm-bootstrap-item > .rm-quiet { align-self: center; }
+.rm-bootstrap-actions { position: relative; align-self: center; }
+.rm-bootstrap-actions > summary.rm-quick-trigger { padding: 0; list-style: none; font-size: 19px; }
+.rm-bootstrap-actions > summary::-webkit-details-marker { display: none; }
+.rm-bootstrap-actions[open] > summary { background: var(--rm-soft); color: var(--rm-ink); }
+.rm-bootstrap-actions > .rm-quick-menu { inset: calc(100% + 4px) 0 auto auto; min-width: 145px; }
 #statusBootstrap[data-busy='true'] { cursor: progress; }
-@media (max-width: 700px) {
-  .rm-bootstrap-item { grid-template-columns: minmax(0, 1fr); }
-  .rm-bootstrap-item > .rm-quiet { justify-self: start; }
-}
 @media (max-width: 700px) {
   .rm-html-frame { height: 380px; }
   .rm-file-media { max-height: 360px; }

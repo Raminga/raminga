@@ -20,6 +20,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/Raminga/raminga/internal/config"
+	"github.com/Raminga/raminga/internal/contactcard"
 	"github.com/Raminga/raminga/internal/identity"
 	"github.com/Raminga/raminga/internal/network"
 	"github.com/Raminga/raminga/internal/node"
@@ -884,6 +885,45 @@ func TestOrdinaryConnectDoesNotCreateBootstrapRoleOrRewriteConfig(t *testing.T) 
 	}
 	if string(after) != string(raw) {
 		t.Fatal("ordinary connect rewrote config.toml")
+	}
+}
+
+func TestBootstrapCardSavesAllAddressesWithoutAddingContact(t *testing.T) {
+	ctx := context.Background()
+	a := newTestNode(t, t.TempDir())
+	b := newTestNode(t, t.TempDir())
+	pid := b.id.PeerID()
+	if _, _, err := a.node.AddBootstrapCard(ctx, pid.String()); err == nil || !strings.Contains(err.Error(), "附带连接地址") {
+		t.Fatalf("ID-only bootstrap = %v", err)
+	}
+	code := contactcard.WithPublicAddresses(pid, []ma.Multiaddr{
+		ma.StringCast("/ip4/11.66.77.10/tcp/4001"),
+		ma.StringCast("/ip6/2400::1/tcp/4001"),
+	}).Code()
+	row, added, err := a.node.AddBootstrapCard(ctx, code)
+	if err != nil || !added || row.PeerID != pid.String() || len(row.Addrs) != 2 {
+		t.Fatalf("stored bootstrap = %+v, added=%t, err=%v", row, added, err)
+	}
+	if rows, err := a.node.BootstrapPeers(ctx); err != nil || len(rows) != 1 || len(rows[0].Addrs) != 2 {
+		t.Fatalf("saved bootstrap roles = %+v, err=%v", rows, err)
+	}
+	if _, added, err := a.node.AddBootstrapCard(ctx, code); err != nil || added {
+		t.Fatalf("repeat add changed=%v, err=%v", added, err)
+	}
+	if card, canInclude, err := a.node.ContactCard(ctx, pid.String(), false); err != nil || !canInclude || card.Code() != pid.String() {
+		t.Fatalf("default bootstrap share = %+v, can include=%v, err=%v", card, canInclude, err)
+	}
+	if card, canInclude, err := a.node.ContactCard(ctx, pid.String(), true); err != nil || !canInclude || card.Code() != code {
+		t.Fatalf("addressed bootstrap share = %+v, can include=%v, err=%v", card, canInclude, err)
+	}
+	if friends, err := a.node.Friends(ctx); err != nil || len(friends) != 0 {
+		t.Fatalf("adding bootstrap changed contacts: %+v, %v", friends, err)
+	}
+	if removed, err := a.node.RemoveBootstrapPeer(ctx, pid.String()); err != nil || !removed {
+		t.Fatalf("remove bootstrap = %v, %v", removed, err)
+	}
+	if _, _, err := a.node.ContactCard(ctx, pid.String(), true); err != node.ErrContactNotFound {
+		t.Fatalf("removed bootstrap cannot be shared as a saved peer: %v", err)
 	}
 }
 

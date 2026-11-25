@@ -113,7 +113,7 @@ raminga --data-dir ~/raminga-test   # 自动启动 daemon 并打开 TUI
 需要看前台日志时，改用 `raminga daemon --data-dir ~/raminga-test`，另开终端 `raminga tui --data-dir ~/raminga-test`。
 
 - `--bootstrap` 可重复；必须含 `/p2p/<peer-id>`；不能填 `/p2p-circuit` 地址，也不能填公共 IPFS/libp2p bootstrap（会被严格拒绝）。
-- 客户端不需要预先配置 `--known-relay`：在 TUI 执行 `/connect <relay 地址>` 后，该 Relay 会成为候选并自动获得 circuit 地址；`/copy` 可复制。
+- 客户端可以在 TUI 执行 `/connect <relay 地址>`，把该 Relay 加为候选。预约成功后，可用 `raminga relay status` 查看电路地址。
 - `--announce` 只用于你有固定公网地址/NAT 映射的节点；它**不会**创建端口映射。
 - 不要在测试机启用 `--relay-provider`，除非它也有公网可达地址。
 - daemon 只监听 libp2p TCP/UDP；本地 API 默认只在 `<data-dir>/api.sock`，token 0600，没有 TCP API listener。显式 `--api-tcp` 是例外：只在 literal `127.0.0.1` 的临时端口上提供每轮 token + 固定 TLS 证书的本地 API，且不再监听 Unix socket；它不改变 P2P 或 WAN 监听。TUI 不需要 `--enable-test-api`。
@@ -121,10 +121,11 @@ raminga --data-dir ~/raminga-test   # 自动启动 daemon 并打开 TUI
 查看并复制本机信息：
 
 ```sh
-raminga status --data-dir ~/raminga-test
+raminga status --json --data-dir ~/raminga-test
+raminga relay status --data-dir ~/raminga-test
 ```
 
-启动 TUI 后先 `/connect /ip4/203.0.113.10/tcp/4001/p2p/<relay-peer-id>`，等日志出现 relay reservation，再 `/copy` 取得本机 circuit 地址。把每台测试机的 **Peer ID** 和 relay circuit 地址互换。circuit 地址格式：
+启动 TUI 后先执行 `/connect /ip4/203.0.113.10/tcp/4001/p2p/<relay-peer-id>`，用 `/diag` 确认预约处于 `active`。从 `raminga relay status` 的 `relayed=` 字段取得本机电路地址，再交换测试节点的 Raminga ID 和电路地址。电路地址格式如下。
 
 ```text
 <relay 的 /p2p/<peer-id> 地址>/p2p-circuit/p2p/<目标 peer-id>
@@ -144,7 +145,9 @@ A 机：
 raminga --data-dir ~/raminga-test
 ```
 
-内联界面：输出直接进入终端正常回滚区，滚动/选择/复制交给终端；程序只维护底部实时区域（状态行、输入行、补全弹窗或一行提示）。状态行显示聊天对象、连接数、自己的名字；连接/发送/下载时显示 spinner 进度，窄终端从右往左省略。Home/End 在输入行内移动光标。输入 `/` 打开中文指令补全；↑/↓ 选择，Tab 只补全，Enter 确认当前高亮指令/参数后执行，Esc 关闭。名字/Peer ID 参数也会补全。输入非空时 Ctrl+C 清空输入，输入为空时退出。长行不插入换行，由终端自然折行；远端文本会转义控制字符，不会被当作命令。`/copy` 和 `/status` 的地址带完整 `/p2p/<PeerID>`；`/status` 先打印地址标签，再单独打印完整地址，“本机：”显示完整 Peer ID。
+内联界面：输出直接进入终端正常回滚区，滚动/选择/复制交给终端；程序只维护底部实时区域（状态行、输入行、补全弹窗或一行提示）。状态行显示聊天对象、连接数、自己的名字；连接/发送/下载时显示 spinner 进度，窄终端从右往左省略。Home/End 在输入行内移动光标。输入 `/` 打开中文指令补全；↑/↓ 选择，Tab 只补全，Enter 确认当前高亮指令/参数后执行，Esc 关闭。名字/Peer ID 参数也会补全。输入非空时 Ctrl+C 清空输入，输入为空时退出。长行不插入换行，由终端自然折行；远端文本会转义控制字符，不会被当作命令。
+
+`/status` 显示本机完整 Raminga ID 和可用的连接方式。`/peers <节点>` 显示对方的当前连接和已知的连接方式。`/copy` 复制本机 Raminga ID，`/share --include-addresses` 生成带地址的名片。
 
 逐步操作：
 
@@ -162,9 +165,9 @@ raminga --data-dir ~/raminga-test
    ```text
    ✓ 已连接 b：中继/TCP（经中继 <relay>，受限）
    … 等待打洞（DCUtR）升级为直连
-   ✓ 已升级为直连/QUIC /ip4/.../udp/4001/quic-v1
+   ✓ 已升级为 QUIC 直连
    ```
-   只有 `中继/...（经中继 ...，受限）` 是 limited relay；只有 `✓ 已升级为直连/...` 才是 direct。没有这行就记 **relay-only**，不要写 direct。对称 NAT/CGNAT、UDP 被封锁时很常见。
+   `中继/...（经中继 ...，受限）` 表示受限中继连接。用直连日志和 `raminga status --json` 核对最终连接；只观察到中继时记为 **relay-only**。对称 NAT/CGNAT 或 UDP 被封锁时，这种情况很常见。
 3. **选择聊天对象并发送**：
    ```text
    /chat b
@@ -189,7 +192,7 @@ raminga --data-dir ~/raminga-test
    默认脱敏；所有参与者明确同意时才 `/report --include-text`。报告写到 `<data-dir>/reports/test-report.json|md`。
 7. **退出**：输入为空时 `/quit` 或 `Ctrl+C`（输入非空时 Ctrl+C 先清空）；daemon 继续运行。需要停止时回到 shell `Ctrl+C` 或 `kill` daemon。
 
-更多命令：`/status`（本机概况）、`/disconnect <名字|Peer ID>`（断开并持久暂停自动重连；再次 `/connect` 解除）、`/outbox`（待发/失败）、`/cancel <id>`、`/copy`（OSC52 + 文本回显）、`/clear`、`/help`。
+更多命令：`/status`（本机概况）、`/disconnect <名字|Peer ID>`（断开并持久暂停自动重连；再次 `/connect` 解除）、`/outbox`（待发/失败）、`/cancel <id>`、`/clear`、`/help`。
 
 ## 6. CLI 等价操作
 
@@ -301,7 +304,7 @@ Docker/lab 不是公网证据。需要两台**独立异地设备**（不同网�
 
 **M6-D（真实 direct + 停 Relay）**
 1. 先建立 M6-R 的 relayed 会话；确认 A/B 均启用 DCUtR（known relay）。观察真实 `dcutr` attempt/success/failure；不得把 attempt 写成 success。
-2. 若建立 direct：双方 `/peers`/`/diag` 显示 `route=direct`、`direct=true`、无 `/p2p-circuit`；A↔B 双向各至少 1 条，ACK `route=direct` 且无 relayPeerId。
+2. 双方用 `/peers` 查看当前连接方式，再在 shell 用 `raminga status --json` 核对相互连接的 `route=direct`、`direct=true`，确认 `remoteMultiaddr` 没有 `/p2p-circuit`。A↔B 双向各至少发送一条消息，核对 ACK 的 `route=direct` 和空 `relayPeerId`。
 3. **停掉 Relay R（不是断开 A/B）**，确认 R 不可达；保持 A/B 进程/PID/Peer ID 不变，再双向发送，ACK 仍 `route=direct`。只有这一步成功，M6-D 才能 PASS。
 4. 未建立 direct：记录 attempts/candidates/error/超时与 Relay fallback（仍可聊天），M6-D 记 FAIL/BLOCKED；不能拿 Docker 或 A↔Relay direct 冒充 A↔B direct。
 5. 记录 NAT/运营商/防火墙、路由、ACK、PID/Peer ID、消息哈希、报告路径（`/report` 的 JSON+Markdown；默认脱敏）。

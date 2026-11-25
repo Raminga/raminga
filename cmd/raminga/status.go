@@ -9,7 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	apiv1 "github.com/Raminga/raminga/gen/raminga/api/v1"
 	"github.com/Raminga/raminga/internal/api/client"
+	"github.com/Raminga/raminga/internal/contactcard"
 	"github.com/Raminga/raminga/internal/peerarg"
 )
 
@@ -66,22 +68,28 @@ func newConnectCmd() *cobra.Command {
 		peerID  string
 	)
 	cmd := &cobra.Command{
-		Use:   "connect <peer-multiaddr|peer-id>",
-		Short: "Dial a peer; a bare Peer ID uses PeerStore, cache and DHT candidates",
+		Use:   "connect <peer-multiaddr|peer-id|share-code>",
+		Short: "Dial a peer by address, Raminga ID, or share code",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := peerarg.Normalize(peerID)
 			multiaddr := ""
+			code := ""
 			if len(args) == 1 {
 				arg := peerarg.Normalize(args[0])
-				if strings.Contains(arg, "/") {
+				if contactcard.IsInput(arg) {
+					if target != "" {
+						return errors.New("a share code cannot be used with --peer-id")
+					}
+					code = arg
+				} else if strings.Contains(arg, "/") {
 					multiaddr = arg
 				} else {
 					target = arg
 				}
 			}
-			if target == "" && multiaddr == "" {
-				return errors.New("a peer multiaddr or peer ID is required")
+			if target == "" && multiaddr == "" && code == "" {
+				return errors.New("a peer multiaddr, Raminga ID or share code is required")
 			}
 			c, err := client.New(dataDirFrom(cmd))
 			if err != nil {
@@ -90,7 +98,12 @@ func newConnectCmd() *cobra.Command {
 			defer c.Close()
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			res, err := c.Connect(ctx, target, multiaddr)
+			var res *apiv1.ConnectResponse
+			if code != "" {
+				res, err = c.ConnectContactCard(ctx, code, !jsonOut)
+			} else {
+				res, err = c.Connect(ctx, target, multiaddr)
+			}
 			if err != nil {
 				return err
 			}
@@ -98,6 +111,10 @@ func newConnectCmd() *cobra.Command {
 				return printProto(cmd.OutOrStdout(), res, true)
 			}
 			w := cmd.OutOrStdout()
+			if code != "" {
+				_, err = fmt.Fprintf(w, "peer_id: %s\nroute: %s\nsource: %s\n", res.GetPeerId(), res.GetRoute(), res.GetSource())
+				return err
+			}
 			_, err = fmt.Fprintf(w, "peer_id: %s\ntransport: %s\nroute: %s\ndirect: %t\nlimited: %t\nremote_multiaddr: %s\nreused: %t\nsource: %s\n",
 				res.GetPeerId(), res.GetTransport(), res.GetRoute(), res.GetDirect(), res.GetLimited(), res.GetRemoteMultiaddr(), res.GetReused(), res.GetSource())
 			if err != nil {
@@ -114,6 +131,40 @@ func newConnectCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&peerID, "peer-id", "", "peer ID to dial when no positional argument is given")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "print protojson")
+	return cmd
+}
+
+func newShareCmd() *cobra.Command {
+	var includeAddresses, jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "share [contact-peer-id]",
+		Short: "Print a Raminga share code for this node or a local contact",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var peerID string
+			if len(args) > 0 {
+				peerID = peerarg.Normalize(args[0])
+			}
+			c, err := client.New(dataDirFrom(cmd))
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
+			defer cancel()
+			res, err := c.ContactCard(ctx, peerID, includeAddresses)
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return printProto(cmd.OutOrStdout(), res, true)
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), res.GetShareCode())
+			return err
+		},
+	}
+	cmd.Flags().BoolVar(&includeAddresses, "include-addresses", false, "include known public dial addresses recipients can read and forward")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print protojson")
 	return cmd
 }

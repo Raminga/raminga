@@ -17,6 +17,13 @@ service RamingaService {
   // every attempted address and whether an existing connection was reused.
   rpc Connect(ConnectRequest) returns (ConnectResponse);
 
+  // GetContactCard returns a card for this node, a local contact or a saved bootstrap peer.
+  rpc GetContactCard(GetContactCardRequest) returns (GetContactCardResponse);
+
+  // PreviewContactCard validates a card and resolves its local display name.
+  // It does not dial or write a contact.
+  rpc PreviewContactCard(PreviewContactCardRequest) returns (PreviewContactCardResponse);
+
   // SendChat sends one HTTP chat message and reports whether a matching
   // ACK was received before the deadline.
   rpc SendChat(SendChatRequest) returns (SendChatResponse);
@@ -323,6 +330,44 @@ message ConnectRequest {
   // peer_id optionally selects the peer when multiaddr is empty. The node
   // resolves candidates from its PeerStore, SQLite cache and DHT.
   string peer_id = 2;
+
+  // share_code is a Raminga card or a bare Raminga ID. It is exclusive
+  // with peer_id and multiaddr. Its addresses are optional dial hints.
+  string share_code = 3;
+
+  // summary_only omits network addresses and raw dial diagnostics.
+  bool summary_only = 4;
+}
+
+message GetContactCardRequest {
+  // An empty peer ID selects the local node.
+  string peer_id = 1;
+  bool include_addresses = 2;
+  // Explicit address selection. Bit 0 is public direct, bit 1 relay, bit 2 LAN.
+  // Presence overrides include_addresses, including an explicit zero.
+  optional uint32 address_scopes = 3;
+}
+
+message GetContactCardResponse {
+  string peer_id = 1;
+  string share_code = 2;
+  reserved 3;
+  reserved "link";
+  bool has_addresses = 4;
+  // Whether a public connection address can be included by legacy clients.
+  bool can_include_addresses = 5;
+  uint32 available_address_scopes = 6;
+  uint32 included_address_scopes = 7;
+}
+
+message PreviewContactCardRequest {
+  string share_code = 1;
+}
+
+message PreviewContactCardResponse {
+  string peer_id = 1;
+  string name = 2;
+  bool has_addresses = 3;
 }
 
 // DialAttempt records one candidate address dialed for Connect or SendChat.
@@ -330,7 +375,7 @@ message DialAttempt {
   // multiaddr is the candidate transport multiaddr that was dialed.
   string multiaddr = 1;
 
-  // source is "explicit", "peerstore", "cache" or "dht".
+  // source is "explicit", "peerstore", "cache", "share_code" or "dht".
   string source = 2;
 
   // family is "ipv6", "ipv4", "dns", "relay" or "unknown".
@@ -1311,11 +1356,12 @@ message ListBootstrapPeersResponse {
   repeated BootstrapPeer peers = 1;
 }
 
-// AddBootstrapPeerRequest saves one address. The daemon requires a canonical
-// multiaddr including /p2p/<peer-id> and only applies it as a node setting.
+// AddBootstrapPeerRequest saves connection addresses as a local node setting.
 message AddBootstrapPeerRequest {
-  // multiaddr is the complete address to save.
+  // multiaddr is an explicit complete address ending in /p2p/<peer-id>.
   string multiaddr = 1;
+  // share_code is an address-bearing Raminga contact card, exclusive with multiaddr.
+  string share_code = 2;
 }
 
 // AddBootstrapPeerResponse reports the saved role and whether the list

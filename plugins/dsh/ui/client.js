@@ -61,10 +61,11 @@ window.__ModuleLoader__.load({
     const imageDataCodec = passthrough('@raminga/dsh#UiImageBase64');
     const revisionCodec = passthrough('@raminga/dsh#UiDraftRevision');
     const publishedShaCodec = passthrough('@raminga/dsh#UiPublishedSha256');
-    const bootstrapMultiaddrCodec = passthrough('@raminga/dsh#UiBootstrapMultiaddr');
+    const bootstrapShareCodeCodec = passthrough('@raminga/dsh#UiBootstrapShareCode');
     const sessionParam = { name: 'sessionId', wire: 'sessionId', source: 'json', codec: sessionIdCodec };
     const param = {
       force: { name: 'force', wire: 'force', source: 'json', codec: booleanCodec },
+      includeAddresses: { name: 'includeAddresses', wire: 'includeAddresses', source: 'json', codec: passthrough('@raminga/dsh#UiAddressSelection') },
       connectInput: { name: 'input', wire: 'input', source: 'json', codec: connectInputCodec },
       peerId: { name: 'peerId', wire: 'peerId', source: 'json', codec: peerIdCodec },
       before: { name: 'before', wire: 'before', source: 'json', codec: beforeCodec },
@@ -97,7 +98,7 @@ window.__ModuleLoader__.load({
       imageData: { name: 'dataBase64', wire: 'dataBase64', source: 'json', codec: imageDataCodec },
       revision: { name: 'expectedRevision', wire: 'expectedRevision', source: 'json', codec: revisionCodec },
       publishedSha: { name: 'expectedPublishedSha256', wire: 'expectedPublishedSha256', source: 'json', codec: publishedShaCodec },
-      bootstrapMultiaddr: { name: 'multiaddr', wire: 'multiaddr', source: 'json', codec: bootstrapMultiaddrCodec },
+      bootstrapShareCode: { name: 'shareCode', wire: 'shareCode', source: 'json', codec: bootstrapShareCodeCodec },
     };
     const descriptors = [
       ['open', 'UiSnapshot', [sessionParam]],
@@ -110,6 +111,8 @@ window.__ModuleLoader__.load({
       ['connect', 'UiConnectResult', [sessionParam, param.connectInput]],
       ['checkContact', 'UiContactCheck', [sessionParam, param.peerId]],
       ['share', 'UiShareInfo', [sessionParam]],
+      ['contactCard', 'UiContactCard', [sessionParam, param.peerId, param.includeAddresses]],
+      ['previewContactCard', 'UiContactCardPreview', [sessionParam, param.connectInput]],
       ['conversations', 'UiConversations', [sessionParam, param.force]],
       ['messages', 'UiMessagePage', [sessionParam, param.peerId, param.before, param.force]],
       ['markRead', 'UiMarkRead', [sessionParam, param.peerId, param.messageId]],
@@ -136,7 +139,7 @@ window.__ModuleLoader__.load({
       ['revealDiscovery', 'UiRevealResult', [sessionParam, param.contentId]],
       ['revealFile', 'UiRevealResult', [sessionParam, param.subject, param.peerId, param.filePath, param.sha256, param.size]],
       ['bootstrap', 'UiBootstrapInfo', [sessionParam]],
-      ['addBootstrap', 'UiBootstrapEdit', [sessionParam, param.bootstrapMultiaddr]],
+      ['addBootstrap', 'UiBootstrapEdit', [sessionParam, param.bootstrapShareCode]],
       ['removeBootstrap', 'UiBootstrapEdit', [sessionParam, param.peerId]],
       ['journey', 'UiJourney', [sessionParam, param.force]],
       ['journeyReport', 'UiJourneyReport', [sessionParam, param.journeyId]],

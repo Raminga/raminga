@@ -538,10 +538,10 @@ export function createPanelRuntime({
     return remoteValue(await rpc.bootstrap(sessionId));
   }
 
-  async function addBootstrap(multiaddr) {
+  async function addBootstrap(shareCode) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.addBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
-    return remoteValue(await rpc.addBootstrap(sessionId, multiaddr));
+    return remoteValue(await rpc.addBootstrap(sessionId, shareCode));
   }
 
   async function removeBootstrap(peerId) {
@@ -769,6 +769,12 @@ export function createPanelRuntime({
         mountOptions.onSetFriendDescription = (peerId, description) => setFriendDescription(peerId, description);
       }
       if (typeof rpc.connect === 'function') mountOptions.onConnect = (input) => connect(input);
+      if (typeof rpc.contactCard === 'function') {
+        mountOptions.onContactCard = async (peerId, addressScopes) => remoteValue(await rpc.contactCard(sessionId, peerId, addressScopes));
+      }
+      if (typeof rpc.previewContactCard === 'function') {
+        mountOptions.onPreviewContactCard = async (input) => remoteValue(await rpc.previewContactCard(sessionId, input));
+      }
       if (typeof rpc.checkContact === 'function') mountOptions.onCheckContact = (peerId) => checkContact(peerId);
       if (typeof rpc.conversations === 'function') {
         mountOptions.onLoadConversations = (force) => loadConversations(force);
@@ -855,7 +861,7 @@ export function createPanelRuntime({
         mountOptions.onLoadBootstrap = () => readBootstrap();
       }
       if (typeof rpc.addBootstrap === 'function') {
-        mountOptions.onAddBootstrap = (multiaddr) => addBootstrap(multiaddr);
+        mountOptions.onAddBootstrap = (shareCode) => addBootstrap(shareCode);
       }
       if (typeof rpc.removeBootstrap === 'function') {
         mountOptions.onRemoveBootstrap = (peerId) => removeBootstrap(peerId);

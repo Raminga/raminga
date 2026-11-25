@@ -18,7 +18,7 @@ import { isIP } from 'node:net';
 import path from 'node:path';
 import { multiaddr } from '@multiformats/multiaddr';
 import { peerIdFromString } from '@libp2p/peer-id';
-import { AddBootstrapPeerRequest, ConnectRequest, DhtStatusRequest, ListBootstrapPeersRequest, RemoveBootstrapPeerRequest, DeletePublicDraftRequest, DownloadPeerFileRequest, GetPublicDraftAssetRequest, GetPublicDraftRequest, GetPeerManifestRequest, GetPeerFriendsRequest, ListPublicDraftsRequest, PublishedRequest, GetPeerProfileRequest, ImportPublicPostRequest, PublishPublicDraftRequest, PutPublicDraftImageRequest, SavePublicDraftRequest, ListConversationsRequest, ListDiscoveriesRequest, ListDiscoveryRefreshPeersRequest, ListFavoritesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, MarkConversationReadRequest, OutboxCancelRequest, PublicPublishStatus, SendChatRequest, SetFavoriteRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
+import { AddBootstrapPeerRequest, ConnectRequest, GetContactCardRequest, PreviewContactCardRequest, DhtStatusRequest, ListBootstrapPeersRequest, RemoveBootstrapPeerRequest, DeletePublicDraftRequest, DownloadPeerFileRequest, GetPublicDraftAssetRequest, GetPublicDraftRequest, GetPeerManifestRequest, GetPeerFriendsRequest, ListPublicDraftsRequest, PublishedRequest, GetPeerProfileRequest, ImportPublicPostRequest, PublishPublicDraftRequest, PutPublicDraftImageRequest, SavePublicDraftRequest, ListConversationsRequest, ListDiscoveriesRequest, ListDiscoveryRefreshPeersRequest, ListFavoritesRequest, ListFriendsRequest, ListHumanOutboundPeersRequest, ListMessagesRequest, MarkConversationReadRequest, OutboxCancelRequest, PublicPublishStatus, SendChatRequest, SetFavoriteRequest, SetFriendDescriptionRequest, SetFriendNameRequest, StatusRequest, } from './gen/raminga/api/v1/api_pb.js';
 import { MAX_CONTACT_PROJECTION_AVATAR_BYTES, MAX_CONTACT_PROJECTION_CLUES, MAX_CONTACT_PROJECTION_PROFILES, MAX_MINE_FILES, MAX_MINE_HASH_BYTES, MAX_POST_BYTES, MAX_PUBLISHED_AVATAR_BYTES, downloadedFileInfo, hashDownloadedFile, hashPublicFile, isVersionedPostPath, isPostImagePublicPath, parsePublicPost, postImagePublicPath, publicOriginalPath, readDiscoveryFile, readDiscoveryPost, readDownloadedAgentCard, readDownloadedFile, readDownloadedProfile, readDownloadedPublicProfile, readVerifiedDownloadedAvatar, readContactProjection, readContactNotes, readDownloadedProfileName, readJourney, readJourneyReportFile, readOwnPublic, saveContactImpression, savePrivateAgentFile, writeContactProjection, readPublicFile, LocalDataError, } from './local-data.js';
 import { MAX_HTML_SOURCE, MAX_MEDIA_PREVIEW, MAX_ZIP_ARCHIVE, PublicFileError, buildFilePreview, buildHtmlFilePreview, buildSandboxedHtml, buildZipFilePreview, fileTypeOf, firstMarkdownHeading, titleFallback, } from './public-files.js';
 import { subscribeEvents, } from './events.js';
@@ -916,6 +916,8 @@ export class RamingaUiBridge {
             connect: (sessionId, input) => this.connect(sessionId, input),
             checkContact: (sessionId, peerId) => this.checkContact(sessionId, peerId),
             share: (sessionId) => this.share(sessionId),
+            contactCard: (sessionId, peerId, addressSelection) => this.contactCard(sessionId, peerId, addressSelection),
+            previewContactCard: (sessionId, input) => this.previewContactCard(sessionId, input),
             conversations: (sessionId, force) => this.conversations(sessionId, force === true),
             messages: (sessionId, peerId, before, force) => this.messages(sessionId, peerId, before ?? '', force === true),
             markRead: (sessionId, peerId, throughMessageId) => this.markRead(sessionId, peerId, throughMessageId),
@@ -942,7 +944,7 @@ export class RamingaUiBridge {
             revealDiscovery: (sessionId, id) => this.revealDiscovery(sessionId, id),
             revealFile: (sessionId, subject, peerId, filePath, expectedSha, expectedSize) => this.revealFile(sessionId, subject, peerId, filePath, expectedSha, expectedSize),
             bootstrap: (sessionId) => this.bootstrap(sessionId),
-            addBootstrap: (sessionId, multiaddr) => this.addBootstrap(sessionId, multiaddr),
+            addBootstrap: (sessionId, shareCode) => this.addBootstrap(sessionId, shareCode),
             removeBootstrap: (sessionId, peerId) => this.removeBootstrap(sessionId, peerId),
             journey: (sessionId, force) => this.journey(sessionId, force === true),
             journeyReport: (sessionId, journeyId) => this.journeyReport(sessionId, journeyId),
@@ -1143,7 +1145,15 @@ export class RamingaUiBridge {
         session.lastPollAt = this.now();
         const at = this.now();
         const raw = typeof input === 'string' ? input : '';
-        const parsed = parseConnectInput(raw);
+        const value = raw.trim();
+        const parsedTarget = parseConnectInput(raw);
+        // The daemon decides the actual wire format. A compact code has its
+        // version bit set, which puts the first character in this alphabet range.
+        // LAN extensions add up to 26 bytes to the public compact layout.
+        const isCard = value.startsWith('raminga:') || (!parsedTarget.ok && /^[g-z0-9_-][A-Za-z0-9_-]{51,178}$/.test(value));
+        const parsed = isCard
+            ? { ok: true, kind: 'card', peerId: '', multiaddr: '' }
+            : parsedTarget;
         const emptyContact = { ok: false, found: false, error: null, at: null };
         const emptyStatus = { ok: false, at: null, error: null };
         if (!parsed.ok) {
@@ -1170,18 +1180,20 @@ export class RamingaUiBridge {
         let response;
         try {
             await this.ensureReady();
-            const request = parsed.kind === 'peer'
-                ? new ConnectRequest({ peerId: parsed.peerId })
-                : new ConnectRequest({ multiaddr: parsed.multiaddr });
+            const request = parsed.kind === 'card'
+                ? new ConnectRequest({ shareCode: raw, summaryOnly: true })
+                : parsed.kind === 'peer'
+                    ? new ConnectRequest({ peerId: parsed.peerId, summaryOnly: true })
+                    : new ConnectRequest({ multiaddr: parsed.multiaddr });
             response = await this.api.call((client) => client.connect(request, { timeoutMs: this.connectTimeoutMs }), '连接节点');
         }
         catch (error) {
             return {
                 ok: false,
                 invalid: false,
-                input: raw,
+                input: isCard ? '' : raw,
                 at: this.now(),
-                peerId: parsed.peerId,
+                peerId: parsed.peerId || null,
                 route: '',
                 transport: '',
                 direct: false,
@@ -1189,13 +1201,14 @@ export class RamingaUiBridge {
                 reused: false,
                 remoteMultiaddr: '',
                 note: '',
-                error: errorMessage(error),
+                error: isCard ? '暂时无法连接此节点。可以保留名片，稍后重试。' : errorMessage(error),
                 detail: null,
                 contact: emptyContact,
                 status: emptyStatus,
                 contacts: this.isSessionActive(session) ? this.contactsSnapshot(session) : null,
             };
         }
+        const connectedPeer = canonicalPeerId(response.peerId) ?? parsed.peerId;
         let contact = {
             ok: false,
             found: false,
@@ -1217,7 +1230,7 @@ export class RamingaUiBridge {
             }
             if (this.isSessionActive(session)) {
                 const friendsOk = session.friendsError === null && session.friendsAt > 0;
-                const found = friendsOk && session.friends.some((friend) => canonicalPeerId(friend.peerId) === parsed.peerId);
+                const found = friendsOk && session.friends.some((friend) => canonicalPeerId(friend.peerId) === connectedPeer);
                 contact = {
                     ok: friendsOk,
                     found,
@@ -1233,14 +1246,15 @@ export class RamingaUiBridge {
         return {
             ok: true,
             invalid: false,
-            input: raw,
+            input: isCard ? '' : raw,
             at: this.now(),
-            peerId: canonicalPeerId(response.peerId) ?? parsed.peerId,
+            peerId: connectedPeer || null,
             route: response.route,
             transport: response.transport,
             direct: response.direct,
             limited: response.limited,
             reused: response.reused,
+            source: response.source,
             remoteMultiaddr: response.remoteMultiaddr,
             note: response.note,
             error: null,
@@ -1249,6 +1263,50 @@ export class RamingaUiBridge {
             status,
             contacts,
         };
+    }
+    async contactCard(sessionId, peerId, addressSelection) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        try {
+            await this.ensureReady();
+            const card = await this.api.call((client) => client.getContactCard(new GetContactCardRequest({
+                peerId,
+                includeAddresses: addressSelection === true,
+                addressScopes: typeof addressSelection === 'number' ? addressSelection : undefined,
+            }), { timeoutMs: 4000 }), '生成联系人名片');
+            this.assertSessionActive(session);
+            return {
+                ok: true, peerId: card.peerId, shareCode: card.shareCode,
+                hasAddresses: card.hasAddresses, canIncludeAddresses: card.canIncludeAddresses,
+                availableAddressScopes: card.availableAddressScopes, includedAddressScopes: card.includedAddressScopes,
+            };
+        }
+        catch {
+            return { ok: false, error: '暂时无法生成名片，请稍后重试。' };
+        }
+    }
+    async previewContactCard(sessionId, input) {
+        this.assertOpen();
+        const session = this.sessionFor(sessionId);
+        const shareCode = typeof input === 'string' ? input.trim() : '';
+        if (shareCode.length > 2048)
+            return { ok: false, error: '输入太长了，请检查分享码是否完整。' };
+        try {
+            await this.ensureReady();
+            const card = await this.api.call((client) => client.previewContactCard(new PreviewContactCardRequest({ shareCode }), { timeoutMs: 4000 }), '预览联系人名片');
+            this.assertSessionActive(session);
+            return { ok: true, peerId: card.peerId, name: card.name, hasAddresses: card.hasAddresses };
+        }
+        catch (error) {
+            const message = errorMessage(error);
+            if (message.includes('this is your own Raminga ID'))
+                return { ok: false, error: '这是你自己的 Raminga ID。' };
+            if (message.includes('obsolete Raminga contact card format'))
+                return { ok: false, error: '这是旧版名片，请让分享者重新复制名片。' };
+            if (message.includes('invalid Raminga contact card'))
+                return { ok: false, error: '无法识别这份名片，请检查 Raminga ID 或分享码。' };
+            return { ok: false, error: '暂时无法预览，请稍后重试。' };
+        }
     }
     /** Re-read both facts after an earlier refresh failure; never inserts locally. */
     async checkContact(sessionId, peerId) {
@@ -4029,22 +4087,21 @@ export class RamingaUiBridge {
             const response = await this.api.call((client) => client.listBootstrapPeers(new ListBootstrapPeersRequest(), { timeoutMs: 4000 }), '读取引导节点设置');
             const entries = (response.peers ?? []).map((peer) => ({
                 peerId: String(peer.peerId ?? ''),
-                addrs: (peer.addrs ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0),
+                hasAddresses: (peer.addrs ?? []).some((value) => String(value ?? '').length > 0),
                 online: peer.online === true,
                 paused: peer.paused === true,
                 savedAt: Number(peer.savedAtUnixMs ?? 0) > 0 ? Number(peer.savedAtUnixMs) : null,
             })).filter((peer) => peer.peerId.length > 0);
-            const peers = entries.flatMap((peer) => peer.addrs);
             return {
-                at: this.now(), peers, entries, editable: true, requiresUpgrade: false, error: null,
-                freshness: this.listFreshness(this.now(), null, peers.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
+                at: this.now(), entries, editable: true, requiresUpgrade: false, error: null,
+                freshness: this.listFreshness(this.now(), null, entries.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
                 source: 'bootstrap-api',
             };
         }
         catch (error) {
             if (!isUnimplementedError(error)) {
                 return {
-                    at: null, peers: [], entries: [], editable: false, requiresUpgrade: false,
+                    at: null, entries: [], editable: false, requiresUpgrade: false,
                     error: errorMessage(error), freshness: 'unavailable', source: 'unavailable',
                 };
             }
@@ -4052,40 +4109,49 @@ export class RamingaUiBridge {
             // upgrade notice, not a load failure and not a writable surface.
             try {
                 const response = await this.api.call((client) => client.dhtStatus(new DhtStatusRequest(), { timeoutMs: 4000 }), '读取引导节点配置');
-                const peers = (response.dht?.bootstrapPeers ?? []).map((value) => String(value ?? '')).filter((value) => value.length > 0);
+                const peerIds = new Set((response.dht?.bootstrapPeers ?? []).flatMap((value) => {
+                    const id = /\/p2p\/([^/]+)$/.exec(value)?.[1];
+                    return id ? [id] : [];
+                }));
+                const entries = Array.from(peerIds, (peerId) => ({ peerId, hasAddresses: true, online: false, paused: false, savedAt: null }));
                 return {
-                    at: this.now(), peers, entries: [], editable: false, requiresUpgrade: true, error: null,
-                    freshness: this.listFreshness(this.now(), null, peers.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
+                    at: this.now(), entries, editable: false, requiresUpgrade: true, error: null,
+                    freshness: this.listFreshness(this.now(), null, entries.length > 0, this.streamEpoch, DISCOVERY_FRESH_MS),
                     source: 'dht-status',
                 };
             }
             catch (fallbackError) {
                 return {
-                    at: null, peers: [], entries: [], editable: false, requiresUpgrade: true,
+                    at: null, entries: [], editable: false, requiresUpgrade: true,
                     error: errorMessage(fallbackError), freshness: 'unavailable', source: 'unavailable',
                 };
             }
         }
     }
     /** Add one saved bootstrap role. Persistence is the receipt; no dial wait. */
-    async addBootstrap(sessionId, multiaddr) {
+    async addBootstrap(sessionId, shareCode) {
         this.assertOpen();
         const session = this.sessionFor(sessionId);
         session.lastPollAt = this.now();
-        const raw = typeof multiaddr === 'string' ? multiaddr : '';
-        if (raw.trim().length === 0)
-            throw new Error('请填写包含 /p2p/<peer-id> 的节点地址。');
+        const code = typeof shareCode === 'string' ? shareCode.trim() : '';
+        if (!code)
+            throw new Error('请粘贴含连接地址的名片短码。');
         try {
             await this.ensureReady();
-            const response = await this.api.call((client) => client.addBootstrapPeer(new AddBootstrapPeerRequest({ multiaddr: raw }), { timeoutMs: 5000 }), '保存引导节点');
+            const response = await this.api.call((client) => client.addBootstrapPeer(new AddBootstrapPeerRequest({ shareCode: code }), { timeoutMs: 5000 }), '保存引导节点');
             this.assertSessionActive(session);
             return { ok: true, changed: response.added === true, error: null, requiresUpgrade: false };
         }
         catch (error) {
-            if (isUnimplementedError(error)) {
-                throw new Error('当前 daemon 版本不支持引导节点写入；请升级并重启 Raminga 节点，设置尚未保存。');
+            const message = bootstrapErrorMessage(error);
+            if (isUnimplementedError(error) || message === 'multiaddr is required') {
+                throw new Error('当前节点版本不支持通过名片添加引导节点，请升级并重启 Raminga 节点。');
             }
-            throw new Error(bootstrapErrorMessage(error) || '保存引导节点失败');
+            if (message.includes('obsolete Raminga contact card format'))
+                throw new Error('这是旧版名片，请让分享者重新复制名片。');
+            if (message.includes('invalid Raminga contact card'))
+                throw new Error('无法识别名片短码，请检查是否完整。');
+            throw new Error(message || '保存引导节点失败');
         }
     }
     /** Remove only the bootstrap role; history, addresses and pause remain. */

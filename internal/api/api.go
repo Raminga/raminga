@@ -29,6 +29,7 @@ import (
 	"github.com/Raminga/raminga/gen/raminga/api/v1/apiv1connect"
 	"github.com/Raminga/raminga/internal/api/endpoint"
 	"github.com/Raminga/raminga/internal/api/paths"
+	"github.com/Raminga/raminga/internal/contactcard"
 	"github.com/Raminga/raminga/internal/node"
 	"github.com/Raminga/raminga/internal/publication"
 )
@@ -50,6 +51,9 @@ const (
 type Backend interface {
 	Status(ctx context.Context) (node.Status, error)
 	Connect(ctx context.Context, peerID, multiaddr string) (node.ConnectResult, error)
+	ConnectContactCard(ctx context.Context, shareCode string) (node.ConnectResult, error)
+	ContactCardForScopes(ctx context.Context, peerID string, scopes contactcard.AddressScopes) (contactcard.Card, contactcard.AddressScopes, error)
+	PreviewContactCard(ctx context.Context, shareCode string) (contactcard.Card, string, error)
 	SendChatOrigin(ctx context.Context, peerID, multiaddr, text, origin, requestID string) (node.SendResult, error)
 	RecentMessages(ctx context.Context, limit int) ([]node.StoredMessage, error)
 	ListMessages(ctx context.Context, peerID, before string, limit int) (node.MessagePage, error)
@@ -67,6 +71,7 @@ type Backend interface {
 	DHTStatus() node.DHTStatus
 	BootstrapPeers(ctx context.Context) ([]node.BootstrapPeer, error)
 	AddBootstrapPeer(ctx context.Context, multiaddr string) (node.BootstrapPeer, bool, error)
+	AddBootstrapCard(ctx context.Context, shareCode string) (node.BootstrapPeer, bool, error)
 	RemoveBootstrapPeer(ctx context.Context, peerID string) (bool, error)
 	DHTFindPeer(ctx context.Context, peerID string) (node.DHTPeer, error)
 	ListFriends(ctx context.Context) ([]node.Friend, error)
@@ -382,11 +387,29 @@ func (s *Server) Status(ctx context.Context, _ *connect.Request[apiv1.StatusRequ
 
 // Connect implements the Connect RPC.
 func (s *Server) Connect(ctx context.Context, req *connect.Request[apiv1.ConnectRequest]) (*connect.Response[apiv1.ConnectResponse], error) {
-	if strings.TrimSpace(req.Msg.GetMultiaddr()) == "" && strings.TrimSpace(req.Msg.GetPeerId()) == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("multiaddr or peer_id is required"))
+	multiaddr := strings.TrimSpace(req.Msg.GetMultiaddr())
+	peerID := strings.TrimSpace(req.Msg.GetPeerId())
+	code := strings.TrimSpace(req.Msg.GetShareCode())
+	if code == "" && multiaddr == "" && peerID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("multiaddr, peer_id or share_code is required"))
 	}
-	res, err := s.backend.Connect(ctx, req.Msg.GetPeerId(), req.Msg.GetMultiaddr())
+	if code != "" && (multiaddr != "" || peerID != "") {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("share_code is exclusive with peer_id and multiaddr"))
+	}
+	var res node.ConnectResult
+	var err error
+	if code != "" {
+		res, err = s.backend.ConnectContactCard(ctx, code)
+	} else {
+		res, err = s.backend.Connect(ctx, peerID, multiaddr)
+	}
 	if err != nil {
+		if errors.Is(err, contactcard.ErrInvalid) || errors.Is(err, contactcard.ErrOldFormat) || errors.Is(err, node.ErrOwnContactCard) {
+			return nil, cardRPCError(err)
+		}
+		if req.Msg.GetSummaryOnly() {
+			err = errors.New("no reachable connection to this node")
+		}
 		return nil, connect.NewError(connect.CodeUnavailable, err)
 	}
 	resp := &apiv1.ConnectResponse{
@@ -394,17 +417,61 @@ func (s *Server) Connect(ctx context.Context, req *connect.Request[apiv1.Connect
 		Transport:          res.Transport,
 		Direct:             res.Direct,
 		Limited:            res.Limited,
-		RemoteMultiaddr:    res.RemoteMultiaddr,
 		Route:              res.Route,
-		RelayPeerId:        res.RelayPeerID,
 		Reused:             res.Reused,
 		RequestedTransport: res.RequestedTransport,
 		TransportChanged:   res.TransportChanged,
 		Source:             res.Source,
-		Note:               res.Note,
-		Attempts:           dialAttemptsToProto(res.Attempts),
+	}
+	if !req.Msg.GetSummaryOnly() {
+		resp.RemoteMultiaddr = res.RemoteMultiaddr
+		resp.RelayPeerId = res.RelayPeerID
+		resp.Note = res.Note
+		resp.Attempts = dialAttemptsToProto(res.Attempts)
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (s *Server) GetContactCard(ctx context.Context, req *connect.Request[apiv1.GetContactCardRequest]) (*connect.Response[apiv1.GetContactCardResponse], error) {
+	var scopes contactcard.AddressScopes
+	if req.Msg.AddressScopes != nil {
+		scopes = contactcard.AddressScopes(req.Msg.GetAddressScopes())
+		if scopes&^contactcard.AllScopes != 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("unknown contact card address scope"))
+		}
+	} else if req.Msg.GetIncludeAddresses() {
+		scopes = contactcard.PublicScopes
+	}
+	card, available, err := s.backend.ContactCardForScopes(ctx, strings.TrimSpace(req.Msg.GetPeerId()), scopes)
+	if err != nil {
+		return nil, cardRPCError(err)
+	}
+	return connect.NewResponse(&apiv1.GetContactCardResponse{
+		PeerId: card.PeerID.String(), ShareCode: card.Code(),
+		HasAddresses: len(card.Addrs) > 0, CanIncludeAddresses: available&contactcard.PublicScopes != 0,
+		AvailableAddressScopes: uint32(available), IncludedAddressScopes: uint32(card.Scopes()),
+	}), nil
+}
+
+func (s *Server) PreviewContactCard(ctx context.Context, req *connect.Request[apiv1.PreviewContactCardRequest]) (*connect.Response[apiv1.PreviewContactCardResponse], error) {
+	card, name, err := s.backend.PreviewContactCard(ctx, req.Msg.GetShareCode())
+	if err != nil {
+		return nil, cardRPCError(err)
+	}
+	return connect.NewResponse(&apiv1.PreviewContactCardResponse{
+		PeerId: card.PeerID.String(), Name: name, HasAddresses: len(card.Addrs) > 0,
+	}), nil
+}
+
+func cardRPCError(err error) *connect.Error {
+	switch {
+	case errors.Is(err, contactcard.ErrInvalid), errors.Is(err, contactcard.ErrOldFormat), errors.Is(err, node.ErrOwnContactCard):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, node.ErrContactNotFound):
+		return connect.NewError(connect.CodeNotFound, err)
+	default:
+		return connect.NewError(connect.CodeInternal, errors.New("contact card is temporarily unavailable"))
+	}
 }
 
 func dialAttemptsToProto(attempts []node.DialAttempt) []*apiv1.DialAttempt {

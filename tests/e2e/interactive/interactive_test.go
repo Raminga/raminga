@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -46,11 +47,13 @@ func TestInteractiveTUI(t *testing.T) {
 	aDir := filepath.Join(base, "a")
 	bDir := filepath.Join(base, "b")
 	aPort, bPort := freePort(t), freePort(t)
-	// Advertise a deliberately long (150+ column) address so the 80-column
-	// pty can prove inline output never inserts a line break inside it.
-	longAnnounce := "/dns4/" + strings.Repeat("inline-long-address.", 6) + "example.test/tcp/4001"
-	runInit(t, bin, aDir, aPort, longAnnounce)
-	runInit(t, bin, bDir, bPort, "")
+	// Announce addresses that are distinct from the local test connection.
+	const hostLabel = "inline-long-address."
+	const lanIP = "192.168.250.42"
+	longAnnounce := "/dns4/" + strings.Repeat(hostLabel, 6) + "example.test/tcp/4001"
+	lanAnnounce := "/ip4/" + lanIP + "/tcp/4001"
+	runInit(t, bin, aDir, aPort, longAnnounce, lanAnnounce)
+	runInit(t, bin, bDir, bPort)
 	a, aLog := startDaemon(t, bin, aDir)
 	defer stopDaemon(t, a, aLog)
 	b, bLog := startDaemon(t, bin, bDir)
@@ -58,18 +61,10 @@ func TestInteractiveTUI(t *testing.T) {
 	aStatus := waitStatus(t, aDir)
 	bStatus := waitStatus(t, bDir)
 	bAddr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", bPort, bStatus.GetPeerId())
-	longAddr := longAnnounce + "/p2p/" + aStatus.GetPeerId()
-	if len(longAddr) < 150 {
-		t.Fatalf("long address is only %d columns: %q", len(longAddr), longAddr)
-	}
-	announced := false
-	for _, addr := range aStatus.GetAdvertisedAddrs() {
-		if strings.HasPrefix(addr, longAnnounce) {
-			announced = true
+	for _, addr := range []string{longAnnounce, lanAnnounce} {
+		if !slices.Contains(aStatus.GetAdvertisedAddrs(), addr) {
+			t.Fatalf("daemon did not advertise %q: %v", addr, aStatus.GetAdvertisedAddrs())
 		}
-	}
-	if !announced {
-		t.Fatalf("daemon did not advertise %q: %v", longAnnounce, aStatus.GetAdvertisedAddrs())
 	}
 
 	sess, err := tuipty.Start(bin, aDir)
@@ -88,23 +83,38 @@ func TestInteractiveTUI(t *testing.T) {
 		t.Fatalf("TUI issued the blocking terminal status probe before rendering: %q", raw)
 	}
 
-	// /status prints each advertised address as label line + bare address line.
-	// The 80-column pty must receive the 150+ column address as one contiguous
-	// string; terminal-side wrapping is fine, a program-inserted break is not.
-	foundLong := false
-	for attempt := 0; attempt < 10 && !foundLong; attempt++ {
-		mark := sess.Mark()
+	// Check the status output before typing a multiaddr into the input field.
+	statusMark := sess.Mark()
+	for attempt := 0; ; attempt++ {
 		if err := sess.SendLine("/status"); err != nil {
 			t.Fatal(err)
 		}
-		if err := sess.WaitForSince(longAddr, mark, time.Second); err == nil {
-			foundLong = true
+		err := sess.WaitForSince("可用连接方式：局域网直连", statusMark, time.Second)
+		if err == nil {
+			break
+		}
+		if attempt == 9 {
+			t.Fatal(err)
 		}
 	}
-	if !foundLong {
-		t.Fatalf("long address was not emitted contiguously in the 80-column pty: %q\n%s", longAddr, sess.Output())
+	// Wait for the next command's output so the entire status response is captured.
+	copyMark := sess.Mark()
+	if err := sess.SendLine("/copy"); err != nil {
+		t.Fatal(err)
 	}
-	t.Logf("80-column pty received contiguous %d-column address", len(longAddr))
+	if err := sess.WaitForSince("已发送到剪贴板（终端需支持 OSC52）："+aStatus.GetPeerId(), copyMark, 3*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	statusOutput := sess.OutputSince(statusMark)
+	if !strings.Contains(statusOutput, "本机："+aStatus.GetPeerId()) {
+		t.Fatalf("status did not show the full Raminga ID:\n%s", statusOutput)
+	}
+	for _, hidden := range []string{hostLabel, "example.test", lanIP, "/dns4/", "/ip4/", "/ip6/"} {
+		if strings.Contains(statusOutput, hidden) {
+			t.Fatalf("status or copy output disclosed %q:\n%s", hidden, statusOutput)
+		}
+	}
+	t.Log("80-column PTY showed the Raminga ID and LAN connection mode while hiding the announced addresses")
 
 	// Type like a user: character by character, with the completion popup open,
 	// then a single plain Enter that accepts the argument and submits.
@@ -233,12 +243,12 @@ func freePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-func runInit(t *testing.T, bin, dir string, port int, announce string) {
+func runInit(t *testing.T, bin, dir string, port int, announces ...string) {
 	t.Helper()
 	args := []string{"init", "--no-bootstrap-preset", "--data-dir", dir,
 		"--listen", fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", port),
 		"--listen", fmt.Sprintf("/ip4/127.0.0.1/udp/%d/quic-v1", port)}
-	if announce != "" {
+	for _, announce := range announces {
 		args = append(args, "--announce", announce)
 	}
 	cmd := exec.Command(bin, args...)

@@ -375,6 +375,14 @@ raminga stop --data-dir "$HOME/.raminga"
 raminga restart --data-dir "$HOME/.raminga"
 ```
 
+### 联系人名片与引导节点
+
+`raminga share` 输出本机 Raminga ID。指定一个已有联系人的 Raminga ID 可分享该联系人，加 `--include-addresses` 可将已知公网地址放进短码。使用 `raminga connect <Raminga ID 或分享码>` 连接。
+
+DSH「节点状态 → 引导节点」可保存含连接地址的名片短码，列表显示 ID 和连接状态。分享者可以在名片弹窗打开「附带连接地址」后复制。保存引导节点会在后台尝试 DHT 拨号，联系人列表保持原样。
+
+存储 schema 14 新增 `contact_cards` 和 `contact_card_sequence` 两张表，用于保存既有签名名片。升级时迁移现有 SQLite 数据库，沿用原有节点身份和联系人数据。
+
 ### MCP（插件接入）
 
 各宿主 Agent 外壳按需拉起同一个 `raminga mcp` 子命令，在 stdio 上暴露本地节点工具（状态、好友、公开内容、远端档案/manifest、连接、发消息、消息历史，以及私有 Agent 初始化 `raminga_agent_init`）。它只是 daemon 之上的一层薄封装：`stdout` 全程承载 MCP 协议帧，所有日志/提示只写 `stderr`。MCP 握手不等待 daemon 启动；第一次工具调用时才尝试自动拉起 daemon，拉起失败会在该次调用返回清晰的「节点未运行/启动失败」错误，而不是让宿主看到连接超时。
@@ -385,7 +393,7 @@ raminga mcp --data-dir "$HOME/.raminga"
 
 本地 API 默认仍是 `<data-dir>/api.sock`（0600）加 `<data-dir>/api.token`（0600）。需要绕过 Unix socket 的场景可以显式 opt-in 回环 TCP：启动 daemon 时加 `--api-tcp`，或在自动启动/裸 `raminga` 前设置 `RAMINGA_API_TCP=1`。此模式**不会**再监听 Unix socket，只在 `127.0.0.1:<临时端口>` 提供带每轮随机 token 和固定证书的 TLS API；端点文件 `<data-dir>/api.endpoint.json` 由 daemon 在数据目录锁内原子写入，停止/重启时删除并轮换 token/端口/证书。Unix 上该文件为 0600；Windows 上为按当前用户 SID 的受保护 DACL，Node 客户端通过本地 Go 二进制的私有 stdout 管道校验并读取，不再次按路径打开。客户端只读取该文件，端点过期、不可达或 ACL 无法验证时明确失败，不会回退到 Unix socket，也不使用环境代理。CLI、TUI 与 DSH 插件都复用同一发现逻辑。DSH 在 Windows 上缺省启用 TCP（显式 `apiTcp: false` 或 `RAMINGA_API_TCP=0` 仍优先），macOS/Linux 仍缺省 UDS，需设置 `apiTcp: true` 或 `RAMINGA_API_TCP=1`。不要把端点文件或 token 复制到渲染器、日志或分享内容。
 
-本地 API 现在带一个 `api_version` 字段（当前为 `"6"`，存储 schema 为 `13`）。插件外壳在第一次调用时校验它；当前插件要求 API 6，连接更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表；schema 9 追加 `sources_json`，用于同一 (peer, path, sha256) 版本的多种获取来源（手动与 Agent），迁移时为旧行从 `source` 回填一次。`"5"` 新增 `GetPublicDraft`/`ListPublicDrafts`/`SavePublicDraft`/`PutPublicDraftImage`/`DeletePublicDraft`/`PublishPublicDraft`、结构化 `PublicProfile` 与发布回执；schema 10 只新增 `public_drafts`/`public_draft_assets`，升级前自动备份为 `raminga.db.bak-<旧版本>`；`profile.json` v2、头像与 v2 图文动态只在显式发布后进入公开清单。daemon 启动时在单个事务中迁移旧库；P2/P3 升级前会自动写入 `raminga.db.bak-<旧版本>`，仍建议保留数据目录级备份。`Discovery.sources` 是 API 4 的追加字段，旧 daemon 省略它时插件回退到 `source`。`"6"` 新增 `MarkConversationRead`、`ListFavorites`/`SetFavorite`、`ListDiscoveries.peer_id`、会话/联系人未读字段与 `ListConversations.total_unread`；schema 11 新增 `conversation_read_state` 与 `favorites`，schema 12 为公开草稿增加独立的人类头像资源（`human_avatar`，旧库自动迁移并保留原草稿），schema 13 为普通 Peer 增加引导角色关系与一次性旧配置导入标记（`bootstrap_peers` / `bootstrap_import_state`；不新建独立身份或地址库），迁移 v10→v11 时按每个 Peer 的现有消息时间回填已读基线，避免升级后把全部历史标成未读。该基线不代表用户真的读过。人类已读游标只前进；`ListMessages`/`RecentMessages`/`ListConversations`/`ListFriends` 与 Agent 的 `raminga_chat_history` 都不写游标。收藏只接受 v1/v2 公开动态路径并记录经校验的版本，不收藏消息或联系人。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。API 6 还追加 `ListBootstrapPeers`/`AddBootstrapPeer`/`RemoveBootstrapPeer`（只在本机认证 API，不进入远端 P2P API）；旧 daemon 不支持写 RPC 时 DSH Web 保持只读并提示升级，不报假成功。
+本地 API 现在带一个 `api_version` 字段（当前为 `"6"`，存储 schema 为 `14`）。插件外壳在第一次调用时校验它；当前插件要求 API 6，连接更旧 daemon 会明确拒绝并提示同时升级 daemon 与插件，避免 proto3 忽略新字段而静默失去防护。`StatusResponse.current_time` 返回节点当前 UTC 时间（RFC 3339）；Agent 在写 journey state/event 时间戳前应调用 `raminga_status` 并使用该字段。`"2"` 新增 `SendChatRequest.agent_origin`：MCP/DSH 等 Agent 外壳发送时置位，TUI/CLI 人工发送不置位；daemon 只对置位发送执行私有原文、密钥/令牌、本机绝对路径与频率上限检查。`"3"` 新增按 Peer 的 `ListMessages`/`ListConversations`、人工/Agent/未知来源、持久投递状态、可选 `request_id` 幂等键和 `ListHumanOutboundPeers`。`"4"` 新增 `ListDiscoveries` 与公开内容获取证据；schema 8 新增私有 `public_discoveries` 表；schema 9 追加 `sources_json`，用于同一 (peer, path, sha256) 版本的多种获取来源（手动与 Agent），迁移时为旧行从 `source` 回填一次。`"5"` 新增 `GetPublicDraft`/`ListPublicDrafts`/`SavePublicDraft`/`PutPublicDraftImage`/`DeletePublicDraft`/`PublishPublicDraft`、结构化 `PublicProfile` 与发布回执；schema 10 只新增 `public_drafts`/`public_draft_assets`，升级前自动备份为 `raminga.db.bak-<旧版本>`；`profile.json` v2、头像与 v2 图文动态只在显式发布后进入公开清单。daemon 启动时在单个事务中迁移旧库；P2/P3 升级前会自动写入 `raminga.db.bak-<旧版本>`，仍建议保留数据目录级备份。`Discovery.sources` 是 API 4 的追加字段，旧 daemon 省略它时插件回退到 `source`。`"6"` 新增 `MarkConversationRead`、`ListFavorites`/`SetFavorite`、`ListDiscoveries.peer_id`、会话/联系人未读字段与 `ListConversations.total_unread`；schema 11 新增 `conversation_read_state` 与 `favorites`，schema 12 为公开草稿增加独立的人类头像资源（`human_avatar`，旧库自动迁移并保留原草稿），schema 13 为普通 Peer 增加引导角色关系与一次性旧配置导入标记（`bootstrap_peers` / `bootstrap_import_state`；不新建独立身份或地址库），迁移 v10→v11 时按每个 Peer 的现有消息时间回填已读基线，避免升级后把全部历史标成未读。该基线不代表用户真的读过。人类已读游标只前进；`ListMessages`/`RecentMessages`/`ListConversations`/`ListFriends` 与 Agent 的 `raminga_chat_history` 都不写游标。收藏只接受 v1/v2 公开动态路径并记录经校验的版本，不收藏消息或联系人。旧消息的 `origin`/`delivery_status` 保持 unknown，不推断为人工或已确认；旧未 ACK 记录和 outbox 终态清理规则不变。API 6 还追加 `ListBootstrapPeers`/`AddBootstrapPeer`/`RemoveBootstrapPeer`（只在本机认证 API，不进入远端 P2P API）；旧 daemon 不支持写 RPC 时 DSH Web 保持只读并提示升级，不报假成功。
 
 首次运行的**旧数据目录安全闸**：如果 `--data-dir` 指向的目录已存在且非空，但既无 `identity/` 也无 `config.toml`（疑似旧版或非 Raminga 数据），`raminga mcp` 会**拒绝静默初始化**——只写一条 stderr 警告，不自动生成新身份；确认后请显式 `raminga init --data-dir ...` 迁移或沿用，避免误建第二身份。直接运行 `raminga`（自动拉起 daemon 后打开 TUI）使用同一套旧数据目录与其他已知节点检测，命中时打印相同警告并拒绝自动启动。启动器在 `~/.raminga/bin/<version>/` 缓存的二进制属于 Raminga 自有条目，`raminga.lock`、`daemon.log`/`daemon.log.1`、`api.sock`/`api.token` 等运行期文件同样不计入“非空”；因此全新机器上只有 `bin/` 的默认目录可以直接初始化，含其他未知条目时仍按上述规则拒绝。目标目录**尚无身份**时还会检查 `$RAMINGA_DATA_DIR`、默认 `~/.raminga` 以及本文件记录的迁移旧位置（`~/.raminga/raminga-test`、`~/.raminga-before-migrate`、`~/.raminga-new`、`~/.raminga-new/raminga-test`）；发现含 `identity/key` 的节点就列出这些路径并拒绝自动初始化，避免用户已有身份时误建新身份。
 
@@ -559,7 +567,7 @@ raminga friends remove <名字|peer-id> --data-dir "$HOME/.raminga"
 raminga friends sync --data-dir "$HOME/.raminga"
 ```
 
-`friends name`、`describe`、`remove` 成功后会自动重写 `friends.json`（失败只记日志，不回滚操作）。TUI 对应 `/name <节点> <名字>`、`/describe <节点> <描述>`、`/forget <节点>`，以及 `/published sync`。`/peers` 把好友和已知节点按 Peer ID 合并，每个节点一行并显示完整 Peer ID；`/copy <节点>` 复制对方的完整 Peer ID，`/copy` 不带参数复制本机可用地址。TUI 的 `/name` 先填节点、后填名字；CLI 仍是 `raminga friends name <名字> <节点>`。
+`friends name`、`describe`、`remove` 成功后会自动重写 `friends.json`（失败只记日志，不回滚操作）。TUI 对应 `/name <节点> <名字>`、`/describe <节点> <描述>`、`/forget <节点>`，以及 `/published sync`。`/peers` 把好友和已知节点按 Peer ID 合并，每个节点一行并显示完整 Peer ID；`/copy <节点>` 复制对方的完整 Peer ID，`/copy` 不带参数复制本机 Raminga ID。TUI 的 `/name` 先填节点、后填名字；CLI 仍是 `raminga friends name <名字> <节点>`。
 
 公开内容限额在 `config.toml` 的 `[content]`（只有这三个键）：
 
@@ -582,7 +590,7 @@ raminga content get <名字|Peer ID> posts/example.txt
 raminga content connect <列表所有者> <列表中的名字|Peer ID>
 ```
 
-TUI 对应 `/view <节点>`、`/posts <节点>`、`/peerfriends <节点>`（显示完整 Peer ID 和地址，都是对方的说法，未验证）、`/connect <列表所有者> <列表中的节点>`（用列表里的地址连接，读取列表本身不会连接）、`/files <节点>`（完整清单，自动翻页）、`/get <节点> <清单路径>`。`/get` 的第二个参数是对方 manifest 里的路径（例如 `posts/hello.md`），不是本地保存位置；文件固定保存到 `<data-dir>/downloads/<Peer ID>/<path>`，用 `/files` 查看可下载路径。`/status` 会先打印每条公告地址的标签，再单独打印完整地址，方便直接选中；长行由终端自然折行，程序不会插入换行，解析前也会去掉所有空白。远端文字会先去除 ANSI/控制序列；只有 Markdown/纯文本作为文字显示，其他文件只提示保存路径。查看会向对方暴露你的 Peer ID 和 IP，并可能把对方记入本地好友表。经中继时只允许首个 manifest 页和 ≤64 KiB 文件；更大的内容会等待约 15 秒直连升级，仍失败则明确要求直连，不会用多条中继连接拼接。
+TUI 对应 `/view <节点>`、`/posts <节点>`、`/peerfriends <节点>`（显示完整 Peer ID 和连接方式，都是对方的说法，未验证）、`/connect <列表所有者> <列表中的节点>`（用列表里的地址连接，读取列表本身不会连接）、`/files <节点>`（完整清单，自动翻页）、`/get <节点> <清单路径>`。`/get` 的第二个参数是对方 manifest 里的路径（例如 `posts/hello.md`），不是本地保存位置；文件固定保存到 `<data-dir>/downloads/<Peer ID>/<path>`，用 `/files` 查看可下载路径。`/status` 显示本机可用的连接方式。需检查完整地址时，在终端使用 `raminga status --json`。远端文字会先去除 ANSI/控制序列；只有 Markdown/纯文本作为文字显示，其他文件只提示保存路径。查看会向对方暴露你的 Peer ID 和 IP，并可能把对方记入本地好友表。经中继时只允许首个 manifest 页和 ≤64 KiB 文件；更大的内容会等待约 15 秒直连升级，仍失败则明确要求直连，不会用多条中继连接拼接。
 
 查看本机发布了什么、哪些文件被跳过及原因、`friends.json` 最后变更时间（TUI `/published` 等价，且都会强制重新扫描；TUI `/published sync` 会先重写 `friends.json`）：
 
@@ -697,7 +705,7 @@ sudo systemctl status raminga
 
 - 聊天协议已改为 HTTP over libp2p（`/raminga/http/1.0.0`），**不兼容旧版本**，服务器和所有设备要一起升级。
 - 旧的 `peer_names` 表会被删除，之前起的名字会丢失。先连接对方，再用 `/name` 重新起名；只有好友表里的节点才能起名。
-- TUI 的好友列表已并入 `/peers`，`/peers <节点>` 显示当前连接和已知地址；CLI 的 `raminga friends ...` 保留。
+- TUI 的好友列表已并入 `/peers`，`/peers <节点>` 显示当前连接和已知的连接方式；CLI 的 `raminga friends ...` 保留。
 - 不需要重新 `init`；身份和聊天记录保留。
 
 卸载：
