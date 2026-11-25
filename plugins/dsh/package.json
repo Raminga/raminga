@@ -64,12 +64,12 @@
   "main": "./lib/index.js",
   "name": "@raminga/dsh",
   "optionalDependencies": {
-    "@raminga/bin-darwin-arm64": "0.1.0-rc.3",
-    "@raminga/bin-darwin-x64": "0.1.0-rc.3",
-    "@raminga/bin-linux-arm64": "0.1.0-rc.3",
-    "@raminga/bin-linux-x64": "0.1.0-rc.3",
-    "@raminga/bin-win32-arm64": "0.1.0-rc.3",
-    "@raminga/bin-win32-x64": "0.1.0-rc.3"
+    "@raminga/bin-darwin-arm64": "0.1.0-rc.4",
+    "@raminga/bin-darwin-x64": "0.1.0-rc.4",
+    "@raminga/bin-linux-arm64": "0.1.0-rc.4",
+    "@raminga/bin-linux-x64": "0.1.0-rc.4",
+    "@raminga/bin-win32-arm64": "0.1.0-rc.4",
+    "@raminga/bin-win32-x64": "0.1.0-rc.4"
   },
   "peerDependencies": {
     "@deepseek-ai/schemastery": "*"
@@ -96,5 +96,5 @@
     "test:windows": "node --test test/windows-api.integration.test.mjs"
   },
   "type": "module",
-  "version": "0.1.0-rc.3"
+  "version": "0.1.0-rc.4"
 }
