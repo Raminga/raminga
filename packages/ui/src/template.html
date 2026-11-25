@@ -156,6 +156,7 @@
       </section>
 
       <section class="rm-home-secondary" id="home-secondary">
+        <button type="button" class="rm-link" id="homeShareContact" aria-haspopup="dialog" aria-controls="shareDialog" hidden>分享我的名片</button>
         <button type="button" class="rm-link" data-messages-open>查看对话</button>
         <button type="button" class="rm-link" id="favoritesEntry" data-settings-open data-settings-tab="favorites" hidden>收藏的动态</button>
       </section>
@@ -666,6 +667,7 @@
         </div>
         <div class="rm-contact-hero-actions">
           <button type="button" class="rm-primary" id="profileMessage" data-profile-chat-return>发消息</button>
+          <button type="button" class="rm-secondary" id="profileShareContact" aria-haspopup="dialog" aria-controls="shareDialog" hidden>分享此联系人</button>
           <div class="rm-contact-hero-secondary">
             <button type="button" class="rm-quiet" id="profileEditContact" aria-haspopup="dialog" aria-controls="editContactDialog" hidden>编辑联系人资料</button>
             <button type="button" class="rm-quiet" id="profileAddContact" aria-haspopup="dialog" aria-controls="addContactDialog" hidden>添加联系人</button>
@@ -872,10 +874,10 @@
     <p class="rm-list-note" id="statusBootstrapFeedback" role="status" hidden></p>
     <form class="rm-contact-form" id="statusBootstrapEdit" novalidate hidden>
       <label class="rm-field" for="statusBootstrapInput">
-        <span>添加 Raminga 引导节点地址</span>
-        <input type="text" id="statusBootstrapInput" spellcheck="false" autocomplete="off" placeholder="例如 /ip4/…/tcp/…/p2p/12D3KooW…" aria-describedby="statusBootstrapInputHelp">
+        <span>添加 Raminga 引导节点</span>
+        <input type="text" id="statusBootstrapInput" spellcheck="false" autocomplete="off" maxlength="400" placeholder="粘贴含连接地址的名片短码" aria-describedby="statusBootstrapInputHelp">
       </label>
-      <p class="rm-field-note" id="statusBootstrapInputHelp">必须包含完整 /p2p/&lt;peer-id&gt;；只保存节点设置，不添加联系人或建立普通连接。</p>
+      <p class="rm-field-note" id="statusBootstrapInputHelp">请粘贴勾选了连接方式的名片。保存后，DHT 会尝试连接引导节点。</p>
       <div class="rm-form-actions">
         <button type="submit" class="rm-primary" id="statusBootstrapAdd">保存引导节点</button>
       </div>
@@ -883,7 +885,6 @@
     <p class="rm-list-note" id="statusBootstrapUpgrade" hidden>当前 daemon 版本较旧：只能查看引导节点配置。升级并重启节点后可在本页添加或移除。</p>
     <p class="rm-list-note" id="statusBootstrapUnavailable" hidden>当前宿主没有提供引导节点管理。</p>
     <div class="rm-peer-node-actions">
-      <button type="button" class="rm-quiet" id="statusBootstrapCopy" disabled>复制全部地址</button>
       <button type="button" class="rm-quiet" id="statusBootstrapRefresh">刷新设置</button>
     </div>
   </details>
@@ -917,11 +918,18 @@
   </div>
   <div class="rm-dialog-body">
     <form class="rm-contact-form" id="addContactForm" novalidate>
-      <label class="rm-field" for="addContactInput">
-        <span>Peer ID 或完整节点地址</span>
-        <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>
-      </label>
-      <p class="rm-field-note">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>
+      <div id="addContactEntry">
+        <label class="rm-field" for="addContactInput">
+          <span id="addContactLabel">Peer ID 或完整节点地址</span>
+          <textarea id="addContactInput" rows="3" spellcheck="false" autocomplete="off" placeholder="例如 12D3KooW… 或 /ip4/…/tcp/…/p2p/12D3KooW…"></textarea>
+        </label>
+        <p class="rm-field-note" id="addContactHint">完整地址需要包含目标节点的 /p2p/ 标识。连接可能需要一点时间。</p>
+      </div>
+      <div class="rm-share-peer rm-card-identity" id="addContactPreview" hidden>
+        <b id="addContactPreviewName"></b>
+        <span>Raminga ID</span>
+        <code class="rm-peer-id" id="addContactPreviewId"></code>
+      </div>
       <div class="rm-feedback" id="addContactFeedback" role="status" hidden>
         <b id="addContactFeedbackTitle"></b>
         <p id="addContactFeedbackBody"></p>
@@ -936,6 +944,7 @@
     </form>
   </div>
   <div class="rm-dialog-actions">
+    <button type="button" class="rm-secondary" id="addContactEditInput" hidden>修改输入</button>
     <button type="button" class="rm-primary" id="addContactView" hidden>查看联系人</button>
     <button type="submit" class="rm-primary" id="addContactSubmit" form="addContactForm">连接</button>
     <button type="button" class="rm-secondary" data-close-dialog>关闭</button>
@@ -987,7 +996,7 @@
       <p class="rm-eyebrow">RAMINGA</p>
       <h2 id="shareHeading">分享节点信息</h2>
     </div>
-    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享节点信息">×</button>
+    <button type="button" class="rm-icon-button" data-close-dialog aria-label="关闭分享名片">×</button>
   </div>
   <div class="rm-dialog-body">
     <div class="rm-share-loading" id="shareLoading">
@@ -995,10 +1004,29 @@
       <p>正在读取本机节点信息…</p>
     </div>
     <div id="shareContent" hidden>
-      <div class="rm-share-peer">
-        <span>本机 Peer ID</span>
+      <div class="rm-share-peer" id="shareIdentity">
+        <b id="shareSubject" hidden></b>
+        <span id="shareIdLabel">本机 Peer ID</span>
         <code class="rm-peer-id" id="sharePeerId"></code>
       </div>
+      <section class="rm-card-address-choice" id="shareAddressChoice" aria-labelledby="shareAddressHeading" hidden>
+        <div class="rm-card-address-heading">
+          <b id="shareAddressHeading">附带连接地址</b>
+          <button type="button" class="rm-card-address-help" id="shareAddressHelp" aria-label="了解连接方式" aria-controls="shareAddressHelpCard" aria-expanded="false">?</button>
+          <small id="shareAddressSummary" role="status"></small>
+          <div class="rm-card-address-help-card" id="shareAddressHelpCard" hidden>
+            <p><b>公网直连</b>　从外网直接连接。</p>
+            <p><b>中继连接</b>　直连失败时可尝试通过中继连接。</p>
+            <p><b>局域网直连</b>　适合同一局域网内的设备。</p>
+            <p>收到名片的人可以读取和转发所选地址。</p>
+          </div>
+        </div>
+        <div class="rm-card-address-options">
+          <label><input type="checkbox" id="sharePublicAddress" value="1"><span>公网直连</span></label>
+          <label><input type="checkbox" id="shareRelayAddress" value="2"><span>中继连接</span></label>
+          <label><input type="checkbox" id="shareLanAddress" value="4"><span>局域网直连</span></label>
+        </div>
+      </section>
       <div class="rm-share-addresses" id="shareAddresses"></div>
       <p class="rm-note" id="shareAddressNote" hidden></p>
       <p class="rm-list-note" id="shareStaleNote" hidden></p>

@@ -122,6 +122,7 @@ func newRootCmd() *cobra.Command {
 		newRestartCmd(),
 		newStatusCmd(),
 		newConnectCmd(),
+		newShareCmd(),
 		newDisconnectCmd(),
 		newChatCmd(),
 		newPeersCmd(),

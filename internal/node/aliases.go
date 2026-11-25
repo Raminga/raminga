@@ -189,7 +189,7 @@ func (n *Node) recordFriend(ctx context.Context, pid peer.ID, manual bool, extra
 	if n == nil || n.store == nil || pid == "" {
 		return
 	}
-	addrs := n.net.Host().Peerstore().Addrs(pid)
+	addrs := n.net.KnownPeerAddrs(pid)
 	stringsAddrs := make([]string, 0, len(addrs)+len(extra))
 	for _, addr := range addrs {
 		stringsAddrs = append(stringsAddrs, addr.String())
@@ -289,20 +289,32 @@ func (n *Node) AddBootstrapPeer(ctx context.Context, multiaddr string) (Bootstra
 	if err != nil {
 		return BootstrapPeer{}, false, err
 	}
-	if address.PeerID == n.identity.PeerID().String() {
-		return BootstrapPeer{}, false, errors.New("不能把本机节点设为引导节点")
-	}
-	n.bootstrapMu.Lock()
-	defer n.bootstrapMu.Unlock()
-	row, added, err := n.store.AddBootstrapPeer(ctx, address.Multiaddr)
+	info, err := peer.AddrInfoFromString(address.Multiaddr)
 	if err != nil {
 		return BootstrapPeer{}, false, err
 	}
-	// AddBootstrapPeer updates the live map and starts any bootstrap dial in
-	// the background; this lock never waits on that dial.
-	if _, err := n.net.AddBootstrapPeer(ctx, address.Multiaddr); err != nil {
-		return BootstrapPeer{}, added, fmt.Errorf("引导节点已保存，但运行时候选更新失败：%w", err)
+	return n.saveBootstrapPeer(ctx, *info)
+}
+
+func (n *Node) saveBootstrapPeer(ctx context.Context, info peer.AddrInfo) (BootstrapPeer, bool, error) {
+	if info.ID == n.identity.PeerID() {
+		return BootstrapPeer{}, false, errors.New("不能把本机节点设为引导节点")
 	}
+	addresses, err := peer.AddrInfoToP2pAddrs(&info)
+	if err != nil || len(addresses) == 0 {
+		return BootstrapPeer{}, false, errors.New("没有可保存的引导节点地址")
+	}
+	raw := make([]string, len(addresses))
+	for i, addr := range addresses {
+		raw[i] = addr.String()
+	}
+	n.bootstrapMu.Lock()
+	defer n.bootstrapMu.Unlock()
+	row, added, err := n.store.AddBootstrapPeer(ctx, raw[0], raw[1:]...)
+	if err != nil {
+		return BootstrapPeer{}, false, err
+	}
+	n.net.ApplyBootstrapPeer(ctx, info)
 	return n.bootstrapPeerSnapshot(ctx, row), added, nil
 }
 

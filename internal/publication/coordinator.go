@@ -589,7 +589,7 @@ func (c *Coordinator) readPublicJSONLocked(rel string, max int64, dst any) bool 
 }
 
 // buildProfileTargets converts a profile draft into its ordered file set.
-func (c *Coordinator) buildProfileTargets(ctx context.Context, d storage.PublicDraft, now time.Time) ([]targetFile, string, string, []string, error) {
+func (c *Coordinator) buildProfileTargets(ctx context.Context, d storage.PublicDraft, updatedAt string) ([]targetFile, string, string, []string, error) {
 	var warnings []string
 	agent := profileAgentJSON{
 		Name: d.AgentName, Description: d.AgentDescription,
@@ -638,7 +638,7 @@ func (c *Coordinator) buildProfileTargets(ctx context.Context, d storage.PublicD
 	profile := profileJSONV2{
 		SchemaVersion: 2, Agent: agent,
 		Human:     human,
-		UpdatedAt: now.UTC().Format(time.RFC3339),
+		UpdatedAt: updatedAt,
 	}
 	profileRaw, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
@@ -674,15 +674,15 @@ func (c *Coordinator) buildProfileTargets(ctx context.Context, d storage.PublicD
 		card, err := json.MarshalIndent(agentCardJSON{
 			SchemaVersion: 1, DisplayName: d.AgentName, Description: d.AgentDescription,
 			Interests: append([]string{}, d.AgentInterests...), ConversationStyle: d.AgentConversationStyle,
-			UpdatedAt: now.UTC().Format(time.RFC3339),
+			UpdatedAt: updatedAt,
 		}, "", "  ")
 		if err != nil {
 			return nil, "", "", nil, err
 		}
 		files = append(files, targetFile{path: "profile/agent-card.json", data: append(card, '\n')})
 	}
-	files = append(files, targetFile{path: "profile/profile.json", data: profileRaw, metadata: true})
-	return files, "profile/profile.json", hashBytes(profileRaw), warnings, nil
+	files = append(files, targetFile{path: profileMetadataPath, data: profileRaw, metadata: true})
+	return files, profileMetadataPath, hashBytes(profileRaw), warnings, nil
 }
 
 func hashBytes(data []byte) string {
@@ -932,13 +932,66 @@ func writeStaging(dataDir, publishID string, files []targetFile) (string, error)
 
 // Publish commits one draft under the fixed lock order draft → publish.
 func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevision int64, expectedPublishedSHA string) (PublishResult, error) {
+	return c.PublishWithRequestID(ctx, draftID, expectedRevision, expectedPublishedSHA, "")
+}
+
+// PublishWithRequestID supports durable retries for a profile confirmation.
+func (c *Coordinator) PublishWithRequestID(ctx context.Context, draftID string, expectedRevision int64, expectedPublishedSHA, requestID string) (PublishResult, error) {
 	if !storage.ValidateDraftID(draftID) {
 		return PublishResult{Status: StatusInvalid, Error: "draft_id 格式无效"}, nil
+	}
+	if requestID != "" && draftID != "profile" {
+		return PublishResult{Status: StatusInvalid, Error: "request_id 仅用于公开档案发布"}, nil
 	}
 	unlock := c.lockDraft(draftID)
 	defer unlock()
 	c.content.LockPublish()
 	defer c.content.UnlockPublish()
+
+	expected := strings.ToLower(strings.TrimSpace(expectedPublishedSHA))
+	var request storage.ProfilePublicationRequest
+	var pending bool
+	if requestID != "" {
+		var err error
+		request, pending, err = c.store.GetProfilePublicationRequest(ctx, requestID)
+		if err != nil {
+			return PublishResult{}, err
+		}
+		if pending {
+			if request.Revision != expectedRevision || request.BaseSHA256 != expected {
+				return PublishResult{Status: StatusInvalid, Error: "同一 request_id 的发布参数必须一致"}, nil
+			}
+			if len(request.ReceiptJSON) != 0 {
+				var result PublishResult
+				err := json.Unmarshal(request.ReceiptJSON, &result)
+				return result, err
+			}
+		}
+	}
+
+	var actualMetadataSHA, previousProfileTime string
+	if draftID == "profile" {
+		var err error
+		actualMetadataSHA, previousProfileTime, err = c.profileMetadataLocked()
+		if err != nil {
+			return PublishResult{Status: StatusConflict, Error: "无法核对当前公开档案：" + c.safeError(err)}, nil
+		}
+		if pending && actualMetadataSHA != request.BaseSHA256 && actualMetadataSHA != request.TargetSHA256 {
+			return PublishResult{Status: StatusConflict, Error: "公开档案已变化，请重新检查发布内容", CurrentPublishedSHA256: actualMetadataSHA}, nil
+		}
+		if actualMetadataSHA != "" {
+			landed, found, err := c.store.PendingProfilePublication(ctx, actualMetadataSHA)
+			if err != nil {
+				return PublishResult{}, err
+			}
+			if found {
+				recovered, err := c.recoverProfileReceiptLocked(ctx, landed)
+				if err != nil || landed.RequestID == requestID || recovered.Status != StatusPublished {
+					return recovered, err
+				}
+			}
+		}
+	}
 
 	now := c.now()
 	d, found, err := c.store.GetPublicDraft(ctx, draftID)
@@ -951,6 +1004,9 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 	if d.Revision != expectedRevision {
 		return PublishResult{Status: StatusConflict, Error: "草稿已在别处更新，请重新载入后再发布", CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256}, nil
 	}
+	if pending && d.CreatedAt.UnixMilli() != request.DraftCreatedAtMS {
+		return PublishResult{Status: StatusConflict, Error: "原草稿已被替换，请重新检查发布内容", CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256}, nil
+	}
 	if err := validateDraftValues(d); err != nil {
 		return PublishResult{Status: StatusInvalid, Error: c.safeError(err), CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256}, nil
 	}
@@ -960,8 +1016,25 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 	var targets []targetFile
 	var metadataPath, targetMetadataSHA string
 	var warnings []string
+	var profileTime time.Time
 	if d.Kind == storage.DraftKindProfile {
-		targets, metadataPath, targetMetadataSHA, warnings, err = c.buildProfileTargets(ctx, d, now)
+		updatedAt := d.UpdatedAt.UTC().Format(time.RFC3339)
+		switch {
+		case pending:
+			profileTime = time.Unix(0, request.PublishedAtNS).UTC()
+			updatedAt = profileTime.Format(time.RFC3339Nano)
+		case requestID != "":
+			profileTime, err = c.profilePublicationTime(ctx, now, previousProfileTime)
+			if err != nil {
+				return PublishResult{}, err
+			}
+			updatedAt = profileTime.Format(time.RFC3339Nano)
+		case d.PublishedRevision == d.Revision && d.PublishedSHA256 == actualMetadataSHA && previousProfileTime != "":
+			// Recognize the exact same revision even when an older daemon
+			// or a keyed confirmation originally supplied its timestamp.
+			updatedAt = previousProfileTime
+		}
+		targets, metadataPath, targetMetadataSHA, warnings, err = c.buildProfileTargets(ctx, d, updatedAt)
 	} else {
 		targets, metadataPath, targetMetadataSHA, warnings, err = c.buildPostTargets(ctx, d, now)
 	}
@@ -977,14 +1050,13 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 	} else {
 		result.PostPath = metadataPath
 	}
-	actualMetadataSHA := ""
-	if exists, _ := c.content.PublicFileExistsLocked(metadataPath); exists {
+	if d.Kind != storage.DraftKindProfile {
 		actualMetadataSHA, _, _ = c.content.PublicFileSHA256Locked(metadataPath, metadataMaxBytes)
 	}
-	// Reconcile a previous post-commit DB failure: the actual files already
+	// Reconcile an unkeyed post-commit DB failure: the actual files already
 	// equal this revision's target. Do not write them again.
-	if actualMetadataSHA == targetMetadataSHA && c.allTargetsPresentLocked(targets) {
-		if expected := strings.ToLower(strings.TrimSpace(expectedPublishedSHA)); expected != "" && d.PublishedSHA256 != "" && expected != d.PublishedSHA256 {
+	if requestID == "" && actualMetadataSHA == targetMetadataSHA && c.allTargetsPresentLocked(targets) {
+		if expected != "" && d.PublishedSHA256 != "" && expected != d.PublishedSHA256 {
 			return PublishResult{Status: StatusConflict, Error: "已发布版本已变化，请重新载入后再发布", CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256, Warnings: warnings}, nil
 		}
 		if d.PublishedSHA256 != targetMetadataSHA || d.PublishedRevision != d.Revision {
@@ -1006,7 +1078,6 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 		result.ManifestSHA256 = content.ManifestDigest(snap)
 		return result, nil
 	}
-	expected := strings.ToLower(strings.TrimSpace(expectedPublishedSHA))
 	if expected != "" && len(expected) != 64 {
 		return PublishResult{Status: StatusInvalid, Error: "expected_published_sha256 格式无效", CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256}, nil
 	}
@@ -1031,8 +1102,25 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 		return PublishResult{Status: StatusConflict, Error: "目标公开文件已存在但不受本草稿管理，未覆盖", CurrentRevision: d.Revision, CurrentPublishedSHA256: "", Warnings: warnings}, nil
 	}
 
+	stagedTargets := targets
+	if requestID != "" {
+		if !pending {
+			request = storage.ProfilePublicationRequest{
+				RequestID: requestID, DraftCreatedAtMS: d.CreatedAt.UnixMilli(), Revision: d.Revision,
+				BaseSHA256: actualMetadataSHA, PublishedAtNS: profileTime.UnixNano(), TargetSHA256: targetMetadataSHA,
+			}
+		}
+		var matches bool
+		stagedTargets, matches, err = c.stageProfileRequestLocked(ctx, &request, targets, pending)
+		if err != nil {
+			return PublishResult{}, err
+		}
+		if !matches {
+			return PublishResult{Status: StatusConflict, Error: "草稿资源或公开文件已变化，请重新检查发布内容", CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256}, nil
+		}
+	}
 	publishID := content.NewPublishID(now)
-	staging, err := writeStaging(c.dataDir, publishID, targets)
+	staging, err := writeStaging(c.dataDir, publishID, stagedTargets)
 	if err != nil {
 		_ = os.RemoveAll(staging)
 		return PublishResult{Status: StatusPartial, Error: "写入发布暂存目录失败：" + c.safeError(err), CurrentRevision: d.Revision, CurrentPublishedSHA256: d.PublishedSHA256, Warnings: warnings}, nil
@@ -1045,7 +1133,7 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 		metadataDone  bool
 		existedBefore = make(map[string]bool, len(targets))
 	)
-	for i, f := range targets {
+	for _, f := range targets {
 		if contextErr(ctx) != nil {
 			break
 		}
@@ -1121,7 +1209,6 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 		if f.metadata {
 			metadataDone = true
 		}
-		_ = i
 	}
 	if !metadataDone {
 		failed := c.rollbackLocked(committed, existedBefore)
@@ -1172,12 +1259,17 @@ func (c *Coordinator) Publish(ctx context.Context, draftID string, expectedRevis
 			return result, nil
 		}
 	}
-	if err := c.store.SetPublicDraftPublished(ctx, d.DraftID, d.Revision, metadataPath, targetMetadataSHA); err != nil {
+	result.Status = StatusPublished
+	if requestID != "" {
+		err = c.finishProfileReceipt(ctx, request, result)
+	} else {
+		err = c.store.SetPublicDraftPublished(ctx, d.DraftID, d.Revision, metadataPath, targetMetadataSHA)
+	}
+	if err != nil {
 		result.Status = StatusPartial
 		result.Error = "公开文件已提交，但草稿发布状态未回写：" + c.safeError(err)
 		return result, nil
 	}
-	result.Status = StatusPublished
 	return result, nil
 }
 

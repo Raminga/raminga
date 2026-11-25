@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { RamingaUiBridge } from '../lib/ui-bridge.js';
 
 const PEER_A = '12D3KooWCU5mTmYUM99MTejrAGiGhKQDQxLq6M26RnAmXKH9XoSR';
+const BOOTSTRAP_CARD = 'jwECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gC0JNCg-hJAAAAAAAAAAAAAAAAAAAAQ';
 const PEER_B = '12D3KooWJ6jZ9uCQX6rHJCMkdMEL1JEoMo4fLh7eUR4b26GVjfz6';
 
 function statusResponse({ peerId = PEER_B, connections = [], peers = [], peerCache = [] } = {}) {
@@ -110,8 +111,8 @@ function makeClient({ status = statusResponse(), rows = [], manifest = [], downl
     },
     async addBootstrapPeer(request) {
       if (bootstrapList === null) throw new Error('unimplemented: AddBootstrapPeer');
-      bootstrapEdits.push({ action: 'add', multiaddr: request.multiaddr });
-      return { added: true, peer: { peerId: PEER_A, addrs: [request.multiaddr], online: false, paused: false, savedAtUnixMs: 2000 } };
+      bootstrapEdits.push({ action: 'add', shareCode: request.shareCode, multiaddr: request.multiaddr });
+      return { added: true };
     },
     async removeBootstrapPeer(request) {
       if (bootstrapList === null) throw new Error('unimplemented: RemoveBootstrapPeer');
@@ -248,7 +249,7 @@ test('peer manifest lists files, manual reads record source, and node informatio
 
     const bootstrap = await bridge.bootstrap('ui-files-peer');
     assert.equal(bootstrap.source, 'dht-status');
-    assert.deepEqual(bootstrap.peers, []);
+    assert.deepEqual(bootstrap.entries, []);
   } finally {
     bridge.dispose();
   }
@@ -796,13 +797,15 @@ test('bootstrap settings use the write-capable API and keep online/paused separa
     assert.equal(info.entries[0].paused, true);
     assert.equal(info.entries[0].online, false);
     assert.equal(info.entries[0].savedAt, 1234);
-    const added = await bridge.addBootstrap('ui-bootstrap-edit', `/ip4/127.0.0.1/tcp/44002/p2p/${PEER_A}`);
+    assert.equal(info.entries[0].hasAddresses, true);
+    assert.doesNotMatch(JSON.stringify(info), /127\.0\.0\.1/);
+    const added = await bridge.addBootstrap('ui-bootstrap-edit', BOOTSTRAP_CARD);
     assert.equal(added.ok, true);
     assert.equal(added.changed, true);
     const removed = await bridge.removeBootstrap('ui-bootstrap-edit', PEER_A);
     assert.equal(removed.ok, true);
     assert.deepEqual(client.bootstrapEdits, [
-      { action: 'add', multiaddr: `/ip4/127.0.0.1/tcp/44002/p2p/${PEER_A}` },
+      { action: 'add', shareCode: BOOTSTRAP_CARD, multiaddr: '' },
       { action: 'remove', peerId: PEER_A },
     ]);
   } finally {
@@ -820,9 +823,10 @@ test('old daemon bootstrap is readable but writes fail with an upgrade message',
     assert.equal(info.source, 'dht-status');
     assert.equal(info.editable, false);
     assert.equal(info.requiresUpgrade, true);
-    assert.deepEqual(info.peers, [`/ip4/127.0.0.1/tcp/44001/p2p/${PEER_A}`]);
+    assert.deepEqual(info.entries.map((entry) => entry.peerId), [PEER_A]);
+    assert.doesNotMatch(JSON.stringify(info), /127\.0\.0\.1/);
     await assert.rejects(
-      () => bridge.addBootstrap('ui-bootstrap-old', `/ip4/127.0.0.1/tcp/44002/p2p/${PEER_A}`),
+      () => bridge.addBootstrap('ui-bootstrap-old', BOOTSTRAP_CARD),
       /升级|不支持/,
     );
     assert.equal(client.bootstrapEdits.length, 0, 'old daemon must not report a false save');

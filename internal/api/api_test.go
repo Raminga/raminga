@@ -23,6 +23,7 @@ import (
 	"github.com/Raminga/raminga/internal/api"
 	"github.com/Raminga/raminga/internal/api/client"
 	"github.com/Raminga/raminga/internal/api/endpoint"
+	"github.com/Raminga/raminga/internal/contactcard"
 	"github.com/Raminga/raminga/internal/node"
 )
 
@@ -103,6 +104,24 @@ func (f *fakeBackend) Connect(context.Context, string, string) (node.ConnectResu
 	return node.ConnectResult{PeerID: "peer-b", Transport: "tcp", Direct: true}, nil
 }
 
+func (f *fakeBackend) ConnectContactCard(_ context.Context, code string) (node.ConnectResult, error) {
+	if code == "raminga:v2:unavailable" {
+		return node.ConnectResult{}, errors.New("dial failed at /ip4/11.66.77.10/tcp/4001")
+	}
+	return node.ConnectResult{
+		PeerID: "peer-b", Direct: true, Source: "dht", RemoteMultiaddr: "/ip4/11.66.77.10/tcp/4001",
+		Note: "diagnostic", Attempts: []node.DialAttempt{{Multiaddr: "/ip4/11.66.77.10/tcp/4001"}},
+	}, nil
+}
+
+func (f *fakeBackend) ContactCardForScopes(context.Context, string, contactcard.AddressScopes) (contactcard.Card, contactcard.AddressScopes, error) {
+	return contactcard.Card{}, 0, node.ErrContactNotFound
+}
+
+func (f *fakeBackend) PreviewContactCard(context.Context, string) (contactcard.Card, string, error) {
+	return contactcard.Card{}, "", contactcard.ErrInvalid
+}
+
 func (f *fakeBackend) SendChatOrigin(_ context.Context, _, _, _, origin, requestID string) (node.SendResult, error) {
 	f.sendCalls++
 	f.lastOrigin = origin
@@ -174,6 +193,32 @@ func startServer(t *testing.T, testAPI bool) *testServer {
 		_ = srv.Close(ctx)
 	})
 	return &testServer{dir: dir, srv: srv, backend: backend}
+}
+
+func TestContactCardConnectionSummary(t *testing.T) {
+	ts := startServer(t, false)
+	c, err := client.New(ts.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx := context.Background()
+	res, err := c.ConnectContactCard(ctx, "raminga:v2:ok", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GetPeerId() != "peer-b" || res.GetSource() != "dht" ||
+		res.GetRemoteMultiaddr() != "" || res.GetNote() != "" || len(res.GetAttempts()) != 0 {
+		t.Fatalf("unexpected summary: %v", res)
+	}
+	if _, err := c.ConnectContactCard(ctx, "raminga:v2:unavailable", true); connect.CodeOf(err) != connect.CodeUnavailable ||
+		strings.Contains(err.Error(), "/ip4/") {
+		t.Fatalf("unexpected summarized dial error: %v", err)
+	}
+	res, err = c.ConnectContactCard(ctx, "raminga:v2:ok", false)
+	if err != nil || res.GetRemoteMultiaddr() == "" || len(res.GetAttempts()) == 0 {
+		t.Fatalf("missing diagnostic results: %v, %v", res, err)
+	}
 }
 
 func TestPermissionsAndStatus(t *testing.T) {
@@ -269,6 +314,9 @@ func TestBootstrapPeerRPCsAreExplicitLocalSetting(t *testing.T) {
 	}
 	if _, err := c.AddBootstrapPeer(ctx, "/ip4/127.0.0.1/tcp/4001"); err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("invalid add code=%v err=%v", connect.CodeOf(err), err)
+	}
+	if result, err := c.AddBootstrapCard(ctx, "  example-short-code  "); err != nil || !result.GetAdded() || ts.backend.lastBootstrapAdd != "example-short-code" {
+		t.Fatalf("add bootstrap card = %+v, %v", result, err)
 	}
 	removed, err := c.RemoveBootstrapPeer(ctx, "peer-b")
 	if err != nil || !removed.GetRemoved() {
@@ -662,6 +710,11 @@ func (f *fakeBackend) AddBootstrapPeer(_ context.Context, multiaddr string) (nod
 	return value, true, nil
 }
 
+func (f *fakeBackend) AddBootstrapCard(_ context.Context, code string) (node.BootstrapPeer, bool, error) {
+	f.lastBootstrapAdd = code
+	return node.BootstrapPeer{PeerID: "peer-b"}, true, nil
+}
+
 func (f *fakeBackend) RemoveBootstrapPeer(_ context.Context, peerID string) (bool, error) {
 	f.removedBootstrap = append(f.removedBootstrap, peerID)
 	return true, nil
@@ -819,7 +872,7 @@ func (f *fakeBackend) DeletePublicDraft(context.Context, string, int64) (bool, e
 	return true, nil
 }
 
-func (f *fakeBackend) PublishPublicDraft(context.Context, string, int64, string) (node.PublishResult, error) {
+func (f *fakeBackend) PublishPublicDraft(context.Context, string, int64, string, string) (node.PublishResult, error) {
 	return node.PublishResult{Status: node.PublishStatusPublished, ManifestVersion: 1}, nil
 }
 

@@ -538,10 +538,10 @@ export function createPanelRuntime({
     return remoteValue(await rpc.bootstrap(sessionId));
   }
 
-  async function addBootstrap(multiaddr) {
+  async function addBootstrap(shareCode) {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.addBootstrap !== 'function') throw new Error('Raminga bootstrap edit is unavailable');
-    return remoteValue(await rpc.addBootstrap(sessionId, multiaddr));
+    return remoteValue(await rpc.addBootstrap(sessionId, shareCode));
   }
 
   async function removeBootstrap(peerId) {
@@ -598,10 +598,10 @@ export function createPanelRuntime({
     return remoteValue(await rpc.deletePublicDraft(sessionId, draftId, expectedRevision));
   }
 
-  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256) {
+  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256, requestId = '') {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.publishPublicDraft !== 'function') throw new Error('Raminga publication is unavailable');
-    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256));
+    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId));
     if (result && (result.status === 'published' || result.status === 'already_published' || result.status === 'partial')) {
       // The daemon already returned the same-snapshot files/digest. Refresh the
       // local published list only after that response, never before.
@@ -769,6 +769,12 @@ export function createPanelRuntime({
         mountOptions.onSetFriendDescription = (peerId, description) => setFriendDescription(peerId, description);
       }
       if (typeof rpc.connect === 'function') mountOptions.onConnect = (input) => connect(input);
+      if (typeof rpc.contactCard === 'function') {
+        mountOptions.onContactCard = async (peerId, addressScopes) => remoteValue(await rpc.contactCard(sessionId, peerId, addressScopes));
+      }
+      if (typeof rpc.previewContactCard === 'function') {
+        mountOptions.onPreviewContactCard = async (input) => remoteValue(await rpc.previewContactCard(sessionId, input));
+      }
       if (typeof rpc.checkContact === 'function') mountOptions.onCheckContact = (peerId) => checkContact(peerId);
       if (typeof rpc.conversations === 'function') {
         mountOptions.onLoadConversations = (force) => loadConversations(force);
@@ -855,7 +861,7 @@ export function createPanelRuntime({
         mountOptions.onLoadBootstrap = () => readBootstrap();
       }
       if (typeof rpc.addBootstrap === 'function') {
-        mountOptions.onAddBootstrap = (multiaddr) => addBootstrap(multiaddr);
+        mountOptions.onAddBootstrap = (shareCode) => addBootstrap(shareCode);
       }
       if (typeof rpc.removeBootstrap === 'function') {
         mountOptions.onRemoveBootstrap = (peerId) => removeBootstrap(peerId);
@@ -900,7 +906,7 @@ export function createPanelRuntime({
         mountOptions.onDeletePublicDraft = (draftId, expectedRevision) => deletePublicDraft(draftId, expectedRevision);
       }
       if (typeof rpc.publishPublicDraft === 'function') {
-        mountOptions.onPublishPublicDraft = (draftId, expectedRevision, expectedPublishedSha256) => publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256);
+        mountOptions.onPublishPublicDraft = publishPublicDraft;
       }
       if (typeof rpc.locateMessage === 'function') {
         mountOptions.onLocateMessage = (peerId, messageId) => readLocatedMessage(peerId, messageId);

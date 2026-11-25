@@ -25,6 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/Raminga/raminga/internal/config"
+	"github.com/Raminga/raminga/internal/contactcard"
 	"github.com/Raminga/raminga/internal/content"
 	"github.com/Raminga/raminga/internal/identity"
 	"github.com/Raminga/raminga/internal/network"
@@ -391,6 +392,10 @@ func (n *Node) Connect(ctx context.Context, peerID, multiaddr string) (ConnectRe
 			return ConnectResult{}, fmt.Errorf("node: invalid peer ID %q: %w；%s", peerID, err, peerarg.WrappedHint)
 		}
 	}
+	return n.connectTarget(ctx, target, multiaddr, nil)
+}
+
+func (n *Node) connectTarget(ctx context.Context, target peer.ID, multiaddr string, card *contactcard.Card) (ConnectResult, error) {
 	n.restoreFriendAddrs(ctx, target)
 	// Clear the pause before dialling so the connection gater allows the
 	// explicit user action.
@@ -403,6 +408,8 @@ func (n *Node) Connect(ctx context.Context, peerID, multiaddr string) (ConnectRe
 	)
 	if multiaddr != "" {
 		out, err = n.net.DialMultiaddr(ctx, multiaddr)
+	} else if card != nil {
+		out, err = n.net.DialContactCard(ctx, card.PeerID, card.Addrs, len(card.Envelope) == 0)
 	} else {
 		out, err = n.net.DialPeerByID(ctx, target)
 	}
@@ -413,6 +420,11 @@ func (n *Node) Connect(ctx context.Context, peerID, multiaddr string) (ConnectRe
 				extraAddr = multiaddr
 			}
 			n.recordFriend(ctx, pid, true, extraAddr)
+			if card != nil && len(card.Envelope) > 0 {
+				if err := n.store.SaveContactCard(ctx, pid.String(), card.Seq, card.Envelope); err != nil {
+					return connectResult(out), fmt.Errorf("save contact card: %w", err)
+				}
+			}
 			n.recordFriendCapabilities(ctx, pid)
 			n.net.MaybeAddConnectRelay(ctx, pid)
 			if helloErr := n.sendHello(ctx, pid); helloErr != nil {

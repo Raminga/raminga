@@ -281,6 +281,30 @@ func (c *Client) Connect(ctx context.Context, peerID, multiaddr string) (*apiv1.
 	return resp.Msg, nil
 }
 
+func (c *Client) ConnectContactCard(ctx context.Context, code string, summaryOnly bool) (*apiv1.ConnectResponse, error) {
+	resp, err := c.svc.Connect(ctx, connect.NewRequest(&apiv1.ConnectRequest{ShareCode: code, SummaryOnly: summaryOnly}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+func (c *Client) ContactCard(ctx context.Context, peerID string, includeAddresses bool) (*apiv1.GetContactCardResponse, error) {
+	return c.contactCard(ctx, &apiv1.GetContactCardRequest{PeerId: peerID, IncludeAddresses: includeAddresses})
+}
+
+func (c *Client) ContactCardForScopes(ctx context.Context, peerID string, addressScopes uint32) (*apiv1.GetContactCardResponse, error) {
+	return c.contactCard(ctx, &apiv1.GetContactCardRequest{PeerId: peerID, AddressScopes: &addressScopes})
+}
+
+func (c *Client) contactCard(ctx context.Context, req *apiv1.GetContactCardRequest) (*apiv1.GetContactCardResponse, error) {
+	resp, err := c.svc.GetContactCard(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
 // Local send provenance constants. They mirror internal/storage without making
 // the CLI depend on daemon storage types.
 const (
@@ -457,6 +481,15 @@ func (c *Client) ListBootstrapPeers(ctx context.Context) (*apiv1.ListBootstrapPe
 // AddBootstrapPeer calls AddBootstrapPeer.
 func (c *Client) AddBootstrapPeer(ctx context.Context, multiaddr string) (*apiv1.AddBootstrapPeerResponse, error) {
 	resp, err := c.svc.AddBootstrapPeer(ctx, connect.NewRequest(&apiv1.AddBootstrapPeerRequest{Multiaddr: multiaddr}))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Msg, nil
+}
+
+// AddBootstrapCard saves the addresses in a contact card as a bootstrap role.
+func (c *Client) AddBootstrapCard(ctx context.Context, shareCode string) (*apiv1.AddBootstrapPeerResponse, error) {
+	resp, err := c.svc.AddBootstrapPeer(ctx, connect.NewRequest(&apiv1.AddBootstrapPeerRequest{ShareCode: shareCode}))
 	if err != nil {
 		return nil, err
 	}

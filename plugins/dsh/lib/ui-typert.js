@@ -26,6 +26,7 @@ function codec(typeSymbol) {
 }
 const sessionIdCodec = codec('@raminga/dsh#SessionId');
 const booleanCodec = codec('@raminga/dsh#UiBoolean');
+const addressSelectionCodec = codec('@raminga/dsh#UiAddressSelection');
 const connectInputCodec = codec('@raminga/dsh#UiConnectInput');
 const peerIdCodec = codec('@raminga/dsh#PeerId');
 const beforeCodec = codec('@raminga/dsh#UiBeforeCursor');
@@ -51,7 +52,7 @@ const filenameCodec = codec('@raminga/dsh#UiFileName');
 const imageDataCodec = codec('@raminga/dsh#UiImageBase64');
 const revisionCodec = codec('@raminga/dsh#UiDraftRevision');
 const publishedShaCodec = codec('@raminga/dsh#UiPublishedSha256');
-const bootstrapMultiaddrCodec = codec('@raminga/dsh#UiBootstrapMultiaddr');
+const bootstrapShareCodeCodec = codec('@raminga/dsh#UiBootstrapShareCode');
 const titleCodec = codec('@raminga/dsh#UiFavoriteTitle');
 const contactInputCodec = codec('@raminga/dsh#UiContactImpressionSave');
 const journeyIdCodec = codec('@raminga/dsh#UiJourneyId');
@@ -61,8 +62,9 @@ export const UI_JSON_CODEC = codec('@raminga/dsh#UiJson');
 const PARAMS = {
     session: { name: 'sessionId', wire: 'sessionId', codec: sessionIdCodec },
     boolean: { name: 'force', wire: 'force', codec: booleanCodec },
+    includeAddresses: { name: 'includeAddresses', wire: 'includeAddresses', codec: addressSelectionCodec },
     familiar: { name: 'familiar', wire: 'familiar', codec: booleanCodec },
-    bootstrapMultiaddr: { name: 'multiaddr', wire: 'multiaddr', codec: bootstrapMultiaddrCodec },
+    bootstrapShareCode: { name: 'shareCode', wire: 'shareCode', codec: bootstrapShareCodeCodec },
     connectInput: { name: 'input', wire: 'input', codec: connectInputCodec },
     peerId: { name: 'peerId', wire: 'peerId', codec: peerIdCodec },
     before: { name: 'before', wire: 'before', codec: beforeCodec },
@@ -117,6 +119,8 @@ export const UI_INVOCATIONS = [
     invocation('connect', ['session', 'connectInput'], 'UiConnectResult'),
     invocation('checkContact', ['session', 'peerId'], 'UiContactCheck'),
     invocation('share', ['session'], 'UiShareInfo'),
+    invocation('contactCard', ['session', 'peerId', 'includeAddresses'], 'UiContactCard'),
+    invocation('previewContactCard', ['session', 'connectInput'], 'UiContactCardPreview'),
     invocation('conversations', ['session', 'boolean'], 'UiConversations'),
     invocation('messages', ['session', 'peerId', 'before', 'boolean'], 'UiMessagePage'),
     invocation('markRead', ['session', 'peerId', 'messageId'], 'UiMarkRead'),
@@ -143,7 +147,7 @@ export const UI_INVOCATIONS = [
     invocation('revealDiscovery', ['session', 'contentId'], 'UiRevealResult'),
     invocation('revealFile', ['session', 'subject', 'peerId', 'filePath', 'sha256', 'size'], 'UiRevealResult'),
     invocation('bootstrap', ['session'], 'UiBootstrapInfo'),
-    invocation('addBootstrap', ['session', 'bootstrapMultiaddr'], 'UiBootstrapEdit'),
+    invocation('addBootstrap', ['session', 'bootstrapShareCode'], 'UiBootstrapEdit'),
     invocation('removeBootstrap', ['session', 'peerId'], 'UiBootstrapEdit'),
     invocation('journey', ['session', 'boolean'], 'UiJourney'),
     invocation('journeyReport', ['session', 'journeyId'], 'UiJourneyReport'),
@@ -157,7 +161,7 @@ export const UI_INVOCATIONS = [
     invocation('publicDraftAsset', ['session', 'draftId', 'assetId'], 'UiPublicDraftAssetRead'),
     invocation('importPublicPost', ['session', 'filePath'], 'UiPublicDraftImportResult'),
     invocation('deletePublicDraft', ['session', 'draftId', 'revision'], 'UiPublicDraftDelete'),
-    invocation('publishPublicDraft', ['session', 'draftId', 'revision', 'publishedSha'], 'UiPublishResult'),
+    invocation('publishPublicDraft', ['session', 'draftId', 'revision', 'publishedSha', 'requestId'], 'UiPublishResult'),
     invocation('locateMessage', ['session', 'peerId', 'messageId'], 'UiLocatedMessage'),
 ];
 export const TYPERT = {
@@ -184,6 +188,8 @@ export const TYPERT = {
                     { kind: 'method', name: 'connect', signature: 'connect(sessionId: string, input: string): Promise<UiConnectResult>', summary: 'Validate and dial one Peer ID or full multiaddr, then verify contacts and Status separately.' },
                     { kind: 'method', name: 'checkContact', signature: 'checkContact(sessionId: string, peerId: string): Promise<UiContactCheck>', summary: 'Re-read ListFriends/Status without dialing again.' },
                     { kind: 'method', name: 'share', signature: 'share(sessionId: string): Promise<UiShareInfo>', summary: 'Return the full local Peer ID and shareable advertised/relay addresses.' },
+                    { kind: 'method', name: 'contactCard', signature: 'contactCard(sessionId: string, peerId: string, addressSelection: number | boolean): Promise<UiContactCard>', summary: 'Generate a local contact card.' },
+                    { kind: 'method', name: 'previewContactCard', signature: 'previewContactCard(sessionId: string, input: string): Promise<UiContactCardPreview>', summary: 'Verify and preview an identity without dialing.' },
                     { kind: 'method', name: 'conversations', signature: 'conversations(sessionId: string, force?: boolean): Promise<UiConversations>', summary: 'Read Peer-grouped conversation summaries from retained message rows.' },
                     { kind: 'method', name: 'messages', signature: 'messages(sessionId: string, peerId: string, before?: string, force?: boolean): Promise<UiMessagePage>', summary: 'Read one Peer retained message page with a stable older cursor.' },
                     { kind: 'method', name: 'markRead', signature: 'markRead(sessionId: string, peerId: string, throughMessageId: string): Promise<UiMarkRead>', summary: 'Advance the human read cursor through one retained message; reads never write it.' },
@@ -213,7 +219,7 @@ export const TYPERT = {
                     { kind: 'method', name: 'publicDraftAsset', signature: 'publicDraftAsset(sessionId: string, draftId: string, assetId: string): Promise<UiPublicDraftAssetRead>', summary: 'Read one private draft image bytes scoped by draft and asset id; never exposes a public path.' },
                     { kind: 'method', name: 'importPublicPost', signature: 'importPublicPost(sessionId: string, publicPath: string): Promise<UiPublicDraftImportResult>', summary: 'Open one existing local public post as a private draft that updates the original path.' },
                     { kind: 'method', name: 'deletePublicDraft', signature: 'deletePublicDraft(sessionId: string, draftId: string, expectedRevision: number): Promise<UiPublicDraftDelete>', summary: 'Delete one private draft with revision check.' },
-                    { kind: 'method', name: 'publishPublicDraft', signature: 'publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string): Promise<UiPublishResult>', summary: 'Commit one draft under the daemon publication lock and return real files plus manifest digest.' },
+                    { kind: 'method', name: 'publishPublicDraft', signature: 'publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string, requestId?: string): Promise<UiPublishResult>', summary: 'Commit one draft under the daemon publication lock and return real files plus manifest digest.' },
                     { kind: 'method', name: 'locateMessage', signature: 'locateMessage(sessionId: string, peerId: string, messageId: string): Promise<UiLocatedMessage>', summary: 'Check whether a Journey message reference is still retained, without substituting another message.' },
                 ],
                 types: [],

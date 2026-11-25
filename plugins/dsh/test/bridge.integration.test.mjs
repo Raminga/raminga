@@ -566,8 +566,12 @@ test('real dual-node public profile, avatar and user/Agent posts publish atomica
     humanName: 'JO JO', humanBioMarkdown: '喜欢创造有趣的东西',
     avatarAssetId: avatar.image.assetId, imageAssetIds: [], tags: [],
   })).draft;
-  const profileReceipt = await peerBridge.publishPublicDraft(peerSession, profileDraft.draftId, profileDraft.revision, '');
+  const requestID = 'bridge-profile-confirmation';
+  const publishProfile = () => peerBridge.publishPublicDraft(peerSession, profileDraft.draftId, profileDraft.revision, '', requestID);
+  const profileReceipt = await publishProfile();
   assert.equal(profileReceipt.status, 'published');
+  assert.equal(profileReceipt.requestId, requestID);
+  assert.deepEqual(await publishProfile(), profileReceipt);
   assert.match(profileReceipt.profilePath, /^profile\/profile\.json$/);
   assert.match(profileReceipt.manifestSha256, /^[a-f0-9]{64}$/);
   assert.ok(profileReceipt.files.some((file) => file.path === profileReceipt.profilePath));

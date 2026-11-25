@@ -806,7 +806,7 @@ func TestRelayDisconnectKeepsDirectLog(t *testing.T) {
 	}
 }
 
-func TestUpgradeLogPrintsOnlyDirectAddr(t *testing.T) {
+func TestUpgradeLogShowsRouteWithoutAddress(t *testing.T) {
 	m := testModel(t)
 	m.log = nil
 	m.peers = []*apiv1.PeerEntry{{
@@ -815,26 +815,26 @@ func TestUpgradeLogPrintsOnlyDirectAddr(t *testing.T) {
 	}}
 	m.lastRoutes[fakePeer] = "relay"
 	m.detectRouteChanges(time.Now())
-	if !logContains(m, "已升级为 QUIC 直连 /ip4/11.41.0.11/udp/4001/quic-v1") {
-		t.Fatalf("upgrade log missing direct addr: %v", m.log)
+	if !logContains(m, "已升级为 QUIC 直连") {
+		t.Fatalf("upgrade log missing route: %v", m.log)
 	}
-	if logContains(m, "/p2p-circuit") {
-		t.Fatalf("upgrade log leaked circuit addr: %v", m.log)
+	if logContains(m, "/ip4/") {
+		t.Fatalf("upgrade log leaked address: %v", m.log)
 	}
 }
 
-func TestStatusShowsFullPeerIDAndShareableAddrs(t *testing.T) {
+func TestStatusShowsFullPeerIDAndConnectionModes(t *testing.T) {
 	m := testModel(t)
 	m.cmdStatus()
 	id := m.status.GetPeerId()
 	if !logContains(m, "本机："+id) {
 		t.Fatalf("status missing full Peer ID %q: %v", id, m.log)
 	}
-	if !logContains(m, "公告地址：公网（/copy 默认）") {
-		t.Fatalf("address label/default marker missing: %v", m.log)
+	if !logContains(m, "可用连接方式：公网直连") {
+		t.Fatalf("connection mode missing: %v", m.log)
 	}
-	if !logContains(m, "/ip4/1.1.1.1/tcp/4001/p2p/"+id) {
-		t.Fatalf("advertised address missing /p2p/: %v", m.log)
+	if logContains(m, "/ip4/") {
+		t.Fatalf("status leaked an address: %v", m.log)
 	}
 	if !logContains(m, "Node ID：") {
 		t.Fatalf("Node ID line missing: %v", m.log)
@@ -851,34 +851,11 @@ func TestStatusUsesNameWithFullPeerID(t *testing.T) {
 	}
 }
 
-func TestShareableAddrIdempotent(t *testing.T) {
-	id := fakePeer
-	base := "/ip4/198.51.100.2/udp/4001/quic-v1"
-	got := shareableAddr(base, id)
-	if got != base+"/p2p/"+id {
-		t.Fatalf("shareableAddr = %q", got)
-	}
-	if again := shareableAddr(got, id); again != got {
-		t.Fatalf("not idempotent: %q -> %q", got, again)
-	}
-	circuit := "/ip4/198.51.100.3/tcp/4001/p2p/12D3KooWRelay/p2p-circuit"
-	if got := shareableAddr(circuit, id); got != circuit+"/p2p/"+id {
-		t.Fatalf("circuit address = %q", got)
-	}
-}
-
-func TestCopyUsesShareableAddrAndBareFallback(t *testing.T) {
+func TestCopyAlwaysUsesBareID(t *testing.T) {
 	m := testModel(t)
-	id := m.status.GetPeerId()
 	m.cmdCopy()
-	if !logContains(m, "/ip4/1.1.1.1/tcp/4001/p2p/"+id) {
-		t.Fatalf("/copy missing shareable address: %v", m.log)
-	}
-	m.status.AdvertisedAddrs = nil
-	m.log = nil
-	m.cmdCopy()
-	if !logContains(m, id) || logContains(m, "/p2p/") {
-		t.Fatalf("/copy fallback should be bare Peer ID: %v", m.log)
+	if !logContains(m, m.status.GetPeerId()) || logContains(m, "/ip4/") {
+		t.Fatalf("/copy must use the bare Peer ID: %v", m.log)
 	}
 }
 
@@ -947,125 +924,26 @@ func TestPeersOmitsEmptyConnectionFields(t *testing.T) {
 	}
 }
 
-func TestPickShareableAddrOrder(t *testing.T) {
-	id := fakePeer2
-	relay := "/ip4/1.1.1.1/tcp/4001/p2p/" + fakePeer + "/p2p-circuit"
-	cases := []struct {
-		name         string
-		reachability string
-		addrs        []string
-		want         string
-	}{
-		{
-			"loopback skipped and circuit preferred",
-			"unknown",
-			[]string{"/ip4/127.0.0.1/tcp/4001", "/ip4/192.168.1.5/tcp/4001", relay},
-			relay,
-		},
-		{
-			"public before circuit when reachable",
-			"public",
-			[]string{relay, "/ip4/1.1.1.1/tcp/4001"},
-			"/ip4/1.1.1.1/tcp/4001",
-		},
-		{
-			"IPv4 before IPv6 in same class",
-			"public",
-			[]string{"/ip6/2606:4700:4700::1111/tcp/4001", "/ip4/1.1.1.1/tcp/4001"},
-			"/ip4/1.1.1.1/tcp/4001",
-		},
-		{
-			"public before LAN",
-			"unknown",
-			[]string{"/ip4/10.0.0.2/tcp/4001", "/ip4/1.1.1.1/tcp/4001"},
-			"/ip4/1.1.1.1/tcp/4001",
-		},
-		{
-			"loopback only falls through",
-			"unknown",
-			[]string{"/ip4/127.0.0.1/tcp/4001", "/ip6/::1/tcp/4001"},
-			"",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			m := testModel(t)
-			m.status.PeerId = id
-			m.status.AdvertisedAddrs = tc.addrs
-			m.status.Network.Reachability = tc.reachability
-			raw, got := m.pickShareableAddr()
-			if raw != tc.want {
-				t.Fatalf("pick raw = %q, want %q", raw, tc.want)
-			}
-			if tc.want != "" && got != tc.want+"/p2p/"+id {
-				t.Fatalf("shareable = %q", got)
-			}
-			if tc.want == "" && got != "" {
-				t.Fatalf("fallback should be empty, got %q", got)
-			}
-		})
-	}
-}
-
-func TestStatusPrintsLabelThenBareAddress(t *testing.T) {
+func TestStatusSummarizesAllConnectionModes(t *testing.T) {
 	m := testModel(t)
-	id := m.status.GetPeerId()
-	relay := "/ip4/1.1.1.1/tcp/4001/p2p/" + fakePeer + "/p2p-circuit"
-	public := "/ip4/1.1.1.1/tcp/4001"
-	lan := "/ip4/192.168.1.5/tcp/4001"
 	m.status.AdvertisedAddrs = []string{
 		"/ip4/127.0.0.1/tcp/4001",
-		relay,
-		lan,
-		public,
+		"/ip4/1.1.1.1/tcp/4001/p2p/" + fakePeer + "/p2p-circuit",
+		"/ip4/192.168.1.5/tcp/4001",
+		"/ip4/1.1.1.1/tcp/4001",
 	}
 	m.cmdStatus()
-	index := func(text string) int {
-		for i, line := range m.log {
-			if line.Text == text {
-				return i
-			}
-		}
-		return -1
-	}
-	pairs := []struct{ label, addr string }{
-		{"公告地址：中继（/copy 默认）", shareableAddr(relay, id)},
-		{"公告地址：公网", shareableAddr(public, id)},
-		{"公告地址：局域网", shareableAddr(lan, id)},
-	}
-	last := -1
-	for _, pair := range pairs {
-		i := index(pair.label)
-		if i < 0 {
-			t.Fatalf("status label missing %q: %v", pair.label, m.log)
-		}
-		if i+1 >= len(m.log) || m.log[i+1].Text != pair.addr {
-			t.Fatalf("address after %q = %v, want bare %q", pair.label, m.log[i+1:], pair.addr)
-		}
-		if i <= last {
-			t.Fatalf("address order wrong at %q", pair.label)
-		}
-		last = i
-	}
-	if logContains(m, "本机回环") {
-		t.Fatalf("loopback shown despite usable addresses: %v", m.log)
+	if !logContains(m, "可用连接方式：公网直连 · 中继连接 · 局域网直连") || logContains(m, "/ip4/") {
+		t.Fatalf("status modes or privacy mismatch: %v", m.log)
 	}
 }
 
-func TestStatusShowsLabelledLoopbackOnlyWhenNothingElse(t *testing.T) {
+func TestStatusOmitsLoopbackFromConnectionModes(t *testing.T) {
 	m := testModel(t)
-	id := m.status.GetPeerId()
-	loopback := "/ip4/127.0.0.1/tcp/4001"
-	m.status.AdvertisedAddrs = []string{loopback}
+	m.status.AdvertisedAddrs = []string{"/ip4/127.0.0.1/tcp/4001"}
 	m.cmdStatus()
-	if !logContains(m, "公告地址：本机回环") {
-		t.Fatalf("loopback label missing: %v", m.log)
-	}
-	if !logContains(m, shareableAddr(loopback, id)) {
-		t.Fatalf("bare loopback address missing: %v", m.log)
-	}
-	if logContains(m, "（/copy 默认）") {
-		t.Fatalf("loopback must not be marked as the /copy default: %v", m.log)
+	if !logContains(m, "可用连接方式：暂无") || logContains(m, "127.0.0.1") {
+		t.Fatalf("loopback should not be shared as a connection mode: %v", m.log)
 	}
 }
 
@@ -1260,10 +1138,7 @@ func TestCopyCmdEmitsExactOSC52BytesInOneWrite(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("/copy produced no command")
 	}
-	_, value := m.pickShareableAddr()
-	if value == "" {
-		t.Fatal("test status has no shareable address")
-	}
+	value := m.status.GetPeerId()
 	if !logContains(m, "已发送到剪贴板（终端需支持 OSC52）："+value) {
 		t.Fatalf("/copy message missing value: %v", m.log)
 	}
@@ -2031,10 +1906,10 @@ func TestConnectAttemptFailuresUseCandidateReason(t *testing.T) {
 		},
 		name: "b-quic",
 	})
-	if !logContains(m, "候选失败 /ip4/1.1.1.1/tcp/1：超时") {
+	if !logContains(m, "公网直连失败：超时") {
 		t.Fatalf("candidate failure was not translated: %v", m.log)
 	}
-	if logContains(m, "候选失败 /ip4/1.1.1.1/tcp/1：i/o timeout") {
+	if logContains(m, "/ip4/1.1.1.1") {
 		t.Fatalf("raw candidate error leaked: %v", m.log)
 	}
 }
@@ -2180,14 +2055,17 @@ func TestExitChatCancelsRelayStopObservation(t *testing.T) {
 	}
 }
 
-func TestPeerFriendLinesShowFullIDAndAddrs(t *testing.T) {
-	const addr = "/ip4/203.0.113.7/tcp/4001/p2p/" + fakePeer2
+func TestPeerFriendLinesShowFullIDAndConnectionModes(t *testing.T) {
+	const addr = "/ip4/1.1.1.1/tcp/4001/p2p/" + fakePeer2
 	lines := peerFriendLines("owner", "owner", []*apiv1.PeerFriendClaim{
 		{Name: "c", PeerId: fakePeer2, Addrs: []string{addr}, Description: "desc"},
 		{PeerId: fakePeer},
 	})
 	text := strings.Join(lines, "\n")
-	for _, want := range []string{"未验证", fakePeer2, fakePeer, addr, "描述=desc", "（没有可用地址）", "/connect owner"} {
+	if strings.Contains(text, addr) {
+		t.Fatalf("friend listing disclosed the address: %s", text)
+	}
+	for _, want := range []string{"未验证", fakePeer2, fakePeer, "连接方式：公网直连", "描述=desc", "连接方式：暂无", "/connect owner"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in:\n%s", want, text)
 		}
@@ -2270,38 +2148,24 @@ func TestConnectListedSeparatesListErrorsFromDialErrors(t *testing.T) {
 	}
 }
 
-func TestAddrTypeLabel(t *testing.T) {
+func TestAddressMode(t *testing.T) {
 	const relay = "12D3KooWFds5JhUsCDJZYxddHyUTU2KsfFZGTRqoLcK5MFZEdtBr"
 	for raw, want := range map[string]string{
-		"/ip4/142.250.72.14/tcp/4001":                                       "公网 IPv4/TCP",
-		"/ip4/142.250.72.14/udp/4001/quic-v1":                               "公网 IPv4/QUIC",
-		"/ip6/2001:4860:4860:0000:0000:0:0:8888/udp/4001/quic-v1":           "公网 IPv6/QUIC",
-		"/ip4/93.184.216.34/tcp/4001/p2p/" + relay + "/p2p-circuit":         "中继 IPv4/TCP",
-		"/ip6/2606:4700:4700:0::111/tcp/4001/p2p/" + relay + "/p2p-circuit": "中继 IPv6/TCP",
-		"/ip4/192.168.1.5/tcp/4001":                                         "局域网 IPv4/TCP",
-		"not-an-address":                                                    "其他",
+		"/ip4/142.250.72.14/tcp/4001":                                       "公网直连",
+		"/ip4/142.250.72.14/udp/4001/quic-v1":                               "公网直连",
+		"/ip6/2001:4860:4860:0000:0000:0:0:8888/udp/4001/quic-v1":           "公网直连",
+		"/ip4/93.184.216.34/tcp/4001/p2p/" + relay + "/p2p-circuit":         "中继连接",
+		"/ip6/2606:4700:4700:0::111/tcp/4001/p2p/" + relay + "/p2p-circuit": "中继连接",
+		"/ip4/192.168.1.5/tcp/4001":                                         "局域网直连",
+		"not-an-address":                                                    "",
 	} {
-		if got := addrTypeLabel(raw); got != want {
-			t.Errorf("addrTypeLabel(%q) = %q, want %q", raw, got, want)
+		if got := addressMode(raw); got != want {
+			t.Errorf("addressMode(%q) = %q, want %q", raw, got, want)
 		}
 	}
 }
 
-func TestPeerFriendAddressStaysSelectableAfterLabel(t *testing.T) {
-	const addr = "/ip6/2001:4860:4860:0000:0000:0:0:8888/tcp/4001"
-	lines := peerFriendLines("o", "o", []*apiv1.PeerFriendClaim{{PeerId: fakePeer2, Addrs: []string{addr, "/ip4/142.250.72.14/udp/4001/quic-v1"}}})
-	var found string
-	for _, l := range lines {
-		if strings.Contains(l, addr) {
-			found = l
-		}
-	}
-	if !strings.HasSuffix(found, "  "+addr) || !strings.Contains(found, "公网 IPv6/TCP") {
-		t.Fatalf("label must precede an unbroken address: %q", found)
-	}
-}
-
-func TestPeerDetailShowsConnectionsAndPasteableAddrs(t *testing.T) {
+func TestPeerDetailShowsConnectionsWithoutAddresses(t *testing.T) {
 	m := headlessModel(t)
 	const live = "/ip4/93.184.216.34/tcp/4001"
 	m.friends = []*apiv1.Friend{{PeerId: fakePeer, Name: "server", Addrs: []string{live}}}
@@ -2316,13 +2180,13 @@ func TestPeerDetailShowsConnectionsAndPasteableAddrs(t *testing.T) {
 		b.WriteString(l.Text + "\n")
 	}
 	text := b.String()
-	for _, want := range []string{"server", "在线", "Peer ID：" + fakePeer, "当前连接（1 条）", "直连/TCP  " + live, "已知地址（2 条", "公网 IPv4/TCP", live + "/p2p/" + fakePeer, "公网 IPv4/QUIC"} {
+	for _, want := range []string{"server", "在线", "Peer ID：" + fakePeer, "当前连接（1 条）", "直连/TCP", "已知连接方式（可能已过期）：公网直连"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in:\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "198.51.100.1") {
-		t.Fatalf("another peer's connection leaked in:\n%s", text)
+	if strings.Contains(text, "/ip4/") {
+		t.Fatalf("peer detail leaked an address in:\n%s", text)
 	}
 }
 
@@ -2336,7 +2200,7 @@ func TestPeerDetailUnknownAndEmpty(t *testing.T) {
 	}
 	m.friends = []*apiv1.Friend{{PeerId: fakePeer, Name: "x"}}
 	m.cmdPeerDetail("x")
-	if last := m.log[len(m.log)-1].Text; !strings.Contains(last, "（没有）") {
+	if last := m.log[len(m.log)-1].Text; !strings.Contains(last, "暂无") {
 		t.Fatalf("no addresses: %q", last)
 	}
 }

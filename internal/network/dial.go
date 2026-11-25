@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -14,6 +16,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	ma "github.com/multiformats/go-multiaddr"
+
+	"github.com/Raminga/raminga/pkg/publicpeeraddr"
 )
 
 // DialAttempt is one candidate address dialed for a peer. It is exposed through
@@ -48,9 +52,11 @@ type dialCandidate struct {
 const (
 	dhtRecordTimeout = 8 * time.Second
 	dhtFindTimeout   = 10 * time.Second
+	lanDialTimeout   = 2 * time.Second
 	sourceExplicit   = "explicit"
 	sourcePeerStore  = "peerstore"
 	sourceCache      = "cache"
+	sourceCard       = "share_code"
 	sourceDHT        = "dht"
 )
 
@@ -58,7 +64,16 @@ const (
 // SQLite hint cache and the Raminga DHT. The swarm staggers direct and relay
 // dials and returns the first connection that succeeds.
 func (n *Network) DialPeerByID(ctx context.Context, pid peer.ID) (DialOutcome, error) {
-	return n.dialPeer(ctx, pid, nil)
+	return n.dialPeer(ctx, pid, nil, nil)
+}
+
+type dialHints struct {
+	addrs     []ma.Multiaddr
+	temporary bool
+}
+
+func (n *Network) DialContactCard(ctx context.Context, pid peer.ID, addrs []ma.Multiaddr, temporary bool) (DialOutcome, error) {
+	return n.dialPeer(ctx, pid, nil, &dialHints{addrs: addrs, temporary: temporary})
 }
 
 // DialMultiaddr dials one explicit multiaddr. It does not append PeerStore or
@@ -73,10 +88,10 @@ func (n *Network) DialMultiaddr(ctx context.Context, raw string) (DialOutcome, e
 	if err != nil {
 		return DialOutcome{}, fmt.Errorf("peer multiaddr %q must include /p2p/<peer-id>: %w", raw, err)
 	}
-	return n.dialPeer(ctx, ai.ID, ai.Addrs)
+	return n.dialPeer(ctx, ai.ID, ai.Addrs, nil)
 }
 
-func (n *Network) dialPeer(ctx context.Context, pid peer.ID, explicit []ma.Multiaddr) (DialOutcome, error) {
+func (n *Network) dialPeer(ctx context.Context, pid peer.ID, explicit []ma.Multiaddr, card *dialHints) (DialOutcome, error) {
 	if pid == "" {
 		return DialOutcome{}, errors.New("peer ID is required")
 	}
@@ -127,7 +142,90 @@ func (n *Network) dialPeer(ctx context.Context, pid peer.ID, explicit []ma.Multi
 		return n.dialExplicit(dialCtx, pid, explicit[0])
 	}
 	known := n.resolveCandidates(dialCtx, pid)
-	return n.dialPeerID(dialCtx, pid, known)
+	var lan []dialCandidate
+	if card != nil {
+		seen := make(map[string]bool, len(known)+len(card.addrs))
+		for _, candidate := range known {
+			seen[candidate.addr.String()] = true
+		}
+		var newHints []ma.Multiaddr
+		for _, addr := range card.addrs {
+			if local := publicpeeraddr.NormalizeLAN(addr, pid); len(local) > 0 {
+				if !onLocalSubnet(local) {
+					continue
+				}
+				lan = append(lan, dialCandidate{addr: addr, source: sourceCard})
+			}
+			if key := addr.String(); !seen[key] {
+				known = append(known, dialCandidate{addr: addr, source: sourceCard})
+				newHints = append(newHints, addr)
+				seen[key] = true
+			}
+		}
+		if card.temporary && len(newHints) > 0 {
+			n.mu.Lock()
+			n.cardDialHints = peer.AddrInfo{ID: pid, Addrs: newHints}
+			n.mu.Unlock()
+			defer n.clearCardDialHints()
+		}
+		sortCandidates(known)
+	}
+	var lanAttempts []DialAttempt
+	if len(lan) > 0 {
+		lanCtx, stop := context.WithTimeout(dialCtx, lanDialTimeout)
+		out, err := n.dialBatch(lanCtx, pid, lan)
+		stop()
+		if err == nil {
+			return out, nil
+		}
+		lanAttempts = out.Attempts
+	}
+	out, err := n.dialPeerID(dialCtx, pid, known, card != nil)
+	out.Attempts = append(lanAttempts, out.Attempts...)
+	return out, err
+}
+
+func onLocalSubnet(addr ma.Multiaddr) bool {
+	ip := net.IP(addr[0].RawValue())
+	addresses, _ := net.InterfaceAddrs()
+	for _, address := range addresses {
+		if subnet, ok := address.(*net.IPNet); ok && subnet.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// Clear only the addresses introduced by this dial. An address used by an
+// authenticated connection or learned from its signed Identify record is kept.
+func (n *Network) clearCardDialHints() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	pid := n.cardDialHints.ID
+	ps := n.host.Peerstore()
+	var authenticated []ma.Multiaddr
+	for _, conn := range n.host.Network().ConnsToPeer(pid) {
+		authenticated = append(authenticated, conn.RemoteMultiaddr())
+	}
+	if cab, ok := peerstore.GetCertifiedAddrBook(ps); ok {
+		if env := cab.GetPeerRecord(pid); env != nil {
+			if rec, err := env.Record(); err == nil {
+				if info, ok := rec.(*peer.PeerRecord); ok {
+					authenticated = append(authenticated, info.Addrs...)
+				}
+			}
+		}
+	}
+	for _, addr := range n.cardDialHints.Addrs {
+		if !hasMultiaddr(authenticated, addr) {
+			ps.SetAddr(pid, addr, 0)
+		}
+	}
+	n.cardDialHints = peer.AddrInfo{}
+}
+
+func hasMultiaddr(addrs []ma.Multiaddr, addr ma.Multiaddr) bool {
+	return slices.ContainsFunc(addrs, addr.Equal)
 }
 
 func (n *Network) dialExplicit(ctx context.Context, pid peer.ID, addr ma.Multiaddr) (DialOutcome, error) {
@@ -172,7 +270,7 @@ type dialBatchResult struct {
 	err error
 }
 
-func (n *Network) dialPeerID(ctx context.Context, pid peer.ID, known []dialCandidate) (DialOutcome, error) {
+func (n *Network) dialPeerID(ctx context.Context, pid peer.ID, known []dialCandidate, fromCard bool) (DialOutcome, error) {
 	canLookup := n.cfg.DHT.Enabled && n.dht != nil && !n.IsPaused(pid)
 	if !canLookup {
 		return n.dialBatch(ctx, pid, known)
@@ -182,7 +280,7 @@ func (n *Network) dialPeerID(ctx context.Context, pid peer.ID, known []dialCandi
 		seen[candidate.addr.String()] = struct{}{}
 	}
 	if len(known) == 0 {
-		return n.dialBatch(ctx, pid, n.resolveDHTCandidates(ctx, pid, seen))
+		return n.dialDiscovered(ctx, pid, nil, seen, fromCard)
 	}
 
 	// Known addresses get a head start. DHT lookup can then add candidates to
@@ -211,12 +309,7 @@ func (n *Network) dialPeerID(ctx context.Context, pid peer.ID, known []dialCandi
 	startLookup := func() {
 		lookup = nil
 		workers.Go(func() {
-			fallback := n.resolveDHTCandidates(ctx, pid, seen)
-			if len(fallback) == 0 {
-				results <- dialBatchResult{err: errors.New("DHT returned no new dial addresses")}
-				return
-			}
-			out, err := n.dialBatch(ctx, pid, append(append([]dialCandidate(nil), known...), fallback...))
+			out, err := n.dialDiscovered(ctx, pid, known, seen, fromCard)
 			results <- dialBatchResult{out, err}
 		})
 	}
@@ -243,6 +336,33 @@ func (n *Network) dialPeerID(ctx context.Context, pid peer.ID, known []dialCandi
 		}
 	}
 	return out, failures
+}
+
+// dialDiscovered prefers the signed DHT record. A card can outlive both its
+// own record and a cached DHT record, so try peer routing after either fails.
+func (n *Network) dialDiscovered(ctx context.Context, pid peer.ID, known []dialCandidate, seen map[string]struct{}, fromCard bool) (DialOutcome, error) {
+	signed := n.resolveDHTCandidates(ctx, pid, seen, fromCard, true)
+	out := DialOutcome{}
+	err := errors.New("DHT returned no new dial addresses")
+	if len(signed) > 0 {
+		out, err = n.dialBatch(ctx, pid, append(append([]dialCandidate(nil), known...), signed...))
+		if err == nil || !fromCard {
+			return out, err
+		}
+	}
+	if ctx.Err() != nil {
+		return out, errors.Join(err, ctx.Err())
+	}
+	discovered := n.resolveDHTCandidates(ctx, pid, seen, fromCard, false)
+	if len(discovered) == 0 {
+		return out, err
+	}
+	result, findErr := n.dialBatch(ctx, pid, append(append([]dialCandidate(nil), known...), discovered...))
+	result.Attempts = append(out.Attempts, result.Attempts...)
+	if findErr == nil {
+		return result, nil
+	}
+	return result, errors.Join(err, findErr)
 }
 
 func (n *Network) dialBatch(ctx context.Context, pid peer.ID, candidates []dialCandidate) (DialOutcome, error) {
@@ -381,8 +501,7 @@ func (n *Network) resolveCandidates(ctx context.Context, pid peer.ID) []dialCand
 	return out
 }
 
-// resolveDHTCandidates reads the signed record first, then uses FindPeer.
-func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen map[string]struct{}) []dialCandidate {
+func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen map[string]struct{}, publicOnly, signed bool) []dialCandidate {
 	if !n.cfg.DHT.Enabled || n.dht == nil || n.IsPaused(pid) {
 		return nil
 	}
@@ -392,6 +511,12 @@ func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen ma
 		if err != nil || addr == nil || !usableDialAddr(addr) {
 			return
 		}
+		if publicOnly {
+			addr = publicpeeraddr.Normalize(addr, pid)
+			if len(addr) == 0 {
+				return
+			}
+		}
 		key := addr.String()
 		if _, ok := seen[key]; ok {
 			return
@@ -399,27 +524,22 @@ func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen ma
 		seen[key] = struct{}{}
 		out = append(out, dialCandidate{addr: addr, source: sourceDHT})
 	}
-	lookupCtx, lookupCancel := context.WithTimeout(ctx, dhtRecordTimeout)
-	addrs, lookupErr := n.dht.AddressesFromDHT(lookupCtx, pid)
-	lookupCancel()
-	if lookupErr == nil {
-		for _, raw := range addrs {
-			appendRaw(raw)
-			if len(out) == 16 {
-				break
-			}
-		}
-	}
-	if len(out) == 0 {
+	var addrs []string
+	if signed {
+		lookupCtx, cancel := context.WithTimeout(ctx, dhtRecordTimeout)
+		addrs, _ = n.dht.AddressesFromDHT(lookupCtx, pid)
+		cancel()
+	} else {
 		findCtx, cancel := context.WithTimeout(ctx, dhtFindTimeout)
 		defer cancel()
-		if found := n.dht.FindPeer(findCtx, pid); found.Found {
-			for _, raw := range found.Addrs {
-				appendRaw(raw)
-				if len(out) == 16 {
-					break
-				}
-			}
+		if found := n.dht.FindPeer(findCtx, pid); found.Found && (!publicOnly || found.Source == sourceDHT) {
+			addrs = found.Addrs
+		}
+	}
+	for _, raw := range addrs {
+		appendRaw(raw)
+		if len(out) == 16 {
+			break
 		}
 	}
 	sortCandidates(out)
@@ -427,7 +547,7 @@ func (n *Network) resolveDHTCandidates(ctx context.Context, pid peer.ID, seen ma
 }
 
 // sortCandidates orders direct IPv6 first, then direct IPv4/DNS, then relay
-// addresses. Within a family the PeerStore is preferred over cache then DHT.
+// addresses. Within a family prefer PeerStore, share code, cache, then DHT.
 func sortCandidates(candidates []dialCandidate) {
 	sort.SliceStable(candidates, func(i, j int) bool {
 		fi, fj := familyRank(candidateFamily(candidates[i].addr)), familyRank(candidateFamily(candidates[j].addr))
@@ -461,12 +581,14 @@ func sourceRank(source string) int {
 	switch source {
 	case sourceExplicit, sourcePeerStore:
 		return 0
-	case sourceCache:
+	case sourceCard:
 		return 1
-	case sourceDHT:
+	case sourceCache:
 		return 2
-	default:
+	case sourceDHT:
 		return 3
+	default:
+		return 4
 	}
 }
 

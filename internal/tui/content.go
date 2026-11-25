@@ -30,7 +30,7 @@ func (m *Model) viewPrivacyNote() {
 func (m *Model) cmdView(arg string) tea.Cmd {
 	pid, err := m.contentPeer(arg)
 	if err != nil {
-		m.appendLog("! %s", textsafe.Sanitize(err.Error()))
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	m.viewPrivacyNote()
@@ -62,7 +62,7 @@ func (m *Model) cmdView(arg string) tea.Cmd {
 func (m *Model) cmdPosts(arg string) tea.Cmd {
 	pid, err := m.contentPeer(arg)
 	if err != nil {
-		m.appendLog("! %s", textsafe.Sanitize(err.Error()))
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	m.viewPrivacyNote()
@@ -94,7 +94,7 @@ func (m *Model) cmdPosts(arg string) tea.Cmd {
 func (m *Model) cmdPeerFriends(arg string) tea.Cmd {
 	pid, err := m.contentPeer(arg)
 	if err != nil {
-		m.appendLog("! %s", textsafe.Sanitize(err.Error()))
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	m.viewPrivacyNote()
@@ -137,10 +137,7 @@ func peerFriendLines(owner, ownerArg string, friends []*apiv1.PeerFriendClaim) [
 			line += "  描述=" + desc
 		}
 		lines = append(lines, line)
-		if len(f.GetAddrs()) == 0 {
-			lines = append(lines, "  （没有可用地址）")
-		}
-		lines = append(lines, labelledAddrLines(f.GetAddrs())...)
+		lines = append(lines, "  连接方式："+addressModes(f.GetAddrs()))
 	}
 	if len(friends) > 0 {
 		lines = append(lines, fmt.Sprintf("连接：/connect %s <名字|Peer ID>", textsafe.Sanitize(ownerArg)))
@@ -260,7 +257,7 @@ func downloadActivity(path string, received, total int64) string {
 func (m *Model) cmdGet(arg, path string) tea.Cmd {
 	pid, err := m.contentPeer(arg)
 	if err != nil {
-		m.appendLog("! %s", textsafe.Sanitize(err.Error()))
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	m.viewPrivacyNote()
@@ -290,7 +287,7 @@ func (m *Model) cmdGet(arg, path string) tea.Cmd {
 func (m *Model) cmdFiles(arg string) tea.Cmd {
 	pid, err := m.contentPeer(arg)
 	if err != nil {
-		m.appendLog("! %s", textsafe.Sanitize(err.Error()))
+		m.appendLog("! %s", errText(err))
 		return nil
 	}
 	m.viewPrivacyNote()

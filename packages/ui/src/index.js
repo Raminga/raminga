@@ -16,7 +16,8 @@ let mountCount = 0;
  *   onSetFriendName?: (peerId: string, name: string) => Promise<object>,
  *   onSetFriendDescription?: (peerId: string, description: string) => Promise<object>,
  *   onConnect?: (input: string) => Promise<object>, onCheckContact?: (peerId: string) => Promise<object>,
- *   onShare?: () => Promise<object>, onLoadConversations?: (force: boolean) => Promise<object>,
+ *   onShare?: () => Promise<object>, onContactCard?: (peerId: string, addressScopes: number) => Promise<object>,
+ *   onPreviewContactCard?: (input: string) => Promise<object>, onLoadConversations?: (force: boolean) => Promise<object>,
  *   onLoadMessages?: (peerId: string, force: boolean) => Promise<object>,
  *   onLoadOlder?: (peerId: string, before: string) => Promise<object>,
  *   onSend?: (peerId: string, text: string, requestId: string) => Promise<object>,
@@ -33,7 +34,7 @@ let mountCount = 0;
  *   onPutPublicDraftImage?: (draftId: string, role: string, filename: string, dataBase64: string) => Promise<object>,
  *   onLoadPublicDraftAsset?: (draftId: string, assetId: string) => Promise<{image: object, dataBase64: string}>,
  *   onImportPublicPost?: (path: string) => Promise<{draft: object}>,
- *   onPublishPublicDraft?: (draftId: string, revision: number, expectedPublishedSha256: string) => Promise<object>,
+ *   onPublishPublicDraft?: (draftId: string, revision: number, expectedPublishedSha256: string, requestId?: string) => Promise<object>,
  *   onCopyText?: (text: string) => Promise<boolean>, viewState?: object}} [options]
  * @returns {{
  *   setNodeStatus: Function,

@@ -113,12 +113,6 @@ type ConnInfo struct {
 	OpenedAt    time.Time
 }
 
-// BootstrapAddr is one live bootstrap role with its stored addresses.
-type BootstrapAddr struct {
-	PeerID string
-	Addrs  []string
-}
-
 // PeerEntry merges current connections and restart hints. Online is true only
 // for a currently connected peer; cached addresses never imply online.
 type PeerEntry struct {
@@ -324,6 +318,7 @@ type Network struct {
 
 	mu               sync.Mutex
 	dialMu           sync.Mutex
+	cardDialHints    peer.AddrInfo
 	reachability     network.Reachability
 	reachChanged     time.Time
 	reachSub         event.Subscription
@@ -625,7 +620,7 @@ func (n *Network) trackPeers(ctx context.Context) {
 			if pid == n.host.ID() {
 				continue
 			}
-			addrs := n.host.Peerstore().Addrs(pid)
+			addrs := n.KnownPeerAddrs(pid)
 			if len(addrs) == 0 {
 				continue
 			}
@@ -669,6 +664,24 @@ func (n *Network) trackReachability(ctx context.Context) {
 
 // Host returns the underlying host for protocol stream registration.
 func (n *Network) Host() host.Host { return n.host }
+
+// KnownPeerAddrs excludes unsigned hints that are still being tried. They
+// become known addresses only if independently learned or authenticated.
+func (n *Network) KnownPeerAddrs(pid peer.ID) []ma.Multiaddr {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	addrs := n.host.Peerstore().Addrs(pid)
+	if n.cardDialHints.ID != pid {
+		return addrs
+	}
+	stable := make([]ma.Multiaddr, 0, len(addrs))
+	for _, addr := range addrs {
+		if !hasMultiaddr(n.cardDialHints.Addrs, addr) {
+			stable = append(stable, addr)
+		}
+	}
+	return stable
+}
 
 // HTTPHandler is the mux served on /raminga/http/1.0.0. Chat/content routes can
 // be registered here; the base layer only exposes GET /healthz.
@@ -962,30 +975,16 @@ func (n *Network) bootstrapAddrs() []string {
 	return out
 }
 
-// AddBootstrapPeer applies one saved bootstrap role to the running network.
-// Persistence happens before this call; a dial is a background bootstrap
-// attempt, never a save receipt. Paused peers stay paused.
-func (n *Network) AddBootstrapPeer(ctx context.Context, raw string) (BootstrapAddr, error) {
-	m, err := ma.NewMultiaddr(raw)
-	if err != nil {
-		return BootstrapAddr{}, fmt.Errorf("invalid bootstrap multiaddr: %w", err)
-	}
-	info, err := peer.AddrInfoFromP2pAddr(m)
-	if err != nil {
-		return BootstrapAddr{}, fmt.Errorf("bootstrap multiaddr must include /p2p/<peer-id>: %w", err)
-	}
-	if info.ID == n.host.ID() {
-		return BootstrapAddr{}, errors.New("refusing to use the local node as its own bootstrap peer")
-	}
+// ApplyBootstrapPeer applies an already validated and saved peer as one runtime update.
+func (n *Network) ApplyBootstrapPeer(ctx context.Context, info peer.AddrInfo) {
 	n.bootstrapMu.Lock()
 	merged := dedupeMultiaddrs(append(append([]ma.Multiaddr(nil), n.bootstrap[info.ID]...), info.Addrs...))
 	n.bootstrap[info.ID] = merged
 	n.bootstrapMu.Unlock()
 	n.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
 	if n.dht != nil {
-		n.dht.AddBootstrapPeer(ctx, *info)
+		n.dht.AddBootstrapPeer(ctx, info)
 	}
-	return BootstrapAddr{PeerID: info.ID.String(), Addrs: addrsToStrings(info.Addrs)}, nil
 }
 
 // RemoveBootstrapPeer removes only the live bootstrap role. It does not drop

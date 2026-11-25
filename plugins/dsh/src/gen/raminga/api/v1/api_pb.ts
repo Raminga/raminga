@@ -538,6 +538,21 @@ export class ConnectRequest extends Message<ConnectRequest> {
    */
   peerId = "";
 
+  /**
+   * share_code is a Raminga card or a bare Raminga ID. It is exclusive
+   * with peer_id and multiaddr. Its addresses are optional dial hints.
+   *
+   * @generated from field: string share_code = 3;
+   */
+  shareCode = "";
+
+  /**
+   * summary_only omits network addresses and raw dial diagnostics.
+   *
+   * @generated from field: bool summary_only = 4;
+   */
+  summaryOnly = false;
+
   constructor(data?: PartialMessage<ConnectRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -548,6 +563,8 @@ export class ConnectRequest extends Message<ConnectRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "multiaddr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "share_code", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "summary_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConnectRequest {
@@ -568,6 +585,215 @@ export class ConnectRequest extends Message<ConnectRequest> {
 }
 
 /**
+ * @generated from message raminga.api.v1.GetContactCardRequest
+ */
+export class GetContactCardRequest extends Message<GetContactCardRequest> {
+  /**
+   * An empty peer ID selects the local node.
+   *
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: bool include_addresses = 2;
+   */
+  includeAddresses = false;
+
+  /**
+   * Explicit address selection. Bit 0 is public direct, bit 1 relay, bit 2 LAN.
+   * Presence overrides include_addresses, including an explicit zero.
+   *
+   * @generated from field: optional uint32 address_scopes = 3;
+   */
+  addressScopes?: number;
+
+  constructor(data?: PartialMessage<GetContactCardRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.GetContactCardRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "include_addresses", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "address_scopes", kind: "scalar", T: 13 /* ScalarType.UINT32 */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactCardRequest {
+    return new GetContactCardRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetContactCardRequest {
+    return new GetContactCardRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetContactCardRequest {
+    return new GetContactCardRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetContactCardRequest | PlainMessage<GetContactCardRequest> | undefined, b: GetContactCardRequest | PlainMessage<GetContactCardRequest> | undefined): boolean {
+    return proto3.util.equals(GetContactCardRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.GetContactCardResponse
+ */
+export class GetContactCardResponse extends Message<GetContactCardResponse> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string share_code = 2;
+   */
+  shareCode = "";
+
+  /**
+   * @generated from field: bool has_addresses = 4;
+   */
+  hasAddresses = false;
+
+  /**
+   * Whether a public connection address can be included by legacy clients.
+   *
+   * @generated from field: bool can_include_addresses = 5;
+   */
+  canIncludeAddresses = false;
+
+  /**
+   * @generated from field: uint32 available_address_scopes = 6;
+   */
+  availableAddressScopes = 0;
+
+  /**
+   * @generated from field: uint32 included_address_scopes = 7;
+   */
+  includedAddressScopes = 0;
+
+  constructor(data?: PartialMessage<GetContactCardResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.GetContactCardResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "share_code", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "has_addresses", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "can_include_addresses", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "available_address_scopes", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 7, name: "included_address_scopes", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactCardResponse {
+    return new GetContactCardResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetContactCardResponse {
+    return new GetContactCardResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetContactCardResponse {
+    return new GetContactCardResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetContactCardResponse | PlainMessage<GetContactCardResponse> | undefined, b: GetContactCardResponse | PlainMessage<GetContactCardResponse> | undefined): boolean {
+    return proto3.util.equals(GetContactCardResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PreviewContactCardRequest
+ */
+export class PreviewContactCardRequest extends Message<PreviewContactCardRequest> {
+  /**
+   * @generated from field: string share_code = 1;
+   */
+  shareCode = "";
+
+  constructor(data?: PartialMessage<PreviewContactCardRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PreviewContactCardRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "share_code", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PreviewContactCardRequest {
+    return new PreviewContactCardRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PreviewContactCardRequest {
+    return new PreviewContactCardRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PreviewContactCardRequest {
+    return new PreviewContactCardRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PreviewContactCardRequest | PlainMessage<PreviewContactCardRequest> | undefined, b: PreviewContactCardRequest | PlainMessage<PreviewContactCardRequest> | undefined): boolean {
+    return proto3.util.equals(PreviewContactCardRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message raminga.api.v1.PreviewContactCardResponse
+ */
+export class PreviewContactCardResponse extends Message<PreviewContactCardResponse> {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId = "";
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name = "";
+
+  /**
+   * @generated from field: bool has_addresses = 3;
+   */
+  hasAddresses = false;
+
+  constructor(data?: PartialMessage<PreviewContactCardResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "raminga.api.v1.PreviewContactCardResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "has_addresses", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PreviewContactCardResponse {
+    return new PreviewContactCardResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PreviewContactCardResponse {
+    return new PreviewContactCardResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PreviewContactCardResponse {
+    return new PreviewContactCardResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PreviewContactCardResponse | PlainMessage<PreviewContactCardResponse> | undefined, b: PreviewContactCardResponse | PlainMessage<PreviewContactCardResponse> | undefined): boolean {
+    return proto3.util.equals(PreviewContactCardResponse, a, b);
+  }
+}
+
+/**
  * DialAttempt records one candidate address dialed for Connect or SendChat.
  *
  * @generated from message raminga.api.v1.DialAttempt
@@ -581,7 +807,7 @@ export class DialAttempt extends Message<DialAttempt> {
   multiaddr = "";
 
   /**
-   * source is "explicit", "peerstore", "cache" or "dht".
+   * source is "explicit", "peerstore", "cache", "share_code" or "dht".
    *
    * @generated from field: string source = 2;
    */
@@ -4741,18 +4967,24 @@ export class ListBootstrapPeersResponse extends Message<ListBootstrapPeersRespon
 }
 
 /**
- * AddBootstrapPeerRequest saves one address. The daemon requires a canonical
- * multiaddr including /p2p/<peer-id> and only applies it as a node setting.
+ * AddBootstrapPeerRequest saves connection addresses as a local node setting.
  *
  * @generated from message raminga.api.v1.AddBootstrapPeerRequest
  */
 export class AddBootstrapPeerRequest extends Message<AddBootstrapPeerRequest> {
   /**
-   * multiaddr is the complete address to save.
+   * multiaddr is an explicit complete address ending in /p2p/<peer-id>.
    *
    * @generated from field: string multiaddr = 1;
    */
   multiaddr = "";
+
+  /**
+   * share_code is an address-bearing Raminga contact card, exclusive with multiaddr.
+   *
+   * @generated from field: string share_code = 2;
+   */
+  shareCode = "";
 
   constructor(data?: PartialMessage<AddBootstrapPeerRequest>) {
     super();
@@ -4763,6 +4995,7 @@ export class AddBootstrapPeerRequest extends Message<AddBootstrapPeerRequest> {
   static readonly typeName = "raminga.api.v1.AddBootstrapPeerRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "multiaddr", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "share_code", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddBootstrapPeerRequest {
@@ -7801,6 +8034,13 @@ export class PublishPublicDraftRequest extends Message<PublishPublicDraftRequest
    */
   expectedPublishedSha256 = "";
 
+  /**
+   * Optional for profile drafts. Retries must use the same ID and arguments.
+   *
+   * @generated from field: string request_id = 4;
+   */
+  requestId = "";
+
   constructor(data?: PartialMessage<PublishPublicDraftRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -7812,6 +8052,7 @@ export class PublishPublicDraftRequest extends Message<PublishPublicDraftRequest
     { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "expected_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
     { no: 3, name: "expected_published_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublishPublicDraftRequest {
@@ -7890,6 +8131,11 @@ export class PublishPublicDraftResponse extends Message<PublishPublicDraftRespon
    */
   manifestSha256 = "";
 
+  /**
+   * @generated from field: string request_id = 12;
+   */
+  requestId = "";
+
   constructor(data?: PartialMessage<PublishPublicDraftResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -7909,6 +8155,7 @@ export class PublishPublicDraftResponse extends Message<PublishPublicDraftRespon
     { no: 9, name: "profile_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "warnings", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 11, name: "manifest_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PublishPublicDraftResponse {

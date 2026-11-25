@@ -236,6 +236,11 @@ type connectResultMsg struct {
 	notice string
 }
 
+type shareCardMsg struct {
+	card *apiv1.GetContactCardResponse
+	err  error
+}
+
 type disconnectResultMsg struct {
 	res    *apiv1.DisconnectPeerResponse
 	name   string
@@ -406,6 +411,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.finishActivity()
 		m.handleConnectResult(msg)
 		cmds = append(cmds, m.refreshCmd())
+	case shareCardMsg:
+		m.busy = false
+		if msg.err != nil {
+			m.appendLog("! 无法生成名片：%s", errText(msg.err))
+		} else {
+			if msg.card.GetHasAddresses() {
+				m.appendLog("收到名片的人可以读取并转发内含的连接地址。")
+			}
+			m.appendLog("%s", msg.card.GetShareCode())
+		}
 	case disconnectResultMsg:
 		if msg.err != nil {
 			m.appendEvent("✗ 断开 %s 失败：%s", msg.name, errText(msg.err))
@@ -740,7 +755,7 @@ func (m *Model) submit() (tea.Cmd, bool) {
 		if m.hasOutput {
 			m.appendLog("")
 		}
-		m.appendLog("> %s", line)
+		m.appendLog("> %s", redactNetworkAddresses(line))
 		return m.execCommand(line)
 	}
 	return m.sendPlain(line), false
@@ -933,35 +948,13 @@ func (m *Model) detectRouteChanges(at time.Time) {
 				At: at.UTC().Format(time.RFC3339), PeerID: id, From: prev, To: p.GetRoute(), Transport: p.GetTransport(),
 			})
 			if prev == "relay" && p.GetRoute() == "direct" {
-				m.appendEvent("✓ 已升级为 %s 直连 %s", strings.ToUpper(p.GetTransport()), directAddrFor(p))
+				m.appendEvent("✓ 已升级为 %s 直连", strings.ToUpper(p.GetTransport()))
 			} else if prev == "direct" && p.GetRoute() == "relay" {
 				m.appendEvent("! 直连丢失，已回退中继（%s）", displayName(id, m.friends))
 			}
 		}
 		m.lastRoutes[id] = p.GetRoute()
 	}
-}
-
-func directAddrFor(p *apiv1.PeerEntry) string {
-	transport := p.GetTransport()
-	for _, addr := range p.GetAddrs() {
-		if strings.Contains(addr, "/p2p-circuit") {
-			continue
-		}
-		if transport == "quic" && !strings.Contains(addr, "/quic") {
-			continue
-		}
-		if transport == "tcp" && !strings.Contains(addr, "/tcp/") {
-			continue
-		}
-		return addr
-	}
-	for _, addr := range p.GetAddrs() {
-		if !strings.Contains(addr, "/p2p-circuit") {
-			return addr
-		}
-	}
-	return "-"
 }
 
 func (m *Model) addLiveRoute(peerID, route string) {
@@ -1129,17 +1122,16 @@ func formatConnectFailure(raw string) (string, []string) {
 			continue
 		}
 		reason := candidateReason(match[2])
-		if reason == "原因未知" {
-			if raw := textsafe.Sanitize(strings.TrimSpace(match[2])); raw != "" {
-				reason += "：" + raw
-			}
+		mode := addressMode(addr)
+		if mode == "" {
+			mode = "连接候选"
 		}
-		key := addr + "\x00" + reason
+		key := mode + "\x00" + reason
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		details = append(details, addr+"（"+reason+"）")
+		details = append(details, mode+"（"+reason+"）")
 		if len(details) >= 4 {
 			break
 		}
@@ -1171,11 +1163,11 @@ func candidateReason(segment string) string {
 
 func (m *Model) handleConnectResult(msg connectResultMsg) {
 	if msg.notice != "" {
-		m.appendEvent("✗ %s", msg.notice)
+		m.appendEvent("✗ %s", redactNetworkAddresses(msg.notice))
 		return
 	}
 	if msg.err != nil {
-		summary, details := formatConnectFailure(errText(msg.err))
+		summary, details := formatConnectFailure(rawErrorText(msg.err))
 		m.appendEvent("✗ 连接失败：%s", summary)
 		for _, detail := range details {
 			m.appendEvent("  · %s", detail)
@@ -1207,12 +1199,6 @@ func (m *Model) handleConnectResult(msg connectResultMsg) {
 		line += "）"
 		m.appendEvent("%s", line)
 		m.appendEvent("… 等待打洞（DCUtR）升级为直连")
-	case res.GetDirect():
-		line := fmt.Sprintf("✓ 已连接 %s：%s", name, route)
-		if addr := res.GetRemoteMultiaddr(); addr != "" {
-			line += " " + addr
-		}
-		m.appendEvent("%s", line)
 	default:
 		m.appendEvent("✓ 已连接 %s：%s", name, route)
 	}
@@ -1220,13 +1206,11 @@ func (m *Model) handleConnectResult(msg connectResultMsg) {
 		if a.GetOk() {
 			continue
 		}
-		reason := candidateReason(a.GetError())
-		if reason == "原因未知" {
-			if raw := textsafe.Sanitize(strings.TrimSpace(a.GetError())); raw != "" {
-				reason += "（" + raw + "）"
-			}
+		mode := addressMode(a.GetMultiaddr())
+		if mode == "" {
+			mode = "连接候选"
 		}
-		m.appendEvent("  · 候选失败 %s：%s", a.GetMultiaddr(), reason)
+		m.appendEvent("  · %s失败：%s", mode, candidateReason(a.GetError()))
 	}
 }
 
@@ -1260,7 +1244,7 @@ func (m *Model) handleSendResult(msg sendResultMsg) {
 		}
 		m.appendEvent("%s", line)
 	default:
-		reason := res.GetError()
+		reason := redactNetworkAddresses(res.GetError())
 		if reason == "" {
 			reason = "未送达"
 		}

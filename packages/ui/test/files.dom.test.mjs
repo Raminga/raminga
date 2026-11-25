@@ -274,7 +274,6 @@ test('Mine lists every public file, including Agent-authored and non-post format
 
 test('status dialog owns local share and bootstrap configuration view', async () => {
   let shares = 0;
-  let copied = '';
   const bootstrapPeers = [`/ip4/127.0.0.1/tcp/4001/p2p/${PEER_B}`];
   const ui = mountUi({
     onLoadBootstrap: async () => ({ at: Date.now(), peers: bootstrapPeers, error: null, freshness: 'live', source: 'dht-status' }),
@@ -282,7 +281,6 @@ test('status dialog owns local share and bootstrap configuration view', async ()
       shares += 1;
       return { ok: true, peerId: PEER_B, at: Date.now(), stale: false, error: null, addresses: [] };
     },
-    onCopyText: async (text) => { copied = text; return true; },
   });
   try {
     await settle();
@@ -293,10 +291,9 @@ test('status dialog owns local share and bootstrap configuration view', async ()
     assert.match(ui.text('#statusBootstrapNote'), /已保存 1 个引导节点|尚未配置/);
     ui.click('#statusBootstrapRefresh');
     await settle();
-    assert.match(ui.text('#statusBootstrapList'), /127\.0\.0\.1/);
-    ui.click('#statusBootstrapCopy');
-    await settle();
-    assert.equal(copied, bootstrapPeers[0]);
+    assert.ok(ui.text('#statusBootstrapList').includes(PEER_B));
+    assert.doesNotMatch(ui.text('#statusBootstrapList'), /127\.0\.0\.1/);
+    assert.equal(ui.shadow.querySelector('#statusBootstrapCopy'), null);
     ui.click('#statusShareNode');
     await settle();
     assert.equal(ui.shadow.querySelector('#shareDialog').open, true);

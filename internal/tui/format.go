@@ -6,7 +6,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dustin/go-humanize"
 
-	"github.com/Raminga/raminga/internal/textsafe"
+	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 // padDisplay right-pads s to width terminal cells. It uses display width so CJK
@@ -59,45 +60,39 @@ func sizedLines(rows []sizedRow, indent string) []string {
 	return lines
 }
 
-// addrTypeLabel describes an address, such as "公网 IPv6/QUIC". It says what the
-// address is, not whether it's reachable: a public IP can still sit behind a
-// firewall. For a relay address, family and transport describe the path to the
-// relay.
-func addrTypeLabel(raw string) string {
-	kind, _ := classifyAddr(raw, false)
-	var parts []string
-	switch {
-	case strings.Contains(raw, "/ip4/"):
-		parts = append(parts, "IPv4")
-	case strings.Contains(raw, "/ip6/"):
-		parts = append(parts, "IPv6")
-	case strings.Contains(raw, "/dns"):
-		parts = append(parts, "域名")
+// addressMode classifies a hint without treating it as proof of reachability.
+func addressMode(raw string) string {
+	addr, err := ma.NewMultiaddr(raw)
+	if err != nil {
+		return ""
 	}
 	switch {
-	case strings.Contains(raw, "/quic"):
-		parts = append(parts, "QUIC")
-	case strings.Contains(raw, "/tcp/"):
-		parts = append(parts, "TCP")
+	case manet.IsIPLoopback(addr), manet.IsIP6LinkLocal(addr), manet.IsIPUnspecified(addr):
+		return ""
+	case strings.Contains(raw, "/p2p-circuit"):
+		return "中继连接"
+	case manet.IsPublicAddr(addr):
+		return "公网直连"
+	case manet.IsPrivateAddr(addr):
+		return "局域网直连"
+	default:
+		return ""
 	}
-	if len(parts) == 0 {
-		return kind
-	}
-	return kind + " " + strings.Join(parts, "/")
 }
 
-// labelledAddrLines renders addresses as "  type  address". The type column
-// comes first so the address can still be selected whole.
-func labelledAddrLines(addrs []string) []string {
-	width := 0
+func addressModes(addrs []string) string {
+	seen := make(map[string]bool)
 	for _, addr := range addrs {
-		if w := displayWidth(addrTypeLabel(addr)); w > width {
-			width = w
+		seen[addressMode(addr)] = true
+	}
+	var modes []string
+	for _, mode := range []string{"公网直连", "中继连接", "局域网直连"} {
+		if seen[mode] {
+			modes = append(modes, mode)
 		}
 	}
-	lines := make([]string, 0, len(addrs))
-	for _, addr := range addrs {
-		lines = append(lines, "  "+padDisplay(addrTypeLabel(addr), width)+"  "+textsafe.Sanitize(addr))
+	if len(modes) == 0 {
+		return "暂无"
 	}
-	return lines
+	return strings.Join(modes, " · ")
 }

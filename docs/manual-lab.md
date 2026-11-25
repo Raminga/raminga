@@ -28,7 +28,7 @@ docker exec -it raminga-lab-dualnat-a-quic-1 raminga tui
 
 - 输出：直接写入终端正常回滚区（不在备用屏幕），滚动、选择和复制都交给终端；TUI 只管理底部的小块实时区域。
 - 实时区域：状态行 + 输入行（未选聊天对象时 `>`，已选时 `<名字>> `），补全弹窗或一行提示；没有空白填充。状态行显示聊天对象、连接数、自己的名字；运行中显示 spinner 进度，窄终端从右往左省略。
-- `/copy` 和 `/status` 的公告地址都带完整 `/p2p/<PeerID>`；`/status` 先打印地址标签，再单独打印完整地址。`/status` 的“本机：”显示完整 Peer ID。
+- `/status` 显示本机完整 Raminga ID 和可用的连接方式。`/copy` 复制本机 Raminga ID，`/share --include-addresses` 生成带地址的名片。实验如需查看原始地址，在节点的 shell 中运行 `raminga status --json` 或 `raminga relay status`。
 - Home/End 在输入行内移动光标；PgUp/PgDn 由终端处理。
 - 输入 `/` 打开中文指令补全；↑/↓ 选择，Tab 只补全，Enter 确认当前高亮指令/参数后执行，Esc 关闭。名字/Peer ID 参数也会补全。
 - 不带 `/` 的文字 = 发给当前 `/chat` 对象。
@@ -38,15 +38,16 @@ docker exec -it raminga-lab-dualnat-a-quic-1 raminga tui
 常用命令（唯一前缀可用）：
 
 ```text
-/connect <节点|multiaddr>          连接；经中继后自动尝试打洞直连
+/connect <节点|分享码|multiaddr>   连接；经中继后自动尝试打洞直连
 /connect <所有者> <列表中的节点>   用对方好友列表里的地址连接
 /disconnect <节点>                 断开并持久暂停（/connect 解除）
 /chat <节点>                       选择聊天对象
 /status  /peers  /diag  /outbox    状态/节点/诊断/待发
-/peers <节点>                      单个节点的当前连接和已知地址
+/peers <节点>                      单个节点的当前连接和已知的连接方式
 /name <节点> <名字>               起名；/peers 列出（含完整 Peer ID）
 /mark <备注>                        时间线记录；备注含“停中继”会观察 10 秒
 /report [--include-text]            导出 JSON+Markdown
+/share --include-addresses          生成带地址的名片
 /copy  /clear  /help  /quit
 ```
 
@@ -66,7 +67,7 @@ docker exec -it raminga-lab-lan-a4-1 raminga tui
 > /quit
 ```
 
-应看到：`✓ 已连接 b4：直连/TCP /ip4/10.250.1.12/tcp/4001`、`✓ 当前聊天对象：b4`、`→ b4：hello from a4 ✓ 7 ms`、`✓ 报告已保存：/data/reports/test-report.json`。
+应看到 `✓ 已连接 b4：直连/TCP`、`✓ 当前聊天对象：b4`、`→ b4：hello from a4 ✓ 7 ms` 和 `✓ 报告已保存：/data/reports/test-report.json`。
 
 IPv6 / QUIC / 仅名字选择分别在 `a6→b6`、`q6-a→q6-b`、`a6only→b6only` 上重复 `/connect <名字>` + `/chat <名字>`。UDP 封锁对在 `tcp-a` 手工加 iptables 后 `/connect tcp-b`，预期 TCP 直连、QUIC 失败不写成直连；netem 在 `loss-a` 手工 `tc`。
 
@@ -96,7 +97,7 @@ docker exec -it raminga-lab-onesided-peer-1 raminga tui
 > /quit
 ```
 
-应看到 `✓ 已连接 <名字>：直连/TCP /ip4/11.43.0.10/tcp/4001` 和 ACK。随后在 `pub` 上 `/chat peer` 回一条，走已建立连接；这**不**证明反向可达。
+应看到 `✓ 已连接 <名字>：直连/TCP` 和 ACK。随后在 `pub` 上 `/chat peer` 回一条，走已建立连接；这**不**证明反向可达。
 
 ## 5. symmetric
 
@@ -127,7 +128,7 @@ docker exec -it raminga-lab-dualnat-a-quic-1 raminga tui
 > dualnat hello
 ```
 
-应看到 `✓ 已连接 b-quic：中继/TCP（经中继 r1，受限）`，随后 `✓ 已升级为直连/QUIC /ip4/11.41.0.11/udp/4001/quic-v1`；`→ b-quic：dualnat hello ✓ 7 ms 经中继`。
+应看到 `✓ 已连接 b-quic：中继/TCP（经中继 r1，受限）` 和消息 ACK。打洞成功时会出现 `✓ 已升级为 QUIC 直连`。
 
 2. 宿主另一个终端停两个 Relay（保持 TUI）：
 
@@ -156,13 +157,13 @@ docker start raminga-lab-dualnat-r1-1 raminga-lab-dualnat-r2-1
 
 在 TUI 输入 `/diag`，等待中继预约恢复 `active` 后再继续。
 
-6. TCP 双 NAT：在 `a-tcp` 输入 `/connect b-tcp`、`/diag`、`/chat b-tcp`、`tcp relay fallback`、`/quit`。**通常** TCP 直连 BLOCKED 后回退 Relay，`/diag` 出现 `双 NAT 下 TCP 直连 BLOCKED；当前经中继回退`；Docker 中也**偶尔**观察到 simultaneous-open 成功直连（此时日志是 `✓ 已连接 <名字>：直连/TCP .../tcp/4100`）。两种都如实记录，**不能**把 attempt/relay 写成 direct，也不能保证每次都成功。
+6. TCP 双 NAT：在 `a-tcp` 输入 `/connect b-tcp`、`/diag`、`/chat b-tcp`、`tcp relay fallback`、`/quit`。**通常** TCP 直连 BLOCKED 后回退 Relay，`/diag` 出现 `双 NAT 下 TCP 直连 BLOCKED；当前经中继回退`；Docker 中也**偶尔**观察到 simultaneous-open 成功直连（此时日志是 `✓ 已连接 <名字>：直连/TCP`）。两种都如实记录，**不能**把 attempt/relay 写成 direct，也不能保证每次都成功。
 
 7. `a-relay`→`b-relay`（DCUtR 关闭）：`/connect b-relay`、`/chat b-relay`，始终 `route=relay`，等待也不会变 direct。
 
 ## 7. ipv6fw（完整流程）
 
-1. `a-quic`：`/connect b-quic`（经 IPv6 Relay → DCUtR QUIC direct），`/chat b-quic`，发 `ipv6fw relay hello`。应看到中继 + `✓ 已升级为直连/QUIC /ip6/...`。
+1. `a-quic`：`/connect b-quic`（经 IPv6 Relay → DCUtR QUIC direct），`/chat b-quic`，发 `ipv6fw relay hello`。应看到中继和 `✓ 已升级为 QUIC 直连`。
 2. 宿主停 Relay：
 
 ```sh

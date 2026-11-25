@@ -118,6 +118,66 @@ test('copy with no advertised address still copies a useful Peer ID', async () =
   }
 });
 
+test('card options are visible, checked when available, and copy only the selected scope', async () => {
+  const copied = [];
+  const requested = [];
+  const ui = mountUi({
+    onContactCard: async (peer, scopes) => {
+      requested.push([peer, scopes]);
+      const available = peer ? 3 : 7;
+      const selected = scopes & available;
+      return {
+        ok: true, peerId: PEER_A, shareCode: selected ? `card-${selected}` : PEER_A,
+        availableAddressScopes: available, includedAddressScopes: selected, hasAddresses: selected !== 0,
+      };
+    },
+    onCopyText: async (value) => { copied.push(value); return true; },
+  });
+  try {
+    await ui.open();
+    const dialog = ui.shadow.querySelector('#shareDialog');
+    const publicAddress = ui.shadow.querySelector('#sharePublicAddress');
+    const relayAddress = ui.shadow.querySelector('#shareRelayAddress');
+    const lanAddress = ui.shadow.querySelector('#shareLanAddress');
+    assert.equal(ui.shadow.querySelector('#shareAddressChoice').hidden, false);
+    assert.ok([publicAddress, relayAddress, lanAddress].every((input) => input.checked && !input.disabled));
+    const copyButtons = [...dialog.querySelectorAll('button')].filter((button) => button.textContent.trim().startsWith('复制'));
+    assert.deepEqual(copyButtons.map((button) => button.textContent), ['复制名片']);
+    assert.equal(ui.shadow.querySelector('#shareAddressHelpCard').hidden, true);
+    ui.click('#shareAddressHelp');
+    assert.match(ui.shadow.querySelector('#shareAddressHelpCard').textContent, /读取和转发/);
+    assert.equal(ui.shadow.querySelector('#shareAddressHelp').getAttribute('aria-expanded'), 'true');
+    ui.click('#shareAddressHelp');
+    assert.equal(ui.shadow.querySelector('#shareAddressHelpCard').hidden, true);
+    ui.click('#shareCopy');
+    await settle();
+    publicAddress.click();
+    relayAddress.click();
+    await settle();
+    ui.click('#shareCopy');
+    await settle();
+    lanAddress.click();
+    await settle();
+    assert.match(ui.shadow.querySelector('#shareAddressSummary').textContent, /仅分享 ID/);
+    ui.click('#shareCopy');
+    await settle();
+    dialog.close();
+    ui.click('[data-contact-row] button[aria-haspopup="menu"]');
+    const shareFriend = [...ui.shadow.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent === '分享此联系人');
+    assert.ok(shareFriend);
+    shareFriend.click();
+    await settle();
+    assert.ok(publicAddress.checked && relayAddress.checked);
+    assert.ok(lanAddress.disabled && !lanAddress.checked);
+    ui.click('#shareCopy');
+    await settle();
+    assert.deepEqual(copied, ['card-7', 'card-4', PEER_A, 'card-3']);
+    assert.deepEqual(requested, [['', 7], ['', 6], ['', 4], ['', 0], [PEER_A, 7]]);
+  } finally {
+    ui.close();
+  }
+});
+
 test('a refused clipboard shows, selects and focuses the manual copy text', async () => {
   const ui = mountUi({
     onShare: async () => share(),

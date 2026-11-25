@@ -63,7 +63,7 @@ Status: Current (2026-11-07) · Go 1.27 / go-libp2p v0.51.0
 
 ## TUI
 
-`raminga tui`（或裸 `raminga`）打开内联聊天式界面（[ADR-0004](adr/0004-inline-tui.md)），不持有第二份节点状态，不新增 listener。当前命令：`/connect`、`/disconnect`、`/status`、`/peers`、`/chat`、`/name`、`/describe`、`/forget`、`/view`、`/posts`、`/peerfriends`、`/files`、`/get`、`/published`、`/diag`、`/outbox`、`/cancel`、`/mark`、`/report`、`/copy`、`/clear`、`/help`、`/quit`。`/connect <所有者> <节点>` 通过对方好友列表连接；`/peerfriends` 显示对方列的 Peer ID 和地址（未验证的说法）；`/peers <节点>` 显示当前连接和已知地址；聊天中输入为空按 `Esc` 退出聊天。用法和示例见 [install.md §4](install.md#4-第一次运行)。
+`raminga tui`（或裸 `raminga`）打开内联聊天式界面（[ADR-0004](adr/0004-inline-tui.md)），不持有第二份节点状态，不新增 listener。当前命令：`/connect`、`/disconnect`、`/status`、`/peers`、`/chat`、`/name`、`/describe`、`/forget`、`/view`、`/posts`、`/peerfriends`、`/files`、`/get`、`/published`、`/diag`、`/outbox`、`/cancel`、`/mark`、`/report`、`/copy`、`/share`、`/clear`、`/help`、`/quit`。`/connect <所有者> <节点>` 通过对方好友列表连接；`/peerfriends` 显示对方列的 Peer ID 和连接方式（未验证的说法）；`/peers <节点>` 显示当前连接和已知的连接方式；聊天中输入为空按 `Esc` 退出聊天。用法和示例见 [install.md §4](install.md#4-第一次运行)。
 
 ## CLI
 

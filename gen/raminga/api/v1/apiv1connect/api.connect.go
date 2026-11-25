@@ -40,6 +40,12 @@ const (
 	RamingaServiceStatusProcedure = "/raminga.api.v1.RamingaService/Status"
 	// RamingaServiceConnectProcedure is the fully-qualified name of the RamingaService's Connect RPC.
 	RamingaServiceConnectProcedure = "/raminga.api.v1.RamingaService/Connect"
+	// RamingaServiceGetContactCardProcedure is the fully-qualified name of the RamingaService's
+	// GetContactCard RPC.
+	RamingaServiceGetContactCardProcedure = "/raminga.api.v1.RamingaService/GetContactCard"
+	// RamingaServicePreviewContactCardProcedure is the fully-qualified name of the RamingaService's
+	// PreviewContactCard RPC.
+	RamingaServicePreviewContactCardProcedure = "/raminga.api.v1.RamingaService/PreviewContactCard"
 	// RamingaServiceSendChatProcedure is the fully-qualified name of the RamingaService's SendChat RPC.
 	RamingaServiceSendChatProcedure = "/raminga.api.v1.RamingaService/SendChat"
 	// RamingaServiceRecentMessagesProcedure is the fully-qualified name of the RamingaService's
@@ -177,6 +183,11 @@ type RamingaServiceClient interface {
 	// resolves candidates from the PeerStore, SQLite cache and DHT. It reports
 	// every attempted address and whether an existing connection was reused.
 	Connect(context.Context, *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error)
+	// GetContactCard returns a card for this node, a local contact or a saved bootstrap peer.
+	GetContactCard(context.Context, *connect.Request[v1.GetContactCardRequest]) (*connect.Response[v1.GetContactCardResponse], error)
+	// PreviewContactCard validates a card and resolves its local display name.
+	// It does not dial or write a contact.
+	PreviewContactCard(context.Context, *connect.Request[v1.PreviewContactCardRequest]) (*connect.Response[v1.PreviewContactCardResponse], error)
 	// SendChat sends one HTTP chat message and reports whether a matching
 	// ACK was received before the deadline.
 	SendChat(context.Context, *connect.Request[v1.SendChatRequest]) (*connect.Response[v1.SendChatResponse], error)
@@ -317,6 +328,18 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+RamingaServiceConnectProcedure,
 			connect.WithSchema(ramingaServiceMethods.ByName("Connect")),
+			connect.WithClientOptions(opts...),
+		),
+		getContactCard: connect.NewClient[v1.GetContactCardRequest, v1.GetContactCardResponse](
+			httpClient,
+			baseURL+RamingaServiceGetContactCardProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("GetContactCard")),
+			connect.WithClientOptions(opts...),
+		),
+		previewContactCard: connect.NewClient[v1.PreviewContactCardRequest, v1.PreviewContactCardResponse](
+			httpClient,
+			baseURL+RamingaServicePreviewContactCardProcedure,
+			connect.WithSchema(ramingaServiceMethods.ByName("PreviewContactCard")),
 			connect.WithClientOptions(opts...),
 		),
 		sendChat: connect.NewClient[v1.SendChatRequest, v1.SendChatResponse](
@@ -590,6 +613,8 @@ func NewRamingaServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 type ramingaServiceClient struct {
 	status                    *connect.Client[v1.StatusRequest, v1.StatusResponse]
 	connect                   *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	getContactCard            *connect.Client[v1.GetContactCardRequest, v1.GetContactCardResponse]
+	previewContactCard        *connect.Client[v1.PreviewContactCardRequest, v1.PreviewContactCardResponse]
 	sendChat                  *connect.Client[v1.SendChatRequest, v1.SendChatResponse]
 	recentMessages            *connect.Client[v1.RecentMessagesRequest, v1.RecentMessagesResponse]
 	listConversations         *connect.Client[v1.ListConversationsRequest, v1.ListConversationsResponse]
@@ -644,6 +669,16 @@ func (c *ramingaServiceClient) Status(ctx context.Context, req *connect.Request[
 // Connect calls raminga.api.v1.RamingaService.Connect.
 func (c *ramingaServiceClient) Connect(ctx context.Context, req *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error) {
 	return c.connect.CallUnary(ctx, req)
+}
+
+// GetContactCard calls raminga.api.v1.RamingaService.GetContactCard.
+func (c *ramingaServiceClient) GetContactCard(ctx context.Context, req *connect.Request[v1.GetContactCardRequest]) (*connect.Response[v1.GetContactCardResponse], error) {
+	return c.getContactCard.CallUnary(ctx, req)
+}
+
+// PreviewContactCard calls raminga.api.v1.RamingaService.PreviewContactCard.
+func (c *ramingaServiceClient) PreviewContactCard(ctx context.Context, req *connect.Request[v1.PreviewContactCardRequest]) (*connect.Response[v1.PreviewContactCardResponse], error) {
+	return c.previewContactCard.CallUnary(ctx, req)
 }
 
 // SendChat calls raminga.api.v1.RamingaService.SendChat.
@@ -874,6 +909,11 @@ type RamingaServiceHandler interface {
 	// resolves candidates from the PeerStore, SQLite cache and DHT. It reports
 	// every attempted address and whether an existing connection was reused.
 	Connect(context.Context, *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error)
+	// GetContactCard returns a card for this node, a local contact or a saved bootstrap peer.
+	GetContactCard(context.Context, *connect.Request[v1.GetContactCardRequest]) (*connect.Response[v1.GetContactCardResponse], error)
+	// PreviewContactCard validates a card and resolves its local display name.
+	// It does not dial or write a contact.
+	PreviewContactCard(context.Context, *connect.Request[v1.PreviewContactCardRequest]) (*connect.Response[v1.PreviewContactCardResponse], error)
 	// SendChat sends one HTTP chat message and reports whether a matching
 	// ACK was received before the deadline.
 	SendChat(context.Context, *connect.Request[v1.SendChatRequest]) (*connect.Response[v1.SendChatResponse], error)
@@ -1010,6 +1050,18 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 		RamingaServiceConnectProcedure,
 		svc.Connect,
 		connect.WithSchema(ramingaServiceMethods.ByName("Connect")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServiceGetContactCardHandler := connect.NewUnaryHandler(
+		RamingaServiceGetContactCardProcedure,
+		svc.GetContactCard,
+		connect.WithSchema(ramingaServiceMethods.ByName("GetContactCard")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ramingaServicePreviewContactCardHandler := connect.NewUnaryHandler(
+		RamingaServicePreviewContactCardProcedure,
+		svc.PreviewContactCard,
+		connect.WithSchema(ramingaServiceMethods.ByName("PreviewContactCard")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ramingaServiceSendChatHandler := connect.NewUnaryHandler(
@@ -1282,6 +1334,10 @@ func NewRamingaServiceHandler(svc RamingaServiceHandler, opts ...connect.Handler
 			ramingaServiceStatusHandler.ServeHTTP(w, r)
 		case RamingaServiceConnectProcedure:
 			ramingaServiceConnectHandler.ServeHTTP(w, r)
+		case RamingaServiceGetContactCardProcedure:
+			ramingaServiceGetContactCardHandler.ServeHTTP(w, r)
+		case RamingaServicePreviewContactCardProcedure:
+			ramingaServicePreviewContactCardHandler.ServeHTTP(w, r)
 		case RamingaServiceSendChatProcedure:
 			ramingaServiceSendChatHandler.ServeHTTP(w, r)
 		case RamingaServiceRecentMessagesProcedure:
@@ -1385,6 +1441,14 @@ func (UnimplementedRamingaServiceHandler) Status(context.Context, *connect.Reque
 
 func (UnimplementedRamingaServiceHandler) Connect(context.Context, *connect.Request[v1.ConnectRequest]) (*connect.Response[v1.ConnectResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.Connect is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) GetContactCard(context.Context, *connect.Request[v1.GetContactCardRequest]) (*connect.Response[v1.GetContactCardResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.GetContactCard is not implemented"))
+}
+
+func (UnimplementedRamingaServiceHandler) PreviewContactCard(context.Context, *connect.Request[v1.PreviewContactCardRequest]) (*connect.Response[v1.PreviewContactCardResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("raminga.api.v1.RamingaService.PreviewContactCard is not implemented"))
 }
 
 func (UnimplementedRamingaServiceHandler) SendChat(context.Context, *connect.Request[v1.SendChatRequest]) (*connect.Response[v1.SendChatResponse], error) {
