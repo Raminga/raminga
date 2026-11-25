@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -51,6 +52,8 @@ type runner struct {
 	launcher string
 	version  string
 }
+
+var onboardingFiles = []string{"agent/persona.md", "agent/growth.md"}
 
 // lockedBuffer collects child stderr while the MCP client reads it.
 type lockedBuffer struct {
@@ -195,8 +198,12 @@ func (r runner) scenarioMCP(parent context.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if len(first.Created) != 3 || len(first.Existing) != 0 {
-		return fmt.Errorf("first agent_init = created %v existing %v, want 3 created / 0 existing", first.Created, first.Existing)
+	if !slices.Equal(first.Created, onboardingFiles) || len(first.Existing) != 0 {
+		return fmt.Errorf("first agent_init = created %v existing %v, want created %v and nothing existing", first.Created, first.Existing, onboardingFiles)
+	}
+	wantDirs := []string{"agent/", "agent/sessions/", "agent/contacts/"}
+	if !slices.Equal(first.DirectoriesCreated, wantDirs) {
+		return fmt.Errorf("first agent_init = created directories %v, want %v", first.DirectoriesCreated, wantDirs)
 	}
 	persona := filepath.Join(dataDir, "agent", "persona.md")
 	if err := os.WriteFile(persona, []byte("custom persona\n"), 0o600); err != nil {
@@ -206,8 +213,8 @@ func (r runner) scenarioMCP(parent context.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if len(second.Created) != 0 || len(second.Existing) != 3 {
-		return fmt.Errorf("second agent_init = created %v existing %v, want 0 created / 3 existing", second.Created, second.Existing)
+	if len(second.Created) != 0 || len(second.DirectoriesCreated) != 0 || !slices.Equal(second.Existing, onboardingFiles) {
+		return fmt.Errorf("second agent_init = created %v directories %v existing %v, want only existing %v", second.Created, second.DirectoriesCreated, second.Existing, onboardingFiles)
 	}
 	content, err := os.ReadFile(persona)
 	if err != nil {
@@ -297,8 +304,8 @@ func (r runner) runLauncherCache(parent context.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
-	if len(init.Created) != 3 {
-		return fmt.Errorf("agent_init after auto-init created %v, want 3 files", init.Created)
+	if !slices.Equal(init.Created, onboardingFiles) || len(init.Existing) != 0 {
+		return fmt.Errorf("agent_init after auto-init = created %v existing %v, want created %v and nothing existing", init.Created, init.Existing, onboardingFiles)
 	}
 	fmt.Printf("default data dir: agent_init created=%v\n", init.Created)
 
