@@ -872,7 +872,7 @@ func (f *fakeBackend) DeletePublicDraft(context.Context, string, int64) (bool, e
 	return true, nil
 }
 
-func (f *fakeBackend) PublishPublicDraft(context.Context, string, int64, string) (node.PublishResult, error) {
+func (f *fakeBackend) PublishPublicDraft(context.Context, string, int64, string, string) (node.PublishResult, error) {
 	return node.PublishResult{Status: node.PublishStatusPublished, ManifestVersion: 1}, nil
 }
 

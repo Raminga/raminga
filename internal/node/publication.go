@@ -95,8 +95,11 @@ func (n *Node) DeletePublicDraft(ctx context.Context, id string, expectedRevisio
 }
 
 // PublishPublicDraft atomically commits one draft under the publication lock.
-func (n *Node) PublishPublicDraft(ctx context.Context, id string, expectedRevision int64, expectedPublishedSHA string) (PublishResult, error) {
-	return n.publication.Publish(ctx, id, expectedRevision, expectedPublishedSHA)
+func (n *Node) PublishPublicDraft(ctx context.Context, id string, expectedRevision int64, expectedPublishedSHA, requestID string) (PublishResult, error) {
+	if requestID != "" && !validRequestID(requestID) {
+		return PublishResult{Status: PublishStatusInvalid, Error: "request_id 格式无效"}, nil
+	}
+	return n.publication.PublishWithRequestID(ctx, id, expectedRevision, expectedPublishedSHA, requestID)
 }
 
 // RecoverPublication runs startup staging cleanup and incomplete-version

@@ -830,6 +830,7 @@ export interface UiPublishFile {
 }
 
 export interface UiPublishResult {
+  requestId: string;
   status: 'published' | 'already_published' | 'conflict' | 'invalid' | 'partial' | 'unspecified';
   error: string;
   currentRevision: number;
@@ -1332,7 +1333,7 @@ type UiService = {
   publicDraftAsset(sessionId: string, draftId: string, assetId: string): Promise<UiPublicDraftAssetRead>;
   importPublicPost(sessionId: string, publicPath: string): Promise<{ draft: UiPublicDraft }>;
   deletePublicDraft(sessionId: string, draftId: string, expectedRevision: number): Promise<{ deleted: boolean }>;
-  publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string): Promise<UiPublishResult>;
+  publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string, requestId?: string): Promise<UiPublishResult>;
   locateMessage(sessionId: string, peerId: string, messageId: string): Promise<UiLocatedMessage>;
   /** Local-only counters; not part of the Remote manifest. */
   getStats(): UiStats;
@@ -2227,7 +2228,7 @@ export class RamingaUiBridge {
       publicDraftAsset: (sessionId: string, draftId: string, assetId: string) => this.publicDraftAsset(sessionId, draftId, assetId),
       importPublicPost: (sessionId: string, publicPath: string) => this.importPublicPost(sessionId, publicPath),
       deletePublicDraft: (sessionId: string, draftId: string, expectedRevision: number) => this.deletePublicDraft(sessionId, draftId, expectedRevision),
-      publishPublicDraft: (sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string) => this.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256),
+      publishPublicDraft: (sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId) => this.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId),
       locateMessage: (sessionId: string, peerId: string, messageId: string) => this.locateMessage(sessionId, peerId, messageId),
       getStats: () => this.getStats(),
     } as UiService;
@@ -6662,7 +6663,7 @@ export class RamingaUiBridge {
     return { deleted: response.deleted === true };
   }
 
-  async publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string): Promise<UiPublishResult> {
+  async publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string, requestId = ''): Promise<UiPublishResult> {
     this.assertOpen();
     const session = this.sessionFor(sessionId);
     session.lastPollAt = this.now();
@@ -6672,10 +6673,12 @@ export class RamingaUiBridge {
         draftId: String(draftId ?? ''),
         expectedRevision: BigInt(Math.max(0, Math.trunc(Number(expectedRevision) || 0))),
         expectedPublishedSha256: String(expectedPublishedSha256 ?? ''),
+        requestId: String(requestId ?? ''),
       }), { timeoutMs: 60_000 }),
       '发布公开草稿',
     );
     const result: UiPublishResult = {
+      requestId: String(response.requestId ?? ''),
       status: publishStatusFromProto(response.status),
       error: String(response.error ?? ''),
       currentRevision: numberOf(response.currentRevision),

@@ -34,7 +34,7 @@ let mountCount = 0;
  *   onPutPublicDraftImage?: (draftId: string, role: string, filename: string, dataBase64: string) => Promise<object>,
  *   onLoadPublicDraftAsset?: (draftId: string, assetId: string) => Promise<{image: object, dataBase64: string}>,
  *   onImportPublicPost?: (path: string) => Promise<{draft: object}>,
- *   onPublishPublicDraft?: (draftId: string, revision: number, expectedPublishedSha256: string) => Promise<object>,
+ *   onPublishPublicDraft?: (draftId: string, revision: number, expectedPublishedSha256: string, requestId?: string) => Promise<object>,
  *   onCopyText?: (text: string) => Promise<boolean>, viewState?: object}} [options]
  * @returns {{
  *   setNodeStatus: Function,

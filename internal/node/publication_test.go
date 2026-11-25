@@ -65,7 +65,7 @@ func TestPublishedProfileAndPostAreReadableBySecondNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pres, err := b.node.PublishPublicDraft(ctx, profile.DraftID, profile.Revision, "")
+	pres, err := b.node.PublishPublicDraft(ctx, profile.DraftID, profile.Revision, "", "")
 	if err != nil || pres.Status != node.PublishStatusPublished {
 		t.Fatalf("publish profile = %+v, %v", pres, err)
 	}
@@ -92,7 +92,7 @@ func TestPublishedProfileAndPostAreReadableBySecondNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	postres, err := b.node.PublishPublicDraft(ctx, post.DraftID, post.Revision, "")
+	postres, err := b.node.PublishPublicDraft(ctx, post.DraftID, post.Revision, "", "")
 	if err != nil || postres.Status != node.PublishStatusPublished || postres.PostPath == "" {
 		t.Fatalf("publish post = %+v, %v", postres, err)
 	}

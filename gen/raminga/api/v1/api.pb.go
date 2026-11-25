@@ -9352,8 +9352,10 @@ type PublishPublicDraftRequest struct {
 	// An empty value is allowed only for a first publish. A draft that already
 	// has published_sha256 must pass the exact current value.
 	ExpectedPublishedSha256 string `protobuf:"bytes,3,opt,name=expected_published_sha256,json=expectedPublishedSha256,proto3" json:"expected_published_sha256,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Optional for profile drafts. Retries must use the same ID and arguments.
+	RequestId     string `protobuf:"bytes,4,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PublishPublicDraftRequest) Reset() {
@@ -9407,6 +9409,13 @@ func (x *PublishPublicDraftRequest) GetExpectedPublishedSha256() string {
 	return ""
 }
 
+func (x *PublishPublicDraftRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
 type PublishPublicDraftResponse struct {
 	state                     protoimpl.MessageState `protogen:"open.v1"`
 	Status                    PublicPublishStatus    `protobuf:"varint,1,opt,name=status,proto3,enum=raminga.api.v1.PublicPublishStatus" json:"status,omitempty"`
@@ -9420,6 +9429,7 @@ type PublishPublicDraftResponse struct {
 	ProfilePath               string                 `protobuf:"bytes,9,opt,name=profile_path,json=profilePath,proto3" json:"profile_path,omitempty"`
 	Warnings                  []string               `protobuf:"bytes,10,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	ManifestSha256            string                 `protobuf:"bytes,11,opt,name=manifest_sha256,json=manifestSha256,proto3" json:"manifest_sha256,omitempty"`
+	RequestId                 string                 `protobuf:"bytes,12,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -9527,6 +9537,13 @@ func (x *PublishPublicDraftResponse) GetWarnings() []string {
 func (x *PublishPublicDraftResponse) GetManifestSha256() string {
 	if x != nil {
 		return x.ManifestSha256
+	}
+	return ""
+}
+
+func (x *PublishPublicDraftResponse) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
 	}
 	return ""
 }
@@ -10844,11 +10861,13 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x02 \x01(\x03R\tsizeBytes\x12\x16\n" +
-	"\x06sha256\x18\x03 \x01(\tR\x06sha256\"\x9f\x01\n" +
+	"\x06sha256\x18\x03 \x01(\tR\x06sha256\"\xbe\x01\n" +
 	"\x19PublishPublicDraftRequest\x12\x19\n" +
 	"\bdraft_id\x18\x01 \x01(\tR\adraftId\x12+\n" +
 	"\x11expected_revision\x18\x02 \x01(\x04R\x10expectedRevision\x12:\n" +
-	"\x19expected_published_sha256\x18\x03 \x01(\tR\x17expectedPublishedSha256\"\xf9\x03\n" +
+	"\x19expected_published_sha256\x18\x03 \x01(\tR\x17expectedPublishedSha256\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\"\x98\x04\n" +
 	"\x1aPublishPublicDraftResponse\x12;\n" +
 	"\x06status\x18\x01 \x01(\x0e2#.raminga.api.v1.PublicPublishStatusR\x06status\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12)\n" +
@@ -10861,7 +10880,9 @@ const file_raminga_api_v1_api_proto_rawDesc = "" +
 	"\fprofile_path\x18\t \x01(\tR\vprofilePath\x12\x1a\n" +
 	"\bwarnings\x18\n" +
 	" \x03(\tR\bwarnings\x12'\n" +
-	"\x0fmanifest_sha256\x18\v \x01(\tR\x0emanifestSha256\"v\n" +
+	"\x0fmanifest_sha256\x18\v \x01(\tR\x0emanifestSha256\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\f \x01(\tR\trequestId\"v\n" +
 	"\x0fPeerFriendClaim\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
 	"\apeer_id\x18\x02 \x01(\tR\x06peerId\x12\x14\n" +

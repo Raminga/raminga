@@ -6710,6 +6710,12 @@ export class PublishPublicDraftRequest extends Message {
      * @generated from field: string expected_published_sha256 = 3;
      */
     expectedPublishedSha256 = "";
+    /**
+     * Optional for profile drafts. Retries must use the same ID and arguments.
+     *
+     * @generated from field: string request_id = 4;
+     */
+    requestId = "";
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -6720,6 +6726,7 @@ export class PublishPublicDraftRequest extends Message {
         { no: 1, name: "draft_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
         { no: 2, name: "expected_revision", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
         { no: 3, name: "expected_published_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 4, name: "request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     ]);
     static fromBinary(bytes, options) {
         return new PublishPublicDraftRequest().fromBinary(bytes, options);
@@ -6782,6 +6789,10 @@ export class PublishPublicDraftResponse extends Message {
      * @generated from field: string manifest_sha256 = 11;
      */
     manifestSha256 = "";
+    /**
+     * @generated from field: string request_id = 12;
+     */
+    requestId = "";
     constructor(data) {
         super();
         proto3.util.initPartial(data, this);
@@ -6800,6 +6811,7 @@ export class PublishPublicDraftResponse extends Message {
         { no: 9, name: "profile_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
         { no: 10, name: "warnings", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
         { no: 11, name: "manifest_sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+        { no: 12, name: "request_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     ]);
     static fromBinary(bytes, options) {
         return new PublishPublicDraftResponse().fromBinary(bytes, options);

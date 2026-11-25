@@ -8007,6 +8007,7 @@ ${resultDetail}`;
       humanAvatarError: "",
       humanAvatarRestoreToken: 0,
       receipt: null,
+      pendingPublish: null,
       confirm: false,
       confirmSnapshot: "",
       confirmNotice: "",
@@ -15320,8 +15321,13 @@ ${resultDetail}`;
     function profilePublishReceiptText(receipt) {
       if (!receipt) return "";
       switch (receipt.status) {
-        case "published":
+        case "published": {
+          const currentSha = profileDraftState.draft?.publishedSha256;
+          if (receipt.currentPublishedSha256 && currentSha && receipt.currentPublishedSha256 !== currentSha) {
+            return "已确认本次发布，当前公开版本已有更新。";
+          }
           return "发布完成，公开版本已更新。";
+        }
         case "already_published":
           return "内容已是当前公开版本，本次没有重复写入。";
         case "conflict":
@@ -15343,7 +15349,7 @@ ${resultDetail}`;
       publicDraftReload.disabled = !publicDraftLoadCapable || state.saving || lock || state.loading !== null;
       publicDraftReload.textContent = state.reloadArmed ? "确认放弃修改并重新载入" : "重新载入草稿";
       publicPublishButton.disabled = !publishDraftCapable || state.saving || lock || state.loading !== null;
-      publicPublishButton.textContent = lock ? "正在发布…" : state.confirm ? "确认发布公开资料" : "检查发布内容";
+      publicPublishButton.textContent = lock ? "正在发布…" : state.pendingPublish ? "重试本次发布" : state.confirm ? "确认发布公开资料" : "检查发布内容";
       publicPublishCancel.hidden = !state.confirm || lock;
       publicPublishCancel.disabled = lock;
       publicAvatarInput.disabled = lock;
@@ -15902,40 +15908,50 @@ ${resultDetail}`;
       }
       throw new Error("当前修改还没有保存完成；请检查本机草稿状态后再发布。");
     }
-    async function publishProfileNow() {
+    async function publishProfileNow(attempt) {
       if (!publishDraftCapable) {
         profileDraftState.error = "当前宿主没有提供公开发布。";
         renderProfileDraftStatus();
         return;
       }
-      const draft = profileDraftState.draft;
-      if (!draft) {
-        profileDraftState.error = "没有可发布的草稿。";
-        renderProfileDraftStatus();
-        return;
-      }
+      const retry = profileDraftState.pendingPublish !== null;
       const seq = ++profileDraftState.publishSeq;
       profileDraftState.publishing = true;
       profileDraftState.confirm = false;
       profileDraftState.confirmSnapshot = "";
       profileDraftState.confirmNotice = "";
+      profileDraftState.error = "";
+      profileDraftState.receipt = null;
       if (profileSaveTimer !== null) {
         win.clearTimeout(profileSaveTimer);
         profileSaveTimer = null;
       }
       renderProfileDraftStatus();
       try {
-        const receipt = await options.onPublishPublicDraft(draft.draftId, draft.revision, draft.publishedSha256 || "");
+        const receipt = await options.onPublishPublicDraft(attempt.draftId, attempt.revision, attempt.publishedSha256, attempt.requestId);
         if (destroyed || seq !== profileDraftState.publishSeq) return;
         profileDraftState.receipt = receipt;
+        profileDraftState.pendingPublish = receipt.status === "partial" || receipt.status === "unspecified" ? attempt : null;
         if (receipt.status === "published" || receipt.status === "already_published") {
-          profileDraftState.draft = {
-            ...draft,
-            publishedSha256: receipt.currentPublishedSha256 || draft.publishedSha256,
-            publishedRevision: receipt.currentRevision || draft.revision,
-            publishedPath: receipt.profilePath || draft.publishedPath
-          };
-          profileDraftState.dirty = !profileDraftMatchesCurrent(profileDraftState.draft);
+          let latest;
+          if (retry && publicDraftLoadCapable) {
+            try {
+              const current = await options.onLoadPublicDraft(attempt.draftId);
+              latest = current?.found ? current.draft : null;
+            } catch {
+            }
+            if (destroyed || seq !== profileDraftState.publishSeq) return;
+          }
+          const draft = profileDraftState.draft;
+          if (draft?.draftId === attempt.draftId && (latest?.draftId === draft.draftId || (draft.publishedSha256 || "") === attempt.publishedSha256)) {
+            profileDraftState.draft = {
+              ...draft,
+              publishedSha256: latest?.publishedSha256 ?? (receipt.currentPublishedSha256 || draft.publishedSha256),
+              publishedRevision: latest?.publishedRevision ?? (receipt.currentRevision || attempt.revision),
+              publishedPath: latest?.publishedPath ?? (receipt.profilePath || draft.publishedPath)
+            };
+            profileDraftState.dirty = !profileDraftMatchesCurrent(profileDraftState.draft);
+          }
           profileDraftState.conflict = false;
           profileDraftState.error = "";
           profileDraftState.confirmNotice = "";
@@ -15952,8 +15968,8 @@ ${resultDetail}`;
         }
       } catch (error) {
         if (destroyed || seq !== profileDraftState.publishSeq) return;
+        profileDraftState.pendingPublish = attempt;
         profileDraftState.error = profileDraftErrorText(error);
-        profileDraftState.conflict = /冲突|已在别处|conflict|failed_precondition/i.test(String(error?.message ?? error));
       } finally {
         if (!destroyed && seq === profileDraftState.publishSeq) {
           profileDraftState.publishing = false;
@@ -15964,13 +15980,23 @@ ${resultDetail}`;
     }
     async function requestProfilePublish() {
       if (profileDraftState.publishing) return;
+      if (profileDraftState.pendingPublish) {
+        await publishProfileNow(profileDraftState.pendingPublish);
+        return;
+      }
       if (profileDraftState.confirm) {
         const snapshot = profilePublishSnapshot();
         if (snapshot !== profileDraftState.confirmSnapshot) {
           invalidateProfileConfirm("内容或草稿版本已变化；旧确认无效，请重新检查发布内容。");
           return;
         }
-        await publishProfileNow();
+        const draft = profileDraftState.draft;
+        await publishProfileNow({
+          draftId: draft.draftId,
+          revision: draft.revision,
+          publishedSha256: draft.publishedSha256 || "",
+          requestId: newRequestId()
+        });
         return;
       }
       try {
@@ -16011,6 +16037,7 @@ ${resultDetail}`;
       profileDraftState.error = "";
       profileDraftState.conflict = false;
       profileDraftState.receipt = null;
+      profileDraftState.pendingPublish = null;
       profileDraftState.confirm = false;
       profileDraftState.confirmSnapshot = "";
       profileDraftState.confirmNotice = "";
@@ -21668,10 +21695,10 @@ function createPanelRuntime({
     return remoteValue(await rpc.deletePublicDraft(sessionId, draftId, expectedRevision));
   }
 
-  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256) {
+  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256, requestId = '') {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.publishPublicDraft !== 'function') throw new Error('Raminga publication is unavailable');
-    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256));
+    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId));
     if (result && (result.status === 'published' || result.status === 'already_published' || result.status === 'partial')) {
       // The daemon already returned the same-snapshot files/digest. Refresh the
       // local published list only after that response, never before.
@@ -21976,7 +22003,7 @@ function createPanelRuntime({
         mountOptions.onDeletePublicDraft = (draftId, expectedRevision) => deletePublicDraft(draftId, expectedRevision);
       }
       if (typeof rpc.publishPublicDraft === 'function') {
-        mountOptions.onPublishPublicDraft = (draftId, expectedRevision, expectedPublishedSha256) => publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256);
+        mountOptions.onPublishPublicDraft = publishPublicDraft;
       }
       if (typeof rpc.locateMessage === 'function') {
         mountOptions.onLocateMessage = (peerId, messageId) => readLocatedMessage(peerId, messageId);
@@ -22201,7 +22228,7 @@ function createPanelRuntime({
       ['publicDraftAsset', 'UiPublicDraftAssetRead', [sessionParam, param.draftId, param.assetId]],
       ['importPublicPost', 'UiPublicDraftImportResult', [sessionParam, param.filePath]],
       ['deletePublicDraft', 'UiPublicDraftDelete', [sessionParam, param.draftId, param.revision]],
-      ['publishPublicDraft', 'UiPublishResult', [sessionParam, param.draftId, param.revision, param.publishedSha]],
+      ['publishPublicDraft', 'UiPublishResult', [sessionParam, param.draftId, param.revision, param.publishedSha, param.requestId]],
       ['locateMessage', 'UiLocatedMessage', [sessionParam, param.peerId, param.messageId]],
     ].map(([method, resultType, parameters]) => ({
       id: `${REMOTE_PACKAGE}#ramingaUi/${method}`,

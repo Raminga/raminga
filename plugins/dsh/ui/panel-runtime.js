@@ -598,10 +598,10 @@ export function createPanelRuntime({
     return remoteValue(await rpc.deletePublicDraft(sessionId, draftId, expectedRevision));
   }
 
-  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256) {
+  async function publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256, requestId = '') {
     if (disposed) throw new Error('Raminga panel is closed');
     if (typeof rpc.publishPublicDraft !== 'function') throw new Error('Raminga publication is unavailable');
-    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256));
+    const result = remoteValue(await rpc.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId));
     if (result && (result.status === 'published' || result.status === 'already_published' || result.status === 'partial')) {
       // The daemon already returned the same-snapshot files/digest. Refresh the
       // local published list only after that response, never before.
@@ -906,7 +906,7 @@ export function createPanelRuntime({
         mountOptions.onDeletePublicDraft = (draftId, expectedRevision) => deletePublicDraft(draftId, expectedRevision);
       }
       if (typeof rpc.publishPublicDraft === 'function') {
-        mountOptions.onPublishPublicDraft = (draftId, expectedRevision, expectedPublishedSha256) => publishPublicDraft(draftId, expectedRevision, expectedPublishedSha256);
+        mountOptions.onPublishPublicDraft = publishPublicDraft;
       }
       if (typeof rpc.locateMessage === 'function') {
         mountOptions.onLocateMessage = (peerId, messageId) => readLocatedMessage(peerId, messageId);

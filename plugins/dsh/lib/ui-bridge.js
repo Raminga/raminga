@@ -958,7 +958,7 @@ export class RamingaUiBridge {
             publicDraftAsset: (sessionId, draftId, assetId) => this.publicDraftAsset(sessionId, draftId, assetId),
             importPublicPost: (sessionId, publicPath) => this.importPublicPost(sessionId, publicPath),
             deletePublicDraft: (sessionId, draftId, expectedRevision) => this.deletePublicDraft(sessionId, draftId, expectedRevision),
-            publishPublicDraft: (sessionId, draftId, expectedRevision, expectedPublishedSha256) => this.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256),
+            publishPublicDraft: (sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId) => this.publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId),
             locateMessage: (sessionId, peerId, messageId) => this.locateMessage(sessionId, peerId, messageId),
             getStats: () => this.getStats(),
         };
@@ -5219,7 +5219,7 @@ export class RamingaUiBridge {
         }), { timeoutMs: 8000 }), '删除公开草稿');
         return { deleted: response.deleted === true };
     }
-    async publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256) {
+    async publishPublicDraft(sessionId, draftId, expectedRevision, expectedPublishedSha256, requestId = '') {
         this.assertOpen();
         const session = this.sessionFor(sessionId);
         session.lastPollAt = this.now();
@@ -5228,8 +5228,10 @@ export class RamingaUiBridge {
             draftId: String(draftId ?? ''),
             expectedRevision: BigInt(Math.max(0, Math.trunc(Number(expectedRevision) || 0))),
             expectedPublishedSha256: String(expectedPublishedSha256 ?? ''),
+            requestId: String(requestId ?? ''),
         }), { timeoutMs: 60_000 }), '发布公开草稿');
         const result = {
+            requestId: String(response.requestId ?? ''),
             status: publishStatusFromProto(response.status),
             error: String(response.error ?? ''),
             currentRevision: numberOf(response.currentRevision),

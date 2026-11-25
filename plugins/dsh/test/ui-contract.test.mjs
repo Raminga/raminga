@@ -121,7 +121,7 @@ test('Host Typert manifest names all bridge methods and their parameters', () =>
   assert.deepEqual(byMethod.publicDraftAsset.parameters.map((item) => item.name), ['sessionId', 'draftId', 'assetId']);
   assert.deepEqual(byMethod.importPublicPost.parameters.map((item) => item.name), ['sessionId', 'path']);
   assert.deepEqual(byMethod.deletePublicDraft.parameters.map((item) => item.name), ['sessionId', 'draftId', 'expectedRevision']);
-  assert.deepEqual(byMethod.publishPublicDraft.parameters.map((item) => item.name), ['sessionId', 'draftId', 'expectedRevision', 'expectedPublishedSha256']);
+  assert.deepEqual(byMethod.publishPublicDraft.parameters.map((item) => item.name), ['sessionId', 'draftId', 'expectedRevision', 'expectedPublishedSha256', 'requestId']);
   assert.deepEqual(byMethod.locateMessage.parameters.map((item) => item.name), ['sessionId', 'peerId', 'messageId']);
 });
 

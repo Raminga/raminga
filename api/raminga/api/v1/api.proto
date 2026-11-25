@@ -1792,6 +1792,8 @@ message PublishPublicDraftRequest {
   // An empty value is allowed only for a first publish. A draft that already
   // has published_sha256 must pass the exact current value.
   string expected_published_sha256 = 3;
+  // Optional for profile drafts. Retries must use the same ID and arguments.
+  string request_id = 4;
 }
 message PublishPublicDraftResponse {
   PublicPublishStatus status = 1;
@@ -1805,6 +1807,7 @@ message PublishPublicDraftResponse {
   string profile_path = 9;
   repeated string warnings = 10;
   string manifest_sha256 = 11;
+  string request_id = 12;
 }
 message PeerFriendClaim {
   string name = 1;

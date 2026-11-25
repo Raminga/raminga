@@ -341,7 +341,7 @@ test('public settings exposes real private draft fields and keeps the public-fil
   }
 });
 
-test('public profile drafts save privately and publish only after a second confirmation', async () => {
+test('public profile confirms once, reuses the request on timeout, and creates a new request after a fresh check', async () => {
   const calls = [];
   let draft = {
     draftId: 'profile', kind: 'profile', revision: 0,
@@ -358,9 +358,14 @@ test('public profile drafts save privately and publish only after a second confi
       draft = { ...draft, ...input, revision: draft.revision + 1, agentInterests: [...(input.agentInterests || [])], updatedAtUnixMs: Date.now() };
       return { draft };
     },
-    onPublishPublicDraft: async (draftId, revision, sha) => {
-      calls.push({ kind: 'publish', draftId, revision, sha });
+    onPublishPublicDraft: async (draftId, revision, sha, requestId) => {
+      calls.push({ kind: 'publish', draftId, revision, sha, requestId });
+      if (calls.filter((call) => call.kind === 'publish').length === 1) {
+        draft = { ...draft, publishedSha256: 'f'.repeat(64), publishedRevision: revision };
+        throw new Error('RPC deadline exceeded');
+      }
       return {
+        requestId,
         status: 'published', error: '', currentRevision: revision,
         currentPublishedSha256: 'f'.repeat(64),
         files: [{ path: 'profile/profile.json', sizeBytes: 123, sha256: 'f'.repeat(64) }],
@@ -410,9 +415,28 @@ test('public profile drafts save privately and publish only after a second confi
     assert.equal(publish.draftId, 'profile');
     assert.equal(publish.revision, 1);
     assert.equal(publish.sha, '');
-    assert.match(ui.text('#publicPublishReceipt'), /发布完成/);
+    assert.ok(publish.requestId);
+    assert.equal(ui.text('#publicPublishButton'), '重试本次发布');
+    // A second panel has published a newer version since the response was lost.
+    draft = { ...draft, publishedSha256: 'a'.repeat(64) };
+    ui.click('#publicPublishButton');
+    await settle();
+    await settle();
+    const retry = calls.filter((call) => call.kind === 'publish')[1];
+    assert.deepEqual(retry, publish);
+    assert.match(ui.text('#publicPublishReceipt'), /已确认本次发布，当前公开版本已有更新/);
     assert.match(ui.text('#publicPublishReceiptDetails'), /profile\/profile\.json/);
     assert.match(ui.text('#publicPublishReceiptDetails'), /e{12}/);
+
+    ui.click('#publicPublishButton');
+    await settle();
+    assert.equal(calls.filter((call) => call.kind === 'publish').length, 2, 'rechecking does not publish');
+    ui.click('#publicPublishButton');
+    await settle();
+    const fresh = calls.filter((call) => call.kind === 'publish')[2];
+    assert.ok(fresh.requestId);
+    assert.notEqual(fresh.requestId, publish.requestId);
+    assert.equal(fresh.sha, 'a'.repeat(64));
   } finally {
     ui.close();
   }

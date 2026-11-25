@@ -153,7 +153,7 @@ window.__ModuleLoader__.load({
       ['publicDraftAsset', 'UiPublicDraftAssetRead', [sessionParam, param.draftId, param.assetId]],
       ['importPublicPost', 'UiPublicDraftImportResult', [sessionParam, param.filePath]],
       ['deletePublicDraft', 'UiPublicDraftDelete', [sessionParam, param.draftId, param.revision]],
-      ['publishPublicDraft', 'UiPublishResult', [sessionParam, param.draftId, param.revision, param.publishedSha]],
+      ['publishPublicDraft', 'UiPublishResult', [sessionParam, param.draftId, param.revision, param.publishedSha, param.requestId]],
       ['locateMessage', 'UiLocatedMessage', [sessionParam, param.peerId, param.messageId]],
     ].map(([method, resultType, parameters]) => ({
       id: `${REMOTE_PACKAGE}#ramingaUi/${method}`,

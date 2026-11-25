@@ -161,7 +161,7 @@ export const UI_INVOCATIONS = [
     invocation('publicDraftAsset', ['session', 'draftId', 'assetId'], 'UiPublicDraftAssetRead'),
     invocation('importPublicPost', ['session', 'filePath'], 'UiPublicDraftImportResult'),
     invocation('deletePublicDraft', ['session', 'draftId', 'revision'], 'UiPublicDraftDelete'),
-    invocation('publishPublicDraft', ['session', 'draftId', 'revision', 'publishedSha'], 'UiPublishResult'),
+    invocation('publishPublicDraft', ['session', 'draftId', 'revision', 'publishedSha', 'requestId'], 'UiPublishResult'),
     invocation('locateMessage', ['session', 'peerId', 'messageId'], 'UiLocatedMessage'),
 ];
 export const TYPERT = {
@@ -219,7 +219,7 @@ export const TYPERT = {
                     { kind: 'method', name: 'publicDraftAsset', signature: 'publicDraftAsset(sessionId: string, draftId: string, assetId: string): Promise<UiPublicDraftAssetRead>', summary: 'Read one private draft image bytes scoped by draft and asset id; never exposes a public path.' },
                     { kind: 'method', name: 'importPublicPost', signature: 'importPublicPost(sessionId: string, publicPath: string): Promise<UiPublicDraftImportResult>', summary: 'Open one existing local public post as a private draft that updates the original path.' },
                     { kind: 'method', name: 'deletePublicDraft', signature: 'deletePublicDraft(sessionId: string, draftId: string, expectedRevision: number): Promise<UiPublicDraftDelete>', summary: 'Delete one private draft with revision check.' },
-                    { kind: 'method', name: 'publishPublicDraft', signature: 'publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string): Promise<UiPublishResult>', summary: 'Commit one draft under the daemon publication lock and return real files plus manifest digest.' },
+                    { kind: 'method', name: 'publishPublicDraft', signature: 'publishPublicDraft(sessionId: string, draftId: string, expectedRevision: number, expectedPublishedSha256: string, requestId?: string): Promise<UiPublishResult>', summary: 'Commit one draft under the daemon publication lock and return real files plus manifest digest.' },
                     { kind: 'method', name: 'locateMessage', signature: 'locateMessage(sessionId: string, peerId: string, messageId: string): Promise<UiLocatedMessage>', summary: 'Check whether a Journey message reference is still retained, without substituting another message.' },
                 ],
                 types: [],

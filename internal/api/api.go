@@ -87,7 +87,7 @@ type Backend interface {
 	PutPublicDraftImage(ctx context.Context, draftID, role, filename string, data []byte) (node.PublicDraftAsset, error)
 	ImportPublicPost(ctx context.Context, path string) (node.PublicDraft, error)
 	DeletePublicDraft(ctx context.Context, id string, expectedRevision int64) (bool, error)
-	PublishPublicDraft(ctx context.Context, id string, expectedRevision int64, expectedPublishedSHA string) (node.PublishResult, error)
+	PublishPublicDraft(ctx context.Context, id string, expectedRevision int64, expectedPublishedSHA, requestID string) (node.PublishResult, error)
 	ListDiscoveries(ctx context.Context, before string, limit int, familiarOnly bool, peerID string, postCandidatesOnly bool) (node.PublicDiscoveryPage, error)
 	ListFavorites(ctx context.Context, before string, limit int) (node.FavoritePage, error)
 	SetFavorite(ctx context.Context, peerID, publicPath, sha256, title string, favorite bool) (node.Favorite, bool, error)
@@ -1227,7 +1227,7 @@ func (s *Server) DeletePublicDraft(ctx context.Context, req *connect.Request[api
 
 // PublishPublicDraft runs the atomic publication critical section.
 func (s *Server) PublishPublicDraft(ctx context.Context, req *connect.Request[apiv1.PublishPublicDraftRequest]) (*connect.Response[apiv1.PublishPublicDraftResponse], error) {
-	res, err := s.backend.PublishPublicDraft(ctx, req.Msg.GetDraftId(), int64(req.Msg.GetExpectedRevision()), req.Msg.GetExpectedPublishedSha256())
+	res, err := s.backend.PublishPublicDraft(ctx, req.Msg.GetDraftId(), int64(req.Msg.GetExpectedRevision()), req.Msg.GetExpectedPublishedSha256(), req.Msg.GetRequestId())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -1242,6 +1242,7 @@ func (s *Server) PublishPublicDraft(ctx context.Context, req *connect.Request[ap
 		ProfilePath:               res.ProfilePath,
 		Warnings:                  append([]string{}, res.Warnings...),
 		ManifestSha256:            res.ManifestSHA256,
+		RequestId:                 req.Msg.GetRequestId(),
 	}
 	for _, f := range res.Files {
 		resp.Files = append(resp.Files, &apiv1.PublishFile{Path: f.Path, SizeBytes: f.SizeBytes, Sha256: f.SHA256})

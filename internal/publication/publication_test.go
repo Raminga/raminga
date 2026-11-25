@@ -89,6 +89,8 @@ func TestValidateImageAcceptsReencodesAndRejects(t *testing.T) {
 func TestProfileAndPostPublicationConflictAndIdempotency(t *testing.T) {
 	ctx := context.Background()
 	c, store, public, dir := newCoordinator(t)
+	clock := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	c.now = func() time.Time { return clock }
 	draft, err := c.SaveDraft(ctx, DraftUpdate{
 		DraftID: "profile", Kind: storage.DraftKindProfile, ExpectedRevision: 0,
 		AgentName: strptr("Nebula"), AgentDescription: strptr("喜欢星空"),
@@ -148,6 +150,7 @@ func TestProfileAndPostPublicationConflictAndIdempotency(t *testing.T) {
 		t.Fatalf("stale expected hash = %+v, %v", res, err)
 	}
 	// Same revision and hash is already published and returns the same digest.
+	clock = clock.Add(time.Second)
 	again, err := c.Publish(ctx, draft.DraftID, draft.Revision, res.CurrentPublishedSHA256)
 	if err != nil || again.Status != StatusAlreadyPublished || again.ManifestSHA256 != res.ManifestSHA256 {
 		t.Fatalf("already published = %+v, %v (first digest %s)", again, err, res.ManifestSHA256)

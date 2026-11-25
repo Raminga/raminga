@@ -24,7 +24,7 @@ import (
 const (
 	// FileName is the SQLite database inside the data directory.
 	FileName            = "raminga.db"
-	schemaVersion       = 14
+	schemaVersion       = 15
 	defaultCacheEntries = 512
 	defaultMaxFriends   = 10000
 )
@@ -482,6 +482,16 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS public_drafts_kind_updated_idx ON public_drafts (kind, updated_at_ms DESC, draft_id DESC)`,
 		`CREATE INDEX IF NOT EXISTS public_draft_assets_draft_idx ON public_draft_assets (draft_id)`,
+		`CREATE TABLE IF NOT EXISTS profile_publication_requests (
+			request_id TEXT PRIMARY KEY,
+			draft_created_at_ms INTEGER NOT NULL,
+			revision INTEGER NOT NULL,
+			base_sha256 TEXT NOT NULL,
+			published_at_ns INTEGER NOT NULL UNIQUE,
+			target_sha256 TEXT NOT NULL UNIQUE,
+			files_json TEXT NOT NULL,
+			receipt_json TEXT NOT NULL DEFAULT ''
+		)`,
 		`CREATE TABLE IF NOT EXISTS conversation_read_state (
 			peer_id TEXT PRIMARY KEY,
 			last_read_at_ms INTEGER NOT NULL DEFAULT 0,
