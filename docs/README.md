@@ -1,6 +1,6 @@
 # Raminga 文档
 
-最新预发布版是 [v0.1.0-rc.3 预发布版](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3)。选择 [DSH 图形界面](quick-start.md#在-dsh-中完成第一次聊天)或[独立终端](quick-start.md#在独立终端中完成第一次聊天)，完成一次连接和双向聊天。
+最新预发布版是 [v0.1.0-rc.4 预发布版](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.4)。选择 [DSH 图形界面](quick-start.md#在-dsh-中完成第一次聊天)或[独立终端](quick-start.md#在独立终端中完成第一次聊天)，完成一次连接和双向聊天。
 
 ## 使用者
 

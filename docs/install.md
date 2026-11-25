@@ -1,6 +1,6 @@
 # Raminga 安装与构建指南
 
-当前预发布版为 [v0.1.0-rc.3](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3)，二进制未签名。仅源码构建需要 Go 1.27。首次聊天见[双节点快速开始](quick-start.md)。
+当前预发布版为 [v0.1.0-rc.4](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.4)，二进制未签名。仅源码构建需要 Go 1.27。首次聊天见[双节点快速开始](quick-start.md)。
 
 > **迁移先于第一次运行（最容易搞错的一步）：** 如果要从自定义目录切换到默认的 `~/.raminga`，请在第一次用默认目录运行新版前迁移**整个旧目录**。继续使用自定义目录时，保持原来的 `RAMINGA_DATA_DIR` 或 `--data-dir`。新版一旦先在默认目录启动，就会生成新的 `identity/key` 和 `raminga.db`；此时再 `mv 旧目录 ~/.raminga`，旧目录会被移到 `~/.raminga/<旧目录名>` 里面，默认目录仍由新身份运行。2026-11-06 实际发生过（旧节点在 `~/.raminga/raminga-test`）。完整检查、正确顺序和恢复步骤见 [§4 迁移](#从自定义数据目录迁移到默认目录第一次运行前)。
 
@@ -31,7 +31,7 @@ Codex 不把调用者环境变量传给插件 MCP，因此 `RAMINGA_BIN` / `RAMI
 在系统终端安装明确版本。把 `web` 换成你平时使用的 DSH profile 名称，再重新打开该 profile，从左侧栏进入 Raminga。
 
 ```sh
-dsh plugin --profile web add @raminga/dsh@0.1.0-rc.3
+dsh plugin --profile web add @raminga/dsh@0.1.0-rc.4
 dsh --profile web
 ```
 
@@ -48,7 +48,7 @@ mkdir -p "$dsh_trial/home" "$dsh_trial/data"
 printf '[network]\nlisten_addrs = []\n' > "$dsh_trial/data/config.toml"
 env -u DSH_PROFILE HOME="$dsh_trial/home" DSH_HOME="$dsh_trial/dsh" \
   RAMINGA_DATA_DIR="$dsh_trial/data" \
-  dsh plugin --profile web add @raminga/dsh@0.1.0-rc.3
+  dsh plugin --profile web add @raminga/dsh@0.1.0-rc.4
 env -u DSH_PROFILE HOME="$dsh_trial/home" DSH_HOME="$dsh_trial/dsh" \
   RAMINGA_DATA_DIR="$dsh_trial/data" \
   dsh --profile web --no-open --port 0
@@ -72,7 +72,7 @@ Electron 桌面应用共用同一套 DSH profile/插件。隔离启动时需要�
 
 ### 独立二进制
 
-不需要 Agent 插件时，从 [v0.1.0-rc.3 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
+不需要 Agent 插件时，从 [v0.1.0-rc.4 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.4) 下载对应平台的归档（`raminga_<os>_<arch>.tar.gz`，Windows 为 `.zip`）和同目录的 `SHA256SUMS`，按 [§2](#2-安装预编译包) 校验后运行归档内的 `install.sh` / `install.ps1`；也可以直接下载裸二进制 `raminga_<os>_<arch>[.exe]`。
 
 macOS 上未签名二进制首次运行可能被 Gatekeeper 拦截：右键 `raminga` →“打开”，或执行：
 
@@ -157,7 +157,7 @@ raminga_windows_amd64.zip
 
 ## 2. 安装预编译包
 
-从 [v0.1.0-rc.3 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.3) 下载对应平台归档和 `SHA256SUMS`，放在同一个目录。源码构建产物也可以用同一次构建生成的校验文件。
+从 [v0.1.0-rc.4 发布页](https://github.com/Raminga/raminga/releases/tag/v0.1.0-rc.4) 下载对应平台归档和 `SHA256SUMS`，放在同一个目录。源码构建产物也可以用同一次构建生成的校验文件。
 
 ### macOS / Linux
 
@@ -670,14 +670,14 @@ sudo ufw status
 
 ## 7. 升级与卸载
 
-### 从 v0.1.0-rc.2 升级到 v0.1.0-rc.3
+### 从 v0.1.0-rc.3 升级到 v0.1.0-rc.4
 
 1. 退出 DSH 等可能自动拉起节点的宿主，按原启动方式停掉旧 daemon。自定义数据目录需要显式指定 `raminga stop --data-dir <旧数据目录>`，systemd 服务用 `sudo systemctl stop raminga`。
 2. 将**整个旧数据目录**复制到另一位置。目录包含节点身份、数据库、配置和本机公开内容。默认路径是 `~/.raminga`，使用自定义或 systemd 目录时以原配置为准。
 3. 用同一版本的插件和节点启动原数据目录。DSH 用户在原 profile 执行上面的固定版本安装命令，再打开 DSH。如果配置了 `ramingaBin` 或 `RAMINGA_BIN`，也要更新它指向的外部二进制。独立节点按下方对应的升级步骤操作。
-4. 核对版本与原 Peer ID，并检查已有聊天和公开内容。首次启动会把 rc.2 的数据库 schema 从 8 迁移到 13。目录中的 `raminga.db.bak-8` 是数据库备份，步骤 2 的整目录副本仍应保留。
+4. 核对版本与原 Peer ID，并检查已有聊天和公开内容。首次启动会把 rc.3 的数据库从架构版本 13 迁移到 15。目录中的 `raminga.db.bak-13` 是数据库备份，步骤 2 的整目录副本仍应保留。
 
-如需回退，先退出宿主并停止新版节点，将升级后的目录移到另一位置保留，再把升级前的整目录副本恢复到原路径。重新安装 rc.2 插件与二进制后启动。升级后产生的数据仍留在移出的新版目录中。
+如需回退，先退出宿主并停止新版节点，将升级后的目录移到另一位置保留，再把升级前的整目录副本恢复到原路径。重新安装 rc.3 插件与二进制后启动。升级后产生的数据仍留在移出的新版目录中。
 
 ### 本地日常节点
 

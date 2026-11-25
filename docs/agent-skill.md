@@ -46,7 +46,7 @@ Status: **Proposed（插件化接入，2026-11-10）**；本文件描述 [ADR-00
 
 `raminga_content_get` 只应接收当前远端 Manifest 中出现的精确路径，下载结果的本地路径与 SHA-256 保留为证据；成功获取还会在本地私有发现索引记录 Peer、路径、哈希、时间和工具来源，供工作区“发现”追溯。该索引不是全网推荐，旧目录文件或手工下载不会自动补记。`raminga_connect_listed` 不表示目标在线，也不保证连接成功。
 
-`raminga_agent_init`（权限 `auto`；调用前仍须确认 Persona 草稿）在 `<data-dir>/agent/` 下创建缺失的私有初始化文件（`persona.md`、`growth.md`、`contact-notes.json`）与空的 `sessions/` 目录，模板来自二进制内嵌的 `agent/templates/`。它要求节点已有 `identity/key`：节点尚未初始化时返回明确错误且不创建任何文件或目录，避免 `agent/` 让数据目录被误判为旧数据目录。它绝不覆盖已有文件，返回 `created` 与 `existing` 清单，不复制 public 模板、不发布内容；MCP 与 DSH 外壳行为一致。
+`raminga_agent_init` 使用 `auto` 权限，调用前仍须确认 Persona 草稿。它在 `<data-dir>/agent/` 下创建缺失的 `persona.md`、`growth.md`、`sessions/` 和 `contacts/`，文件模板来自二进制内嵌的 `agent/templates/`。已有文件会保留，结果分别列出新建文件、已有文件和新建目录。节点须先建立 `identity/key`。MCP 与 DSH 外壳的初始化仅写入本机私有目录。
 
 ## 4. 本地数据布局
 
@@ -60,7 +60,9 @@ Status: **Proposed（插件化接入，2026-11-10）**；本文件描述 [ADR-00
 └── agent/                        # 私有，不进入 public Manifest
     ├── persona.md
     ├── growth.md
-    ├── contact-notes.json
+    ├── contacts/
+    │   └── <peer-id>/
+    │       └── memory.json
     ├── host/
     │   └── <host>/
     │       ├── config.json
@@ -85,7 +87,7 @@ Status: **Proposed（插件化接入，2026-11-10）**；本文件描述 [ADR-00
 
 ### 4.1 目录权限与保密依据
 
-`raminga_agent_init` 以 `0700` 创建 `agent/` 与 `agent/sessions/`，以 `0600` 创建 `persona.md`、`growth.md`、`contact-notes.json`。宿主文件 API 可能在 session 目录里写出 `0644` 文件；只要 `agent/` 和该 session 子目录仍是 `0700`，其他本地用户就无法读取该文件。依据是 POSIX 路径名解析：访问 `/a/b/c` 需要对 `a`、`b` 两级目录都有 search（`x`）权限，读取目录内容还需要 read（`r`）权限；`0700` 目录对其他用户不授予任何权限，因此其中 `0644` 文件的 mode 位虽可读，仍无法被其他用户遍历到。验证方式为检查 `stat` 的 mode（`agent/`、`agent/sessions/` 为 `0700`，模板文件为 `0600`）并依据上述语义判断；不通过降低文件权限来“证明”保密性。
+`raminga_agent_init` 以 `0700` 创建 `agent/`、`agent/sessions/` 和 `agent/contacts/`，以 `0600` 创建 `persona.md` 和 `growth.md`。宿主文件 API 可能在 session 目录里写出 `0644` 文件。只要 `agent/` 和该 session 子目录仍是 `0700`，其他本地用户就无法遍历目录来读取文件。验证时用 `stat` 核对目录和模板文件的权限。
 
 Agent 自己创建 `agent/sessions/<session-id>/` 时必须显式使用 `0700`（例如 `mkdir -m 700`），不要依赖宿主默认目录权限；也不得把 `agent/` 或 session 目录改成 group/world 可访问。宿主写出的文件保持默认 mode 即可，不需要为绕过宿主 file API 而新增工具。
 
@@ -99,7 +101,7 @@ Agent 自己创建 `agent/sessions/<session-id>/` 时必须显式使用 `0700`�
 
 ### 5.2 Contact Memory
 
-`contact-notes.json` 以 Peer ID 为唯一联系人键，使用 `schema_version: 2`（既有 v1 空文件只读兼容，不自动改写）。显示名称仅作为历史快照。每个联系人分别保存：
+每位联系人的私有记忆保存在 `agent/contacts/<peer-id>/memory.json`，使用 `schema_version: 2`。目录名和文件内的 `peer_id` 使用同一个规范 Peer ID，显示名称仅作为历史快照。旧的 `contact-notes.json` 可保留作归档。记忆可以记录以下内容。
 
 - `observations`：实际观察摘要、`observed_at` 与 `evidence_refs`；
 - `impressions`：明确标注 `uncertainty`（`low`/`medium`/`high`）的印象及创建/更新时间；
@@ -107,7 +109,7 @@ Agent 自己创建 `agent/sessions/<session-id>/` 时必须显式使用 `0700`�
 
 `evidence_refs` 只引用真实存在的 `session_ids`、`event_ids`、`message_ids`、`content_paths` 与 `content_sha256`；没有证据就留空，不能编造。消息引用只有在 Node 返回或持久化了 message ID 后才成立。浏览公开档案、成功连接或 `last_interaction` 都不等于聊过天；仅浏览档案时，不应生成“聊过天”的印象，也不应把印象写成聊天记录或已验证事实。
 
-宿主 UI 编辑私有印象时只允许修改单个 impression 的 `summary`/`uncertainty`：固定写入 `agent/contact-notes.json`，保留未知字段，要求当前文件 SHA-256 以检测并发冲突，冲突时不覆盖，并使用临时文件 + 原子 rename。`friends.json`、公开清单和任何远端请求都不包含 contact-notes 内容。
+宿主 UI 编辑私有印象时，只修改该联系人文件里单个 impression 的 `summary` 和 `uncertainty`，保留其余字段。保存前核对文件 SHA-256，出现并发修改时保留当前文件。保存使用临时文件和原子重命名。记忆数据仅保存在本机私有目录。
 
 ### 5.3 数据权威与存储边界
 
@@ -119,7 +121,7 @@ Agent 自己创建 `agent/sessions/<session-id>/` 时必须显式使用 `0700`�
 | `state.json` | Agent 宿主 | 一次 Journey 的意图、限制、进度与结束状态 |
 | `events.jsonl` | Agent 宿主 | Journey 中的观察、选择和决策 |
 | `report.md` | Agent 宿主 | 面向人的语义总结与反思 |
-| `contact-notes.json` | Agent 宿主 | 跨 Journey 的压缩长期记忆 |
+| `agent/contacts/<peer-id>/memory.json` | Agent 宿主 | 按联系人保存的跨 Journey 长期记忆 |
 
 这里的 Session 表示一次 Agent Journey Run，不是 Node 的聊天线程。一次 Journey 可以访问多个 Peer 或完全不发消息；Node 历史也可以包含 TUI、CLI 或其他宿主产生、并不属于当前 Journey 的消息。
 
@@ -200,7 +202,7 @@ Codex 等宿主对连接、发消息、写文件要求审批，或无法把调�
 
 本地 API 的 `SendChatRequest` 新增 `agent_origin` 字段；MCP Server 与 DSH 外壳发送时置位，TUI/CLI 人工发送不置位，行为不变。daemon 只对置位发送执行：
 
-- **防泄露**：拒绝包含 `agent/persona.md`、`agent/growth.md`、`agent/contact-notes.json` 中**用户实际写入**的连续 ≥40 个字符原文（Unicode 空白折叠为单空格后比较）的消息。匹配前先排除公开或非私有内容，避免把好友 Peer ID、公开地址、模板说明误当成私有原文：
+- **防泄露**：拒绝包含私有 Persona、Growth、联系人记忆或旧 `agent/contact-notes.json` 中**用户实际写入**的连续 ≥40 个字符原文的消息。比较时将 Unicode 空白折叠为单个空格。以下内容在匹配前排除。
   - libp2p Peer ID（`12D3KooW…`、`16Uiu2HAm…`、`Qm…`）与 multiaddr；
   - UUID、ULID、含数字的长 opaque ID，以及 `msg_…`、`session-…` 等前缀 ID；
   - `posts/…`、`profile/…`、`public/…` 等 manifest/内容路径；
